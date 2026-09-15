@@ -5,6 +5,7 @@ const requiredRoutes = [
   "/dashboard",
   "/accounts",
   "/product-radar",
+  "/recommendations",
   "/categories",
   "/creative-studio",
   "/video-factory",
@@ -22,4 +23,3 @@ describe("application navigation", () => {
     expect(new Set(routes).size).toBe(routes.length);
   });
 });
-

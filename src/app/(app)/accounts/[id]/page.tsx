@@ -10,6 +10,9 @@ import {
 import { getAccountDetailData } from "@/features/accounts/queries";
 import type { ReadinessBlockerCode } from "@/features/accounts/types";
 import { createClient } from "@/lib/supabase/server";
+import { getRecommendationData } from "@/features/assignments/services";
+import { getRecommendationsForAccount } from "@/features/assignments/planner";
+import { RecommendationTable } from "@/components/recommendation-table";
 
 export const metadata: Metadata = { title: "รายละเอียดบัญชี" };
 
@@ -30,6 +33,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
 
   const { account, stats, affinities } = await getAccountDetailData(supabase, ownerId, id);
   if (!account) notFound();
+  const recommendations = await getRecommendationData(supabase, ownerId);
 
   const readiness = getAccountAffiliateReadiness(account);
   const performance = getAccountPerformanceSummary(stats);
@@ -37,6 +41,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
 
   return (
     <>
+      <section className="panel radar-section"><h2>Recommended Products Today</h2><RecommendationTable input={recommendations.input} scores={getRecommendationsForAccount(recommendations.plan,id).map(a=>a.score)}/></section>
       <PageHeading eyebrow="ACCOUNT DETAIL" title={account.display_name} description={`@${account.username} · ข้อมูลจริงจาก Supabase`} action={<Link className="secondary-action" href="/accounts">← กลับหน้าบัญชี</Link>} />
 
       <section className="detail-summary-grid">
