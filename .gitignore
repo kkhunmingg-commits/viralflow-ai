@@ -10,4 +10,5 @@ coverage/
 .DS_Store
 *.tsbuildinfo
 supabase/.temp/
+.video-cache/
 

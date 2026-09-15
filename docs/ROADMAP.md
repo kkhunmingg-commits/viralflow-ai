@@ -2,7 +2,7 @@
 
 ## Current status
 
-Phases 1–5B are complete. Phase 5B Creative Brain is implemented and verified on `feature/creative-brain`, with structured eight-second concepts, mode-aware strategy, versioned prompts, provider abstraction, deterministic scoring and diversity, risk checks, cost history, and verified owner isolation. Authenticated browser verification passed for Growth and Affiliate workflows using the deterministic mock provider, and the temporary auth user plus all cascading test data were removed. Production TikTok, video rendering, and Vercel deployment remain outside this phase.
+Phases 1–6 are complete. Phase 6 turns a selected SAFE Creative Brain project into a reusable master and controlled variations through local FFmpeg, private Supabase media storage, deterministic quality and similarity gates, retry-safe jobs, and a zero-cost-first router. Authenticated browser verification produced and played a real vertical MP4, exercised approval/rejection/retry, and confirmed zero provider cost. Paid providers, TikTok production APIs, and production deployment remain outside this phase.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -13,14 +13,14 @@ Phases 1–5B are complete. Phase 5B Creative Brain is implemented and verified 
 | 4 | Category intelligence and scoring | Complete |
 | 5A | Product × Category × Account Assignment | Complete |
 | 5B | Creative Brain | Complete |
-| 6 | Video Factory, variation engine, cost router | Not started |
+| 6 | Video Factory, variation engine, cost router | Complete |
 | 7 | TikTok OAuth and approved publishing | Blocked on platform approval |
 | 8 | TikTok Shop Creator APIs and product attachment | Blocked on market/scope approval |
 | 9 | Analytics and learning loop | Not started |
 | 10 | One-click Auto Mode | Not started |
 | 11 | Security, performance, and production review | Not started |
 
-## Phase 5B boundary
+## Phase 6 boundary
 
-Creative Brain converts an eligible daily assignment into five validated and diverse eight-second concepts for the assigned account mode. It stores the project, angles, editable scripts, selection state, and append-only provider/cost evidence under `creative-brain-v1`. Development defaults to the deterministic mock provider, while the OpenAI adapter remains environment-controlled. See `CREATIVE_BRAIN.md` for the provider contract, schema, score, diversity thresholds, risk rules, and fixture expectations. The migration, RLS, rollback, authenticated browser flow, unit, lint, type, and production-build checks pass. The browser run covered Growth and Affiliate generation plus select, edit, reject, and regenerate with an empty final warning/error log. The supported Auth Admin API removed the temporary verified user and all related application rows. One legacy malformed auth user still cannot be loaded or deleted by GoTrue and requires owner/Supabase Support action. Phase 6 Video Factory has not started.
+Video Factory consumes the selected Creative Brain timeline without replacing its creative logic. It stores private owner-scoped media, one reusable master per creative project, deterministic controlled variations, generation history, quality explanations, and append-only cost evidence. See `VIDEO_FACTORY.md` and `COST_ROUTER.md` for interfaces, formulas, thresholds, storage, idempotency, budgets, and future-provider gates. The Phase 6 migration, rollback validation, live RLS/storage tests, real FFmpeg output, authenticated browser flow, unit checks, lint, type check, and production build pass. The temporary verification user, rows, and storage objects were removed. Future paid-provider activation and TikTok production integration require separate authorization.
 

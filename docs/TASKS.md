@@ -77,7 +77,21 @@ Updated 16 September 2026.
 - [x] Run the final Security Advisor and quality suite; record the project-level leaked-password-protection warning for the owner.
 - [x] Commit and push `feature/creative-brain` without starting Phase 6.
 
+## Phase 6 — Video Factory
+
+- [x] Add owner-isolated media assets, master videos, controlled variations, generation jobs, append-only costs, account budgets, and a private storage bucket.
+- [x] Implement provider interfaces, deterministic mock providers, eight commerce templates, and disabled future paid-provider adapters.
+- [x] Render and ffprobe a real 8-second 1080×1920, 30 fps, H.264/AAC MP4 with local FFmpeg.
+- [x] Implement reusable master generation, deterministic variations, metadata similarity under 0.82, and `video-quality-v1` quality gates.
+- [x] Implement zero-cost-first routing, three budget ceilings, job state, bounded retry, stable idempotency keys, and duplicate-safe cost evidence.
+- [x] Connect selected Creative Studio projects to `/video-factory` and `/video-factory/[id]` with preview, actions, quality, cost, variation, and history views.
+- [x] Apply the Phase 6 migration once and verify owner access, cross-owner denial, anonymous denial, private storage ownership, immutable costs, and retry keys.
+- [x] Verify the full authenticated browser flow, master/variation rendering, approve/reject/retry, exact media metadata, similarity, zero cost, and a clean final console.
+- [x] Remove the temporary Phase 6 auth user and all cascading application/storage data; verify cleanup.
+- [x] Run final typecheck, lint, tests, production build, migration-history check, and Security Advisor.
+- [x] Document Video Factory and Cost Router architecture, scores, thresholds, budgets, adapters, and benchmark plan.
+
 ## Stop gate
 
-Phase 5B scope ends here. Phase 6 Video Factory has not started and requires separate authorization.
+Phase 6 scope ends here. TikTok production integration and paid video providers have not started and require separate authorization.
 
