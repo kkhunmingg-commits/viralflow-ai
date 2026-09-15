@@ -45,6 +45,31 @@
 @media(max-width:1050px) { .radar-filters { grid-template-columns:repeat(2,1fr); } .product-detail-summary { grid-template-columns:100px 1fr; } .product-detail-summary .product-image { width:100px; height:100px; } }
 @media(max-width:580px) { .radar-filters,.score-breakdown,.product-detail-summary { grid-template-columns:1fr; } }
 
+/* Creative Brain */
+.creative-grid,.creative-concepts { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+.creative-project-card { display:grid; grid-template-columns:auto 1fr; gap:8px 12px; }
+.creative-project-card h2,.creative-project-card p,.creative-project-card small { grid-column:1/-1; margin:0; }
+.creative-project-card h2 { margin-top:10px; font-size:17px; }
+.creative-project-card p,.creative-project-card small { color:var(--muted); font-size:11px; }
+.creative-context { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-bottom:14px; }
+.creative-context p { margin:5px 0 0; color:var(--muted); font-size:11px; }
+.creative-generate { margin:14px 0; }
+.creative-card { font-size:12px; line-height:1.6; }
+.creative-card.selected { border:2px solid #8bbf2e; }
+.creative-card h3 { font-size:20px; margin:4px 0 12px; }
+.creative-card .panel-heading h2 { margin-top:8px; }
+.creative-score { font-size:28px; color:#326a42; }
+.risk-badge { padding:5px 8px; border-radius:6px; font-size:9px; font-weight:800; }
+.risk-safe { color:#39723d; background:#e8f7e9; }
+.risk-review { color:#7d5000; background:#fff0bd; }
+.risk-reject { color:#a14937; background:#fff0ea; }
+.creative-edit { margin-top:14px; padding-top:12px; border-top:1px solid var(--line); }
+.creative-edit summary { cursor:pointer; font-weight:800; }
+.creative-edit form,.creative-edit label { display:grid; gap:7px; }
+.creative-edit form { margin-top:12px; }
+.creative-edit input,.creative-edit textarea { width:100%; padding:10px; border:1px solid var(--line); border-radius:8px; }
+@media(max-width:900px){.creative-grid,.creative-concepts,.creative-context{grid-template-columns:1fr;}}
+
 
 :root {
   --ink: #11223d;
