@@ -80,7 +80,7 @@ export function getAccountCategoryAffinity(
   affinities: AccountCategoryAffinity[],
 ) {
   return affinities.toSorted((left, right) => {
-    const scoreDifference = Number(right.score) - Number(left.score);
+    const scoreDifference = Number(right.affinity_score ?? right.score) - Number(left.affinity_score ?? left.score);
     return scoreDifference || Number(right.confidence) - Number(left.confidence);
   });
 }

@@ -22,6 +22,14 @@
 .trend-falling { background:#ffebe7; color:#a33f36; }
 .trend-stable { background:#e8edff; color:#4560a1; }
 .trend-low_data { background:#eef0f4; color:#637187; }
+.category-link { display:grid; min-width:150px; }
+.category-state { display:inline-flex; width:max-content; padding:6px 9px; border-radius:6px; font-size:9px; font-weight:800; }
+.state-hot { color:#7d5000; background:#fff0bd; }
+.state-rising { color:#376b24; background:#e8f5da; }
+.state-stable { color:#4560a1; background:#e8edff; }
+.state-falling { color:#a33f36; background:#ffebe7; }
+.state-saturated { color:#7b478c; background:#f3e8f8; }
+.state-low_data { color:#637187; background:#eef0f4; }
 .radar-note { font-size:12px; line-height:1.8; }
 .product-detail-summary { display:grid; grid-template-columns:160px 1fr auto; align-items:center; gap:24px; margin-bottom:18px; }
 .product-detail-summary p { font-size:13px; }

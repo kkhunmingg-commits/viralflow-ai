@@ -60,6 +60,7 @@ export interface AccountCategoryAffinity {
   tiktok_account_id: string;
   category_key: string;
   score: number | string;
+  affinity_score: number | string;
   confidence: number | string;
   sample_size: number;
   views: number;
@@ -69,6 +70,11 @@ export interface AccountCategoryAffinity {
   orders: number;
   gmv: number | string;
   commission: number | string;
+  engagement_rate: number | string;
+  follow_conversion: number | string;
+  ctr: number | string;
+  conversion_rate: number | string;
+  commission_per_1000_views: number | string;
   last_calculated_at: string | null;
   created_at: string;
   updated_at: string;

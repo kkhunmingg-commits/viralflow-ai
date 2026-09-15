@@ -32,6 +32,19 @@ Updated 15 September 2026.
 
 - [x] Final pnpm typecheck, lint, tests (34/34 across 4 files) and production build passed on 15 September 2026.
 
+## Phase 4 — Category Intelligence
+
+- [x] Add owner-isolated `categories`, immutable `category_snapshots`, and versioned `category_scores`.
+- [x] Extend account/category affinity with mode-aware performance signals and confidence shrinkage.
+- [x] Implement `category-momentum-v1`, commercial opportunity, saturation, state classification, and A–F fixtures.
+- [x] Connect `/categories`, `/categories/[id]`, filters, sorting, account fit, and Product Radar category signals to Supabase.
+- [x] Verify new account creation after granting authenticated execution of `private.account_effective_mode`.
+- [x] Verify live RLS: owner access succeeds; cross-owner and anonymous access fail; snapshot and score history is immutable.
+- [x] Verify browser flows and a clean console, including the placeholder-image loading fix.
+- [x] Remove the temporary Phase 4 verification owner and all cascading account, product, and category records.
+- [x] Confirm one Phase 4 migration entry and no Supabase Security Advisor findings.
+- [x] Document exact formulas, thresholds, confidence rules, account-mode differences, and fixture expectations in `CATEGORY_SCORING.md`.
+
 ## Stop gate
 
-Phase 3 scope ends here. Phase 4 Category Intelligence has not started and requires separate authorization.
+Phase 4 scope ends here. Phase 5 Creative Brain has not started and requires separate authorization.
