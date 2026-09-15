@@ -5,6 +5,7 @@ const requiredRoutes = [
   "/dashboard",
   "/accounts",
   "/product-radar",
+  "/recommendations",
   "/categories",
   "/creative-studio",
   "/video-factory",

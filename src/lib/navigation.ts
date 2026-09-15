@@ -2,6 +2,7 @@ export const navigation = [
   { href: "/dashboard", label: "ภาพรวม", short: "OV" },
   { href: "/accounts", label: "บัญชี TikTok", short: "AC" },
   { href: "/product-radar", label: "Product Radar", short: "PR" },
+  { href: "/recommendations", label: "คำแนะนำวันนี้", short: "RC" },
   { href: "/categories", label: "หมวดหมู่", short: "CA" },
   { href: "/creative-studio", label: "Creative Studio", short: "CS" },
   { href: "/video-factory", label: "Video Factory", short: "VF" },

@@ -45,6 +45,20 @@ Updated 15 September 2026.
 - [x] Confirm one Phase 4 migration entry and no Supabase Security Advisor findings.
 - [x] Document exact formulas, thresholds, confidence rules, account-mode differences, and fixture expectations in `CATEGORY_SCORING.md`.
 
+## Phase 5A — Product × Category × Account Assignment
+
+- [x] Add owner-isolated, immutable `account_product_scores` and daily `product_assignments`.
+- [x] Implement Growth and Affiliate fit formulas, confidence/freshness adjustments, competition and saturation handling, and eligibility blockers.
+- [x] Implement a deterministic daily planner with post limits, preserved decisions, and cross-account diversification.
+- [x] Add `/recommendations`, account recommendation panels, Product Radar account signals, explanations, and account/mode/category/min-score filters.
+- [x] Verify deterministic P1–P7 rankings, low-data blocking, and strongest-fit-first diversification.
+- [x] Verify live RLS, including forged cross-owner IDs, and immutable score history.
+- [x] Verify exact retry and intentional same-day re-run idempotency: no duplicate scores for one run and no duplicate active account-product-day assignments.
+- [x] Verify browser flows with a clean console and persist 21 scores / 6 assignments during the controlled test.
+- [x] Remove only the temporary Phase 5A owner and cascading verification rows; preserve source-controlled fixtures.
+- [x] Confirm one Phase 5A migration entry and no Supabase Security Advisor findings.
+- [x] Document formulas, planner policy, idempotency, and verification evidence in `ACCOUNT_PRODUCT_ASSIGNMENT.md`.
+
 ## Stop gate
 
-Phase 4 scope ends here. Phase 5 Creative Brain has not started and requires separate authorization.
+Phase 5A scope ends here. Phase 5B Creative Brain has not started and requires separate authorization.
