@@ -1,6 +1,6 @@
 # ViralFlow AI tasks
 
-Updated 15 September 2026.
+Updated 16 September 2026.
 
 ## Phase 1 — Foundation
 
@@ -69,11 +69,15 @@ Updated 15 September 2026.
 - [x] Store prompt/provider/model/token/cost metadata under prompt version `creative-brain-v1`.
 - [x] Verify deterministic Growth Beauty, Affiliate Home, Affiliate Gadget, blocked low-data, lifecycle, cost, schema, diversity, and risk fixtures.
 - [x] Apply the Phase 5B migration once and verify owner access, cross-owner/forged-owner denial, anonymous denial, and immutable generation history.
-- [ ] Complete authenticated browser verification. The current environment has no Supabase Admin API credential; no browser-login workaround or direct `auth.users` SQL is permitted.
-- [x] Remove all public application data for the temporary Phase 5B owner and verify zero remaining profile, account, product, category, assignment, project, angle, script, and generation rows.
+- [x] Complete authenticated browser verification using a temporary verified user created and removed through the supported Supabase Auth Admin API.
+- [x] Verify Growth and Affiliate generation, generate/select/edit/reject/regenerate, exact eight-second scene timing, diversity, SAFE browser output, provider/model/token/cost metadata, and a clean final browser console.
+- [x] Confirm browser verification used only `MockAIProvider` (`viralflow-deterministic-v1`, US$0.0000); `OpenAIProvider` was not called.
+- [x] Remove the temporary Phase 5B auth user and all cascading application data; verify zero remaining profile, account, product, category, snapshot, score, assignment, project, angle, script, and generation rows.
+- [x] Retry deletion of legacy malformed auth user `d5b4c23d-4fbe-4ed8-9197-456fdd6df55e` once through `auth.admin.deleteUser()` only; GoTrue still returns `Database error loading user`, so owner action remains required.
 - [x] Run the final Security Advisor and quality suite; record the project-level leaked-password-protection warning for the owner.
 - [x] Commit and push `feature/creative-brain` without starting Phase 6.
 
 ## Stop gate
 
 Phase 5B scope ends here. Phase 6 Video Factory has not started and requires separate authorization.
+
