@@ -58,7 +58,7 @@ export async function getAccountDetailData(
       .select("*")
       .eq("owner_id", ownerId)
       .eq("tiktok_account_id", accountId)
-      .order("score", { ascending: false }),
+      .order("affinity_score", { ascending: false }),
   ]);
 
   if (accountResult.error) throw accountResult.error;

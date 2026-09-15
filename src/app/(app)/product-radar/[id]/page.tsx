@@ -5,15 +5,18 @@ import { PageHeading } from "@/components/page-heading";
 import { ProductImage,TrendBadge,money,number } from "@/components/product-presentation";
 import { createClient } from "@/lib/supabase/server";
 import { getProductDetail } from "@/features/products/services";
+import { getCategorySignals } from "@/features/categories/services";
+import { CategoryStateBadge } from "@/components/category-presentation";
 export default async function ProductDetailPage({params}:{params:Promise<{id:string}>}) {
   const {id}=await params;
   if(!z.uuid().safeParse(id).success) notFound();
   const client=await createClient();
   const {data}=await client.auth.getUser();
   if(!data.user) redirect("/login");
-  const result=await getProductDetail(client,data.user.id,id);
+  const [result,categorySignals]=await Promise.all([getProductDetail(client,data.user.id,id),getCategorySignals(client,data.user.id)]);
   if(!result) notFound();
   const {product:p,score:s,snapshots,scores}=result;
+  const category=categorySignals.get(p.category_key);
   return <>
     <PageHeading eyebrow="PRODUCT INTELLIGENCE" title={p.title} description={`${p.category_key} · ${p.external_provider} · ${p.currency}`} action={<Link className="secondary-action" href="/product-radar">← กลับ Radar</Link>} />
     <section className="panel product-detail-summary">
@@ -22,6 +25,7 @@ export default async function ProductDetailPage({params}:{params:Promise<{id:str
         <p>คอมมิชชัน {number(p.commission_rate*100)}% · {money(p.commission_amount)} ต่อชิ้น</p>
         <p>ยอดสะสม {number(p.units_sold)} · คะแนนรีวิว {p.rating??"—"} / 5 ({number(p.review_count)} รีวิว)</p>
         <p>สถานะ {p.status} · ข้อมูลล่าสุด {new Date(p.last_seen_at).toLocaleString("th-TH",{timeZone:"Asia/Bangkok"})}</p>
+        <p>Category {category?<><CategoryStateBadge state={category.state}/> · Momentum {number(category.momentum)}</>:"ยังไม่มีคะแนนหมวดหมู่"}</p>
         {p.product_url?<a className="account-detail-link" href={p.product_url} target="_blank" rel="noopener noreferrer">เปิดหน้าสินค้า ↗</a>:null}
       </div>
       <div className="product-score-large"><strong>{s?number(s.viral_opportunity_base_score):"—"}</strong><span>Viral Opportunity / 100</span>{s?<TrendBadge trend={s.explanation_json.trend}/>:null}</div>

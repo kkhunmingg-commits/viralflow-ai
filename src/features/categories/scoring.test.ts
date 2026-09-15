@@ -1,0 +1,17 @@
+import {describe,expect,it} from "vitest";
+import {categoryFixtureInputs,fixtureAccounts,CATEGORY_FIXTURE_TIME} from "./fixtures";
+import {aggregateCategorySnapshot,calculateAccountCategoryAffinity,calculateAccountCategoryFit,calculateCategoryMomentum,calculateCategorySaturation,CATEGORY_SCORE_VERSION} from "./scoring";
+
+const result=(id:string)=>{const aggregate=aggregateCategorySnapshot(categoryFixtureInputs(id),CATEGORY_FIXTURE_TIME);return{aggregate,score:calculateCategoryMomentum(aggregate,new Date(CATEGORY_FIXTURE_TIME))};};
+describe("category-momentum-v1",()=>{
+ it("ranks broad acceleration above a single giant outlier",()=>{expect(result("B").score.category_momentum_score).toBeGreaterThan(result("A").score.category_momentum_score);expect(result("A").aggregate.snapshot.median_product_momentum).toBe(12);});
+ it("classifies saturation and low data safely",()=>{expect(result("C").score.state).toBe("SATURATED");expect(result("D").score.state).toBe("LOW_DATA");expect(result("B").score.state).toBe("HOT");});
+ it("separates trend from affiliate economics",()=>{expect(result("E").score.category_momentum_score).toBeGreaterThan(result("F").score.category_momentum_score);expect(result("F").score.commercial_opportunity_score).toBeGreaterThan(result("E").score.commercial_opportunity_score);});
+ it("returns deterministic bounded components and version",()=>{for(const id of "ABCDEF"){const a=result(id).score;expect(a).toEqual(result(id).score);expect(a.score_version).toBe(CATEGORY_SCORE_VERSION);for(const value of [a.category_momentum_score,a.commercial_opportunity_score,a.breadth_component,a.saturation_component]){expect(value).toBeGreaterThanOrEqual(0);expect(value).toBeLessThanOrEqual(100);}}});
+ it("increases saturation for crowded, competitive, slowing categories",()=>{expect(calculateCategorySaturation({productCount:30,competition:.9,velocity:80,acceleration:-.8,creative:.1})).toBeGreaterThan(calculateCategorySaturation({productCount:5,competition:.2,velocity:20,acceleration:.5,creative:.9}));});
+});
+describe("account affinity and fit",()=>{
+ it("shrinks one lucky post toward neutral",()=>{const lucky=calculateAccountCategoryAffinity({mode:"AFFILIATE",sampleSize:1,views:100,engagements:40,followersGained:20,productClicks:50,orders:30,gmv:20000,commission:5000});expect(lucky.confidence).toBeLessThan(.02);expect(lucky.affinity_score).toBeCloseTo(.5,1);});
+ it("uses different Growth and Affiliate signals",()=>{const base={sampleSize:30,views:100000,engagements:12000,followersGained:1800,productClicks:1000,orders:30,gmv:18000,commission:2500};expect(calculateAccountCategoryAffinity({...base,mode:"GROWTH"}).affinity_score).toBeGreaterThan(calculateAccountCategoryAffinity({...base,mode:"AFFILIATE"}).affinity_score);});
+ it("selects Beauty for Growth, Home and Gadgets for their affiliate histories",()=>{const [growth,home,gadget]=fixtureAccounts();const beauty=result("E").score,homeCategory=result("B").score,gadgetCategory=result("F").score;const high={affinity_score:.9,confidence:.9},low={affinity_score:.2,confidence:.9};expect(calculateAccountCategoryFit(growth,beauty,high).score).toBeGreaterThan(calculateAccountCategoryFit(growth,homeCategory,low).score);expect(calculateAccountCategoryFit(home,homeCategory,high).score).toBeGreaterThan(calculateAccountCategoryFit(home,gadgetCategory,low).score);expect(calculateAccountCategoryFit(gadget,gadgetCategory,high).score).toBeGreaterThan(calculateAccountCategoryFit(gadget,homeCategory,low).score);});
+});

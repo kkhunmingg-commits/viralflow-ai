@@ -1,4 +1,21 @@
-import { EmptyState } from "@/components/empty-state";
-import { PageHeading } from "@/components/page-heading";
-export default function CategoriesPage() { return <><PageHeading eyebrow="CATEGORY INTELLIGENCE" title="Category Radar" description="เปรียบเทียบโมเมนตัมและความเหมาะสมของหมวดหมู่" /><EmptyState code="CA" title="Category intelligence" description="คะแนนหมวดหมู่และแนวโน้มจะเริ่มใน Phase 4" /></>; }
-
+import Link from "next/link";
+import {redirect} from "next/navigation";
+import {z} from "zod";
+import {PageHeading} from "@/components/page-heading";
+import {CategoryStateBadge,number} from "@/components/category-presentation";
+import {createClient} from "@/lib/supabase/server";
+import {getCategoryRadar} from "@/features/categories/services";
+import {CategoryBuildForm} from "@/components/category-build-form";
+import {serverEnv} from "@/lib/server-env";
+const schema=z.object({state:z.enum(["HOT","RISING","STABLE","FALLING","SATURATED","LOW_DATA"]).optional().catch(undefined),minMomentum:z.coerce.number().min(0).max(100).catch(0),minConfidence:z.coerce.number().min(0).max(1).catch(0),minCommercial:z.coerce.number().min(0).max(100).catch(0),account:z.string().uuid().optional().catch(undefined),sort:z.enum(["relevant","momentum","commercial","acceleration","fit"]).catch("relevant")});
+export default async function CategoriesPage({searchParams}:{searchParams:Promise<Record<string,string|string[]|undefined>>}){const filters=schema.parse(await searchParams);const client=await createClient();const {data}=await client.auth.getUser();if(!data.user)redirect("/login");const {items,accounts,total}=await getCategoryRadar(client,data.user.id,filters);return <>
+ <PageHeading eyebrow="CATEGORY INTELLIGENCE" title="Category Radar" description="ค้นหาหมวดที่กำลังเร่งตัว กระจายแรงไปหลายสินค้า และเหมาะกับแต่ละบัญชี" action={process.env.NODE_ENV==="development"&&serverEnv.allowDevMockSeed?<CategoryBuildForm/>:undefined}/>
+ <section className="panel radar-section"><form className="radar-filters">
+  <label>สถานะ<select name="state" defaultValue={filters.state??""}><option value="">ทั้งหมด</option>{["HOT","RISING","STABLE","FALLING","SATURATED","LOW_DATA"].map(s=><option key={s}>{s}</option>)}</select></label>
+  <label>Momentum ขั้นต่ำ<input name="minMomentum" type="number" min="0" max="100" defaultValue={filters.minMomentum}/></label><label>Confidence ขั้นต่ำ<input name="minConfidence" type="number" min="0" max="1" step=".05" defaultValue={filters.minConfidence}/></label><label>Commercial ขั้นต่ำ<input name="minCommercial" type="number" min="0" max="100" defaultValue={filters.minCommercial}/></label>
+  <label>บัญชี<select name="account" defaultValue={filters.account??""}><option value="">ทุกบัญชี</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.display_name}</option>)}</select></label><label>เรียงลำดับ<select name="sort" defaultValue={filters.sort}><option value="relevant">Relevant opportunity</option><option value="momentum">Momentum</option><option value="commercial">Commercial</option><option value="acceleration">Acceleration</option><option value="fit">Best account fit</option></select></label>
+  <div className="form-actions"><button className="primary-action">ใช้ตัวกรอง</button><Link className="secondary-action" href="/categories">ล้างค่า</Link></div>
+ </form></section>
+ <section className="panel"><div className="panel-heading"><div><p className="eyebrow">ROBUST CATEGORY RADAR</p><h2>{items.length} / {total} หมวดหมู่</h2></div><span className="phase-chip">category-momentum-v1</span></div>
+ {items.length?<div className="radar-table-wrap"><table className="radar-table"><thead><tr><th>Category</th><th>State</th><th>Momentum</th><th>Commercial</th><th>Products</th><th>Accelerating</th><th>Median momentum</th><th>Sales acceleration</th><th>Competition</th><th>Saturation</th><th>Confidence</th><th>Best account</th></tr></thead><tbody>{items.map(i=><tr key={i.category.id}><td><Link className="category-link" href={`/categories/${i.category.id}`}><strong>{i.category.display_name}</strong><small>{i.category.category_key}</small></Link></td><td><CategoryStateBadge state={i.score.state}/></td><td className="opportunity-cell">{number(i.score.category_momentum_score)}</td><td>{number(i.score.commercial_opportunity_score)}</td><td>{i.snapshot.product_count}</td><td>{i.snapshot.accelerating_product_count}</td><td>{number(i.snapshot.median_product_momentum)}</td><td>{number(i.snapshot.sales_acceleration,2)}</td><td>{number(i.snapshot.competition_signal*100)}%</td><td>{number(i.snapshot.saturation_signal*100)}%</td><td>{number(i.snapshot.data_confidence*100)}%</td><td>{i.bestAccount?<><strong>{i.bestAccount.account.display_name}</strong><small>{number(i.bestAccount.score)} fit</small></>:"—"}</td></tr>)}</tbody></table></div>:<div className="large-empty"><span className="empty-orbit">CA</span><h2>ยังไม่มี Category Intelligence</h2><p>หมวดหมู่จะปรากฏหลังรวม Product Radar เป็น snapshot และคะแนนเวอร์ชันปัจจุบัน</p></div>}
+ </section></>}

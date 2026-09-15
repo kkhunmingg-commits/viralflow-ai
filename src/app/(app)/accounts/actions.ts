@@ -123,7 +123,7 @@ export async function seedDevelopmentAccounts() {
   const seeds = [
     { display_name: "Account A", username: "viralflow.account.a", follower_count: 620, ecommerce_permission: false, cart_enabled: false, authorization_status: "authorized", account_status: "active", preferred_categories: ["beauty"], daily_post_target: 3 },
     { display_name: "Account B", username: "viralflow.account.b", follower_count: 1450, ecommerce_permission: true, cart_enabled: true, authorization_status: "authorized", account_status: "active", preferred_categories: ["home", "beauty"], daily_post_target: 5 },
-    { display_name: "Account C", username: "viralflow.account.c", follower_count: 3800, ecommerce_permission: true, cart_enabled: true, authorization_status: "authorized", account_status: "active", preferred_categories: ["fashion"], daily_post_target: 6 },
+    { display_name: "Account C", username: "viralflow.account.c", follower_count: 3800, ecommerce_permission: true, cart_enabled: true, authorization_status: "authorized", account_status: "active", preferred_categories: ["gadgets"], daily_post_target: 6 },
     { display_name: "Blocked account", username: "viralflow.blocked", follower_count: 2400, ecommerce_permission: true, cart_enabled: true, authorization_status: "disconnected", account_status: "restricted", preferred_categories: ["gadgets"], daily_post_target: 2 },
   ];
 
@@ -172,8 +172,9 @@ export async function seedDevelopmentAccounts() {
     seededAccounts.map((account, index) => ({
       owner_id: ownerId,
       tiktok_account_id: account.id,
-      category_key: ["beauty", "home", "fashion", "gadgets"][index],
+      category_key: ["beauty", "home", "gadgets", "gadgets"][index],
       score: [0.62, 0.86, 0.91, 0.48][index],
+      affinity_score: [0.72, 0.9, 0.88, 0.48][index],
       confidence: [0.35, 0.72, 0.8, 0.3][index],
       sample_size: (index + 1) * 10,
       views: (index + 1) * 2400,
