@@ -1,6 +1,6 @@
 # ViralFlow AI tasks
 
-Updated 14 September 2026.
+Updated 15 September 2026.
 
 ## Phase 1 — Foundation
 
@@ -18,6 +18,20 @@ Updated 14 September 2026.
 - [x] Add unit and database tests for mode rules, readiness, aggregation, and RLS policy coverage.
 - [ ] Connect real TikTok OAuth and production account sync (Phase 7–8).
 
+## Phase 3 — Product Radar
+
+- [x] Add products, immutable product_snapshots and versioned product_scores.
+- [x] Apply Phase 3 migration once; verify live owner isolation and immutable history.
+- [x] Implement normalized ProductProvider, deterministic mock provider and disabled TikTok Shop adapter.
+- [x] Implement Product Momentum V1, confidence/freshness handling, explanations and ranking fixtures A–I.
+- [x] Connect Radar filters/sorting and product detail/history to Supabase.
+- [x] Verify browser authentication, filters, details, duplicate ingestion and clean console.
+- [x] Remove only the temporary verification owner and its 9 products / 54 snapshots / 54 scores; verify zero remaining.
+- [x] Confirm migration history has one Phase 3 entry and final Security Advisor has no findings.
+- [x] Document exact scoring formulas and verification evidence in PRODUCT_SCORING.md.
+
+- [x] Final pnpm typecheck, lint, tests (34/34 across 4 files) and production build passed on 15 September 2026.
+
 ## Stop gate
 
-Phase 3 Product Radar is not authorized and has not started.
+Phase 3 scope ends here. Phase 4 Category Intelligence has not started and requires separate authorization.
