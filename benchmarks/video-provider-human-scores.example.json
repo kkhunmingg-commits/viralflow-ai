@@ -1,10 +1,11 @@
 {
-  "gen4_turbo:growth-beauty:1": {
+  "fal_wan_2_2_turbo:growth-beauty:1": {
     "productIdentity": 0,
-    "motionRealism": 0,
-    "promptAdherence": 0,
-    "commerceClarity": 0,
+    "motionNaturalness": 0,
     "artifactControl": 0,
-    "visualPolish": 0
+    "commercialSuitability": 0,
+    "promptAdherence": 0,
+    "visualAttractiveness": 0,
+    "flowStatus": "BELOW_FLOW"
   }
 }

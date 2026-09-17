@@ -1,100 +1,108 @@
 # Real Video AI Provider Benchmark V1
 
-Phase 6B measures real image-to-video output against the eight-second ViralFlow commerce requirement and a user-supplied Flow AI reference set. It does not activate a provider in production, connect TikTok APIs, or put secrets in the browser.
+Phase 6B compares real eight-second image-to-video output for ViralFlow commerce. It does not activate a production provider, connect TikTok publishing, or expose provider secrets to the browser. A paid run remains disabled until the owner explicitly supplies licensed fixtures, a Flow AI reference clip, provider keys, and a spending cap.
 
-## Why Runway Dev is the first benchmark gateway
+## Revised provider scope
 
-The official Runway SDK exposes several first-party and partner video models through one authenticated API, queue contract, task-cost response, and output format. This lets the benchmark compare models without mixing billing semantics, polling reliability, download behavior, or gateway overhead. A later run may confirm the winning model through its direct provider API if that produces a material cost advantage.
+Pricing and capabilities were checked against provider documentation on 17 September 2026.
 
-Pricing was checked against the official Runway pricing and model documentation on 17 September 2026. One developer credit is $0.01. The V1 portrait, eight-second candidates are:
+| Candidate | Access | 8-second 720p forecast | Role |
+|---|---|---:|---|
+| fal Wan 2.2 Turbo | Ready after `FAL_KEY` | $0.10 | First test and lowest-cost direct candidate |
+| PixVerse V6 | Ready after `PIXVERSE_API_KEY` | $0.32–$0.72 | Direct 8-second challenger; 72 credits without audio |
+| Runway Gen-4 Turbo | Ready after `RUNWAYML_API_SECRET` | $0.40 | Cheapest Runway comparison |
+| Runway H3 Max | Ready after Runway key | $0.64 | Fallback comparison |
+| Runway WAN 3 | Ready after Runway key | $0.80 | Fallback comparison |
+| Runway Hailuo 3 | Ready after Runway key | $0.82 | Fallback comparison; includes one image reference |
+| Runway Gen-4.5 | Ready after Runway key | $0.96 | Quality-ceiling comparison |
+| TikTok Symphony | **NOT_RUN** | Unknown | Legitimate API exists, but this environment has no approved app/access token/advertiser scope or public unit price |
 
-| Candidate | Eight-second forecast | Reason to test |
-|---|---:|---|
-| Gen-4 Turbo, 720×1280 | $0.40 | Lowest-cost established commerce candidate; exact 8s and portrait output |
-| MiniMax H3 Max, 768p | $0.64 | Higher-resolution low-cost challenger; follows portrait source image |
-| WAN 3.0, 720p | $0.80 | Reference-driven model with exact duration and portrait support |
-| Hailuo 3.0, 768p | $0.82 | Quality challenger with image guidance; estimate includes one reference-image charge |
-| Gen-4.5, 720×1280 | $0.96 | Higher-quality control candidate and practical ceiling |
+PixVerse's conservative hard-cap estimate uses package credits at $10 per 1,000 credits: 72 × $0.01 = $0.72. Its published Starter-pack example equates a V6 720p five-second clip to $0.20; proportional eight-second consumption is $0.32. The CLI uses the conservative rate unless `PIXVERSE_USD_PER_CREDIT` is set from the actual purchased API plan.
 
-The complete 3-fixture × 2-repeat matrix is forecast at **$21.72**. To reduce spend, run Stage 1 with `gen4_turbo,h3_max_768,wan3_720` first (**$11.04**). Run Hailuo and Gen-4.5 only if Stage 1 does not establish a consistent winner or the winner needs a quality ceiling comparison.
+Official sources:
 
-Official references:
-
+- fal Wan 2.2 Turbo model and price: https://fal.ai/models/fal-ai/wan/v2.2-a14b/image-to-video/turbo
+- PixVerse V6 capabilities: https://docs.platform.pixverse.ai/v6-2056814m0
+- PixVerse pricing: https://docs.platform.pixverse.ai/pricing-796039m0
+- PixVerse image-to-video API: https://docs.platform.pixverse.ai/image-to-video-882971m0
+- TikTok Symphony API overview: https://ads.tiktok.com/creative/creativeCenter/tools/api
 - Runway pricing: https://docs.dev.runwayml.com/guides/pricing/
 - Runway models: https://docs.dev.runwayml.com/guides/models/
-- Runway input and aspect-ratio rules: https://docs.dev.runwayml.com/assets/inputs/
-- Runway SDK/API guide: https://docs.dev.runwayml.com/guides/using-the-api/
+
+## Cost-first staged plan
+
+Stage 1 is exactly three licensed products × one run for each candidate, in this order:
+
+1. fal Wan 2.2 Turbo
+2. PixVerse V6
+3. Runway Gen-4 Turbo
+
+The lowest published-equivalent Stage 1 generation cost is **$2.46**: fal $0.30 + PixVerse $0.96 + Runway $1.20. The conservative forecast and required hard cap are **$3.66**, because package-rate PixVerse usage may be $2.16 for the three clips. Account funding or subscription minimums can exceed consumed generation cost.
+
+No second sample is generated automatically. A second sample is eligible per product/provider only after the first sample:
+
+- reaches the automated technical threshold of 85;
+- receives `FLOW_COMPARABLE` or `ABOVE_FLOW` beside the owner's reference clip;
+- still fits under the total hard budget.
+
+The `--second-round` command requires `--resume`, a scored first-round report, `--flow-reference-confirmed`, and the same hard cap. Samples that do not meet all gates are recorded as `SKIPPED`; completed IDs are reused so retries cannot pay twice for them.
 
 ## Fixtures and fairness
 
-Use three licensed, representative product images:
+Use three licensed product images: Growth Beauty, Affiliate Home, and Affiliate Gadget. Each source should be a clean PNG, JPEG, or WebP, at least 720×1280. Every candidate receives the same source, prompt, 8-second duration, portrait framing, and seed where supported. The manifest in `benchmarks/` is a schema example and contains no production media.
 
-1. Growth Beauty: label/packaging identity, hand interaction, and smooth beauty motion.
-2. Affiliate Home: believable use motion, physics, and clear before/result framing without fabricated claims.
-3. Affiliate Gadget: exact geometry, ports/controls, physically believable demonstration, and comparison clarity.
+## Automated gate
 
-Each source should be a clean PNG, JPEG, or WebP under 5 MB and at least 720×1280. Use the same image, prompt, duration, aspect, repeat count, and deterministic seed where the model supports it. Do not use synthetic product identities to decide a production provider. The example manifest is a schema/template; its paths must be replaced with owner-approved assets.
-
-## Two gates
-
-The automatic gate requires all five checks:
-
-- duration 8.00 seconds ±0.12;
-- portrait ratio within 0.015 of 9:16;
-- at least 540×960 pixels;
-- H.264 output;
-- non-empty file larger than 20 KB.
-
-The final commerce output can add the existing local overlays, Thai voice, CTA, normalization, and AAC audio after the model supplies motion. The provider comparison therefore measures the expensive capability—product-preserving motion—without paying each provider to generate presentation elements already handled reliably by FFmpeg.
-
-Every technically valid clip receives a blinded human score:
+`AutomatedQualityScore` totals 100:
 
 ```text
-VisualScore = 0.25 ProductIdentity
-            + 0.20 MotionRealism
-            + 0.15 PromptAdherence
-            + 0.15 CommerceClarity
-            + 0.15 ArtifactControl
-            + 0.10 VisualPolish
+25 duration: 8.00s ± 0.12
+20 portrait: 9:16 ratio ± 0.015
+20 resolution: at least 540×960
+15 non-empty: more than 20 KB
+10 codec: H.264
+10 frame rate: at least 24 fps
 ```
 
-Reviewers compare each clip beside the supplied Flow AI reference and the original product image. The score must reflect label/shape stability, believable physics, absence of melting/flicker, clear selling action, camera control, and polish. It must not reward invented product features.
+A score of **85 or higher** passes. H.264 and frame-rate misses can be normalized by the existing local FFmpeg stage, while duration, orientation, resolution, and usable media remain decisive.
 
-## Eligibility and winner rule
+## Human quality and reliability
 
-A candidate is eligible only when:
+Every technical pass is reviewed blind on the requested dimensions:
 
-- at least 80% of planned samples complete and pass the technical gate;
-- every technical pass has a human review;
-- average VisualScore is at least 85;
-- no reviewed fixture is below 80.
+```text
+HumanQualityScore = 0.25 ProductIdentityPreservation
+                  + 0.20 MotionNaturalness
+                  + 0.15 ArtifactDeformationControl
+                  + 0.15 CommercialTikTokSuitability
+                  + 0.15 PromptAdherence
+                  + 0.10 VisualAttractiveness
+```
 
-Among eligible candidates, the winner is the lowest `TotalActualCost / ReviewedPassingOutputs`. Average visual score breaks a cost tie. A cheap model cannot win before the visual and consistency gates pass. If no candidate passes, the report returns no winner.
+Reliability is objective: completed technical passes divided by planned executable samples, with failed spend included in effective cost. A candidate needs at least 80% reliability, complete human review, average HumanQualityScore ≥85, no reviewed fixture below 80, and Flow-comparable status on every reviewed pass.
+
+The only human comparison statuses are `BELOW_FLOW`, `FLOW_COMPARABLE`, and `ABOVE_FLOW`. The harness rejects `FLOW_COMPARABLE` or `ABOVE_FLOW` unless the reviewer explicitly confirms that the owner's Flow AI reference clip was present. Until that clip is supplied, the benchmark cannot claim Flow equivalence or select a winner.
 
 ## Safe execution
 
-The CLI defaults to planning and never calls a provider:
+Planning is free and is the default:
 
 ```text
-pnpm benchmark:video -- --manifest benchmarks/video-provider-fixtures.json --models gen4_turbo,h3_max_768,wan3_720 --repeats 2
+pnpm benchmark:video -- --manifest benchmarks/video-provider-fixtures.json
 ```
 
-A paid run requires all of the following server-only values:
+Live Stage 1 additionally requires the provider keys in `.env.local`, `VIDEO_BENCHMARK_ALLOW_PAID=true`, a `VIDEO_BENCHMARK_MAX_USD` of at least the current conservative forecast, and `--execute`. Secrets are never serialized. Output and JSON evidence stay under ignored `.video-benchmark/`.
+
+After blind review, apply scores only with the owner's reference available:
 
 ```text
-RUNWAYML_API_SECRET=...
-VIDEO_BENCHMARK_ALLOW_PAID=true
-VIDEO_BENCHMARK_MAX_USD=11.04
+pnpm benchmark:video -- --scores benchmarks/video-provider-human-scores.json --report .video-benchmark/report.json --flow-reference-confirmed
 ```
 
-Then add `--execute`. The runner refuses a forecast above the hard cap. It stores output and JSON evidence under `.video-benchmark/`, which Git ignores. Secrets are never serialized. Provider-returned task cost, latency, task ID, local path, technical evidence, failure reason, and forecast are retained.
-
-If a process stops after some tasks complete, repeat the same command with `--resume`. Completed sample IDs are reused. A paid run refuses to overwrite an existing report without this flag, preventing accidental duplicate generations. Failed provider tasks retain any charge returned by the provider so cost-per-pass includes failed spend.
-
-After blind review, fill a scores JSON keyed by sample ID and run:
+Then, and only for qualified samples:
 
 ```text
-pnpm benchmark:video -- --scores benchmarks/video-provider-human-scores.json --report .video-benchmark/report.json
+pnpm benchmark:video -- --manifest benchmarks/video-provider-fixtures.json --execute --resume --second-round --flow-reference-confirmed
 ```
 
-Only a completed report with a non-null winner may inform a future CostRouter production change. Phase 6B does not enable paid routing by itself.
+Only a completed report with a non-null winner may inform a separately reviewed CostRouter change.

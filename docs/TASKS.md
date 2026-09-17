@@ -98,12 +98,14 @@ Phase 6 scope ends here. TikTok production integration and paid video providers 
 ## Phase 6B — Real Video AI Provider Benchmark
 
 - [x] Branch from verified Phase 6 commit without changing prior migrations.
-- [x] Build a fail-closed Runway benchmark adapter using the existing VideoProvider and FFmpeg probe abstractions.
-- [x] Define five current candidates, actual-credit cost capture, hard budget enforcement, exact technical gates, and a weighted Flow-quality review rubric.
+- [x] Build fail-closed direct fal Wan 2.2 Turbo and PixVerse V6 adapters while retaining the Runway adapter and five Runway comparison models.
+- [x] Record TikTok Symphony as `NOT_RUN` until legitimate approved API access and pricing are available.
+- [x] Prioritize the lowest-cost Stage 1 candidates: fal Wan 2.2 Turbo, PixVerse V6, and Runway Gen-4 Turbo, using three products and one initial run.
+- [x] Enforce an automated threshold of 85, Flow-reference-gated human statuses, objective reliability, and a budget/quality gate before any second sample.
 - [x] Add deterministic ranking that requires consistency and complete human review before price can select a winner.
 - [x] Add three-fixture manifest templates, a safe plan-first CLI, paid-run opt-in, ignored evidence directory, and tests.
 - [ ] Add three owner-approved licensed product images and the user's Flow AI reference clips.
-- [ ] Configure a server-only `RUNWAYML_API_SECRET` plus an explicit benchmark spending cap.
+- [ ] Configure server-only `FAL_KEY`, `PIXVERSE_API_KEY`, and `RUNWAYML_API_SECRET` plus an explicit benchmark spending cap.
 - [ ] Execute Stage 1, conduct blinded visual review, and record a real winner or no-winner result.
 - [ ] Confirm the Stage 1 winner against the quality-ceiling candidates only if needed.
 - [ ] Decide whether to activate the winning provider in CostRouter in a separately reviewed change.
