@@ -31,7 +31,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
   const ownerId = userData.user?.id;
   if (!ownerId) notFound();
 
-  const { account, stats, affinities } = await getAccountDetailData(supabase, ownerId, id);
+  const { account, stats, affinities, publishHealth, latestEligibility } = await getAccountDetailData(supabase, ownerId, id);
   if (!account) notFound();
   const recommendations = await getRecommendationData(supabase, ownerId);
 
@@ -66,6 +66,19 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         <article className="stat-card violet"><p>ยอดดู</p><strong>{performance.views.toLocaleString("th-TH")}</strong><small>{performance.engagements.toLocaleString("th-TH")} engagements</small></article>
         <article className="stat-card green"><p>คำสั่งซื้อ</p><strong>{performance.orders.toLocaleString("th-TH")}</strong><small>GMV ฿{performance.gmv.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</small></article>
         <article className="stat-card amber"><p>คอมมิชชัน</p><strong>฿{performance.commission.toLocaleString("th-TH", { minimumFractionDigits: 2 })}</strong><small>{performance.postsPublished} โพสต์สำเร็จ</small></article>
+      </section>
+
+      <section className="panel radar-section">
+        <div className="panel-heading"><div><p className="eyebrow">ACCOUNT HEALTH & ELIGIBILITY</p><h2>{publishHealth?.health_status??"NOT CHECKED"}</h2></div><span className="phase-chip">LOCAL STATE</span></div>
+        {publishHealth?<dl className="detail-list">
+          <div><dt>Mode</dt><dd>{publishHealth.requested_mode} → {publishHealth.effective_mode}</dd></div>
+          <div><dt>Effective Publish Cap</dt><dd>{publishHealth.effective_publish_cap}</dd></div>
+          <div><dt>Used Slots</dt><dd>{publishHealth.posts_today}</dd></div>
+          <div><dt>Remaining Slots</dt><dd>{Math.max(0,publishHealth.effective_publish_cap-publishHealth.posts_today)}</dd></div>
+          <div><dt>Eligibility</dt><dd>{latestEligibility?.final_status??"NOT CHECKED"}</dd></div>
+          <div><dt>Authorization</dt><dd>{publishHealth.authorization_status}</dd></div>
+          <div><dt>Blockers</dt><dd>{([...(publishHealth.blockers_json as string[]),...((latestEligibility?.blockers_json??[]) as string[])]).filter((value,index,values)=>values.indexOf(value)===index).join(", ")||"ไม่มี"}</dd></div>
+        </dl>:<p className="muted">ข้อมูลจะถูกคำนวณเมื่อวิดีโอเข้าสู่ pre-publish gate โดยยังไม่เรียก TikTok API</p>}
       </section>
 
       <section className="dashboard-grid">

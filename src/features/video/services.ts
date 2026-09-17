@@ -142,14 +142,20 @@ export async function setVideoStatus(client:SupabaseClient,owner:string,kind:"ma
   const {error}=await client.from(table).update({status}).eq("owner_id",owner).eq("id",id);if(error)throw new Error(error.message);
 }
 export async function listVideoFactory(client:SupabaseClient,owner:string){
-  const [masters,variations,accounts,products]=await Promise.all([
+  const [masters,variations,accounts,products,eligibility,compliance,originality,health]=await Promise.all([
     client.from("master_videos").select("*").eq("owner_id",owner).order("updated_at",{ascending:false}),
     client.from("video_variations").select("*").eq("owner_id",owner).order("created_at",{ascending:true}),
-    client.from("tiktok_accounts").select("id,display_name").eq("owner_id",owner),
+    client.from("tiktok_accounts").select("id,display_name,mode,effective_mode").eq("owner_id",owner),
     client.from("products").select("id,title").eq("owner_id",owner),
-  ]);for(const result of [masters,variations,accounts,products])if(result.error)throw new Error(result.error.message);
-  const accountMap=new Map((accounts.data??[]).map(v=>[v.id,v.display_name])),productMap=new Map((products.data??[]).map(v=>[v.id,v.title]));
-  return (masters.data??[]).map(m=>({...m,account_name:accountMap.get(m.tiktok_account_id)??"Unknown",product_title:productMap.get(m.product_id)??"Unknown",variations:(variations.data??[]).filter(v=>v.master_video_id===m.id)}));
+    client.from("publish_eligibility_checks").select("*").eq("owner_id",owner).order("created_at",{ascending:false}),
+    client.from("content_compliance_checks").select("*").eq("owner_id",owner).order("checked_at",{ascending:false}),
+    client.from("originality_checks").select("*").eq("owner_id",owner).order("created_at",{ascending:false}),
+    client.from("account_publish_health").select("*").eq("owner_id",owner),
+  ]);for(const result of [masters,variations,accounts,products,eligibility,compliance,originality,health])if(result.error)throw new Error(result.error.message);
+  const accountMap=new Map((accounts.data??[]).map(v=>[v.id,v])),productMap=new Map((products.data??[]).map(v=>[v.id,v.title]));
+  const latest=<T extends {video_id:string}>(rows:T[])=>{const map=new Map<string,T>();for(const row of rows)if(!map.has(row.video_id))map.set(row.video_id,row);return map};
+  const eligibilityMap=latest(eligibility.data??[]),complianceMap=latest(compliance.data??[]),originalityMap=latest(originality.data??[]),healthMap=new Map((health.data??[]).map(row=>[row.tiktok_account_id,row]));
+  return (masters.data??[]).map(master=>{const account=accountMap.get(master.tiktok_account_id);return {...master,account_name:account?.display_name??"Unknown",requested_mode:account?.mode??"—",effective_mode:account?.effective_mode??"—",product_title:productMap.get(master.product_id)??"Unknown",publish_status:eligibilityMap.get(master.id)?.final_status??"NOT_CHECKED",eligibility:eligibilityMap.get(master.id),compliance:complianceMap.get(master.id),originality:originalityMap.get(master.id),publish_health:healthMap.get(master.tiktok_account_id),variations:(variations.data??[]).filter(v=>v.master_video_id===master.id)}});
 }
 export async function getVideoDetail(client:SupabaseClient,owner:string,masterId:string){
   const master=await one(client,"master_videos",owner,masterId);if(!master)throw new Error("Video not found");

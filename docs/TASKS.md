@@ -1,6 +1,6 @@
 # ViralFlow AI tasks
 
-Updated 16 September 2026.
+Updated 17 September 2026.
 
 ## Phase 1 — Foundation
 
@@ -110,4 +110,27 @@ Phase 6 scope ends here. TikTok production integration and paid video providers 
 - [ ] Execute Stage 1, conduct blinded visual review, and record a real winner or no-winner result.
 - [ ] Confirm the Stage 1 winner against the quality-ceiling candidates only if needed.
 - [ ] Decide whether to activate the winning provider in CostRouter in a separately reviewed change.
+
+## Phase 6C — TikTok Compliance + Originality Gate
+
+- [x] Add append-only owner-scoped compliance, originality, and publish-eligibility evidence plus mutable account publish health.
+- [x] Implement product-truth, prohibited-claim, CTA/capability, inherited Creative Brain risk, and structured AIGC disclosure checks.
+- [x] Implement metadata-first same-account and cross-account originality with A–E deterministic fixtures.
+- [x] Implement dynamic account caps, local publish-health states, overflow queueing, and generation/publishing separation.
+- [x] Implement fail-closed publish eligibility with mandatory owner approval and no silent publishing.
+- [x] Connect `/compliance`, Video Factory gate evidence, and account publish-health details.
+- [x] Simulate 10 accounts × 20 candidates: 90 within effective capacity and 110 queued for the next day.
+- [x] Apply the single Phase 6C migration to `viralflow-ai`, verify live RLS/history protection, and run Security Advisor.
+- [ ] Complete authenticated browser verification and remove temporary verification data.
+- [x] Run the final typecheck, lint, 113-test suite (including FFmpeg), and production build.
+- [x] Commit the reviewed Phase 6C change on `feature/compliance-originality`.
+
+Phase 6C does not call TikTok OAuth, Creator, Shop, or publishing APIs. It does not run paid video providers and does not bypass AI disclosure, account limits, policy checks, originality checks, or owner approval.
+
+## Next phase — Growth Learning Engine
+
+- [ ] Build the full Growth Learning Engine from follow, save, comment, share, retention, and creative-angle outcomes.
+- [ ] Keep accounts below 1,000 followers or without ecommerce/cart permission in effective `GROWTH` mode while learning toward Affiliate readiness.
+
+Phase 6C preserves Growth CTA and publish eligibility but does not implement the full learning loop.
 

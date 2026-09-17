@@ -6,6 +6,7 @@ export const navigation = [
   { href: "/categories", label: "หมวดหมู่", short: "CA" },
   { href: "/creative-studio", label: "Creative Studio", short: "CS" },
   { href: "/video-factory", label: "Video Factory", short: "VF" },
+  { href: "/compliance", label: "Compliance", short: "CG" },
   { href: "/publisher", label: "Publisher", short: "PB" },
   { href: "/analytics", label: "Analytics", short: "AN" },
   { href: "/auto-mode", label: "Auto Mode", short: "AU" },

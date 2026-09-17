@@ -4,6 +4,7 @@ import {redirect} from "next/navigation";
 import {z} from "zod";
 import {createClient} from "@/lib/supabase/server";
 import {buildMasterVideo,buildVideoVariation,createVideoVariations,setVideoStatus} from "@/features/video/services";
+import {runPrePublishGate} from "@/features/compliance/services";
 const uuid=z.string().uuid();
 async function auth(){const client=await createClient(),{data}=await client.auth.getUser();if(!data.user)throw new Error("Authentication required");return {client,owner:data.user.id}}
 export async function createVideoFromCreativeAction(formData:FormData){
@@ -21,5 +22,10 @@ export async function retryMasterAction(formData:FormData){
 }
 export async function setVideoStatusAction(formData:FormData){
   const id=uuid.parse(formData.get("id")),masterId=uuid.parse(formData.get("masterId")),kind=z.enum(["master","variation"]).parse(formData.get("kind")),status=z.enum(["APPROVED","REJECTED"]).parse(formData.get("status")),{client,owner}=await auth();
+  if(status==="APPROVED"){
+    const gate=await runPrePublishGate(client,owner,kind,id,true);
+    if(!["READY_FOR_REVIEW","READY_TO_PUBLISH"].includes(gate.eligibility.finalStatus))throw new Error(`Pre-publish gate blocked approval: ${gate.eligibility.finalStatus}`);
+  }
   await setVideoStatus(client,owner,kind,id,status);revalidatePath(`/video-factory/${masterId}`);
+  revalidatePath("/compliance");
 }

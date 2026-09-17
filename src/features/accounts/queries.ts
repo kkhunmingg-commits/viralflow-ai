@@ -39,7 +39,7 @@ export async function getAccountDetailData(
   ownerId: string,
   accountId: string,
 ) {
-  const [accountResult, statsResult, affinityResult] = await Promise.all([
+  const [accountResult, statsResult, affinityResult, publishHealthResult, eligibilityResult] = await Promise.all([
     supabase
       .from("tiktok_accounts")
       .select("*")
@@ -59,15 +59,33 @@ export async function getAccountDetailData(
       .eq("owner_id", ownerId)
       .eq("tiktok_account_id", accountId)
       .order("affinity_score", { ascending: false }),
+    supabase
+      .from("account_publish_health")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .eq("tiktok_account_id", accountId)
+      .maybeSingle(),
+    supabase
+      .from("publish_eligibility_checks")
+      .select("*")
+      .eq("owner_id", ownerId)
+      .eq("tiktok_account_id", accountId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
   ]);
 
   if (accountResult.error) throw accountResult.error;
   if (statsResult.error) throw statsResult.error;
   if (affinityResult.error) throw affinityResult.error;
+  if (publishHealthResult.error) throw publishHealthResult.error;
+  if (eligibilityResult.error) throw eligibilityResult.error;
 
   return {
     account: accountResult.data as TikTokAccount | null,
     stats: (statsResult.data ?? []) as AccountDailyStat[],
     affinities: (affinityResult.data ?? []) as AccountCategoryAffinity[],
+    publishHealth: publishHealthResult.data,
+    latestEligibility: eligibilityResult.data,
   };
 }
