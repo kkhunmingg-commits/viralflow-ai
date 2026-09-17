@@ -24,7 +24,7 @@ export function AccountFields({ account }: { account?: TikTokAccount }) {
   return (
     <div className="account-form-grid">
       <label>ชื่อแสดง<input name="display_name" required maxLength={80} defaultValue={value.display_name} /></label>
-      <label>Username<input name="username" required pattern="[A-Za-z0-9._]{2,32}" defaultValue={value.username} /></label>
+      <label>Username<input name="username" required pattern="[A-Za-z0-9._]{2,32}" defaultValue={value.username ?? ""} /></label>
       <label>ผู้ติดตาม<input name="follower_count" type="number" min="0" required defaultValue={value.follower_count} /></label>
       <label>กำลังติดตาม<input name="following_count" type="number" min="0" required defaultValue={value.following_count} /></label>
       <label>โหมด<select name="mode" defaultValue={value.mode}><option>AUTO</option><option>GROWTH</option><option>AFFILIATE</option></select></label>

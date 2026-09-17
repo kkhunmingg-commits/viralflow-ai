@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeading } from "@/components/page-heading";
@@ -13,6 +14,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getRecommendationData } from "@/features/assignments/services";
 import { getRecommendationsForAccount } from "@/features/assignments/planner";
 import { RecommendationTable } from "@/components/recommendation-table";
+import { disconnectTikTokAccount, refreshTikTokCreatorInfo } from "../tiktok-actions";
 
 export const metadata: Metadata = { title: "รายละเอียดบัญชี" };
 
@@ -42,7 +44,44 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
   return (
     <>
       <section className="panel radar-section"><h2>Recommended Products Today</h2><RecommendationTable input={recommendations.input} scores={getRecommendationsForAccount(recommendations.plan,id).map(a=>a.score)}/></section>
-      <PageHeading eyebrow="ACCOUNT DETAIL" title={account.display_name} description={`@${account.username} · ข้อมูลจริงจาก Supabase`} action={<Link className="secondary-action" href="/accounts">← กลับหน้าบัญชี</Link>} />
+      <PageHeading eyebrow="ACCOUNT DETAIL" title={account.display_name} description={`${account.username ? `@${account.username}` : "ยังไม่มี creator username"} · ข้อมูลจริงจาก Supabase`} action={<Link className="secondary-action" href="/accounts">← กลับหน้าบัญชี</Link>} />
+
+      <section className="panel radar-section">
+        <div className="panel-heading">
+          <div><p className="eyebrow">TIKTOK CONNECTION</p><h2>{account.connection_status ?? "DISCONNECTED"}</h2></div>
+          <div className="badge-group"><span className="status-badge ready">Direct Post: {account.direct_post_status ?? "UNAVAILABLE"}</span><span className="status-badge ready">Upload: {account.upload_status ?? "UNAVAILABLE"}</span></div>
+        </div>
+        <div className="detail-summary-grid">
+          <article className="detail-account-card">
+            <div className="account-card-top">
+              {account.avatar_url ? <Image className="account-avatar large" src={account.avatar_url} alt={account.display_name} width={56} height={56} unoptimized /> : <span className="account-avatar large">{account.display_name.slice(0, 1)}</span>}
+              <div><strong>{account.display_name}</strong><p>{account.username ? `@${account.username}` : "username จะได้จาก creator_info เมื่อมี video.publish"}</p></div>
+            </div>
+            <dl className="detail-list">
+              <div><dt>Authorization</dt><dd>{account.authorization_status}</dd></div>
+              <div><dt>Token expiry</dt><dd>{account.token_expires_at ? new Date(account.token_expires_at).toLocaleString("th-TH") : "ไม่มี active token"}</dd></div>
+              <div><dt>Creator sync</dt><dd>{account.creator_info_sync_at ? new Date(account.creator_info_sync_at).toLocaleString("th-TH") : "ยังไม่ sync"}</dd></div>
+              <div><dt>Audit</dt><dd>{account.audit_status ?? "UNAUDITED"}</dd></div>
+              <div><dt>Max video</dt><dd>{account.creator_max_video_duration ? `${account.creator_max_video_duration} วินาที` : "ยังไม่มีข้อมูล"}</dd></div>
+            </dl>
+          </article>
+          <article>
+            <dl className="detail-list">
+              <div><dt>Scopes granted</dt><dd>{account.granted_scopes?.join(", ") || "ไม่มี"}</dd></div>
+              <div><dt>Scopes missing</dt><dd>{account.missing_scopes?.join(", ") || "ไม่มี"}</dd></div>
+              <div><dt>Privacy options</dt><dd>{account.privacy_level_options?.join(", ") || "ยังไม่มีข้อมูล"}</dd></div>
+              <div><dt>Comments / Duet / Stitch</dt><dd>{[account.comment_disabled, account.duet_disabled, account.stitch_disabled].map((disabled) => disabled === null || disabled === undefined ? "?" : disabled ? "ปิด" : "เปิด").join(" / ")}</dd></div>
+              <div><dt>App approval</dt><dd>publish {account.video_publish_approval_status ?? "UNKNOWN"} · upload {account.video_upload_approval_status ?? "UNKNOWN"}</dd></div>
+              <div><dt>Last error</dt><dd>{account.last_auth_error ?? account.last_sync_error ?? "ไม่มี"}</dd></div>
+            </dl>
+            <div className="form-actions">
+              <Link className="secondary-action" href="/accounts/connect/tiktok">Reconnect</Link>
+              {account.granted_scopes?.includes("video.publish") ? <form action={refreshTikTokCreatorInfo.bind(null, account.id)}><button className="secondary-action">Refresh creator_info</button></form> : null}
+              {account.open_id && account.connection_status !== "DISCONNECTED" ? <form action={disconnectTikTokAccount.bind(null, account.id)}><button className="danger-action">Disconnect</button></form> : null}
+            </div>
+          </article>
+        </div>
+      </section>
 
       <section className="detail-summary-grid">
         <article className="panel detail-account-card">

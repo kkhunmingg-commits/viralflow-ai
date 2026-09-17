@@ -32,7 +32,7 @@ export default async function AccountsPage() {
         eyebrow="MULTI-ACCOUNT BRAIN"
         title="บัญชี TikTok"
         description="จัดการโปรไฟล์จำลอง ตรวจความพร้อม และแยกโหมดของแต่ละบัญชีจากข้อมูลจริง"
-        action={canSeed ? <form action={seedDevelopmentAccounts}><button className="secondary-action">สร้างชุดข้อมูลทดสอบ</button></form> : undefined}
+        action={<div className="form-actions"><Link className="primary-action" href="/accounts/connect/tiktok">Connect TikTok</Link>{canSeed ? <form action={seedDevelopmentAccounts}><button className="secondary-action">สร้างชุดข้อมูลทดสอบ</button></form> : null}</div>}
       />
 
       <details className="panel create-account-panel">
@@ -63,12 +63,15 @@ export default async function AccountsPage() {
                     </div>
                   </div>
                   <h3><Link href={`/accounts/${account.id}`}>{account.display_name}</Link></h3>
-                  <p>@{account.username}</p>
+                  <p>{account.username ? `@${account.username}` : "ยังไม่มี creator username"}</p>
                   <dl>
                     <div><dt>ผู้ติดตาม</dt><dd>{account.follower_count.toLocaleString("th-TH")}</dd></div>
                     <div><dt>Affiliate eligibility</dt><dd>{readiness.canAffiliate ? "พร้อม" : "ยังไม่พร้อม"}</dd></div>
                     <div><dt>Product cart</dt><dd>{permissionText(account.cart_enabled)}</dd></div>
                     <div><dt>Authorization</dt><dd><span className={`status-badge ${account.authorization_status === "disconnected" ? "disconnected" : readiness.authorizationReady ? "ready" : "blocked"}`}>{account.authorization_status.toUpperCase()}</span></dd></div>
+                    <div><dt>Connection</dt><dd><span className={`status-badge ${!account.connection_status || account.connection_status === "REAUTH_REQUIRED" || account.connection_status === "DISCONNECTED" ? "blocked" : "ready"}`}>{account.connection_status ?? "DISCONNECTED"}</span></dd></div>
+                    <div><dt>Direct Post</dt><dd>{account.direct_post_status ?? "UNAVAILABLE"}</dd></div>
+                    <div><dt>Upload</dt><dd>{account.upload_status ?? "UNAVAILABLE"}</dd></div>
                     <div><dt>เป้าหมาย / เพดาน</dt><dd>{account.daily_post_target} / {account.daily_post_hard_limit}</dd></div>
                     <div><dt>สถานะบัญชี</dt><dd>{account.account_status}</dd></div>
                   </dl>

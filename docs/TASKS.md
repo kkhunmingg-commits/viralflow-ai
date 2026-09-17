@@ -134,3 +134,17 @@ Phase 6C does not call TikTok OAuth, Creator, Shop, or publishing APIs. It does 
 
 Phase 6C preserves Growth CTA and publish eligibility but does not implement the full learning loop.
 
+## Phase 7A — TikTok OAuth + Creator Info + Permission Sync
+
+- [x] Add official Login Kit authorization, token exchange, refresh, revoke, identity, and creator-info contracts.
+- [x] Add deterministic `MockTikTokProvider` scenarios without real TikTok calls.
+- [x] Add owner-bound, expiring, one-time OAuth state and duplicate `open_id` protection.
+- [x] Add AES-GCM encrypted, service-only token persistence with no browser grants or policies.
+- [x] Track app approval separately from user grants and map upload, Direct Post, audit, and private-only readiness.
+- [x] Cache creator info with conservative TTL and guarded manual refresh.
+- [x] Add connect, callback, refresh, reconnect, and history-preserving disconnect flows.
+- [x] Preserve AUTO/GROWTH/AFFILIATE logic independently from OAuth readiness.
+- [ ] Configure real TikTok app products, scopes, redirect URI, server secrets, and audit status.
+
+Phase 7A does not upload or publish content, call TikTok Shop, or invoke paid providers.
+
