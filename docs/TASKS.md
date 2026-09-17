@@ -102,6 +102,7 @@ Phase 6 scope ends here. TikTok production integration and paid video providers 
 - [x] Record TikTok Symphony as `NOT_RUN` until legitimate approved API access and pricing are available.
 - [x] Prioritize the lowest-cost Stage 1 candidates: fal Wan 2.2 Turbo, PixVerse V6, and Runway Gen-4 Turbo, using three products and one initial run.
 - [x] Enforce an automated threshold of 85, Flow-reference-gated human statuses, objective reliability, and a budget/quality gate before any second sample.
+- [x] Research Meta AI/Vibes from official sources, classify it as `MANUAL_BENCHMARK_ONLY`, and add non-destructive 10-to-8-second manual import with labor/quota tracking.
 - [x] Add deterministic ranking that requires consistency and complete human review before price can select a winner.
 - [x] Add three-fixture manifest templates, a safe plan-first CLI, paid-run opt-in, ignored evidence directory, and tests.
 - [ ] Add three owner-approved licensed product images and the user's Flow AI reference clips.

@@ -2,8 +2,8 @@ import type {RenderedVideo,VideoProvider,VideoRenderInput} from "../video/types"
 
 export const VIDEO_PROVIDER_BENCHMARK_VERSION="video-provider-benchmark-v1";
 export const AUTOMATED_QUALITY_THRESHOLD=85;
-export type BenchmarkModel="fal_wan_2_2_turbo"|"pixverse_v6"|"tiktok_symphony"|"gen4_turbo"|"h3_max_768"|"wan3_720"|"hailuo3_768"|"gen4.5";
-export type BenchmarkProvider="fal"|"pixverse"|"tiktok_symphony"|"runway";
+export type BenchmarkModel="meta_vibes"|"fal_wan_2_2_turbo"|"pixverse_v6"|"tiktok_symphony"|"gen4_turbo"|"h3_max_768"|"wan3_720"|"hailuo3_768"|"gen4.5";
+export type BenchmarkProvider="meta_vibes"|"fal"|"pixverse"|"tiktok_symphony"|"runway";
 export type HumanQualityStatus="BELOW_FLOW"|"FLOW_COMPARABLE"|"ABOVE_FLOW";
 
 export interface BenchmarkCandidate {
@@ -15,7 +15,7 @@ export interface BenchmarkCandidate {
   expectedCostUsd:number;
   minimumCostUsd:number;
   sourceUrl:string;
-  availability:"READY"|"NOT_RUN";
+  availability:"READY"|"NOT_RUN"|"MANUAL_BENCHMARK_ONLY";
   limitation:string|null;
 }
 export interface BenchmarkFixture {
@@ -40,11 +40,16 @@ export interface BenchmarkSample {
   actualCostUsd:number|null;
   latencyMs:number|null;
   taskId:string|null;
+  inputPath:string|null;
   outputPath:string|null;
   technical:TechnicalEvaluation|null;
   human:HumanScores|null;
   humanScore:number|null;
-  status:"PLANNED"|"COMPLETED"|"FAILED"|"NOT_RUN"|"SKIPPED";
+  status:"PLANNED"|"COMPLETED"|"FAILED"|"NOT_RUN"|"SKIPPED"|"MANUAL_BENCHMARK_ONLY";
+  generationCount:number;
+  quotaUsage:number|null;
+  humanLaborRequired:boolean;
+  sourceKind:"PROVIDER_API"|"OWNER_MANUAL_IMPORT";
   error:string|null;
 }
 export interface BenchmarkReport {
@@ -73,4 +78,5 @@ export interface CandidateRanking {
   totalCostUsd:number;
   effectiveCostPerPassUsd:number|null;
   eligible:boolean;
+  autoModeEligible:boolean;
 }
