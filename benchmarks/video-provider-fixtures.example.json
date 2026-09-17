@@ -1,0 +1,68 @@
+[
+  {
+    "id": "growth-beauty",
+    "label": "Growth Beauty",
+    "imagePath": "C:/replace-with-licensed-inputs/growth-beauty.png",
+    "prompt": "Vertical commerce shot. Keep the exact product recognizable and label stable. Smooth push-in, realistic hand interaction, controlled studio light, no new claims, no text generated inside the image.",
+    "renderInput": {
+      "productTitle": "Growth Beauty fixture",
+      "hook": "หยุดดูไอเดียนี้ก่อน",
+      "cta": "บันทึกไว้ดูอีกครั้ง",
+      "template": "POV",
+      "overlay": [
+        {"start": 0, "end": 2, "text": "หยุดดูไอเดียนี้ก่อน"},
+        {"start": 2, "end": 5, "text": "เห็นสินค้าและวิธีใช้ชัดเจน"},
+        {"start": 5, "end": 8, "text": "บันทึกไว้ดูอีกครั้ง"}
+      ],
+      "scenes": [
+        {"start": 0, "end": 2, "visual": "Product hook close-up", "motion": "slow push-in"},
+        {"start": 2, "end": 5, "visual": "Realistic product demonstration", "motion": "controlled pan"},
+        {"start": 5, "end": 8, "visual": "Product hero", "motion": "steady hold"}
+      ]
+    }
+  },
+  {
+    "id": "affiliate-home",
+    "label": "Affiliate Home",
+    "imagePath": "C:/replace-with-licensed-inputs/affiliate-home.png",
+    "prompt": "Vertical home-product commerce demonstration. Preserve the exact product, proportions, color, and label. Show one believable use motion and a clean result. Stable camera, realistic physics, no generated text or unsupported feature.",
+    "renderInput": {
+      "productTitle": "Affiliate Home fixture",
+      "hook": "ของใช้ชิ้นนี้ช่วยอะไร",
+      "cta": "ดูรายละเอียดสินค้าก่อนตัดสินใจ",
+      "template": "DEMONSTRATION",
+      "overlay": [
+        {"start": 0, "end": 2, "text": "ของใช้ชิ้นนี้ช่วยอะไร"},
+        {"start": 2, "end": 5, "text": "ดูการใช้งานจริง"},
+        {"start": 5, "end": 8, "text": "ดูรายละเอียดก่อนตัดสินใจ"}
+      ],
+      "scenes": [
+        {"start": 0, "end": 2, "visual": "Problem and product", "motion": "snap reveal"},
+        {"start": 2, "end": 5, "visual": "Single honest demonstration", "motion": "side pan"},
+        {"start": 5, "end": 8, "visual": "Product and result", "motion": "steady hold"}
+      ]
+    }
+  },
+  {
+    "id": "affiliate-gadget",
+    "label": "Affiliate Gadget",
+    "imagePath": "C:/replace-with-licensed-inputs/affiliate-gadget.png",
+    "prompt": "Vertical gadget comparison shot. Preserve exact ports, controls, logo, geometry, and product color. Show one physically believable feature demonstration with smooth camera motion. No invented screen content, text, or specification.",
+    "renderInput": {
+      "productTitle": "Affiliate Gadget fixture",
+      "hook": "ดูจุดต่างใน 8 วินาที",
+      "cta": "เช็กสเปกและราคาปัจจุบัน",
+      "template": "COMPARISON",
+      "overlay": [
+        {"start": 0, "end": 2, "text": "ดูจุดต่างใน 8 วินาที"},
+        {"start": 2, "end": 5, "text": "สาธิตฟังก์ชันที่มองเห็นได้"},
+        {"start": 5, "end": 8, "text": "เช็กสเปกและราคาปัจจุบัน"}
+      ],
+      "scenes": [
+        {"start": 0, "end": 2, "visual": "Gadget detail hook", "motion": "macro push-in"},
+        {"start": 2, "end": 5, "visual": "Visible feature demonstration", "motion": "orbit right"},
+        {"start": 5, "end": 8, "visual": "Stable comparison hero", "motion": "steady hold"}
+      ]
+    }
+  }
+]

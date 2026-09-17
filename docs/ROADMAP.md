@@ -14,6 +14,7 @@ Phases 1–6 are complete. Phase 6 turns a selected SAFE Creative Brain project 
 | 5A | Product × Category × Account Assignment | Complete |
 | 5B | Creative Brain | Complete |
 | 6 | Video Factory, variation engine, cost router | Complete |
+| 6B | Real video AI provider benchmark | In progress — harness ready; real media/key required |
 | 7 | TikTok OAuth and approved publishing | Blocked on platform approval |
 | 8 | TikTok Shop Creator APIs and product attachment | Blocked on market/scope approval |
 | 9 | Analytics and learning loop | Not started |
@@ -23,4 +24,8 @@ Phases 1–6 are complete. Phase 6 turns a selected SAFE Creative Brain project 
 ## Phase 6 boundary
 
 Video Factory consumes the selected Creative Brain timeline without replacing its creative logic. It stores private owner-scoped media, one reusable master per creative project, deterministic controlled variations, generation history, quality explanations, and append-only cost evidence. See `VIDEO_FACTORY.md` and `COST_ROUTER.md` for interfaces, formulas, thresholds, storage, idempotency, budgets, and future-provider gates. The Phase 6 migration, rollback validation, live RLS/storage tests, real FFmpeg output, authenticated browser flow, unit checks, lint, type check, and production build pass. The temporary verification user, rows, and storage objects were removed. Future paid-provider activation and TikTok production integration require separate authorization.
+
+## Phase 6B status
+
+The real-provider benchmark is isolated on `feature/video-provider-benchmark`. The runner compares exact eight-second portrait outputs through one Runway contract, records actual cost and latency, applies FFprobe-based technical gates, and requires a blinded product-identity/motion/commerce review before computing cost per passing output. The first-stage matrix is forecast at $11.04 for three fixtures, two repeats, and three low-cost candidates. No provider is selected and no paid routing is enabled until licensed product inputs, the user's Flow AI reference clips, a server-only API key, and an explicit spending cap are available.
 

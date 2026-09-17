@@ -11,4 +11,5 @@ coverage/
 *.tsbuildinfo
 supabase/.temp/
 .video-cache/
+.video-benchmark/
 

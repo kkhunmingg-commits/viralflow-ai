@@ -95,3 +95,16 @@ Updated 16 September 2026.
 
 Phase 6 scope ends here. TikTok production integration and paid video providers have not started and require separate authorization.
 
+## Phase 6B — Real Video AI Provider Benchmark
+
+- [x] Branch from verified Phase 6 commit without changing prior migrations.
+- [x] Build a fail-closed Runway benchmark adapter using the existing VideoProvider and FFmpeg probe abstractions.
+- [x] Define five current candidates, actual-credit cost capture, hard budget enforcement, exact technical gates, and a weighted Flow-quality review rubric.
+- [x] Add deterministic ranking that requires consistency and complete human review before price can select a winner.
+- [x] Add three-fixture manifest templates, a safe plan-first CLI, paid-run opt-in, ignored evidence directory, and tests.
+- [ ] Add three owner-approved licensed product images and the user's Flow AI reference clips.
+- [ ] Configure a server-only `RUNWAYML_API_SECRET` plus an explicit benchmark spending cap.
+- [ ] Execute Stage 1, conduct blinded visual review, and record a real winner or no-winner result.
+- [ ] Confirm the Stage 1 winner against the quality-ceiling candidates only if needed.
+- [ ] Decide whether to activate the winning provider in CostRouter in a separately reviewed change.
+
