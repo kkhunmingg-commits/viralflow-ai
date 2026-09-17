@@ -35,6 +35,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
 
   const { account, stats, affinities, publishHealth, latestEligibility } = await getAccountDetailData(supabase, ownerId, id);
   if (!account) notFound();
+  const { data: publishingRows } = await supabase.from("publishing_queue").select("status").eq("owner_id", ownerId).eq("tiktok_account_id", id);
   const recommendations = await getRecommendationData(supabase, ownerId);
 
   const readiness = getAccountAffiliateReadiness(account);
@@ -81,6 +82,15 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
             </div>
           </article>
         </div>
+      </section>
+      <section className="panel radar-section">
+        <div className="panel-heading"><div><p className="eyebrow">PUBLISHING QUEUE</p><h2>{publishingRows?.length ?? 0} รายการ</h2></div><Link href="/publishing">เปิดคิว →</Link></div>
+        <dl className="detail-list">
+          <div><dt>Awaiting review</dt><dd>{(publishingRows ?? []).filter(row => ["DRAFT", "REVIEW_REQUIRED"].includes(row.status)).length}</dd></div>
+          <div><dt>Active</dt><dd>{(publishingRows ?? []).filter(row => ["APPROVED", "QUEUED", "UPLOADING", "PROCESSING", "RETRYING"].includes(row.status)).length}</dd></div>
+          <div><dt>Waiting for slot</dt><dd>{(publishingRows ?? []).filter(row => row.status === "WAITING_FOR_SLOT").length}</dd></div>
+          <div><dt>Draft delivered / published</dt><dd>{(publishingRows ?? []).filter(row => ["DRAFT_DELIVERED", "PUBLISHED"].includes(row.status)).length}</dd></div>
+        </dl>
       </section>
 
       <section className="detail-summary-grid">

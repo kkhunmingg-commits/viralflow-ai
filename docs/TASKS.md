@@ -148,3 +148,17 @@ Phase 6C preserves Growth CTA and publish eligibility but does not implement the
 
 Phase 7A does not upload or publish content, call TikTok Shop, or invoke paid providers.
 
+## Phase 7B — TikTok Publishing Queue Foundation
+
+- [x] Add owner-isolated queue, append-only attempts/status/consent ledgers, RLS, and server-managed writes.
+- [x] Add official Upload Draft, Direct Post, binary transfer, status polling, and signed webhook contracts behind an explicit real-mode gate.
+- [x] Add deterministic mock publishing with no TikTok or paid-provider calls.
+- [x] Re-run Phase 6C and creator/media/capability checks immediately before sending.
+- [x] Require an immutable explicit-consent snapshot and private-only Direct Post for unaudited clients.
+- [x] Add dynamic-cap scheduling, deterministic overflow, bounded retry, and idempotent status handling.
+- [x] Add `/publishing`, `/publishing/[id]`, Video Factory queue actions, and account queue summaries.
+- [x] Simulate 10 accounts × 15 effective slots against 200 candidates: 150 queued and 50 waiting for the next day.
+- [ ] Configure and explicitly authorize real Content Posting calls after TikTok app approval and audit.
+
+Phase 7B does not call TikTok Shop, attach products, invoke paid video providers, or perform real upload/publish calls during verification.
+

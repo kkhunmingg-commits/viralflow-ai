@@ -10,7 +10,7 @@ const requiredRoutes = [
   "/creative-studio",
     "/video-factory",
     "/compliance",
-  "/publisher",
+  "/publishing",
   "/analytics",
   "/auto-mode",
   "/settings",

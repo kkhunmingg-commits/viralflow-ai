@@ -2,7 +2,7 @@
 
 ## Current status
 
-Phases 1–6C are complete. Phase 7A now provides TikTok OAuth, secure token lifecycle, identity, creator-info caching, and permission/readiness sync without uploading or publishing media. Paid providers, TikTok Shop, actual publishing, and production deployment remain outside this phase.
+Phases 1–7A are complete. Phase 7B now provides the owner-reviewed publishing queue, official Content Posting contracts, consent, dynamic capacity, retry, and status foundations in mock mode. Paid providers, TikTok Shop, real publishing, and production deployment remain outside this verified run.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -17,7 +17,7 @@ Phases 1–6C are complete. Phase 7A now provides TikTok OAuth, secure token lif
 | 6B | Real video AI provider benchmark | Infrastructure complete — real media/key/approval required |
 | 6C | TikTok compliance, originality, account health, and publish eligibility | Complete |
 | 7A | TikTok OAuth, secure tokens, creator info, permission sync | Foundation complete — real app setup required |
-| 7B | Approved upload and Direct Post execution | Blocked on platform approval and separate authorization |
+| 7B | Publishing queue, Upload Draft, Direct Post, consent, status foundation | Foundation complete — real calls remain disabled pending approval |
 | 8 | TikTok Shop Creator APIs and product attachment | Blocked on market/scope approval |
 | 9 | Analytics and learning loop | Not started |
 | 10 | One-click Auto Mode | Not started |
@@ -42,4 +42,10 @@ Accounts requested as `AUTO` remain effectively `GROWTH` while followers are bel
 Phase 7A adds official TikTok Login Kit and creator-info foundations without sending media. OAuth state is owner-bound, expiring, and one-time. Tokens are AES-GCM encrypted in a service-only table and never returned to the browser. App approval, user grants, Direct Post audit status, creator-info freshness, upload readiness, and private-only readiness remain separate facts. The deterministic mock provider covers local verification without TikTok credentials or network calls.
 
 Connection does not change business mode. Accounts still use the Phase 2/6C AUTO/GROWTH/AFFILIATE rules, and missing follower, ecommerce, or cart capability still preserves effective GROWTH. Actual upload, Direct Post, TikTok Shop, and public posting remain outside Phase 7A.
+
+## Phase 7B boundary
+
+Phase 7B connects approved Video Factory output to an owner-isolated queue. It re-runs Phase 6C and authoritative creator checks before sending, requires explicit settings-bound consent, respects the current `effective_publish_cap`, and keeps overflow visible as `WAITING_FOR_SLOT`. Upload Draft delivery and a published Direct Post are separate states.
+
+The official provider follows current TikTok endpoints, `is_aigc`, media chunking, status polling, and signed webhook contracts, but mock mode remains the default and this phase performs no real upload or publish call. TikTok Shop, product attachment, paid providers, audit completion, verified pull domains, and production credentials remain owner actions.
 
