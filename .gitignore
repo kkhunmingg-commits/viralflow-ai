@@ -12,4 +12,5 @@ coverage/
 supabase/.temp/
 .video-cache/
 .video-benchmark/
+benchmark-assets/
 

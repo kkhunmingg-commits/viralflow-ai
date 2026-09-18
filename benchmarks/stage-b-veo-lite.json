@@ -1,0 +1,68 @@
+[
+  {
+    "id": "beauty",
+    "label": "Beauty",
+    "imagePath": "benchmark-assets/beauty.jpg",
+    "prompt": "Create an eight-second vertical commerce product video from the supplied image. Preserve the exact bottle shape, ivory and coral colors, pump, cap, silver band, VF LAB label, SERUM B-01 text, 30 mL text, and all proportions. Use a slow controlled studio push-in with subtle realistic turntable motion. Keep the product fully recognizable, physically stable, and commercially clean. Do not invent claims, text, logos, hands, packaging, or product parts.",
+    "renderInput": {
+      "productTitle": "VF LAB SERUM B-01",
+      "hook": "ดูรายละเอียดบรรจุภัณฑ์",
+      "cta": "พิจารณารูปทรงและฉลาก",
+      "template": "PRODUCT_HERO",
+      "overlay": [
+        {"start": 0, "end": 2, "text": "รายละเอียดสินค้า"},
+        {"start": 2, "end": 6, "text": "รูปทรงและฉลากต้องคงเดิม"},
+        {"start": 6, "end": 8, "text": "VF LAB SERUM B-01"}
+      ],
+      "scenes": [
+        {"start": 0, "end": 2, "visual": "Product hero close-up", "motion": "slow push-in"},
+        {"start": 2, "end": 6, "visual": "Stable three-quarter product view", "motion": "subtle turntable"},
+        {"start": 6, "end": 8, "visual": "Front label hero", "motion": "steady hold"}
+      ]
+    }
+  },
+  {
+    "id": "home",
+    "label": "Home",
+    "imagePath": "benchmark-assets/home.jpg",
+    "prompt": "Create an eight-second vertical commerce product video from the supplied image. Preserve the exact spray-bottle silhouette, sage-green and warm-white colors, trigger linkage, curved neck, ribbed grip, measuring window, VF HOME label, CLEAN H-02 text, 500 mL text, and all proportions. Use a slow controlled studio orbit that reveals the physical structure without operating the trigger. Keep the product fully recognizable, physically stable, and commercially clean. Do not invent claims, text, logos, hands, liquid spray, packaging, or product parts.",
+    "renderInput": {
+      "productTitle": "VF HOME CLEAN H-02",
+      "hook": "ดูโครงสร้างขวดสเปรย์",
+      "cta": "พิจารณารูปทรงและรายละเอียด",
+      "template": "PRODUCT_HERO",
+      "overlay": [
+        {"start": 0, "end": 2, "text": "รายละเอียดสินค้า"},
+        {"start": 2, "end": 6, "text": "โครงสร้างต้องคงเดิม"},
+        {"start": 6, "end": 8, "text": "VF HOME CLEAN H-02"}
+      ],
+      "scenes": [
+        {"start": 0, "end": 2, "visual": "Product silhouette hook", "motion": "slow push-in"},
+        {"start": 2, "end": 6, "visual": "Trigger, grip, and measuring-window detail", "motion": "controlled orbit"},
+        {"start": 6, "end": 8, "visual": "Front label hero", "motion": "steady hold"}
+      ]
+    }
+  },
+  {
+    "id": "gadget",
+    "label": "Gadget",
+    "imagePath": "benchmark-assets/gadget.jpg",
+    "prompt": "Create an eight-second vertical commerce product video from the supplied image. Preserve the exact rounded rectangular proportions, charcoal and pale-blue colors, 08:00 display, three physical buttons, rotary dial, speaker grille, USB-C port, VF TECH label, G-03 text, and all control positions. Use a slow controlled studio orbit with subtle display glow only. Keep the gadget fully recognizable, physically stable, and commercially clean. Do not invent specifications, text, logos, hands, ports, controls, animations, or product parts.",
+    "renderInput": {
+      "productTitle": "VF TECH G-03",
+      "hook": "ดูรายละเอียดตัวเครื่อง",
+      "cta": "พิจารณาปุ่ม จอ และสัดส่วน",
+      "template": "PRODUCT_HERO",
+      "overlay": [
+        {"start": 0, "end": 2, "text": "รายละเอียดสินค้า"},
+        {"start": 2, "end": 6, "text": "ปุ่ม จอ และพอร์ตต้องคงเดิม"},
+        {"start": 6, "end": 8, "text": "VF TECH G-03"}
+      ],
+      "scenes": [
+        {"start": 0, "end": 2, "visual": "Display and control hook", "motion": "slow push-in"},
+        {"start": 2, "end": 6, "visual": "Buttons, dial, grille, and port detail", "motion": "controlled orbit"},
+        {"start": 6, "end": 8, "visual": "Stable gadget hero", "motion": "steady hold"}
+      ]
+    }
+  }
+]
