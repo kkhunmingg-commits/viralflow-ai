@@ -7,6 +7,7 @@ import {
 } from "@/features/accounts/account-performance";
 import { getOwnerAccounts, getOwnerTodayStats } from "@/features/accounts/queries";
 import { createClient } from "@/lib/supabase/server";
+import { getAnalyticsOverview } from "@/features/analytics/services";
 
 export const metadata: Metadata = { title: "ภาพรวม" };
 
@@ -26,12 +27,13 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   const ownerId = userData.user?.id ?? "";
-  const [accounts, todayStats] = ownerId
+  const [accounts, todayStats, analytics] = ownerId
     ? await Promise.all([
         getOwnerAccounts(supabase, ownerId),
         getOwnerTodayStats(supabase, ownerId, bangkokDate()),
+        getAnalyticsOverview(supabase, ownerId),
       ])
-    : [[], []];
+    : [[], [], null];
   const summary = getDashboardSummary(accounts, todayStats);
   const cards = [
     { label: "บัญชีทั้งหมด", value: summary.totalAccounts.toLocaleString("th-TH"), note: "บัญชีใน Account Brain", tone: "blue" },
@@ -44,6 +46,8 @@ export default async function DashboardPage() {
     { label: "คำสั่งซื้อวันนี้", value: summary.orders.toLocaleString("th-TH"), note: "จาก daily stats", tone: "amber" },
     { label: "GMV วันนี้", value: `฿${summary.gmv.toLocaleString("th-TH", { minimumFractionDigits: 2 })}`, note: "จาก daily stats", tone: "blue" },
     { label: "คอมมิชชันวันนี้", value: `฿${summary.commission.toLocaleString("th-TH", { minimumFractionDigits: 2 })}`, note: "จาก daily stats", tone: "green" },
+    { label: "Analytics SCALE", value: (analytics?.summary.scale ?? 0).toLocaleString("th-TH"), note: "winner-detection-v1", tone: "green" },
+    { label: "Analytics WATCH", value: (analytics?.summary.watch ?? 0).toLocaleString("th-TH"), note: "ติดตามหลักฐานต่อ", tone: "amber" },
   ] as const;
 
   return (

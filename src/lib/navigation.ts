@@ -10,6 +10,7 @@ export const navigation = [
   { href: "/publishing", label: "Publishing", short: "PB" },
   { href: "/commerce", label: "Commerce", short: "CM" },
   { href: "/analytics", label: "Analytics", short: "AN" },
+  { href: "/learning", label: "Learning Loop", short: "LL" },
   { href: "/auto-mode", label: "Auto Mode", short: "AU" },
 ] as const;
 

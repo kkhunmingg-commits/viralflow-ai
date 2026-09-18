@@ -1,4 +1,13 @@
-import { EmptyState } from "@/components/empty-state";
-import { PageHeading } from "@/components/page-heading";
-export default function AnalyticsPage() { return <><PageHeading eyebrow="LEARNING LOOP" title="Analytics" description="เรียนรู้จากยอดดู ยอดสั่งซื้อ GMV และคอมมิชชันจริง" /><EmptyState code="AN" title="Analytics workspace" description="การนำเข้าผลลัพธ์และ Learning Loop จะเริ่มใน Phase 9" /></>; }
+import Link from "next/link";
+import {redirect} from "next/navigation";
+import {PageHeading} from "@/components/page-heading";
+import {getAnalyticsOverview} from "@/features/analytics/services";
+import {createClient} from "@/lib/supabase/server";
+const n=(v:number)=>v.toLocaleString("th-TH",{maximumFractionDigits:2});
+export default async function AnalyticsPage(){const client=await createClient();const {data}=await client.auth.getUser();if(!data.user)redirect("/login");const {summary,winners,accounts}=await getAnalyticsOverview(client,data.user.id);return <>
+ <PageHeading eyebrow="ANALYTICS + WINNER DETECTION" title="ผลลัพธ์จริงของวิดีโอ" description="แยกข้อมูลที่ไม่มีออกจากค่าศูนย์ วัดเทียบ baseline ของแต่ละบัญชี และเก็บหลักฐานทุกครั้งแบบ append-only" action={<Link className="primary-action" href="/learning">LEARNING LOOP</Link>}/>
+ <section className="stats-grid dashboard-stats" aria-label="Analytics summary">{[["วิดีโอ",summary.totalVideos],["SCALE",summary.scale],["WATCH",summary.watch],["STOP",summary.stop],["ข้อมูลไม่พอ",summary.insufficient],["Views",summary.views],["Orders",summary.orders],["GMV",summary.gmv],["Commission",summary.commission]].map(([label,value])=><article className="stat-card blue" key={label}><p>{label}</p><strong>{n(Number(value))}</strong><small>ข้อมูลล่าสุดที่มี</small></article>)}</section>
+ <section className="panel"><div className="panel-heading"><div><p className="eyebrow">ACCOUNT BASELINES</p><h2>บัญชีที่ติดตาม</h2></div><span className="phase-chip">winner-detection-v1</span></div>{accounts.length?<div className="data-list">{accounts.map(a=><div key={a.id}><Link href={`/analytics/accounts/${a.id}`}><strong>{a.display_name}</strong></Link><span>{a.effective_mode}</span><small>คะแนนใช้ baseline เฉพาะบัญชีนี้</small></div>)}</div>:<p className="muted">ยังไม่มีบัญชีสำหรับ Analytics</p>}</section>
+ <section className="panel"><div className="panel-heading"><div><p className="eyebrow">LATEST DECISIONS</p><h2>Winner board</h2></div></div>{winners.length?<div className="radar-table-wrap"><table className="radar-table"><thead><tr><th>Video</th><th>Mode</th><th>Decision</th><th>Score</th><th>Confidence</th><th>เวลา</th></tr></thead><tbody>{winners.map(w=><tr key={w.id}><td><Link href={`/analytics/videos/${w.video_id}`}>{w.video_id.slice(0,8)}</Link></td><td>{w.mode}</td><td><span className={`quality-badge ${w.decision==="SCALE"?"pass":w.decision==="STOP"?"reject":"retry"}`}>{w.decision}</span></td><td>{w.final_score===null?"UNKNOWN":n(Number(w.final_score))}</td><td>{n(Number(w.confidence)*100)}%</td><td>{new Date(w.evaluated_at).toLocaleString("th-TH")}</td></tr>)}</tbody></table></div>:<div className="large-empty"><span className="empty-orbit">AN</span><h2>ยังไม่มีผล Analytics</h2><p>Mock provider และ real provider boundary พร้อมแล้ว แต่ยังไม่มีการเรียก API จริง</p></div>}</section>
+ </>}
 

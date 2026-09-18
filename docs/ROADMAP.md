@@ -2,7 +2,7 @@
 
 ## Current status
 
-Phases 1–7C are complete at foundation level. Phase 7C adds fail-closed TikTok Shop/Affiliate readiness, product eligibility, product truth, and metadata-only shoppable intent in mock mode. Paid providers, real TikTok Shop calls, real publishing, Analytics/Learning, and production deployment remain outside this verified run.
+Phases 1–8 are complete at foundation level. Phase 8 adds availability-aware Analytics, account-relative winner detection, and a bounded learning loop in mock mode. Paid providers, real TikTok analytics/Shop calls, real publishing, Auto Mode, and production deployment remain outside this verified run.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -19,8 +19,8 @@ Phases 1–7C are complete at foundation level. Phase 7C adds fail-closed TikTok
 | 7A | TikTok OAuth, secure tokens, creator info, permission sync | Foundation complete — real app setup required |
 | 7B | Publishing queue, Upload Draft, Direct Post, consent, status foundation | Foundation complete — real calls remain disabled pending approval |
 | 7C | TikTok Shop authorization/readiness, Affiliate commerce eligibility, shoppable intent | Foundation complete — real Shop calls and attachment remain approval-gated |
-| 8 | Real TikTok Shop Creator APIs and product attachment | Blocked on app/category/scope approval and separate authorization |
-| 9 | Analytics and learning loop | Not started |
+| 8 | Analytics, winner detection, and bounded learning loop | Foundation complete — real analytics access remains approval-gated |
+| 8B | Real TikTok Shop Creator APIs and product attachment | Blocked on app/category/scope approval and separate authorization |
 | 10 | One-click Auto Mode | Not started |
 | 11 | Security, performance, and production review | Not started |
 
@@ -57,4 +57,10 @@ Phase 7C keeps TikTok Login separate from creator/seller Shop authorization and 
 Product Radar and assignment scores are preserved. Commerce evaluation separately records `CONTENT_FIT` and `COMMERCE_ELIGIBLE`, verifies title, price, discount, features, seller/product status, and creates metadata-only shoppable intent after a pass. The real provider is `APPROVAL_REQUIRED`, makes no request, and stores no token. Real Shop calls, real product attachment, Analytics/Learning, and paid provider calls require later separately authorized work.
 
 The Growth learning roadmap remains: optimize follower gain in Growth, reach the applicable threshold, re-check current authoritative commerce permissions, and enter Affiliate only when truly eligible.
+
+## Phase 8 boundary
+
+Phase 8 stores raw observations and normalized winner evidence without inventing unavailable values. Growth and Affiliate scores use the same account's baseline, explicit confidence, sample-size handling, and freshness decay. Delayed affiliate events append new evidence instead of mutating the earlier decision. Learning signals stay account-local, decay over time, and can only create bounded adjustments or one-axis experiments guarded by Phase 6C originality.
+
+The TikTok Display and Shop Analytics adapters remain `APPROVAL_REQUIRED`; mock providers are the default. Auto Mode, real publishing, real Shop product attachment, and paid generation remain disabled.
 

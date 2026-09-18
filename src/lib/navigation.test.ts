@@ -13,6 +13,7 @@ const requiredRoutes = [
   "/publishing",
   "/commerce",
   "/analytics",
+  "/learning",
   "/auto-mode",
   "/settings",
   "/settings/integrations",

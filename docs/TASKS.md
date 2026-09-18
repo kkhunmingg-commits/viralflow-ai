@@ -175,3 +175,17 @@ Phase 7B does not call TikTok Shop, attach products, invoke paid video providers
 
 Phase 7C never calls a real TikTok Shop endpoint or paid video provider and does not create a real product attachment.
 
+## Phase 8 — Analytics + Winner Detection + Learning Loop
+
+- [x] Verify current official TikTok Display, Shop Analytics 202605, Affiliate attribution, scope, latency, and rate-limit contracts.
+- [x] Add eight owner-scoped analytics/learning tables in one rollback-validated migration with nullable `UNKNOWN` metrics and append-only evidence.
+- [x] Implement account-relative Growth and Affiliate winner scoring, confidence, freshness, delayed attribution, and STOP/WATCH/SCALE/INSUFFICIENT_DATA.
+- [x] Add account-local, time-decayed learning signals and bounded decisions without rewriting existing brains.
+- [x] Add one-axis experiment proposals that always retain the Phase 6C originality gate.
+- [x] Add deterministic mock providers and fail-closed TikTok Display/Shop provider boundaries; keep real calls disabled.
+- [x] Connect Analytics overview, account/video/product details, Learning Loop, navigation, and dashboard winner cards.
+- [x] Verify fixtures A–J, retry idempotency, delayed attribution, and the 45,000-observation scale envelope.
+- [ ] Configure approved TikTok Display `video.list`/`user.info.stats` access and Shop Analytics `data.shop_analytics.public.read` seller authorization.
+
+Phase 8 does not enable Auto Mode, real publishing, real Shop attachment, or paid provider calls.
+
