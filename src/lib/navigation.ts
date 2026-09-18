@@ -13,7 +13,6 @@ export const navigation = [
   { href: "/learning", label: "Learning Loop", short: "LL" },
   { href: "/growth", label: "Growth Engine", short: "GR" },
   { href: "/auto", label: "Auto Mode", short: "AU" },
-  { href: "/project-flow", label: "แผนผังระบบ", short: "PF" },
 ] as const;
 
 export const settingsNavigation = [
