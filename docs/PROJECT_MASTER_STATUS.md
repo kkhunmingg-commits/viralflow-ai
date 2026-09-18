@@ -2,8 +2,8 @@
 
 อัปเดตล่าสุด: 18 กันยายน 2026  
 สถานะที่ตรวจ: `feature/google-veo-provider`  
-code baseline HEAD: `9140ea38c11dcbe7d243665ac89170114f8f70e2` (`feat: add Google Veo video provider integration`)  
-remote baseline: `origin/feature/google-veo-provider` ตรงกับ code baseline และ working tree สะอาดก่อนสร้างเอกสารนี้
+code baseline HEAD: `87b960f73409c22ad9833bad0d97a1bd5bd6c98c` (`chore: prepare Veo Stage B benchmark assets`)
+remote baseline: `origin/feature/google-veo-provider` ตรงกับ code baseline ก่อนเพิ่มหน้าแผนผังและ PDF
 
 ## Executive status
 
@@ -47,18 +47,18 @@ remote baseline: `origin/feature/google-veo-provider` ตรงกับ code ba
 - Framework: Next.js 16.3.5 App Router, React 19.3, TypeScript 6.0, Tailwind CSS 4
 - Data/Auth: Supabase SSR และ `@supabase/supabase-js`
 - Package manager: pnpm 11.19.0; Node.js ขั้นต่ำ 24
-- UI pages: **35** `page.tsx` routes
+- UI pages: **36** `page.tsx` routes รวมหน้าแผนผังระบบและปุ่มดาวน์โหลด PDF
 - Server route handlers: **3** (`TikTok OAuth start`, `TikTok OAuth callback`, `Content Posting webhook`)
 - Feature domains: **14** — accounts, analytics, assignments, auto, categories, commerce, compliance, creative, growth, products, publishing, TikTok, video และ video benchmark
 - Test files: **17**
 - Tests: **226/226 ผ่าน** รวม real FFmpeg render/probe
-- Latest verified code commits: Phase 8 `a0ef575`, Phase 9 `a26a82f`, Phase 10 `c2cd40f`, CostRouter fix `42bfaa0`, Google Veo `9140ea3`
+- Latest verified code commits: Phase 8 `a0ef575`, Phase 9 `a26a82f`, Phase 10 `c2cd40f`, CostRouter fix `42bfaa0`, Google Veo `9140ea3`, Stage B assets `87b960f`
 
 ### Routes
 
 | กลุ่ม | Routes |
 |---|---|
-| Foundation | `/`, `/login`, `/dashboard`, `/settings`, `/settings/integrations` |
+| Foundation | `/`, `/login`, `/dashboard`, `/project-flow`, `/settings`, `/settings/integrations` |
 | Accounts | `/accounts`, `/accounts/[id]`, `/accounts/connect/tiktok` |
 | Intelligence | `/product-radar`, `/product-radar/[id]`, `/categories`, `/categories/[id]`, `/recommendations` |
 | Creative/Video | `/creative-studio`, `/creative-studio/[id]`, `/video-factory`, `/video-factory/[id]`, `/compliance` |
@@ -115,7 +115,7 @@ Security Advisor ปัจจุบันมี warning `auth_leaked_password_pr
 | 5A | Account-product assignment | DONE | account-product-fit-v1, diversification และ daily planner |
 | 5B | Creative Brain | DONE | structured concepts, lifecycle, risk, cost/provider evidence |
 | 6 | Video Factory | DONE | private media, FFmpeg, master/variation, quality/cost/idempotency |
-| 6B | Real provider benchmark | PARTIAL | harness/providers พร้อม แต่ยังไม่มี licensed inputs, owner Flow baseline และ paid evidence |
+| 6B | Real provider benchmark | PARTIAL | Beauty/Home/Gadget synthetic assets และ Veo Lite dry-run พร้อม แต่ยังไม่มี Google key, owner Flow baseline และ paid evidence |
 | 6C | Compliance/originality | PARTIAL | engine และ persistence เสร็จ; `TASKS.md` ยังเปิด authenticated browser signoff ไว้ |
 | 7A | TikTok OAuth/creator sync | PARTIAL | official adapter และ secure token boundary มี; production app config/scopes ยังไม่มี |
 | 7B | Publishing queue | PARTIAL | queue, consent, retry, webhook และ official adapter มี; real mode ปิด |
@@ -123,7 +123,7 @@ Security Advisor ปัจจุบันมี warning `auth_leaked_password_pr
 | 8 | Analytics/winner/learning | PARTIAL | models, scores, views และ simulation เสร็จ; real analytics access ยังไม่มี |
 | 9 | Growth Learning Engine | DONE | account-relative patterns, experiment, milestone/recheck และ simulation |
 | 10 | Full Auto Mode | PARTIAL | durable orchestration และ safety gates เสร็จ; external execution ยัง mock/local |
-| Google Veo | Veo 3.1 provider + CostRouter evidence | PARTIAL | adapter/tests/cost model เสร็จ; ไม่เคยเรียก paid benchmark และยังไม่มี winner |
+| Google Veo | Veo 3.1 provider + CostRouter evidence | PARTIAL | adapter/tests/cost model/Stage B manifest เสร็จ; ไม่เคยเรียก paid benchmark และยังไม่มี winner |
 | 11 | Security/performance/production review | PLANNED | ยังไม่เริ่ม production hardening/release gate |
 
 ## Master system flow
@@ -308,7 +308,7 @@ flowchart TD
 
 ## Blockers
 
-1. **Real video winner ไม่มีหลักฐาน** — ขาด owner Flow reference, licensed Beauty/Home/Gadget inputs, provider key และ explicit spend approval
+1. **Real video winner ไม่มีหลักฐาน** — synthetic Beauty/Home/Gadget inputs พร้อมแล้ว แต่ยังขาด owner Flow reference, provider key และ paid benchmark evidence
 2. **TikTok production access ยังไม่พร้อม** — ขาด app products/scopes, verified redirect/pull domains, Direct Post audit และ explicit enablement
 3. **TikTok Shop/Affiliate access ยังไม่พร้อม** — ขาด Partner/Creator API approval, category/region access, seller authorization และ attachment capability
 4. **Real analytics ยังไม่พร้อม** — Display และ Shop Analytics scopes/authorization ยัง approval-required
@@ -319,7 +319,7 @@ flowchart TD
 ## Owner and external actions
 
 1. เปิด Supabase Auth Leaked Password Protection และทบทวน production auth policy
-2. จัดหา Flow AI reference clips และรูปสินค้า Beauty/Home/Gadget ที่มีสิทธิ์ใช้งาน
+2. จัดหา Flow AI reference clip; synthetic Beauty/Home/Gadget benchmark images ถูกสร้างและเก็บแบบ ignored local assets แล้ว
 3. ใส่ provider keys ฝั่ง server และอนุมัติงบ benchmark แบบมี hard cap ก่อนเรียก paid API
 4. ตั้งค่า TikTok developer app, scopes, redirect URI, verified domain, audit และ test creators
 5. ขอ TikTok Shop/Affiliate/Analytics approvals และ seller authorization ที่จำเป็น
