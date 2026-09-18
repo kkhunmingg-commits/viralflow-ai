@@ -202,3 +202,16 @@ Phase 8 does not enable Auto Mode, real publishing, real Shop attachment, or pai
 
 Phase 9 prepares `NEXT_GROWTH_ACTION` outputs only. It does not start Phase 10 Auto Mode, publish to TikTok, or call paid providers.
 
+## Phase 10 — Full Auto Mode Orchestration
+
+- [x] Add six owner-scoped orchestration tables with durable run state, append-only steps/actions/failures/checkpoints, RLS, and idempotency constraints.
+- [x] Implement idempotent START, PAUSE, RESUME, STOP and recovery from the latest safe checkpoint.
+- [x] Resolve Growth, Affiliate, and AUTO through the existing Growth, commerce, assignment, creative, video, compliance, publishing, analytics, and learning outputs.
+- [x] Enforce per-video, run, account, provider, daily, and monthly budgets before generation.
+- [x] Require every safety, commerce, capacity, and consent gate with no bypass path.
+- [x] Add fair scheduling, deterministic time spreading, bounded retry, overflow, and concurrency protection.
+- [x] Add `/auto`, `/auto/runs/[id]`, Dashboard metrics, Account Auto panel, and control actions.
+- [x] Verify the three-account 60-candidate pilot and mixed 10-account full-day simulation without external calls.
+
+Phase 10 keeps real TikTok publishing, paid providers, and production deployment disabled by default.
+

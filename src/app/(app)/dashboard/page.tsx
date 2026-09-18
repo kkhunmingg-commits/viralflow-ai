@@ -9,6 +9,8 @@ import { getOwnerAccounts, getOwnerTodayStats } from "@/features/accounts/querie
 import { createClient } from "@/lib/supabase/server";
 import { getAnalyticsOverview } from "@/features/analytics/services";
 import { getGrowthOverview, summarizeGrowth } from "@/features/growth/services";
+import {getAutoOverview} from "@/features/auto/services";
+import {AutoControls} from "@/components/auto-controls";
 
 export const metadata: Metadata = { title: "ภาพรวม" };
 
@@ -28,14 +30,15 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   const ownerId = userData.user?.id ?? "";
-  const [accounts, todayStats, analytics, growthOverview] = ownerId
+  const [accounts, todayStats, analytics, growthOverview,autoOverview] = ownerId
     ? await Promise.all([
         getOwnerAccounts(supabase, ownerId),
         getOwnerTodayStats(supabase, ownerId, bangkokDate()),
         getAnalyticsOverview(supabase, ownerId),
         getGrowthOverview(supabase, ownerId),
+        getAutoOverview(supabase,ownerId),
       ])
-    : [[], [], null, null];
+    : [[], [], null, null,null];
   const summary = getDashboardSummary(accounts, todayStats);
   const growth = growthOverview ? summarizeGrowth(growthOverview) : null;
   const cards = [
@@ -53,11 +56,15 @@ export default async function DashboardPage() {
     { label: "Analytics WATCH", value: (analytics?.summary.watch ?? 0).toLocaleString("th-TH"), note: "ติดตามหลักฐานต่อ", tone: "amber" },
     { label: "Growth plateau", value: (growth?.plateau ?? 0).toLocaleString("th-TH"), note: "บัญชีที่ควรทดลองใหม่", tone: "amber" },
     { label: "Commerce recheck", value: (growth?.rechecks ?? 0).toLocaleString("th-TH"), note: "รอตรวจสิทธิ์จริง", tone: "violet" },
+    { label: "Auto running", value: (autoOverview?.summary.running??0).toLocaleString("th-TH"), note: "บัญชีที่กำลัง orchestration", tone: "green" },
+    { label: "Auto paused", value: (autoOverview?.summary.paused??0).toLocaleString("th-TH"), note: "resume จาก checkpoint ได้", tone: "amber" },
+    { label: "Waiting approval", value: (autoOverview?.summary.waitingApprovals??0).toLocaleString("th-TH"), note: "ไม่ข้าม consent", tone: "violet" },
+    { label: "Auto cost today", value: `$${(autoOverview?.summary.costToday??0).toFixed(2)}`, note: "paid provider disabled", tone: "blue" },
   ] as const;
 
   return (
     <>
-      <PageHeading eyebrow="MULTI-ACCOUNT OVERVIEW" title="ภาพรวมการทำงาน" description="ตัวเลขทั้งหมดคำนวณจากบัญชีและสถิติรายวันใน Supabase" action={<button className="primary-action" disabled>START AUTO <span>Phase 10</span></button>} />
+      <PageHeading eyebrow="MULTI-ACCOUNT OVERVIEW" title="ภาพรวมการทำงาน" description="ตัวเลขทั้งหมดคำนวณจากบัญชีและสถิติรายวันใน Supabase" action={<AutoControls runId={autoOverview?.activeRun?.id} state={autoOverview?.activeRun?.state}/>} />
       <section className="stats-grid dashboard-stats" aria-label="ตัวชี้วัดวันนี้">
         {cards.map((item) => <article className={`stat-card ${item.tone}`} key={item.label}><p>{item.label}</p><strong>{item.value}</strong><small>{item.note}</small></article>)}
       </section>

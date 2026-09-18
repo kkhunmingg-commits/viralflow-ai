@@ -2,7 +2,7 @@
 
 ## Current status
 
-Phases 1–9 are complete at foundation level. Phase 9 adds account-specific Growth optimization, controlled experiments, follower milestones, and authoritative commerce recheck preparation. Paid providers, real TikTok analytics/Shop calls, real publishing, Auto Mode, and production deployment remain outside this verified run.
+Phases 1–10 are complete at foundation level. Phase 10 adds durable, approval-aware Full Auto Mode orchestration across the existing engines. Paid providers, real TikTok calls, real publishing, and production deployment remain disabled.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -22,7 +22,7 @@ Phases 1–9 are complete at foundation level. Phase 9 adds account-specific Gro
 | 8 | Analytics, winner detection, and bounded learning loop | Foundation complete — real analytics access remains approval-gated |
 | 8B | Real TikTok Shop Creator APIs and product attachment | Blocked on app/category/scope approval and separate authorization |
 | 9 | Growth Learning Engine | Complete — real analytics and commerce rechecks remain approval-gated |
-| 10 | One-click Auto Mode | Not started |
+| 10 | Full Auto Mode orchestration | Complete — mock/local execution only; external calls remain disabled |
 | 11 | Security, performance, and production review | Not started |
 
 ## Phase 6 boundary
@@ -70,4 +70,10 @@ The TikTok Display and Shop Analytics adapters remain `APPROVAL_REQUIRED`; mock 
 Phase 9 uses Phase 8 evidence to optimize follower efficiency, engagement, categories, hooks, angles, scenes, CTAs, templates, variations, and timing per account. Explore/exploit allocation is configurable; experiments change one axis and retain the Phase 6C originality gate. Follower milestones trigger a Phase 7C commerce recheck but never imply Affiliate readiness.
 
 Creative Brain receives advisory Growth context, Product Radar remains useful without Shop, and Growth publishing still requires compliance, originality, account health, cap, and consent. Phase 9 does not orchestrate Auto Mode or call any real publishing or paid-provider endpoint.
+
+## Phase 10 boundary
+
+Phase 10 coordinates existing decisions through durable runs, owner-scoped account states, append-only step/action/failure/checkpoint evidence, stable idempotency keys, budget gates, bounded retries, fair scheduling, and human approval. It resumes from the last safe checkpoint after interruption and never repeats a completed generation or publish action.
+
+The verified runtime uses mock/local execution only. Real TikTok posting, paid provider routing, silent consent bypass, anti-detection timing, and production deployment remain disabled.
 

@@ -15,7 +15,7 @@ const requiredRoutes = [
   "/analytics",
   "/learning",
   "/growth",
-  "/auto-mode",
+  "/auto",
   "/settings",
   "/settings/integrations",
 ];

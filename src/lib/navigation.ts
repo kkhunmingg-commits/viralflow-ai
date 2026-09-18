@@ -12,7 +12,7 @@ export const navigation = [
   { href: "/analytics", label: "Analytics", short: "AN" },
   { href: "/learning", label: "Learning Loop", short: "LL" },
   { href: "/growth", label: "Growth Engine", short: "GR" },
-  { href: "/auto-mode", label: "Auto Mode", short: "AU" },
+  { href: "/auto", label: "Auto Mode", short: "AU" },
 ] as const;
 
 export const settingsNavigation = [
