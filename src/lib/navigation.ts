@@ -11,6 +11,7 @@ export const navigation = [
   { href: "/commerce", label: "Commerce", short: "CM" },
   { href: "/analytics", label: "Analytics", short: "AN" },
   { href: "/learning", label: "Learning Loop", short: "LL" },
+  { href: "/growth", label: "Growth Engine", short: "GR" },
   { href: "/auto-mode", label: "Auto Mode", short: "AU" },
 ] as const;
 

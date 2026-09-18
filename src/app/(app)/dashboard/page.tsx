@@ -8,6 +8,7 @@ import {
 import { getOwnerAccounts, getOwnerTodayStats } from "@/features/accounts/queries";
 import { createClient } from "@/lib/supabase/server";
 import { getAnalyticsOverview } from "@/features/analytics/services";
+import { getGrowthOverview, summarizeGrowth } from "@/features/growth/services";
 
 export const metadata: Metadata = { title: "ภาพรวม" };
 
@@ -27,14 +28,16 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: userData } = await supabase.auth.getUser();
   const ownerId = userData.user?.id ?? "";
-  const [accounts, todayStats, analytics] = ownerId
+  const [accounts, todayStats, analytics, growthOverview] = ownerId
     ? await Promise.all([
         getOwnerAccounts(supabase, ownerId),
         getOwnerTodayStats(supabase, ownerId, bangkokDate()),
         getAnalyticsOverview(supabase, ownerId),
+        getGrowthOverview(supabase, ownerId),
       ])
-    : [[], [], null];
+    : [[], [], null, null];
   const summary = getDashboardSummary(accounts, todayStats);
+  const growth = growthOverview ? summarizeGrowth(growthOverview) : null;
   const cards = [
     { label: "บัญชีทั้งหมด", value: summary.totalAccounts.toLocaleString("th-TH"), note: "บัญชีใน Account Brain", tone: "blue" },
     { label: "Growth accounts", value: summary.growthAccounts.toLocaleString("th-TH"), note: "effective mode", tone: "violet" },
@@ -48,6 +51,8 @@ export default async function DashboardPage() {
     { label: "คอมมิชชันวันนี้", value: `฿${summary.commission.toLocaleString("th-TH", { minimumFractionDigits: 2 })}`, note: "จาก daily stats", tone: "green" },
     { label: "Analytics SCALE", value: (analytics?.summary.scale ?? 0).toLocaleString("th-TH"), note: "winner-detection-v1", tone: "green" },
     { label: "Analytics WATCH", value: (analytics?.summary.watch ?? 0).toLocaleString("th-TH"), note: "ติดตามหลักฐานต่อ", tone: "amber" },
+    { label: "Growth plateau", value: (growth?.plateau ?? 0).toLocaleString("th-TH"), note: "บัญชีที่ควรทดลองใหม่", tone: "amber" },
+    { label: "Commerce recheck", value: (growth?.rechecks ?? 0).toLocaleString("th-TH"), note: "รอตรวจสิทธิ์จริง", tone: "violet" },
   ] as const;
 
   return (
@@ -56,6 +61,7 @@ export default async function DashboardPage() {
       <section className="stats-grid dashboard-stats" aria-label="ตัวชี้วัดวันนี้">
         {cards.map((item) => <article className={`stat-card ${item.tone}`} key={item.label}><p>{item.label}</p><strong>{item.value}</strong><small>{item.note}</small></article>)}
       </section>
+      <section className="panel radar-section"><div className="panel-heading"><div><p className="eyebrow">GROWTH LEARNING</p><h2>Fastest growth & winning patterns</h2></div><Link href="/growth">เปิด Growth Engine →</Link></div><div className="detail-summary-grid"><div className="data-list">{growth?.fastest.length?growth.fastest.map(x=><div key={x.account.id}><strong>{x.account.display_name}</strong><span>{x.latestSnapshot?.follower_delta===null||x.latestSnapshot?.follower_delta===undefined?"UNKNOWN":`+${x.latestSnapshot.follower_delta}`}</span><small>{x.profile?.growth_state??"NEW"}</small></div>):<p className="muted">ยังไม่มี follower trajectory</p>}</div><div className="data-list"><div><strong>Winning hooks</strong><span>{growth?.winningHooks.length??0}</span><small>{growth?.winningHooks.map(x=>x.value).join(", ")||"ยังไม่มี"}</small></div><div><strong>Winning categories</strong><span>{growth?.winningCategories.length??0}</span><small>{growth?.winningCategories.map(x=>x.categoryKey).join(", ")||"ยังไม่มี"}</small></div></div></div></section>
       <section className="panel account-panel">
         <div className="panel-heading"><div><p className="eyebrow">ACCOUNT BRAIN</p><h2>สถานะบัญชี</h2></div><Link href="/accounts">จัดการบัญชี →</Link></div>
         {accounts.length ? <div className="account-list">{accounts.map((account) => {

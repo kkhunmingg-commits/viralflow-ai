@@ -189,3 +189,16 @@ Phase 7C never calls a real TikTok Shop endpoint or paid video provider and does
 
 Phase 8 does not enable Auto Mode, real publishing, real Shop attachment, or paid provider calls.
 
+## Phase 9 — Growth Learning Engine
+
+- [x] Add six owner-scoped Growth tables in one migration with append-only snapshots, results, milestones, and recommendations.
+- [x] Implement follower efficiency, Growth Optimization Score, confidence/sample controls, freshness decay, and account-relative learning.
+- [x] Rank category, hook, angle, scene, CTA, template, variation, and timing patterns primarily by account-specific evidence.
+- [x] Add configurable explore/exploit allocation and duplicate-safe one-axis experiments guarded by Phase 6C originality.
+- [x] Add follower milestone tracking that triggers authoritative Phase 7C commerce rechecks without follower-only Affiliate transitions.
+- [x] Feed safe Growth context to Creative Brain while keeping Product Radar commerce-independent and publishing gates intact.
+- [x] Add `/growth`, account detail, experiments, Account panel, Dashboard metrics, and deterministic A–L fixtures.
+- [x] Verify the 10-account × 30-day simulation, delayed evidence keys, Growth-without-Shop publishing, and no false commerce transition.
+
+Phase 9 prepares `NEXT_GROWTH_ACTION` outputs only. It does not start Phase 10 Auto Mode, publish to TikTok, or call paid providers.
+

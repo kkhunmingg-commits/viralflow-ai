@@ -16,6 +16,7 @@ import { getRecommendationsForAccount } from "@/features/assignments/planner";
 import { RecommendationTable } from "@/components/recommendation-table";
 import { disconnectTikTokAccount, refreshTikTokCreatorInfo } from "../tiktok-actions";
 import {getCommerceAccount} from "@/features/commerce/services";
+import {getGrowthAccount} from "@/features/growth/services";
 
 export const metadata: Metadata = { title: "รายละเอียดบัญชี" };
 
@@ -39,7 +40,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
   if (!account) notFound();
   const { data: publishingRows } = await supabase.from("publishing_queue").select("status").eq("owner_id", ownerId).eq("tiktok_account_id", id);
   const recommendations = await getRecommendationData(supabase, ownerId);
-  const commerce=await getCommerceAccount(supabase,ownerId,id);
+  const [commerce,growth]=await Promise.all([getCommerceAccount(supabase,ownerId,id),getGrowthAccount(supabase,ownerId,id)]);
 
   const readiness = getAccountAffiliateReadiness(account);
   const performance = getAccountPerformanceSummary(stats);
@@ -87,6 +88,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         </div>
       </section>
       <section className="panel radar-section"><div className="panel-heading"><div><p className="eyebrow">SHOP & AFFILIATE COMMERCE</p><h2>{commerce?.account.commerce_profile?.commerce_status??"NOT_SYNCED"}</h2></div><Link href={`/commerce/accounts/${id}`}>เปิด Commerce detail →</Link></div><dl className="detail-list"><div><dt>Shop connection</dt><dd>{commerce?.account.connection?.authorization_status??"NOT_CONNECTED"}</dd></div><div><dt>Affiliate eligibility</dt><dd>{commerce?.account.commerce_profile?.affiliate_eligible?"ELIGIBLE":"NOT ELIGIBLE"}</dd></div><div><dt>Ecommerce permission</dt><dd>{account.ecommerce_permission===true?"YES":"NO"}</dd></div><div><dt>Cart permission</dt><dd>{account.cart_enabled===true?"YES":"NO"}</dd></div><div><dt>Effective mode</dt><dd>{account.mode} → {account.effective_mode}</dd></div><div><dt>Product attach readiness</dt><dd>{commerce?.account.commerce_profile?.attachment_available?"READY":"BLOCKED"}</dd></div><div><dt>Commerce blockers</dt><dd>{((commerce?.account.commerce_profile?.blockers_json??[]) as string[]).join(", ")||"ไม่มี"}</dd></div><div><dt>Last sync</dt><dd>{commerce?.account.connection?.last_synced_at?new Date(commerce.account.connection.last_synced_at).toLocaleString("th-TH"):"ยังไม่ sync"}</dd></div></dl></section>
+      <section className="panel radar-section"><div className="panel-heading"><div><p className="eyebrow">GROWTH LEARNING</p><h2>{growth?.profile?.growth_state??"NEW"}</h2></div><Link href={`/growth/accounts/${id}`}>เปิด Growth detail →</Link></div><dl className="detail-list"><div><dt>Follower progress</dt><dd>{account.follower_count.toLocaleString("th-TH")}</dd></div><div><dt>Effective mode</dt><dd>{account.effective_mode}</dd></div><div><dt>Growth score</dt><dd>{growth?.profile?.growth_score??"UNKNOWN"}</dd></div><div><dt>Recommended strategy</dt><dd>{growth?.recommendation?.next_action??"WAIT_FOR_DATA"}</dd></div><div><dt>Current experiments</dt><dd>{growth?.experiments.filter(x=>["APPROVED","RUNNING"].includes(x.status)).length??0}</dd></div><div><dt>Commerce recheck</dt><dd>{growth?.milestones[0]?.commerce_recheck_status??"NOT_REQUIRED"}</dd></div></dl></section>
       <section className="panel radar-section">
         <div className="panel-heading"><div><p className="eyebrow">PUBLISHING QUEUE</p><h2>{publishingRows?.length ?? 0} รายการ</h2></div><Link href="/publishing">เปิดคิว →</Link></div>
         <dl className="detail-list">

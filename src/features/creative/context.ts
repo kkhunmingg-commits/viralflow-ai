@@ -9,6 +9,7 @@ export interface CreativeContextInput {
   affinity?:{affinity_score:number|string;confidence:number|string}|null;
   assignmentScore:{account_product_fit_score:number;final_viral_opportunity_score:number};
   history?:{angle_type:string;hook:string}[];
+  growthRecommendation?:{category_key:string|null;hook:string|null;angle:string|null;cta:string|null;experiment_axis:string|null;confidence:number;evidence_json:Record<string,unknown>}|null;
 }
 export function buildCreativeContext(i:CreativeContextInput):CreativeContext {
   return {
@@ -19,6 +20,6 @@ export function buildCreativeContext(i:CreativeContextInput):CreativeContext {
     affinity:{score:Number(i.affinity?.affinity_score??.5),confidence:Number(i.affinity?.confidence??0)},
     signals:{accountProductFit:Number(i.assignmentScore.account_product_fit_score),finalViralOpportunity:Number(i.assignmentScore.final_viral_opportunity_score),productConfidence:Number(i.productScore?.data_confidence??0),categoryConfidence:Number(i.categoryScore?.confidence_component??0)/100},
     historicalCreativeSignals:{recentAngleTypes:(i.history??[]).map(h=>h.angle_type).slice(0,10),recentHooks:(i.history??[]).map(h=>h.hook).slice(0,10)},
+    growthLearning:i.account.effective_mode==="GROWTH"&&i.growthRecommendation?{preferredCategory:i.growthRecommendation.category_key,recommendedHook:i.growthRecommendation.hook,recommendedAngle:i.growthRecommendation.angle,cta:i.growthRecommendation.cta,experimentAxis:i.growthRecommendation.experiment_axis,confidence:Number(i.growthRecommendation.confidence),sourceEvidence:i.growthRecommendation.evidence_json}:null,
   };
 }
-

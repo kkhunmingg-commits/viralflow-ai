@@ -12,6 +12,7 @@ export interface CreativeContext {
   affinity:{score:number;confidence:number};
   signals:{accountProductFit:number;finalViralOpportunity:number;productConfidence:number;categoryConfidence:number};
   historicalCreativeSignals:{recentAngleTypes:string[];recentHooks:string[]};
+  growthLearning:{preferredCategory:string|null;recommendedHook:string|null;recommendedAngle:string|null;cta:string|null;experimentAxis:string|null;confidence:number;sourceEvidence:Record<string,unknown>}|null;
 }
 export interface ProviderUsage {inputTokens:number;outputTokens:number}
 export interface ProviderResult {raw:unknown;output:unknown;usage:ProviderUsage}
@@ -24,4 +25,3 @@ export interface CreativeProjectRow {
   id:string;owner_id:string;tiktok_account_id:string;product_id:string;product_assignment_id:string;
   mode:EffectiveMode;status:string;selected_angle_id:string|null;selected_script_id:string|null;created_at:string;updated_at:string;
 }
-

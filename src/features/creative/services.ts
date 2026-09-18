@@ -40,16 +40,17 @@ export async function loadCreativeContext(client:SupabaseClient,owner:string,pro
     client.from("account_product_scores").select("*").eq("owner_id",owner).eq("id",String(assignment.score_id)).single(),
   ]);
   if(!account||!product||assignmentScore.error)throw new Error("Creative source context is incomplete");
-  const [productScore,category,affinity,history]=await Promise.all([
+  const [productScore,category,affinity,history,growthRecommendation]=await Promise.all([
     client.from("product_scores").select("*").eq("owner_id",owner).eq("product_id",String(project.product_id)).order("calculated_at",{ascending:false}).limit(1).maybeSingle(),
     client.from("categories").select("*").eq("owner_id",owner).eq("provider",String(product.external_provider)).eq("category_key",String(product.category_key)).maybeSingle(),
     client.from("account_category_affinity").select("*").eq("owner_id",owner).eq("tiktok_account_id",String(project.tiktok_account_id)).eq("category_key",String(product.category_key)).maybeSingle(),
     client.from("creative_angles").select("angle_type,hook").eq("owner_id",owner).order("created_at",{ascending:false}).limit(10),
+    client.from("growth_recommendations").select("category_key,hook,angle,cta,experiment_axis,confidence,evidence_json").eq("owner_id",owner).eq("tiktok_account_id",String(project.tiktok_account_id)).order("created_at",{ascending:false}).limit(1).maybeSingle(),
   ]);
-  if(productScore.error||category.error||affinity.error||history.error)throw new Error(productScore.error?.message??category.error?.message??affinity.error?.message??history.error?.message);
+  if(productScore.error||category.error||affinity.error||history.error||growthRecommendation.error)throw new Error(productScore.error?.message??category.error?.message??affinity.error?.message??history.error?.message??growthRecommendation.error?.message);
   const categoryScore=category.data?await client.from("category_scores").select("*").eq("owner_id",owner).eq("category_id",category.data.id).order("calculated_at",{ascending:false}).limit(1).maybeSingle():{data:null,error:null};
   if(categoryScore.error)throw new Error(categoryScore.error.message);
-  return {project:project as unknown as CreativeProjectRow,context:buildCreativeContext({assignment:assignment as never,account:account as never,product:product as never,productScore:productScore.data as never,categoryScore:categoryScore.data as never,affinity:affinity.data as never,assignmentScore:assignmentScore.data as never,history:(history.data??[]) as never})};
+  return {project:project as unknown as CreativeProjectRow,context:buildCreativeContext({assignment:assignment as never,account:account as never,product:product as never,productScore:productScore.data as never,categoryScore:categoryScore.data as never,affinity:affinity.data as never,assignmentScore:assignmentScore.data as never,history:(history.data??[]) as never,growthRecommendation:growthRecommendation.data as never})};
 }
 function providerFor(context:Awaited<ReturnType<typeof loadCreativeContext>>["context"]){
   if(serverEnv.creativeAIProvider==="openai")return new OpenAIProvider(serverEnv.openAIApiKey!,serverEnv.creativeAIModel);
