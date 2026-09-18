@@ -20,11 +20,17 @@ const serverEnvSchema = z.object({
   TIKTOK_PUBLISHING_REAL_MODE: z.enum(["true", "false"]).default("false"),
   TIKTOK_ALLOWED_PULL_HOSTS: z.string().default(""),
   TIKTOK_WEBHOOK_TOLERANCE_SECONDS: z.coerce.number().int().min(30).max(900).default(300),
+  TIKTOK_SHOP_PROVIDER: z.enum(["mock","official"]).default("mock"),
+  TIKTOK_SHOP_REAL_MODE: z.enum(["true","false"]).default("false"),
+  TIKTOK_SHOP_APP_KEY: z.preprocess(value=>value===""?undefined:value,z.string().min(3).optional()),
+  TIKTOK_SHOP_APP_SECRET: z.preprocess(value=>value===""?undefined:value,z.string().min(8).optional()),
 }).superRefine((value,ctx)=>{
   if(value.CREATIVE_AI_PROVIDER==="openai"&&!value.OPENAI_API_KEY)ctx.addIssue({code:"custom",path:["OPENAI_API_KEY"],message:"OPENAI_API_KEY is required when CREATIVE_AI_PROVIDER=openai"});
   if(value.TIKTOK_PROVIDER==="official") for(const key of ["SUPABASE_SECRET_KEY","TIKTOK_CLIENT_KEY","TIKTOK_CLIENT_SECRET","TIKTOK_REDIRECT_URI","TIKTOK_TOKEN_ENCRYPTION_KEY"] as const) if(!value[key])ctx.addIssue({code:"custom",path:[key],message:`${key} is required when TIKTOK_PROVIDER=official`});
   if(value.TIKTOK_PUBLISHING_PROVIDER==="official"&&value.TIKTOK_PUBLISHING_REAL_MODE!=="true")ctx.addIssue({code:"custom",path:["TIKTOK_PUBLISHING_REAL_MODE"],message:"TIKTOK_PUBLISHING_REAL_MODE=true is required for official publishing"});
   if(value.TIKTOK_PUBLISHING_PROVIDER==="official") for(const key of ["SUPABASE_SECRET_KEY","TIKTOK_CLIENT_SECRET","TIKTOK_TOKEN_ENCRYPTION_KEY"] as const) if(!value[key])ctx.addIssue({code:"custom",path:[key],message:`${key} is required for official publishing`});
+  if(value.TIKTOK_SHOP_PROVIDER==="official"&&value.TIKTOK_SHOP_REAL_MODE!=="true")ctx.addIssue({code:"custom",path:["TIKTOK_SHOP_REAL_MODE"],message:"TIKTOK_SHOP_REAL_MODE=true is required for official Shop integration"});
+  if(value.TIKTOK_SHOP_PROVIDER==="official")for(const key of ["SUPABASE_SECRET_KEY","TIKTOK_SHOP_APP_KEY","TIKTOK_SHOP_APP_SECRET","TIKTOK_TOKEN_ENCRYPTION_KEY"] as const)if(!value[key])ctx.addIssue({code:"custom",path:[key],message:`${key} is required for official Shop integration`});
 });
 
 const parsed = serverEnvSchema.safeParse({
@@ -46,6 +52,10 @@ const parsed = serverEnvSchema.safeParse({
   TIKTOK_PUBLISHING_REAL_MODE: process.env.TIKTOK_PUBLISHING_REAL_MODE,
   TIKTOK_ALLOWED_PULL_HOSTS: process.env.TIKTOK_ALLOWED_PULL_HOSTS,
   TIKTOK_WEBHOOK_TOLERANCE_SECONDS: process.env.TIKTOK_WEBHOOK_TOLERANCE_SECONDS,
+  TIKTOK_SHOP_PROVIDER: process.env.TIKTOK_SHOP_PROVIDER,
+  TIKTOK_SHOP_REAL_MODE: process.env.TIKTOK_SHOP_REAL_MODE,
+  TIKTOK_SHOP_APP_KEY: process.env.TIKTOK_SHOP_APP_KEY,
+  TIKTOK_SHOP_APP_SECRET: process.env.TIKTOK_SHOP_APP_SECRET,
 });
 
 if (!parsed.success) {
@@ -73,4 +83,8 @@ export const serverEnv = Object.freeze({
   tiktokPublishingRealMode: parsed.data.TIKTOK_PUBLISHING_REAL_MODE === "true",
   tiktokAllowedPullHosts: parsed.data.TIKTOK_ALLOWED_PULL_HOSTS.split(",").map(value=>value.trim().toLowerCase()).filter(Boolean),
   tiktokWebhookToleranceSeconds: parsed.data.TIKTOK_WEBHOOK_TOLERANCE_SECONDS,
+  tiktokShopProvider:parsed.data.TIKTOK_SHOP_PROVIDER,
+  tiktokShopRealMode:parsed.data.TIKTOK_SHOP_REAL_MODE==="true",
+  tiktokShopAppKey:parsed.data.TIKTOK_SHOP_APP_KEY,
+  tiktokShopAppSecret:parsed.data.TIKTOK_SHOP_APP_SECRET,
 });

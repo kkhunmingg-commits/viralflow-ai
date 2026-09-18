@@ -8,6 +8,7 @@ export const navigation = [
   { href: "/video-factory", label: "Video Factory", short: "VF" },
   { href: "/compliance", label: "Compliance", short: "CG" },
   { href: "/publishing", label: "Publishing", short: "PB" },
+  { href: "/commerce", label: "Commerce", short: "CM" },
   { href: "/analytics", label: "Analytics", short: "AN" },
   { href: "/auto-mode", label: "Auto Mode", short: "AU" },
 ] as const;

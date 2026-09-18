@@ -1,0 +1,6 @@
+import Link from "next/link";
+import {redirect} from "next/navigation";
+import {PageHeading} from "@/components/page-heading";
+import {getCommerceOverview} from "@/features/commerce/services";
+import {createClient} from "@/lib/supabase/server";
+export default async function CommerceProductsPage(){const client=await createClient(),{data}=await client.auth.getUser();if(!data.user)redirect("/login");const overview=await getCommerceOverview(client,data.user.id);return <><PageHeading eyebrow="CONTENT FIT ≠ COMMERCE ELIGIBLE" title="Shop Products" description="สถานะสินค้า collaboration, region, audit และสิทธิ์ attach แยกจาก Product Radar" action={<Link className="secondary-action" href="/commerce">← Commerce</Link>}/><section className="panel radar-section"><div className="data-list">{overview.products.map(product=>{const pairs=overview.eligibility.filter(e=>e.shop_product_id===product.id);return <div key={product.id}><strong>{product.title}</strong><span>{product.product_status} · {product.audit_status}</span><small>{product.region} · {product.currency} {Number(product.current_price).toLocaleString("th-TH")} · {product.collaboration_status} · eligible {pairs.filter(p=>p.commerce_eligible).length}/{pairs.length}</small></div>})}</div></section></>}

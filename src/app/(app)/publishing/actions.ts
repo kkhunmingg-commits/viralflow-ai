@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { TikTokPublishingService } from "@/features/publishing/services";
+import {createShoppableIntentForQueue} from "@/features/commerce/services";
+import {z} from "zod";
 import type { PublishSettings } from "@/features/publishing/types";
 import { createClient } from "@/lib/supabase/server";
 
@@ -37,6 +39,8 @@ export async function preparePublishAction(queueId: string) {
   await new TikTokPublishingService().preparePublish(await ownerId(), queueId);
   refresh(queueId);
 }
+
+export async function createShoppableIntentAction(queueId:string,formData:FormData){const productId=z.string().uuid().parse(formData.get("shop_product_id"));await createShoppableIntentForQueue(await ownerId(),queueId,productId);refresh(queueId)}
 
 export async function consentPublishAction(queueId: string, formData: FormData) {
   const settings: PublishSettings = {

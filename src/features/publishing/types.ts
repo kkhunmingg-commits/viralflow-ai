@@ -61,6 +61,7 @@ export interface PublishQueueRow {
   compliance_check_id: string | null;
   originality_check_id: string | null;
   eligibility_check_id: string | null;
+  shoppable_content_intent_id: string | null;
   consent_id: string | null;
   provider_publish_id: string | null;
   provider_status: string | null;

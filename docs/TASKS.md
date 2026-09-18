@@ -1,6 +1,6 @@
 # ViralFlow AI tasks
 
-Updated 17 September 2026.
+Updated 18 September 2026.
 
 ## Phase 1 — Foundation
 
@@ -161,4 +161,17 @@ Phase 7A does not upload or publish content, call TikTok Shop, or invoke paid pr
 - [ ] Configure and explicitly authorize real Content Posting calls after TikTok app approval and audit.
 
 Phase 7B does not call TikTok Shop, attach products, invoke paid video providers, or perform real upload/publish calls during verification.
+
+## Phase 7C — TikTok Shop / Affiliate Commerce Foundation
+
+- [x] Verify current official creator/seller authorization, Affiliate scopes, open-collaboration product discovery, region, testing, webhook, rate-limit, and approval constraints.
+- [x] Add seven owner-scoped Shop/commerce tables, immutable product/eligibility evidence, RLS, and server-only writes in one migration.
+- [x] Add `TikTokShopProvider`, deterministic mock states A–I, and a fail-closed approval-required real-provider boundary.
+- [x] Require actual Shop creator, authorization, ecommerce, cart, product, region, and attachment readiness before Affiliate behavior.
+- [x] Preserve Growth content and existing scoring when Shop is unavailable; block fake cart, shop, affiliate CTA, and product attachment.
+- [x] Connect Product Radar truth, account-product commerce compatibility, metadata-only shoppable intent, publishing preflight, Commerce pages, and account details.
+- [x] Verify deterministic state/scale behavior, live owner isolation, cross-owner and anonymous denial, browser flows, fixture cleanup, Security Advisor, and the full quality suite.
+- [ ] Obtain TikTok Affiliate API/category approval, production scopes, creator test access, real credentials, and explicit approval for any real shoppable publishing implementation.
+
+Phase 7C never calls a real TikTok Shop endpoint or paid video provider and does not create a real product attachment.
 

@@ -72,9 +72,9 @@ describe("getAccountEffectiveMode", () => {
     [account({ follower_count: 1000, ecommerce_permission: true, cart_enabled: false }), "GROWTH"],
     [account({ follower_count: 1000, ecommerce_permission: null, cart_enabled: true }), "GROWTH"],
     [account({ follower_count: 1000, ecommerce_permission: true, cart_enabled: null }), "GROWTH"],
-    [account({ follower_count: 1000, ecommerce_permission: true, cart_enabled: true }), "AFFILIATE"],
+    [account({ follower_count: 1000, shop_creator_eligible: true, ecommerce_permission: true, cart_enabled: true }), "AFFILIATE"],
     [account({ mode: "GROWTH", follower_count: 5000, ecommerce_permission: true, cart_enabled: true }), "GROWTH"],
-    [account({ mode: "AFFILIATE", follower_count: 20, ecommerce_permission: false, cart_enabled: false }), "AFFILIATE"],
+    [account({ mode: "AFFILIATE", follower_count: 20, ecommerce_permission: false, cart_enabled: false }), "GROWTH"],
   ] as const)("คำนวณโหมดตามเงื่อนไข", (input, expected) => {
     expect(getAccountEffectiveMode(input)).toBe(expected);
   });
@@ -88,6 +88,7 @@ describe("account readiness", () => {
     expect(result.canAffiliate).toBe(false);
     expect(result.canPublish).toBe(false);
     expect(result.blockers).toEqual([
+      "SHOP_CREATOR_NOT_ELIGIBLE",
       "ECOMMERCE_PERMISSION_MISSING",
       "CART_NOT_ENABLED",
       "AUTHORIZATION_NOT_READY",
@@ -103,7 +104,7 @@ describe("performance aggregation", () => {
   it("รวมข้อมูลสถิติและ dashboard จากโมเดล", () => {
     const accounts = [
       account(),
-      account({ id: "account-b", follower_count: 1450, ecommerce_permission: true, cart_enabled: true, effective_mode: "AFFILIATE", daily_post_target: 5 }),
+      account({ id: "account-b", follower_count: 1450, shop_creator_eligible: true, ecommerce_permission: true, cart_enabled: true, effective_mode: "AFFILIATE", daily_post_target: 5 }),
       account({ id: "account-c", account_status: "restricted", authorization_status: "disconnected", daily_post_target: 2 }),
     ];
     const result = getDashboardSummary(accounts, [stat()]);

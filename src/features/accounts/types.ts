@@ -105,6 +105,7 @@ export interface AccountCategoryAffinity {
 
 export type ReadinessBlockerCode =
   | "FOLLOWERS_BELOW_1000"
+  | "SHOP_CREATOR_NOT_ELIGIBLE"
   | "ECOMMERCE_PERMISSION_MISSING"
   | "CART_NOT_ENABLED"
   | "AUTHORIZATION_NOT_READY"
@@ -114,6 +115,7 @@ export interface AccountReadiness {
   accountId: string;
   effectiveMode: EffectiveMode;
   followerReady: boolean;
+  shopCreatorReady: boolean;
   ecommerceReady: boolean;
   cartReady: boolean;
   authorizationReady: boolean;

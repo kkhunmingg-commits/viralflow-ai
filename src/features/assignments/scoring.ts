@@ -25,6 +25,7 @@ export function getEligibleProductAccounts(account: TikTokAccount, product: Prod
   if (policy.requireConnection && account.authorization_status !== "authorized") add("ACCOUNT_DISCONNECTED", "Publishing requires account authorization.");
   if (account.effective_mode === "AFFILIATE") {
     if (account.follower_count < 1000) add("AFFILIATE_FOLLOWERS", "Affiliate requires at least 1,000 followers.");
+    if (account.shop_creator_eligible !== true) add("SHOP_CREATOR_NOT_ELIGIBLE", "TikTok Shop creator eligibility is missing.");
     if (account.ecommerce_permission !== true) add("ECOMMERCE_NOT_READY", "E-commerce permission is missing.");
     if (account.cart_enabled !== true) add("CART_NOT_READY", "Product cart is not enabled.");
   }

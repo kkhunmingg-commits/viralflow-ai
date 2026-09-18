@@ -11,6 +11,7 @@ const requiredRoutes = [
     "/video-factory",
     "/compliance",
   "/publishing",
+  "/commerce",
   "/analytics",
   "/auto-mode",
   "/settings",

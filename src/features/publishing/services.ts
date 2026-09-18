@@ -2,6 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { runPrePublishGate } from "@/features/compliance/services";
+import {assertShoppableIntentReady} from "@/features/commerce/services";
 import { TikTokCreatorService, TikTokTokenService } from "@/features/tiktok/services";
 import { serverEnv } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -167,6 +168,7 @@ export class TikTokPublishingService {
   async preparePublish(ownerId: string, queueId: string) {
     let queue = await this.queue(ownerId, queueId);
     const { account } = await this.accountAndMedia(queue, true);
+    if(queue.shoppable_content_intent_id)await assertShoppableIntentReady(this.admin,ownerId,queue.shoppable_content_intent_id);
     try {
       assertPublishingPermission({ mode: queue.publish_mode, authorizationStatus: account.authorization_status, grantedScopes: account.granted_scopes, directPostStatus: account.direct_post_status, uploadStatus: account.upload_status });
     } catch (error) {
@@ -267,6 +269,7 @@ export class TikTokPublishingService {
     if (queue.publish_mode !== expectedMode) throw new PublishingError("publish_mode_mismatch");
     if (queue.provider_publish_id) return queue;
     if (queue.status !== "APPROVED" && queue.status !== "QUEUED" && queue.status !== "RETRYING") throw new PublishingError("queue_not_approved");
+    if(queue.shoppable_content_intent_id)await assertShoppableIntentReady(this.admin,ownerId,queue.shoppable_content_intent_id);
     const { account, video, asset } = await this.accountAndMedia(queue, expectedMode === "DIRECT_POST");
     const gate = await runPrePublishGate(this.admin, ownerId, queue.video_kind === "MASTER" ? "master" : "variation", queue.video_id, true);
     if (gate.eligibility.finalStatus !== "READY_TO_PUBLISH") throw new PublishingError(`phase_6c_${gate.eligibility.finalStatus.toLowerCase()}`);
@@ -392,12 +395,14 @@ export async function listPublishingQueue(client: SupabaseClient, ownerId: strin
 export async function getPublishingDetail(client: SupabaseClient, ownerId: string, queueId: string) {
   const { data: queue, error } = await client.from("publishing_queue").select("*").eq("owner_id", ownerId).eq("id", queueId).maybeSingle();
   if (error || !queue) throw new PublishingError("publish_queue_not_found");
-  const [account, attempts, events, consents] = await Promise.all([
+  const [account, attempts, events, consents, intents, shopProducts] = await Promise.all([
     client.from("tiktok_accounts").select("*").eq("owner_id", ownerId).eq("id", queue.tiktok_account_id).single(),
     client.from("publish_attempts").select("*").eq("owner_id", ownerId).eq("publishing_queue_id", queueId).order("created_at", { ascending: false }),
     client.from("publish_status_events").select("*").eq("owner_id", ownerId).eq("publishing_queue_id", queueId).order("occurred_at", { ascending: false }),
     client.from("publish_consents").select("*").eq("owner_id", ownerId).eq("publishing_queue_id", queueId).order("consented_at", { ascending: false }),
+    client.from("shoppable_content_intents").select("*").eq("owner_id",ownerId).eq("publishing_queue_id",queueId).order("created_at",{ascending:false}),
+    client.from("shop_products").select("*").eq("owner_id",ownerId).eq("product_status","ACTIVE").eq("audit_status","APPROVED"),
   ]);
-  for (const result of [account, attempts, events, consents]) if (result.error) throw new PublishingError("publishing_detail_read_failed");
-  return { queue, account: account.data, attempts: attempts.data ?? [], events: events.data ?? [], consents: consents.data ?? [] };
+  for (const result of [account, attempts, events, consents,intents,shopProducts]) if (result.error) throw new PublishingError("publishing_detail_read_failed");
+  return { queue, account: account.data, attempts: attempts.data ?? [], events: events.data ?? [], consents: consents.data ?? [],intents:intents.data??[],shopProducts:shopProducts.data??[] };
 }

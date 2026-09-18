@@ -12,13 +12,13 @@ import type {
 
 type ModeInput = Pick<
   TikTokAccount,
-  "mode" | "follower_count" | "ecommerce_permission" | "cart_enabled"
+  "mode" | "follower_count" | "shop_creator_eligible" | "ecommerce_permission" | "cart_enabled"
 >;
 
 export function getAccountEffectiveMode(account: ModeInput): EffectiveMode {
-  if (account.mode !== "AUTO") return account.mode;
-
+  if (account.mode === "GROWTH") return "GROWTH";
   return account.follower_count >= 1000 &&
+    account.shop_creator_eligible === true &&
     account.ecommerce_permission === true &&
     account.cart_enabled === true
     ? "AFFILIATE"
@@ -29,6 +29,7 @@ export function getAccountAffiliateReadiness(
   account: TikTokAccount,
 ): AccountReadiness {
   const followerReady = account.follower_count >= 1000;
+  const shopCreatorReady = account.shop_creator_eligible === true;
   const ecommerceReady = account.ecommerce_permission === true;
   const cartReady = account.cart_enabled === true;
   const authorizationReady = account.authorization_status === "authorized";
@@ -37,17 +38,19 @@ export function getAccountAffiliateReadiness(
   const blockers: ReadinessBlockerCode[] = [];
 
   if (!followerReady) blockers.push("FOLLOWERS_BELOW_1000");
+  if (!shopCreatorReady) blockers.push("SHOP_CREATOR_NOT_ELIGIBLE");
   if (!ecommerceReady) blockers.push("ECOMMERCE_PERMISSION_MISSING");
   if (!cartReady) blockers.push("CART_NOT_ENABLED");
   if (!authorizationReady) blockers.push("AUTHORIZATION_NOT_READY");
   if (!accountActive) blockers.push("ACCOUNT_NOT_ACTIVE");
 
-  const canAffiliate = followerReady && ecommerceReady && cartReady && authorizationReady;
+  const canAffiliate = followerReady && shopCreatorReady && ecommerceReady && cartReady && authorizationReady;
 
   return {
     accountId: account.id,
     effectiveMode,
     followerReady,
+    shopCreatorReady,
     ecommerceReady,
     cartReady,
     authorizationReady,

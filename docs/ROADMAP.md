@@ -2,7 +2,7 @@
 
 ## Current status
 
-Phases 1–7A are complete. Phase 7B now provides the owner-reviewed publishing queue, official Content Posting contracts, consent, dynamic capacity, retry, and status foundations in mock mode. Paid providers, TikTok Shop, real publishing, and production deployment remain outside this verified run.
+Phases 1–7C are complete at foundation level. Phase 7C adds fail-closed TikTok Shop/Affiliate readiness, product eligibility, product truth, and metadata-only shoppable intent in mock mode. Paid providers, real TikTok Shop calls, real publishing, Analytics/Learning, and production deployment remain outside this verified run.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -18,7 +18,8 @@ Phases 1–7A are complete. Phase 7B now provides the owner-reviewed publishing 
 | 6C | TikTok compliance, originality, account health, and publish eligibility | Complete |
 | 7A | TikTok OAuth, secure tokens, creator info, permission sync | Foundation complete — real app setup required |
 | 7B | Publishing queue, Upload Draft, Direct Post, consent, status foundation | Foundation complete — real calls remain disabled pending approval |
-| 8 | TikTok Shop Creator APIs and product attachment | Blocked on market/scope approval |
+| 7C | TikTok Shop authorization/readiness, Affiliate commerce eligibility, shoppable intent | Foundation complete — real Shop calls and attachment remain approval-gated |
+| 8 | Real TikTok Shop Creator APIs and product attachment | Blocked on app/category/scope approval and separate authorization |
 | 9 | Analytics and learning loop | Not started |
 | 10 | One-click Auto Mode | Not started |
 | 11 | Security, performance, and production review | Not started |
@@ -48,4 +49,12 @@ Connection does not change business mode. Accounts still use the Phase 2/6C AUTO
 Phase 7B connects approved Video Factory output to an owner-isolated queue. It re-runs Phase 6C and authoritative creator checks before sending, requires explicit settings-bound consent, respects the current `effective_publish_cap`, and keeps overflow visible as `WAITING_FOR_SLOT`. Upload Draft delivery and a published Direct Post are separate states.
 
 The official provider follows current TikTok endpoints, `is_aigc`, media chunking, status polling, and signed webhook contracts, but mock mode remains the default and this phase performs no real upload or publish call. TikTok Shop, product attachment, paid providers, audit completion, verified pull domains, and production credentials remain owner actions.
+
+## Phase 7C boundary
+
+Phase 7C keeps TikTok Login separate from creator/seller Shop authorization and treats every Affiliate capability as an observed permission. `AUTO` and requested `AFFILIATE` fall back to effective `GROWTH` until follower, Shop creator, ecommerce, cart, authorization, product, region, and attachment facts all pass. Growth content remains valid without Shop; fake cart/shop claims remain blocked.
+
+Product Radar and assignment scores are preserved. Commerce evaluation separately records `CONTENT_FIT` and `COMMERCE_ELIGIBLE`, verifies title, price, discount, features, seller/product status, and creates metadata-only shoppable intent after a pass. The real provider is `APPROVAL_REQUIRED`, makes no request, and stores no token. Real Shop calls, real product attachment, Analytics/Learning, and paid provider calls require later separately authorized work.
+
+The Growth learning roadmap remains: optimize follower gain in Growth, reach the applicable threshold, re-check current authoritative commerce permissions, and enter Affiliate only when truly eligible.
 
