@@ -25,6 +25,7 @@ Official references:
 - [Affiliate integration](https://partner.tiktokshop.com/docv2/page/affiliate-integration)
 - [Creator authorization guide](https://partner.tiktokshop.com/docv2/page/creator-authorization-guide)
 - [Creator Search Open Collaboration Product](https://partner.tiktokshop.com/docv2/page/creator-search-open-collaboration-product-202405)
+- [Affiliate Creator API overview](https://partner.tiktokshop.com/docv2/page/affiliate-creator-api-overview)
 - [Products API overview](https://partner.tiktokshop.com/docv2/page/products-api-overview)
 - [Regions and languages](https://partner.tiktokshop.com/docv2/page/regions-and-languages)
 - [Test your app](https://partner.tiktokshop.com/docv2/page/test-your-app)
@@ -34,7 +35,7 @@ Official references:
 
 TikTok Login from Phase 7A proves a TikTok identity and Content Posting scopes. It does not grant TikTok Shop creator or seller access. Shop creator authorization uses its own OAuth-based flow, credentials, scopes, expiration, reauthorization, and deauthorization lifecycle. The database therefore stores Shop connection state separately from the account's Login Kit connection.
 
-Thailand is listed as region `TH` with locale `th-TH`, and Thailand is included in the creator authorization country list. Product discovery is still region-bound: an affiliate creator may search open collaboration products only in the region in which that creator is registered. Market availability does not waive app approval, creator eligibility, collaboration, product audit, or attachment permission checks.
+Thailand is listed as region `TH` with locale `th-TH`, and Thailand is included in the creator authorization country list. The current Affiliate Creator overview describes a 5,000-follower eligibility rule for UK/SEA, while the 1,000-follower rule applies to the US. ViralFlow's existing 1,000 threshold is therefore only a conservative internal lower bound and never proves Thailand eligibility; the authoritative `affiliate_eligible` capability must also be true. Product discovery is region-bound: an affiliate creator may search open collaboration products only in the region in which that creator is registered. Market availability does not waive app approval, age/account-standing rules, creator eligibility, collaboration, product audit, or attachment permission checks.
 
 TikTok documents dynamic rate limiting rather than one universal QPS. A future adapter must honor each endpoint's current reference, react to throttling with bounded exponential backoff, and never convert an unknown response into readiness.
 
@@ -47,4 +48,3 @@ The seven owner-scoped tables store sanitized connection metadata, commerce fact
 ## Real integration gate
 
 Before enabling `TIKTOK_SHOP_PROVIDER=official`, the owner must obtain Affiliate API approval, configure the exact current scopes and callback, authorize each creator or seller identity as required, validate `granted_scopes`, configure encrypted token storage and refresh, verify Development Shop behavior, register signed webhooks, and complete a separately reviewed real attachment implementation. `TIKTOK_SHOP_REAL_MODE=true` is an additional deliberate gate; it is not proof of approval.
-

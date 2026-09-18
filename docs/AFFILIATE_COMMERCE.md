@@ -6,13 +6,15 @@ Phase 7C separates content opportunity from commerce permission. A product can b
 
 `GROWTH` always remains `GROWTH`. `AUTO` and requested `AFFILIATE` become effective `AFFILIATE` only when every authoritative fact is true:
 
-1. followers meet the configured threshold;
+1. followers meet the configured internal threshold;
 2. the account is an eligible TikTok Shop creator;
 3. Shop creator authorization is current;
 4. affiliate and ecommerce permissions are present;
 5. cart and product attachment capabilities are present.
 
 Otherwise the effective business mode is `GROWTH`. A follower count alone never creates Affiliate readiness. Revoked authorization produces `REAUTH_REQUIRED` and cannot be treated as a cached success.
+
+The internal 1,000-follower check preserves the existing ViralFlow rule but is not a claim that a Thailand account qualifies for TikTok Shop Affiliate. Current official documentation describes a 5,000-follower rule for UK/SEA. Production eligibility must come from the current Shop creator capability for that account and market, so a stricter platform threshold automatically keeps the account in Growth.
 
 Growth accounts may publish normal content and use follow, save, comment, share, and other engagement calls to action. Missing Shop access does not block Growth content or reduce a good content opportunity to zero. Product attachment, affiliate-only claims, cart calls to action, and fake shop claims remain blocked.
 
@@ -54,4 +56,3 @@ The scale fixture uses ten accounts: four Growth, three follower-ready but comme
 ## Growth learning roadmap
 
 The future path is: Growth content optimizes follower gain, the account reaches the relevant threshold, ViralFlow re-checks actual current commerce permissions, and only a truly eligible account enters Affiliate mode. Phase 7C stores the readiness boundary but does not build Analytics or the Growth Learning Engine.
-
