@@ -2,7 +2,7 @@
 
 ## Current status
 
-Phases 1–10 are complete at foundation level. Phase 10 adds durable, approval-aware Full Auto Mode orchestration across the existing engines. Paid providers, real TikTok calls, real publishing, and production deployment remain disabled.
+Phases 1–10 are complete at foundation level. The final video-provider integration adds a server-only Google Veo 3.1 contract, evidence-based CostRouter, Flow manual-reference path, and master/variation cost planning. Paid providers, real TikTok calls, real publishing, and production deployment remain disabled.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -23,7 +23,16 @@ Phases 1–10 are complete at foundation level. Phase 10 adds durable, approval-
 | 8B | Real TikTok Shop Creator APIs and product attachment | Blocked on app/category/scope approval and separate authorization |
 | 9 | Growth Learning Engine | Complete — real analytics and commerce rechecks remain approval-gated |
 | 10 | Full Auto Mode orchestration | Complete — mock/local execution only; external calls remain disabled |
+| Video provider finalization | Google Veo 3.1, Flow manual reference, evidence-based routing and cost forecasts | Infrastructure complete — no paid benchmark run |
 | 11 | Security, performance, and production review | Not started |
+
+## Google Veo provider boundary
+
+`GoogleVeoProvider` implements the official Gemini API long-running operation and download flow for Veo 3.1 Lite, Fast, and Standard. Lite is the default cost-first candidate, but no model becomes the production winner until real Beauty, Home, and Gadget outputs pass technical quality 85 and the owner's Flow comparison. Missing credentials yield `WAITING_FOR_PROVIDER`; missing budget yields the existing fail-closed `BLOCKED` state with `WAIT_FOR_BUDGET`.
+
+Google Flow remains `MANUAL_BENCHMARK_ONLY`. Flow credits and subscription allowances are never treated as Gemini API dollars or Auto Mode capacity. The near-term plan creates 15–20 paid masters/day for three accounts and 40–50 masters/day for ten accounts, then generates meaningful local variations through the existing FFmpeg and Phase 6C gates.
+
+The Phase 6 schema already stores provider/model, request/output metadata, attempts, cost evidence, master/variation metadata, and private owner-scoped media. No migration is required for this provider addition.
 
 ## Phase 6 boundary
 

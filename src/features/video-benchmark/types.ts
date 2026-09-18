@@ -2,8 +2,8 @@ import type {RenderedVideo,VideoProvider,VideoRenderInput} from "../video/types"
 
 export const VIDEO_PROVIDER_BENCHMARK_VERSION="video-provider-benchmark-v1";
 export const AUTOMATED_QUALITY_THRESHOLD=85;
-export type BenchmarkModel="meta_vibes"|"fal_wan_2_2_turbo"|"pixverse_v6"|"tiktok_symphony"|"gen4_turbo"|"h3_max_768"|"wan3_720"|"hailuo3_768"|"gen4.5";
-export type BenchmarkProvider="meta_vibes"|"fal"|"pixverse"|"tiktok_symphony"|"runway";
+export type BenchmarkModel="google_flow_manual"|"veo_3_1_lite"|"veo_3_1_fast"|"veo_3_1_standard"|"meta_vibes"|"fal_wan_2_2_turbo"|"pixverse_v6"|"tiktok_symphony"|"gen4_turbo"|"h3_max_768"|"wan3_720"|"hailuo3_768"|"gen4.5";
+export type BenchmarkProvider="google_flow_manual"|"google_veo"|"meta_vibes"|"fal"|"pixverse"|"tiktok_symphony"|"runway";
 export type HumanQualityStatus="BELOW_FLOW"|"FLOW_COMPARABLE"|"ABOVE_FLOW";
 
 export interface BenchmarkCandidate {

@@ -2,6 +2,23 @@
 
 Updated 18 September 2026.
 
+## Final Video Provider Integration — Google Veo / Flow Cost Router
+
+- [x] Verify the current official Veo 3.1 Lite, Fast, and Standard API contracts, prices, capabilities, billing, rate-limit, safety, polling, download, retention, and provenance behavior.
+- [x] Add server-only `GoogleVeoProvider` with model mapping, cost estimation, image/text requests, bounded polling/download retry, normalized failures, and key redaction.
+- [x] Keep Google Flow separate as `GOOGLE_FLOW_MANUAL` / `MANUAL_BENCHMARK_ONLY`; add non-destructive owner clip import without UI automation.
+- [x] Extend the benchmark harness with Veo Lite/Fast/Standard while keeping all fal, PixVerse, Runway, Meta, and TikTok Symphony candidates.
+- [x] Update CostRouter selection to require benchmark evidence and rank quality × reliability against retry-adjusted accepted-output cost.
+- [x] Fail Auto Mode to `WAITING_FOR_PROVIDER` without a server key and `BLOCKED` / `WAIT_FOR_BUDGET` without approved account budget.
+- [x] Add Video Factory and Auto provider status, model, benchmark, retry, actual/estimated cost, manual Flow reference, and cost forecast views.
+- [x] Model 3-account and 10-account master/variation economics for Veo Lite/Fast, fal, PixVerse, and Runway.
+- [x] Confirm the Phase 6 job, cost, media, master, variation, private bucket, idempotency, and RLS schema already supports the provider; no migration required.
+- [x] Add deterministic mocked provider, quality, storage, router, Auto Mode, security, and cost-plan tests without paid calls.
+- [ ] Supply an owner Flow reference and licensed Beauty/Home/Gadget images, then explicitly approve a capped `$1.20` Veo Lite Stage B run.
+- [ ] Promote a real provider only after complete technical and owner Flow-comparison evidence produces a winner.
+
+No paid provider call, production deployment, or real TikTok publishing is part of this work.
+
 ## Phase 1 — Foundation
 
 - [x] Next.js App Router, TypeScript, Tailwind, Supabase SSR, authentication, protected routes, navigation, settings, migrations, RLS, environment validation, tests, lint, and production build.

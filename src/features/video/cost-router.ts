@@ -1,4 +1,5 @@
 import type {ProviderAvailability,StrategyDecision,VideoBudget} from "./types";
+import {rankVideoProviders,selectVideoProvider,type ProviderEvidence} from "./provider-routing";
 
 export interface StrategyInput {
   existingApprovedMaster:boolean;
@@ -21,4 +22,6 @@ export function chooseVideoStrategy(input:StrategyInput):StrategyDecision {
 export class CostRouter {
   choose(input:StrategyInput){return chooseVideoStrategy(input)}
   canSpend(budget:VideoBudget,cost:number){return cost===0||!paidBlocked(budget,cost)}
+  rankProviders(candidates:ProviderEvidence[],qualityThreshold=85){return rankVideoProviders(candidates,qualityThreshold)}
+  chooseProvider(candidates:ProviderEvidence[],budget:VideoBudget,qualityThreshold=85){const selected=selectVideoProvider(candidates,qualityThreshold);return selected&&this.canSpend(budget,selected.retryAdjustedCostUsd)?selected:null}
 }
