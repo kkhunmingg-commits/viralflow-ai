@@ -221,9 +221,9 @@ flowchart TD
     Router --> Evidence{Real evidence + key + budget?}
     Evidence -->|no key| Waiting[WAITING_FOR_PROVIDER]
     Evidence -->|no approved budget| Budget[BLOCKED / WAIT_FOR_BUDGET]
-    Evidence -->|yes| Candidate{Lowest accepted-output cost among quality winners}
-    Candidate --> Veo[Google Veo 3.1 Lite/Fast/Standard]
-    Candidate --> Fal[fal Wan 2.2 Turbo]
+    Evidence -->|yes| Candidate{Approved provider priority}
+    Candidate --> Fal[1. fal Wan 2.2 Turbo]
+    Candidate --> Veo[2. Google Veo Lite fallback]
     Candidate --> Pix[PixVerse V6]
     Candidate --> Runway[Runway models]
     Flow[Owner Google Flow clip] -->|manual import only| Benchmark[Technical score + human Flow comparison]
@@ -232,20 +232,23 @@ flowchart TD
     Fal --> Benchmark
     Pix --> Benchmark
     Runway --> Benchmark
-    Benchmark --> Gate{score >= 85 and FLOW_COMPARABLE?}
+    Benchmark --> Gate{score >= 85 + owner visual approval?}
     Gate -->|no| Reject[Do not promote]
     Gate -->|yes| Master[Private master video]
     Master --> Variations[Local FFmpeg variations]
     Variations --> Quality[Quality/compliance/originality]
 ```
 
-Google Veo status:
+fal / Google Veo status:
 
+- `FalWanVideoProvider` เป็น primary candidate ที่ $0.10 ต่อ 720p video และใช้ server-only `FAL_KEY`
+- fal ยังเป็น `PRIMARY_CANDIDATE`; ต้องผ่าน Beauty/Home/Gadget และ owner review ก่อน `PRODUCTION_APPROVED`
+- Turbo source duration เป็น provider-defined; ระบบเก็บต้นฉบับและ normalize สำเนาเมื่อปลอดภัย
 - `GoogleVeoProvider` รองรับ Veo 3.1 Lite, Fast และ Standard ผ่าน server-only key
 - มี long-running operation polling, bounded retry/download, normalized failures และ key redaction
-- Lite เป็น cost-first candidate เท่านั้น ยังไม่ใช่ production default
+- Lite ถูกเก็บเป็น disabled premium fallback ไม่ใช่ production default
 - Google Flow เป็น `MANUAL_BENCHMARK_ONLY`; credit/subscription ของ Flow ไม่ถูกนับเป็น Gemini API budget
-- `VIDEO_BENCHMARK_ALLOW_PAID=false` และ `VIDEO_BENCHMARK_MAX_USD=0` เป็นค่าเริ่มต้น
+- local benchmark gate ตั้งเพดาน $0.30 แต่ยังรันไม่ได้เพราะไม่มี `FAL_KEY`
 - benchmark catalog ยังคง fal Wan 2.2 Turbo, PixVerse V6, Runway fallbacks, Meta manual และ TikTok Symphony `NOT_RUN`
 - สถานะปัจจุบัน: **ยังไม่มี real benchmark winner และไม่มี paid call จากงานตรวจนี้**
 
@@ -282,7 +285,8 @@ flowchart TD
 | Accounts/Product/Category/Assignment | DONE | PARTIAL — real TikTok/Shop sources ยังไม่เปิด |
 | Creative Brain | DONE | PARTIAL — default deterministic mock; OpenAI optional |
 | Video Factory/FFmpeg | DONE | DONE สำหรับ local renderer; real AI master provider ยัง PARTIAL |
-| Google Veo | DONE adapter | PARTIAL — key/budget/benchmark/winner ยังไม่มี |
+| fal Wan 2.2 Turbo | DONE adapter | PARTIAL — primary candidate; key/benchmark/owner approval ยังไม่มี |
+| Google Veo | DONE adapter | PARTIAL — disabled premium fallback |
 | Compliance/Originality | DONE engine | PARTIAL — authenticated Phase 6C browser signoff ยังเปิดใน task ledger |
 | TikTok OAuth | DONE foundation | PARTIAL — developer app/scopes/redirect/audit |
 | TikTok Publishing | DONE foundation | PARTIAL — default mock, `TIKTOK_PUBLISHING_REAL_MODE=false` |

@@ -26,7 +26,7 @@ export const BENCHMARK_CANDIDATES:readonly BenchmarkCandidate[]=[
 export const STAGE_A_CANDIDATES:BenchmarkModel[]=["google_flow_manual"];
 export const STAGE_B_CANDIDATES:BenchmarkModel[]=["veo_3_1_lite"];
 export const STAGE_C_CANDIDATES:BenchmarkModel[]=["fal_wan_2_2_turbo","pixverse_v6","gen4_turbo"];
-export const STAGE_ONE_CANDIDATES:BenchmarkModel[]=[...STAGE_A_CANDIDATES,...STAGE_B_CANDIDATES];
+export const STAGE_ONE_CANDIDATES:BenchmarkModel[]=["fal_wan_2_2_turbo"];
 
 export function selectCandidates(ids:BenchmarkModel[]){
   const wanted=new Set(ids),selected=BENCHMARK_CANDIDATES.filter(candidate=>wanted.has(candidate.id));

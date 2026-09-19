@@ -1,7 +1,7 @@
 import {randomUUID} from "node:crypto";
 import {readFile,writeFile} from "node:fs/promises";
 import {basename} from "node:path";
-import {fal} from "@fal-ai/client";
+import {FalWanProviderError,FalWanVideoProvider} from "../video/fal-wan";
 import type {VideoRenderInput} from "../video/types";
 import {ProviderGenerationError} from "./runway-provider";
 import type {BenchmarkCandidate,RealVideoProvider,RemoteVideoRequest,RemoteVideoResult} from "./types";
@@ -13,14 +13,13 @@ async function download(url:string,path:string){const response=await fetch(url);
 async function pixverseJson<T>(url:string,apiKey:string,init?:RequestInit):Promise<T>{const response=await fetch(url,{...init,headers:{"API-KEY":apiKey,"Ai-trace-id":randomUUID(),...(init?.headers??{})}});const body=await response.json() as {ErrCode:number;ErrMsg:string;Resp:T};if(!response.ok||body.ErrCode!==0)throw new Error(`PixVerse request failed: ${body.ErrMsg||response.status}`);return body.Resp}
 
 export class FalWan22TurboProvider implements RealVideoProvider {
-  readonly provider="fal";readonly model:string;
-  constructor(private candidate:BenchmarkCandidate,apiKey:string){if(!apiKey)throw new Error("FAL_KEY is required only for an explicitly approved live benchmark");this.model=candidate.apiModel;fal.config({credentials:apiKey})}
+  readonly provider="fal";readonly model:string;private client:FalWanVideoProvider;
+  constructor(private candidate:BenchmarkCandidate,apiKey:string,options:Omit<ConstructorParameters<typeof FalWanVideoProvider>[0],"apiKey">={}){if(!apiKey)throw new Error("FAL_KEY is required only for an explicitly approved live benchmark");this.model=candidate.apiModel;this.client=new FalWanVideoProvider({...options,apiKey})}
   async plan(input:VideoRenderInput){return structuredClone(input)}
   async generate(request:RemoteVideoRequest):Promise<RemoteVideoResult>{
-    const started=Date.now(),bytes=await readFile(request.fixture.imagePath),imageUrl=await fal.storage.upload(new Blob([bytes],{type:mimeFor(request.fixture.imagePath)}));
-    const result=await fal.subscribe(this.model,{input:{image_url:imageUrl,prompt:request.fixture.prompt,resolution:"720p",aspect_ratio:"9:16",num_frames:120,frames_per_second:15,num_interpolated_frames:0,adjust_fps_for_interpolation:false,seed:request.seed},logs:false}) as {data:{video?:{url?:string}};requestId:string};
-    const remoteUrl=result.data.video?.url;if(!remoteUrl)throw new ProviderGenerationError("fal task completed without a video URL",result.requestId,this.candidate.expectedCostUsd);await download(remoteUrl,request.outputPath);
-    return {taskId:result.requestId,provider:this.provider,model:this.model,outputPath:request.outputPath,costUsd:this.candidate.expectedCostUsd,latencyMs:Date.now()-started,remoteUrl};
+    const started=Date.now(),bytes=await readFile(request.fixture.imagePath);
+    try{const result=await this.client.generate({image:new Blob([bytes],{type:mimeFor(request.fixture.imagePath)}),prompt:request.fixture.prompt,resolution:"720p",aspectRatio:"9:16",seed:request.seed,maxCostUsd:this.candidate.expectedCostUsd});await writeFile(request.outputPath,result.bytes);return{taskId:result.requestId,provider:this.provider,model:this.model,outputPath:request.outputPath,costUsd:result.actualCostUsd,latencyMs:Date.now()-started,remoteUrl:result.videoUrl,retryCount:result.retryCount}}
+    catch(error){if(error instanceof FalWanProviderError)throw new ProviderGenerationError(error.message,error.requestId,error.actualCostUsd);throw error}
   }
 }
 

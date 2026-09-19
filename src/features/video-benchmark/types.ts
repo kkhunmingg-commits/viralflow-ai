@@ -26,7 +26,7 @@ export interface BenchmarkFixture {
   renderInput:VideoRenderInput;
 }
 export interface RemoteVideoRequest {fixture:BenchmarkFixture;candidate:BenchmarkCandidate;seed:number;outputPath:string}
-export interface RemoteVideoResult {taskId:string;provider:string;model:string;outputPath:string;costUsd:number;latencyMs:number;remoteUrl:string}
+export interface RemoteVideoResult {taskId:string;provider:string;model:string;outputPath:string;costUsd:number;latencyMs:number;remoteUrl:string;retryCount?:number}
 export interface RealVideoProvider extends VideoProvider {generate(input:RemoteVideoRequest):Promise<RemoteVideoResult>}
 export interface TechnicalEvaluation {passed:boolean;score:number;checks:{duration:boolean;portrait:boolean;resolution:boolean;videoCodec:boolean;frameRate:boolean;nonEmpty:boolean};media:RenderedVideo}
 export interface HumanScores {productIdentity:number;motionNaturalness:number;artifactControl:number;commercialSuitability:number;promptAdherence:number;visualAttractiveness:number;flowStatus:HumanQualityStatus}
@@ -41,7 +41,10 @@ export interface BenchmarkSample {
   latencyMs:number|null;
   taskId:string|null;
   inputPath:string|null;
+  sourcePath:string|null;
   outputPath:string|null;
+  sourceDurationSeconds:number|null;
+  normalizedDurationSeconds:number|null;
   technical:TechnicalEvaluation|null;
   human:HumanScores|null;
   humanScore:number|null;
@@ -66,6 +69,7 @@ export interface BenchmarkReport {
   ranking:CandidateRanking[];
   winner:BenchmarkModel|null;
   winnerReason:string;
+  providerStates:Partial<Record<BenchmarkModel,"PRIMARY_CANDIDATE"|"BENCHMARK_FAILED"|"BENCHMARK_PASS_PENDING_OWNER_REVIEW"|"PRODUCTION_APPROVED">>;
 }
 export interface CandidateRanking {
   candidateId:BenchmarkModel;

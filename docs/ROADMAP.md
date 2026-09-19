@@ -2,7 +2,7 @@
 
 ## Current status
 
-Phases 1–10 are complete at foundation level. The final video-provider integration adds a server-only Google Veo 3.1 contract, evidence-based CostRouter, Flow manual-reference path, and master/variation cost planning. Paid providers, real TikTok calls, real publishing, and production deployment remain disabled.
+Phases 1–10 are complete at foundation level. fal Wan 2.2 Turbo is now the primary video provider candidate, while Google Veo remains a disabled premium fallback. Paid providers, real TikTok calls, real publishing, and production deployment remain disabled until their explicit gates pass.
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -23,12 +23,12 @@ Phases 1–10 are complete at foundation level. The final video-provider integra
 | 8B | Real TikTok Shop Creator APIs and product attachment | Blocked on app/category/scope approval and separate authorization |
 | 9 | Growth Learning Engine | Complete — real analytics and commerce rechecks remain approval-gated |
 | 10 | Full Auto Mode orchestration | Complete — mock/local execution only; external calls remain disabled |
-| Video provider finalization | Google Veo 3.1, Flow manual reference, evidence-based routing and cost forecasts | Infrastructure complete — no paid benchmark run |
+| Video provider finalization | fal Wan primary candidate, Google Veo fallback, evidence-based routing and cost forecasts | Infrastructure complete — fal benchmark blocked on `FAL_KEY` |
 | 11 | Security, performance, and production review | Not started |
 
 ## Google Veo provider boundary
 
-`GoogleVeoProvider` implements the official Gemini API long-running operation and download flow for Veo 3.1 Lite, Fast, and Standard. Lite is the default cost-first candidate, but no model becomes the production winner until real Beauty, Home, and Gadget outputs pass technical quality 85 and the owner's Flow comparison. Missing credentials yield `WAITING_FOR_PROVIDER`; missing budget yields the existing fail-closed `BLOCKED` state with `WAIT_FOR_BUDGET`.
+`GoogleVeoProvider` remains intact for Veo 3.1 Lite, Fast, and Standard, but it is a disabled premium fallback. `FalWanVideoProvider` is the first paid candidate. No model becomes the production winner until real Beauty, Home, and Gadget outputs pass technical quality 85 and owner visual review. Missing credentials or approval yield `WAITING_FOR_PROVIDER`; missing budget yields the existing fail-closed `BLOCKED` state with `WAIT_FOR_BUDGET`.
 
 Google Flow remains `MANUAL_BENCHMARK_ONLY`. Flow credits and subscription allowances are never treated as Gemini API dollars or Auto Mode capacity. The near-term plan creates 15–20 paid masters/day for three accounts and 40–50 masters/day for ten accounts, then generates meaningful local variations through the existing FFmpeg and Phase 6C gates.
 
@@ -40,7 +40,7 @@ Video Factory consumes the selected Creative Brain timeline without replacing it
 
 ## Phase 6B status
 
-The real-provider benchmark is isolated on `feature/video-provider-benchmark`. Meta AI/Vibes is listed first as `MANUAL_BENCHMARK_ONLY`: an owner-supplied clip can be normalized and scored, while the lack of a supported public video API and verified commercial automation terms keeps it out of Auto Mode. Executable Stage 1 tests direct fal Wan 2.2 Turbo, direct PixVerse V6, and Runway Gen-4 Turbo in ascending cost order across three products with one initial run. Its lowest published-equivalent consumption is $2.46 and its conservative hard-cap forecast is $3.66. A second sample is allowed only after the first passes the automated 85-point gate, is judged Flow-comparable beside the owner's reference, and remains within budget. Five Runway candidates remain available for comparison; TikTok Symphony is `NOT_RUN` pending legitimate approved API access and pricing. No provider is selected and no paid routing is enabled until licensed inputs, the owner's Flow AI reference clip, server-only keys, and explicit spending authorization are available.
+The next real-provider run is limited to direct fal Wan 2.2 Turbo across Beauty, Home, and Gadget: one attempt each, three calls maximum, and a $0.30 cap at the verified $0.10 720p price. The Turbo schema does not expose frame or FPS controls, so source duration is measured and only a safe copy is normalized to eight seconds. Google Veo, PixVerse, Runway, Meta, and TikTok Symphony must not run in this stage. A Flow reference is optional for technical scoring; only Flow-equivalence labels require it. Production still requires explicit owner visual approval.
 
 ## Phase 6C boundary
 

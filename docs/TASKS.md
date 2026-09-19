@@ -1,6 +1,19 @@
 # ViralFlow AI tasks
 
-Updated 18 September 2026.
+Updated 19 September 2026.
+
+## Final provider decision — fal Wan 2.2 Turbo
+
+- [x] Promote fal Wan 2.2 Turbo to the primary production candidate without deleting Google Veo.
+- [x] Verify the current official endpoint, commercial-use label, price, image-to-video, 720p, 9:16, safety, queue, result URL, and schema limits.
+- [x] Replace unsupported Turbo frame/FPS fields with the documented request contract.
+- [x] Add server-only `FalWanVideoProvider`, bounded queue polling, download, normalization metadata, cost estimation, failure mapping, and key redaction.
+- [x] Preserve original output and normalize only a safe copy to eight seconds.
+- [x] Add `PRIMARY_CANDIDATE`, `BENCHMARK_FAILED`, `BENCHMARK_PASS_PENDING_OWNER_REVIEW`, and `PRODUCTION_APPROVED` gates.
+- [x] Keep unapproved fal in Auto Mode `WAITING_FOR_PROVIDER`; retain Veo, PixVerse, and Runway fallbacks.
+- [x] Add the three-fixture `$0.30` fal benchmark plan and no-paid-retry tests.
+- [ ] Supply `FAL_KEY` and run Beauty, Home, and Gadget once each.
+- [ ] Review the three outputs and explicitly approve or reject fal for production.
 
 ## Final Video Provider Integration — Google Veo / Flow Cost Router
 
