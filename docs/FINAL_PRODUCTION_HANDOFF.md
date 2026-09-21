@@ -1,0 +1,364 @@
+# ViralFlow AI — Final Production Readiness Handoff
+
+วันที่ audit: 2026-09-21
+
+Baseline: branch **feature/fal-wan-primary-provider**, HEAD **cef7032e5d01a5f14402c90a0c928568220c2cd3**
+
+เอกสารนี้อ้างอิง repository และ Supabase project **viralflow-ai** ณ วันที่ audit เท่านั้น
+
+## A. Current exact repository state
+
+- Stack: Next.js 16.3.5 App Router, React 19.3.0, TypeScript 6.0.3, Tailwind CSS 4.3.3, Supabase JS/SSR 2.116.0
+- Package manager: pnpm 11.19.0; Node.js ขั้นต่ำ 24
+- Local migrations: 14 ไฟล์ ตั้งแต่ Phase 1 ถึง Phase 10
+- Live migrations: 14 รายการ ชื่อและลำดับ phase ตรงกับ local
+- Live schema: 59 public tables, 59 primary keys, 106 unique constraints, 160 foreign keys, 449 check constraints และไม่มี constraint ที่รอ validate
+- RLS เปิดครบ 59/59 public tables
+- tiktok_oauth_credentials และ tiktok_oauth_states ใช้ FORCE RLS, ไม่มี client policy และไม่มี grant ให้ authenticated โดยตั้งใจ
+- Storage bucket video-assets เป็น private และใช้ owner-path policies ครบ
+- Security Advisor: ไม่มี schema security error; มี warning leaked-password protection disabled และ info สองรายการสำหรับ service-only OAuth tables
+- Performance Advisor: unindexed foreign keys 34 รายการ และ unused indexes 27 รายการ; ต้องยืนยันด้วย workload ก่อนแก้
+- Live operational rows: auto_runs=0, publishing_queue=0, generation_jobs=0, tiktok_oauth_credentials=0, video_analytics_snapshots=0
+- Tracked secret-pattern scan: ไม่พบ secret pattern ในไฟล์ที่ Git track หรือ commit history ที่สแกน
+- Local environment มี FAL_KEY และ SUPABASE_SECRET_KEY แบบ server-only; TikTok production secrets ไม่ได้ตั้ง
+- VIDEO_BENCHMARK_ALLOW_PAID=true และ cap 0.30 เป็น local benchmark gate เท่านั้น ไม่ใช่ Auto Mode permission
+- fal ใช้ default state PRIMARY_CANDIDATE; ยังไม่ใช่ PRODUCTION_APPROVED
+- Google key ไม่มี และ Google fallback ถูกปิด
+- ไม่มี GitHub Actions, vercel.json, production worker/cron, error monitoring, alerting หรือ health endpoint
+
+Working tree ตอนเริ่ม audit มี AGENTS.md, CLAUDE.md และ next-env.d.ts ที่ dev server สร้าง ไฟล์เหล่านี้ไม่ใช่งาน product และต้องไม่รวมใน audit commit
+
+## B. Architecture summary
+
+~~~mermaid
+flowchart LR
+  Auth[Supabase Auth] --> App[Next.js App Router]
+  App --> Radar[Product and Category Radar]
+  Radar --> Assign[Account Product Assignment]
+  Assign --> Creative[Creative Brain]
+  Creative --> Video[Video Factory]
+  Video --> Compliance[Compliance and Originality]
+  Compliance --> Queue[Publishing Queue]
+  Queue --> TikTok[TikTok provider boundary]
+  TikTok --> Analytics[Analytics and Winner Detection]
+  Analytics --> Growth[Growth Learning]
+  Growth --> Auto[Auto Orchestration]
+  Auto --> Assign
+  DB[(Supabase Postgres and RLS)] --- App
+  Store[(Private video-assets)] --- Video
+~~~
+
+ข้อมูลเจ้าของทุก domain ใช้ owner_id และ RLS เป็นขอบเขตหลัก Server actions เริ่มจาก auth.getUser() ก่อนส่ง owner ID ไปยัง service. OAuth credentials ใช้ server-only admin client และ AES-GCM. External providers ถูกครอบด้วย provider interfaces และ environment gates. Phase 10 ปัจจุบันเป็น planner/checkpoint UI; ยังไม่มี production worker ที่ทำ external calls.
+
+## C. What is DONE
+
+- Phase 1–5B: auth, protected routes, multi-account brain, Product Radar, Category Intelligence, assignment และ Creative Brain
+- Phase 6: local FFmpeg Video Factory, master/variation, quality gate, cost evidence และ private storage
+- Phase 6B: provider benchmark harness, Google Veo adapter และ fal Wan adapter; fal benchmark ล่าสุดล้มเหลวด้วย Forbidden และบันทึก actual spend $0
+- Phase 6C: compliance, product truth, AIGC disclosure, originality, account health, capacity และ owner approval
+- Phase 7A: TikTok OAuth/creator-info foundation, encrypted tokens และ mock provider
+- Phase 7B: queue, consent, Upload Draft/Direct Post contracts, polling และ signed webhook foundation
+- Phase 7C: TikTok Shop/commerce readiness foundation และ fail-closed Affiliate eligibility
+- Phase 8: analytics, winner scoring และ bounded learning
+- Phase 9: Growth learning, experiment planning และ milestone recheck
+- Phase 10: durable run schema, planning, checkpoints, pause/resume/stop, scheduling และ budget calculation
+- Audit fix: Auto Mode ใช้ falAutoModeAvailability; Google key ไม่สามารถเปิด provider gate และ fal ต้องมี key พร้อม state PRODUCTION_APPROVED
+
+## D. What must NOT be changed
+
+- ห้ามเปิด paid provider, real TikTok publishing หรือ Shop attachment จากการมี key เพียงอย่างเดียว
+- ห้ามตั้ง fal เป็น PRODUCTION_APPROVED ก่อน real benchmark และ owner visual approval
+- ห้ามใช้ Google Flow consumer UI เป็น automated provider
+- ห้ามย้าย OAuth tokens ไป client, public policy หรือ NEXT_PUBLIC
+- ห้ามเขียน auth.users โดยตรง
+- ห้ามลด RLS, owner checks, compliance, originality, consent, creator cap หรือ commerce gates
+- ห้ามเปลี่ยน Growth เป็น Affiliate จาก follower count อย่างเดียว
+- ห้าม automatic paid retry ก่อนมี atomic budget reservation และ provider reconciliation
+- ห้ามแก้ migration ที่ apply แล้ว; schema change ใหม่ต้องเป็น migration ใหม่
+- ห้าม deploy หรือ publish จริงใน Phase 11A–11F
+
+## E. Findings
+
+### P0 — ห้าม production จนกว่าแก้
+
+| ID | Finding | Status | Impact |
+|---|---|---|---|
+| P0-01 | Auto provider gate เคยใช้การมี Google key เป็น readiness | FIXED | เปลี่ยนเป็น fal key + PRODUCTION_APPROVED; Google fallback ไม่เปิด Auto |
+| P0-02 | Provider side effect กับ database state ยังไม่ crash-safe exactly-once | OPEN | TikTok อาจรับ init แล้ว response/DB write ขาดหาย; retry อาจ post ซ้ำ และ webhook อาจเหลือ queue state ค้าง |
+| P0-03 | Paid generation ยังไม่มี atomic budget reservation/settlement ledger | OPEN | calculation และ per-call cap ยังกัน concurrent overspend ข้าม run/account/provider/day/month ไม่ได้ |
+
+P0 ที่เปิดอยู่ถูกลดความเสี่ยงเพราะ real publishing ปิด, fal ยังไม่ approved และ Phase 10 ยังไม่ execute external calls แต่ต้องแก้ก่อนเปิด production flags
+
+### P1 — ต้องแก้ก่อน pilot จริง
+
+| ID | Finding |
+|---|---|
+| P1-01 | Supabase leaked-password protection ยังปิด |
+| P1-02 | Webhook อ่าน request body โดยไม่มี hard size limit |
+| P1-03 | OAuth routes, webhook และ mutation actions ไม่มี shared rate limiting |
+| P1-04 | TikTok upload URL จาก provider ยังไม่มี hostname/IP egress guard |
+| P1-05 | createAutoRun เป็น read-before-insert; concurrent START อาจได้ unique error แทน run เดิม |
+| P1-06 | run/states/actions/steps/checkpoints เขียนหลาย statement ไม่มี transaction จึงอาจเหลือ partial run |
+| P1-07 | queue transition กับ status event ไม่ atomic |
+| P1-08 | บาง Video Factory execution/evidence tables ให้ authenticated owner insert/update โดยตรง ต้องแยก user intent จาก server-attested status/cost |
+| P1-09 | ไม่มี CI บังคับ typecheck/lint/test/build และ next.config.ts ใช้ ignoreBuildErrors=true |
+| P1-10 | ไม่มี production worker lease, heartbeat, stale-job recovery และ dead-letter flow |
+| P1-11 | ไม่มี structured logs, correlation IDs, error monitoring, metrics และ alert routing |
+| P1-12 | ไม่มี backup/restore drill, incident runbook และ release rollback evidence |
+| P1-13 | fal benchmark ยังไม่สำเร็จและไม่มี owner quality/reliability approval |
+| P1-14 | TikTok Login, Content Posting, Shop และ Analytics production approvals ยังไม่ยืนยันจริง |
+
+### P2 — แก้ก่อน scale
+
+1. ตรวจ 34 unindexed foreign keys ด้วย query plan/load test แล้วเพิ่มเฉพาะที่จำเป็น
+2. อย่าลบ 27 unused indexes จากสถิติของฐานข้อมูลที่แทบไม่มี workload
+3. กำหนด retention policy ของ evidence ที่ cascade เมื่อ owner/account ถูกลบ
+4. ทำ load test สำหรับ 3 และ 10 accounts พร้อม concurrent writes
+5. เพิ่ม browser E2E สำหรับ auth, owner isolation, approval และ recovery
+6. เพิ่ม storage lifecycle, orphan reconciliation และ quota monitoring
+7. เพิ่ม dependency vulnerability scan, SBOM และ patch cadence
+8. paginate dashboard queries ที่โหลดหลาย collection พร้อมกัน
+
+### P3 — Improvement
+
+1. จัดรูปแบบไฟล์บรรทัดยาวหลังปิด production blockers
+2. เพิ่ม accessibility และ visual regression audit
+3. เพิ่ม localization/error copy catalog
+4. สร้าง operational dashboard หลัง metrics contract คงที่
+
+## F. Exact order of remaining tasks
+
+ลำดับบังคับ: **11A → 11B → 11C → 11D → 11E → 11F → owner approvals → 11G**
+
+### 11A — Security Hardening
+
+- Objective: ปิด attack surface ก่อนเปิด endpoint ภายนอก
+- Likely files: src/app/api/tiktok/webhooks/content-posting/route.ts, src/features/publishing/webhook.ts, provider.ts, OAuth routes, src/lib/server-env.ts, .env.example, next.config.ts
+- Inspect first: env gates, official host requirements, signature tests, proxy auth และ client/server import graph
+- Permitted: body-size/content-type guards, rate limit, upload-host/private-IP guard, CSP/security headers, sanitized errors, durable replay state
+- Forbidden: เปิด real provider, เปลี่ยน scopes, ลด RLS, expose secret, เปลี่ยน scoring
+- Tests: signature/timestamp/replay, oversized body, bad content type, rate limit, bad host/private IP, owner auth, secret scan, full suite
+- Completion: ปิด P1-02/03/04; review Security Advisor; leaked-password เป็น owner action
+- Commit: **fix: harden production security boundaries**
+- STOP: push แล้วหยุด
+
+### 11B — Reliability / Idempotency
+
+- Objective: ทำ paid generation และ publishing ให้ crash/retry-safe
+- Likely files: auto/services.ts, video/jobs.ts, cost-router.ts, provider adapters, publishing/services.ts และ migration ใหม่
+- Inspect first: unique keys และทุก failure window ระหว่าง reserve/call/persist
+- Permitted: transaction RPC, insert-on-conflict return-existing, budget reservation/settlement/refund, outbox/inbox, reconcile, lease
+- Forbidden: automatic paid retry, silent publish, removing consent, changing provider approval
+- Tests: concurrent START, lost response, DB failure after acceptance, duplicate webhook, stale lease, token failure, budget oversubscription
+- Completion: ปิด P0-02/P0-03 และพิสูจน์ no duplicate paid call/post ใน recovery paths
+- Commit: **fix: make external execution idempotent and budget safe**
+- STOP: push แล้วหยุด ห้ามเปิด external mode
+
+### 11C — Observability / Monitoring
+
+- Objective: ตรวจพบและสืบเหตุได้โดยไม่ log secret
+- Likely files: logging utility, auto/video/TikTok/publishing boundaries, health route และ runbook
+- Inspect first: error paths, correlation IDs และ sensitive fields
+- Permitted: structured logs, redaction, metrics, health/readiness, error adapter, alert thresholds
+- Forbidden: log token/credential/raw webhook/user content ที่ไม่จำเป็น
+- Tests: redaction, correlation, fail-closed readiness และ metric emission
+- Completion: alerts ครอบคลุม queue age, failure, budget, webhook, stale worker และ auth refresh
+- Commit: **feat: add production observability and health checks**
+- STOP: push แล้วหยุด
+
+### 11D — Performance / Database
+
+- Objective: ยืนยัน query/index/retention สำหรับ concurrent accounts
+- Likely files: migration ใหม่, analytics/publishing/auto/video queries และ load tests
+- Inspect first: 34 FK findings, EXPLAIN plans และ row-growth estimates
+- Permitted: evidence-backed indexes, pagination, bounded queries, retention/orphan reconciliation
+- Forbidden: ลบดัชนีจาก unused warning อย่างเดียว, rewrite scoring
+- Tests: query plans, 3/10-account load และ concurrent writes
+- Completion: critical query latency documented และ Advisor reviewed
+- Commit: **perf: harden database paths for pilot load**
+- STOP: push แล้วหยุด
+
+### 11E — Production Environment
+
+- Objective: เตรียม staging/production config โดยยังไม่ deploy
+- Likely files: .env.example, environment validation, Vercel/Supabase docs, disabled worker/cron config
+- Inspect first: environment reads, defaults, server-only imports, region/timeouts
+- Permitted: fail-closed production validation, secret ownership/rotation matrix, disabled schedules
+- Forbidden: commit secret, deploy, enable paid/publishing flags
+- Tests: production env matrix, missing-secret failure, public bundle scan, worker dry run
+- Completion: platform vault พร้อมและ production boot fail ชัดเจนเมื่อ config ขาด
+- Commit: **chore: prepare production environment boundaries**
+- STOP: push แล้วหยุด
+
+### 11F — Release Readiness
+
+- Objective: สร้าง release gate และ rollback evidence
+- Likely files: .github/workflows, next.config.ts, package scripts, E2E และ runbooks
+- Inspect first: build behavior, migration sequencing, preview env และ branch protection
+- Permitted: CI, type safety, tests/build, migration validation, security scan, release checklist
+- Forbidden: production deploy หรือ destructive migration
+- Tests: clean install, typecheck, lint, tests, build, migration validation, smoke E2E, rollback rehearsal
+- Completion: merge/deploy ถูก block เมื่อ gate ล้มเหลว
+- Commit: **ci: add production release readiness gates**
+- STOP: push แล้วรอ owner actions
+
+### 11G — 1-account Growth Pilot
+
+- Objective: pilot หนึ่ง Growth account ด้วย cap ต่ำสุดและ human approval ทุก publish
+- Likely files: production config, worker controls, operational views และ pilot runbook
+- Inspect first: 11A–11F, TikTok/provider approvals, backup, alerts และ owner sign-off
+- Permitted: account allowlist, low limits, kill switch, manual approval, observation
+- Forbidden: Affiliate, multi-account, silent Direct Post, cap increase, paid auto retry
+- Tests: staging rehearsal, reserved paid generation, draft upload first, reconcile, kill switch, restore
+- Completion: owner sign-off ต่อ cost, quality, compliance, post status, analytics และ recovery
+- Commit: **chore: prepare one-account growth pilot**
+- STOP: report pilot; ห้ามขยายอัตโนมัติ
+
+## G. Ready-to-paste prompts
+
+ทุก prompt ด้านล่างมี guardrails เดียวกัน: ใช้ repository เป็น source of truth, ตรวจ branch/HEAD และ implementation ก่อนแก้, ระบุไฟล์ที่จะเปลี่ยน, ไม่ refactor งานอื่น, ไม่แก้ phase ที่เสร็จแล้วถ้าไม่จำเป็น, หลังแก้ต้อง typecheck/lint/test/build/commit/push และ STOP
+
+### Prompt 11A
+
+~~~text
+ทำ Phase 11A Security Hardening เท่านั้น
+
+Use repository as source of truth.
+Do not refactor unrelated architecture.
+Do not modify completed phases unless required by this task.
+Do not deploy, publish TikTok, call a paid provider, or weaken RLS.
+
+แก้ FINAL_PRODUCTION_HANDOFF P1-02, P1-03 และ P1-04: hard webhook body limit ก่อน buffer, strict content type, rate limiting สำหรับ public OAuth/webhook boundaries และ fail-closed TikTok upload URL hostname/private-IP guard. รักษา signature, timestamp, replay idempotency, consent และ owner isolation
+
+Before changing code: verify branch/HEAD, inspect implementation, list intended files.
+Add tests for oversized payload, content type, rate limit, bad host/private IP, valid flow, signature/timestamp/replay และ secret redaction. Re-run Security Advisor. Leaked-password protection เป็น owner action.
+
+After changes: pnpm typecheck; pnpm lint; pnpm test; pnpm build; commit "fix: harden production security boundaries"; push; STOP.
+~~~
+
+### Prompt 11B
+
+~~~text
+ทำ Phase 11B Reliability / Idempotency เท่านั้น
+
+Use repository as source of truth.
+Do not refactor unrelated architecture.
+Do not modify completed phases unless required by this task.
+Do not enable paid providers or real TikTok publishing.
+
+ปิด P0-02 และ P0-03 ด้วย transaction-backed idempotency, durable leases, provider reconciliation, atomic queue/status evidence และ atomic budget reservation/settlement/refund ครบ run/account/provider/day/month. ใช้ migration ใหม่ ห้ามแก้ migration ที่ apply แล้ว.
+
+Before changing code: verify branch/HEAD, inspect implementation, list files and failure windows.
+Test concurrent START/generation, lost response, DB failure after external acceptance, duplicate webhook, worker restart, stale lease, token failure และ budget oversubscription. พิสูจน์ no duplicate paid call/post.
+
+After changes: pnpm typecheck; pnpm lint; pnpm test; pnpm build; validate migration; commit "fix: make external execution idempotent and budget safe"; push; STOP.
+~~~
+
+### Prompt 11C
+
+~~~text
+ทำ Phase 11C Observability / Monitoring เท่านั้น
+
+Use repository as source of truth.
+Do not refactor unrelated architecture.
+Do not modify completed phases unless required by this task.
+Do not deploy or call external providers.
+
+เพิ่ม structured logs, correlation IDs, redaction, health/readiness, metrics และ alert contracts สำหรับ auth, OAuth, provider, budgets, queue age, webhook, stale worker และ recovery. ห้าม log token, secret หรือ raw credentials.
+
+Before changing code: verify branch/HEAD, inspect implementation, list intended files.
+Test redaction, correlation, readiness และ metrics.
+After changes: pnpm typecheck; pnpm lint; pnpm test; pnpm build; commit "feat: add production observability and health checks"; push; STOP.
+~~~
+
+### Prompt 11D
+
+~~~text
+ทำ Phase 11D Performance / Database เท่านั้น
+
+Use repository as source of truth.
+Do not refactor unrelated architecture.
+Do not modify completed phases unless required by this task.
+Do not remove indexes only because an empty database marks them unused.
+
+ตรวจ 34 unindexed foreign keys กับ query filters/EXPLAIN เพิ่มเฉพาะ evidence-backed indexes ใน migration ใหม่, paginate unbounded reads, กำหนด retention/orphan reconciliation และสร้าง 3/10-account load tests.
+
+Before changing code: verify branch/HEAD, inspect implementation, list intended files and plan evidence.
+After changes: pnpm typecheck; pnpm lint; pnpm test; pnpm build; re-run advisors; commit "perf: harden database paths for pilot load"; push; STOP.
+~~~
+
+### Prompt 11E
+
+~~~text
+ทำ Phase 11E Production Environment เท่านั้น
+
+Use repository as source of truth.
+Do not refactor unrelated architecture.
+Do not modify completed phases unless required by this task.
+Do not deploy, add real secrets, or enable external modes.
+
+สร้าง fail-closed staging/production validation, server-only secret ownership/rotation matrix, disabled-by-default worker/cron config และ Vercel/Supabase setup docs. รักษา mock defaults. ตรวจว่า secret ไม่เข้า NEXT_PUBLIC, client bundle, logs, errors หรือ client-readable rows.
+
+Before changing code: verify branch/HEAD, inspect implementation, list intended files.
+After changes: pnpm typecheck; pnpm lint; pnpm test; pnpm build; commit "chore: prepare production environment boundaries"; push; STOP.
+~~~
+
+### Prompt 11F
+
+~~~text
+ทำ Phase 11F Release Readiness เท่านั้น
+
+Use repository as source of truth.
+Do not refactor unrelated architecture.
+Do not modify completed phases unless required by this task.
+Do not deploy production.
+
+เพิ่ม CI สำหรับ clean install, typecheck, lint, tests, build, migration validation, dependency/security scan, browser smoke E2E, staging checklist, rollback rehearsal และ incident runbook. ห้าม destructive migration.
+
+Before changing code: verify branch/HEAD, inspect implementation, list intended files.
+After changes: pnpm typecheck; pnpm lint; pnpm test; pnpm build; commit "ci: add production release readiness gates"; push; STOP.
+~~~
+
+### Prompt 11G
+
+~~~text
+ทำ Phase 11G 1-account Growth Pilot เท่านั้น
+
+Use repository as source of truth.
+Do not refactor unrelated architecture.
+Do not modify completed phases unless required by this task.
+
+ทำต่อเฉพาะเมื่อ 11A-11F และ owner actions เสร็จ เตรียมหนึ่ง allowlisted Growth account ด้วย cap ต่ำสุด, transactional budget reservation, human approval ทุก publish, draft upload ก่อน Direct Post, kill switch, alerts และ rollback. ห้าม Affiliate, multi-account, silent publishing, paid auto retry หรือเพิ่ม cap.
+
+Before changing code: verify branch/HEAD, inspect implementation, list files, prove prerequisites.
+After changes: pnpm typecheck; pnpm lint; pnpm test; pnpm build; commit "chore: prepare one-account growth pilot"; push; STOP.
+~~~
+
+## External owner actions
+
+1. เติม fal billing/credit แล้วทำ benchmark ใหม่ภายใต้ cap; ตรวจ Beauty/Home/Gadget และอนุมัติเมื่อผ่านเท่านั้น
+2. ปิด VIDEO_BENCHMARK_ALLOW_PAID หลัง benchmark ถ้าไม่ต้องการ paid CLI run
+3. เปิด Supabase leaked-password protection
+4. ยืนยัน backup/PITR retention, restore owner และทำ restore drill
+5. ขอ TikTok Login Kit, Content Posting, Direct Post audit, scopes, test users และ webhook approvals
+6. ขอ TikTok Shop/Affiliate category/API approval, creator/seller authorization และ product attachment
+7. ขอ TikTok Display/Analytics และ Shop Analytics permissions
+8. ใส่ production secrets ผ่าน platform vault และกำหนด rotation owner
+9. เลือก Vercel project/domain/region และ Supabase capacity
+10. เลือก monitoring vendor, on-call owner และ alert destination
+11. อนุมัติ pilot budget, daily cap, account allowlist, reviewer และ kill-switch owner
+
+## Final GO / NO-GO matrix
+
+| Level | Status | Owner action | Engineering action |
+|---|---|---|---|
+| Local development | READY | รักษาข้อมูลทดสอบเฉพาะ local | ใช้ mock providers และ quality suite |
+| Technical pilot แบบ mock/local | READY | กำหนด test data | external calls = 0 |
+| 1-account Growth pilot | BLOCKED | fal/TikTok approvals, secrets, backup, monitoring | 11A–11F และปิด P0-02/P0-03 |
+| Real publishing pilot | BLOCKED | Content Posting approval/audit และ consent owner | exactly-once, reconcile, rate limits, observability |
+| 3-account pilot | BLOCKED | account auth และ budget | ผ่าน 1-account pilot และ load test |
+| 10-account scale | BLOCKED | capacity/cost/on-call approval | indexes, worker scaling, SLO, restore/load evidence |
+
+## Audit conclusion
+
+ระบบพร้อมสำหรับ local/mock technical validation แต่ยังไม่ production ready. ตัวบล็อกหลักคือ external exactly-once, atomic money reservation, real provider evidence, TikTok approvals และ production operations. ห้ามเปิด paid Auto Mode หรือ real publishing จนกว่า 11A–11F และ owner actions ที่เกี่ยวข้องจะเสร็จครบ
