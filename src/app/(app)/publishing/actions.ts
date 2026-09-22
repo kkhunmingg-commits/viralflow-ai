@@ -7,11 +7,13 @@ import {createShoppableIntentForQueue} from "@/features/commerce/services";
 import {z} from "zod";
 import type { PublishSettings } from "@/features/publishing/types";
 import { createClient } from "@/lib/supabase/server";
+import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 
 async function ownerId() {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) throw new Error("Authentication required");
+  await enforceOwnerMutationRateLimit("publishing", data.user.id);
   return data.user.id;
 }
 

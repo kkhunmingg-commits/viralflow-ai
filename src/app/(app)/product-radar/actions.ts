@@ -4,12 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { serverEnv } from "@/lib/server-env";
 import { MockProductProvider } from "@/features/products/providers";
 import { ingestProducts } from "@/features/products/services";
+import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 export async function seedProductRadar():Promise<{message:string}> {
   if(process.env.NODE_ENV!=="development" || !serverEnv.allowDevMockSeed) return {message:"การสร้างข้อมูลตัวอย่างเปิดเฉพาะ development"};
   const client=await createClient();
   const {data,error}=await client.auth.getUser();
   if(error || !data.user) return {message:"กรุณาเข้าสู่ระบบ"};
   try {
+    await enforceOwnerMutationRateLimit("product-radar",data.user.id);
     // Keep the same dataset clock across retries, including a partially completed run.
     const existing=await client.from("products").select("provider_metadata").eq("owner_id",data.user.id)
       .eq("external_provider","mock").like("external_product_id","fixture-%").order("created_at").limit(1);

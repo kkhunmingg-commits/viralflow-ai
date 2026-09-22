@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { serverEnv } from "@/lib/server-env";
+import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 
 const triState = z.enum(["true", "false", "unknown"]).transform((value) =>
@@ -65,6 +66,7 @@ async function authenticatedOwner() {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) throw new Error("Authentication required");
+  await enforceOwnerMutationRateLimit("accounts", data.user.id);
   return { supabase, ownerId: data.user.id };
 }
 

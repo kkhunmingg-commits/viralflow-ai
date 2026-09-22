@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isIP } from "node:net";
 import type { PublishInitResult, PublishSettings, SourceInfo, TikTokPublishStatus } from "./types";
 
 export interface TikTokPublishingProvider {
@@ -31,12 +32,55 @@ export function buildChunkSource(videoSize: number): SourceInfo {
   return { source: "FILE_UPLOAD", videoSize, chunkSize, totalChunkCount: Math.floor(videoSize / chunkSize) };
 }
 
-export function assertVerifiedPullUrl(value: string, allowedHosts: readonly string[]) {
-  const url = new URL(value);
-  if (url.protocol !== "https:" || !allowedHosts.includes(url.hostname.toLowerCase())) {
-    throw new Error("pull_url_not_verified");
+function isPrivateAddress(hostname: string) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (host === "localhost" || host.endsWith(".localhost")) return true;
+  if (isIP(host) === 4) {
+    const parts = host.split(".").map(Number);
+    return parts[0] === 0
+      || parts[0] === 10
+      || parts[0] === 127
+      || (parts[0] === 100 && parts[1] >= 64 && parts[1] <= 127)
+      || (parts[0] === 169 && parts[1] === 254)
+      || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31)
+      || (parts[0] === 192 && parts[1] === 0 && parts[2] === 0)
+      || (parts[0] === 192 && parts[1] === 168)
+      || (parts[0] === 198 && (parts[1] === 18 || parts[1] === 19))
+      || parts[0] >= 224;
+  }
+  if (isIP(host) === 6) {
+    return !/^[23]/.test(host);
+  }
+  return false;
+}
+
+function assertAllowedHttpsUrl(value: string, allowedHosts: readonly string[], errorCode: string) {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new Error(errorCode);
+  }
+  const hostname = url.hostname.toLowerCase();
+  if (
+    url.protocol !== "https:"
+    || url.username
+    || url.password
+    || (url.port && url.port !== "443")
+    || isPrivateAddress(hostname)
+    || !allowedHosts.includes(hostname)
+  ) {
+    throw new Error(errorCode);
   }
   return url.toString();
+}
+
+export function assertVerifiedPullUrl(value: string, allowedHosts: readonly string[]) {
+  return assertAllowedHttpsUrl(value, allowedHosts, "pull_url_not_verified");
+}
+
+export function assertTikTokUploadUrl(value: string, allowedHosts: readonly string[]) {
+  return assertAllowedHttpsUrl(value, allowedHosts, "upload_url_not_allowed");
 }
 
 function sourceBody(source: SourceInfo) {
@@ -47,7 +91,13 @@ function sourceBody(source: SourceInfo) {
 
 export class OfficialTikTokPublishingProvider implements TikTokPublishingProvider {
   readonly name = "tiktok" as const;
-  constructor(private readonly request: typeof fetch = fetch) {}
+  constructor(
+    private readonly request: typeof fetch = fetch,
+    private readonly allowedUploadHosts: readonly string[] = [
+      "open-upload.tiktokapis.com",
+      "upload.us.tiktokapis.com",
+    ],
+  ) {}
 
   private async init(endpoint: string, accessToken: string, body: object) {
     const response = await this.request(`https://open.tiktokapis.com${endpoint}`, {
@@ -58,7 +108,12 @@ export class OfficialTikTokPublishingProvider implements TikTokPublishingProvide
     const json: unknown = await response.json();
     if (!response.ok) throw new Error(`tiktok_http_${response.status}`);
     const parsed = initResponseSchema.parse(json).data;
-    return { publishId: parsed.publish_id, uploadUrl: parsed.upload_url ?? null };
+    return {
+      publishId: parsed.publish_id,
+      uploadUrl: parsed.upload_url
+        ? assertTikTokUploadUrl(parsed.upload_url, this.allowedUploadHosts)
+        : null,
+    };
   }
 
   uploadDraft(accessToken: string, source: SourceInfo) {
@@ -84,13 +139,15 @@ export class OfficialTikTokPublishingProvider implements TikTokPublishingProvide
     if (source.source !== "FILE_UPLOAD" || !source.videoSize || !source.chunkSize || !source.totalChunkCount) {
       throw new Error("file_upload_source_required");
     }
+    const safeUploadUrl = assertTikTokUploadUrl(uploadUrl, this.allowedUploadHosts);
     let start = 0;
     for (let index = 0; index < source.totalChunkCount; index += 1) {
       const final = index === source.totalChunkCount - 1;
       const endExclusive = final ? source.videoSize : Math.min(source.videoSize, start + source.chunkSize);
       const body = media.slice(start, endExclusive, media.type || "video/mp4");
-      const response = await this.request(uploadUrl, {
+      const response = await this.request(safeUploadUrl, {
         method: "PUT",
+        redirect: "error",
         headers: {
           "Content-Type": media.type || "video/mp4",
           "Content-Length": String(body.size),

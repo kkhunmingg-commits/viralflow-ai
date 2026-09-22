@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { runPrePublishGate } from "@/features/compliance/services";
 import {assertShoppableIntentReady} from "@/features/commerce/services";
+import {ownsVideoStoragePath} from "@/features/video/storage";
 import { TikTokCreatorService, TikTokTokenService } from "@/features/tiktok/services";
 import { serverEnv } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -25,7 +26,7 @@ export class PublishingError extends Error {
 export function createPublishingProvider(): TikTokPublishingProvider {
   if (serverEnv.tiktokPublishingProvider === "mock") return new MockTikTokPublishingProvider();
   if (!serverEnv.tiktokPublishingRealMode) throw new PublishingError("real_publishing_mode_disabled");
-  return new OfficialTikTokPublishingProvider();
+  return new OfficialTikTokPublishingProvider(fetch, serverEnv.tiktokAllowedUploadHosts);
 }
 
 function string(value: unknown) { return String(value ?? ""); }
@@ -132,6 +133,9 @@ export class TikTokPublishingService {
       .eq("owner_id", queue.owner_id).eq("storage_path", video.storage_path).eq("asset_type", "VIDEO").maybeSingle();
     if (assetError || !asset || !["video/mp4", "video/quicktime", "video/webm"].includes(asset.mime_type)) {
       throw new PublishingError("video_media_invalid");
+    }
+    if (!ownsVideoStoragePath(queue.owner_id, String(video.storage_path))) {
+      throw new PublishingError("video_storage_path_invalid");
     }
     return { account, video, asset };
   }
@@ -240,6 +244,9 @@ export class TikTokPublishingService {
     const { data, error } = await this.admin.storage.from("video-assets").download(storagePath);
     if (error || !data) throw new PublishingError("video_download_failed");
     const media = new Blob([await data.arrayBuffer()], { type: mimeType });
+    if (media.size < 1 || media.size > 52_428_800) {
+      throw new PublishingError("video_size_invalid");
+    }
     return { source: buildChunkSource(media.size), media };
   }
 
@@ -337,7 +344,7 @@ export class TikTokPublishingService {
   }
 
   async handlePublishWebhook(rawBody: string) {
-    const parsed = parseTikTokPublishWebhook(rawBody);
+    const parsed = parseTikTokPublishWebhook(rawBody, serverEnv.tiktokClientKey);
     const { data: queue, error } = await this.admin.from("publishing_queue").select("*").eq("provider_publish_id", parsed.content.publish_id).maybeSingle();
     if (error || !queue) return { accepted: true, matched: false, duplicate: false };
     const eventId = createHash("sha256").update(rawBody).digest("hex");

@@ -3,13 +3,14 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { assignmentDate } from "@/features/assignments/planner";
 import { persistDailyAssignments } from "@/features/assignments/services";
 import { createProjectFromAssignment,generateCreativeProject,rejectScript,selectCreative,updateScript } from "@/features/creative/services";
 const uuid=z.string().uuid();
 async function auth(){
   const client=await createClient(),{data}=await client.auth.getUser();
-  if(!data.user)throw new Error("Authentication required");return {client,owner:data.user.id};
+  if(!data.user)throw new Error("Authentication required");await enforceOwnerMutationRateLimit("creative-studio",data.user.id);return {client,owner:data.user.id};
 }
 export async function createCreativeFromRecommendation(formData:FormData){
   const accountId=uuid.parse(formData.get("accountId")),productId=uuid.parse(formData.get("productId"));

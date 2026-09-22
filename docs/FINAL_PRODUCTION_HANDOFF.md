@@ -1,8 +1,8 @@
 # ViralFlow AI — Final Production Readiness Handoff
 
-วันที่ audit: 2026-09-21
+วันที่ audit ล่าสุด: 2026-09-23
 
-Baseline: branch **feature/fal-wan-primary-provider**, HEAD **cef7032e5d01a5f14402c90a0c928568220c2cd3**
+Phase 11A starting point: branch **feature/fal-wan-primary-provider**, HEAD **be614e7d0c2485ad80ac1de7e42905f77122a5ca**
 
 เอกสารนี้อ้างอิง repository และ Supabase project **viralflow-ai** ณ วันที่ audit เท่านั้น
 
@@ -10,13 +10,13 @@ Baseline: branch **feature/fal-wan-primary-provider**, HEAD **cef7032e5d01a5f144
 
 - Stack: Next.js 16.3.5 App Router, React 19.3.0, TypeScript 6.0.3, Tailwind CSS 4.3.3, Supabase JS/SSR 2.116.0
 - Package manager: pnpm 11.19.0; Node.js ขั้นต่ำ 24
-- Local migrations: 14 ไฟล์ ตั้งแต่ Phase 1 ถึง Phase 10
-- Live migrations: 14 รายการ ชื่อและลำดับ phase ตรงกับ local
+- Local migrations: 15 ไฟล์ ตั้งแต่ Phase 1 ถึง Phase 11A
+- Live migrations: 15 รายการ โดย `phase_11a_security_hardening` ถูก apply สำเร็จหนึ่งครั้ง
 - Live schema: 59 public tables, 59 primary keys, 106 unique constraints, 160 foreign keys, 449 check constraints และไม่มี constraint ที่รอ validate
 - RLS เปิดครบ 59/59 public tables
 - tiktok_oauth_credentials และ tiktok_oauth_states ใช้ FORCE RLS, ไม่มี client policy และไม่มี grant ให้ authenticated โดยตั้งใจ
 - Storage bucket video-assets เป็น private และใช้ owner-path policies ครบ
-- Security Advisor: ไม่มี schema security error; มี warning leaked-password protection disabled และ info สองรายการสำหรับ service-only OAuth tables
+- Security Advisor หลัง Phase 11A: ไม่มี finding ใหม่; มี warning leaked-password protection disabled และ info สองรายการสำหรับ service-only OAuth tables
 - Performance Advisor: unindexed foreign keys 34 รายการ และ unused indexes 27 รายการ; ต้องยืนยันด้วย workload ก่อนแก้
 - Live operational rows: auto_runs=0, publishing_queue=0, generation_jobs=0, tiktok_oauth_credentials=0, video_analytics_snapshots=0
 - Tracked secret-pattern scan: ไม่พบ secret pattern ในไฟล์ที่ Git track หรือ commit history ที่สแกน
@@ -63,6 +63,7 @@ flowchart LR
 - Phase 9: Growth learning, experiment planning และ milestone recheck
 - Phase 10: durable run schema, planning, checkpoints, pause/resume/stop, scheduling และ budget calculation
 - Audit fix: Auto Mode ใช้ falAutoModeAvailability; Google key ไม่สามารถเปิด provider gate และ fal ต้องมี key พร้อม state PRODUCTION_APPROVED
+- Phase 11A: webhook จำกัด 64 KiB และรับเฉพาะ JSON, signature/timestamp/client key/envelope ถูกตรวจแบบ strict, OAuth/webhook/owner mutations ใช้ shared database rate limit, TikTok upload URL และ pull URL fail closed, storage path ผูก owner, error response ไม่เผยรายละเอียดภายใน และเพิ่ม security headers
 
 ## D. What must NOT be changed
 
@@ -94,9 +95,9 @@ P0 ที่เปิดอยู่ถูกลดความเสี่ย�
 | ID | Finding |
 |---|---|
 | P1-01 | Supabase leaked-password protection ยังปิด |
-| P1-02 | Webhook อ่าน request body โดยไม่มี hard size limit |
-| P1-03 | OAuth routes, webhook และ mutation actions ไม่มี shared rate limiting |
-| P1-04 | TikTok upload URL จาก provider ยังไม่มี hostname/IP egress guard |
+| P1-02 | FIXED 11A — webhook จำกัดขนาดก่อน buffer และบังคับ JSON |
+| P1-03 | FIXED 11A — OAuth, webhook และ authenticated mutation groups ใช้ shared database rate limit |
+| P1-04 | FIXED 11A — upload/pull URL บังคับ HTTPS, exact host, safe port, no credentials/private IP และ no redirect |
 | P1-05 | createAutoRun เป็น read-before-insert; concurrent START อาจได้ unique error แทน run เดิม |
 | P1-06 | run/states/actions/steps/checkpoints เขียนหลาย statement ไม่มี transaction จึงอาจเหลือ partial run |
 | P1-07 | queue transition กับ status event ไม่ atomic |
@@ -131,6 +132,8 @@ P0 ที่เปิดอยู่ถูกลดความเสี่ย�
 ลำดับบังคับ: **11A → 11B → 11C → 11D → 11E → 11F → owner approvals → 11G**
 
 ### 11A — Security Hardening
+
+**Status: DONE (2026-09-23)** — migration อยู่ใน local/live history อย่างละหนึ่งครั้ง, RLS ยังเปิด 59/59 public tables, Security Advisor ไม่มี finding ใหม่, tests 248/248 ผ่าน และ typecheck/lint/build ผ่านครบ ผลที่ยังต้องทำโดยเจ้าของคือเปิด leaked-password protection ใน Supabase Dashboard
 
 - Objective: ปิด attack surface ก่อนเปิด endpoint ภายนอก
 - Likely files: src/app/api/tiktok/webhooks/content-posting/route.ts, src/features/publishing/webhook.ts, provider.ts, OAuth routes, src/lib/server-env.ts, .env.example, next.config.ts

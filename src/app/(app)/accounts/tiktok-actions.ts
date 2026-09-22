@@ -4,11 +4,13 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { TikTokCreatorService, TikTokTokenService } from "@/features/tiktok/services";
 import { createClient } from "@/lib/supabase/server";
+import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 
 async function ownerId() {
   const supabase = await createClient();
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) throw new Error("Authentication required");
+  await enforceOwnerMutationRateLimit("tiktok-account", data.user.id);
   return data.user.id;
 }
 

@@ -5,8 +5,9 @@ import {z} from "zod";
 import {createClient} from "@/lib/supabase/server";
 import {buildMasterVideo,buildVideoVariation,createVideoVariations,setVideoStatus} from "@/features/video/services";
 import {runPrePublishGate} from "@/features/compliance/services";
+import {enforceOwnerMutationRateLimit} from "@/lib/security/rate-limit";
 const uuid=z.string().uuid();
-async function auth(){const client=await createClient(),{data}=await client.auth.getUser();if(!data.user)throw new Error("Authentication required");return {client,owner:data.user.id}}
+async function auth(){const client=await createClient(),{data}=await client.auth.getUser();if(!data.user)throw new Error("Authentication required");await enforceOwnerMutationRateLimit("video-factory",data.user.id);return {client,owner:data.user.id}}
 export async function createVideoFromCreativeAction(formData:FormData){
   const projectId=uuid.parse(formData.get("projectId")),{client,owner}=await auth(),master=await buildMasterVideo(client,owner,projectId);
   redirect(`/video-factory/${master.id}`);

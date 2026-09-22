@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { buildChunkSource, MockTikTokPublishingProvider, OfficialTikTokPublishingProvider, assertVerifiedPullUrl } from "./provider";
+import { buildChunkSource, MockTikTokPublishingProvider, OfficialTikTokPublishingProvider, assertTikTokUploadUrl, assertVerifiedPullUrl } from "./provider";
 import { deterministicNextDaySlot, remainingPublishSlots, retryDelaySeconds, scheduleCandidates } from "./scheduler";
 import { assertConsentSnapshot, assertPublishingPermission, consentHash, publishAttemptKey, statusFromProvider } from "./state";
 import { parseTikTokPublishWebhook, verifyTikTokWebhookSignature } from "./webhook";
@@ -17,11 +17,17 @@ describe("Phase 7B publishing foundation", () => {
     expect(assertVerifiedPullUrl("https://media.example.com/video.mp4", ["media.example.com"])).toBe("https://media.example.com/video.mp4");
     expect(() => assertVerifiedPullUrl("http://media.example.com/video.mp4", ["media.example.com"])).toThrow("pull_url_not_verified");
     expect(() => assertVerifiedPullUrl("https://evil.example/video.mp4", ["media.example.com"])).toThrow("pull_url_not_verified");
+    expect(() => assertVerifiedPullUrl("https://user:pass@media.example.com/video.mp4", ["media.example.com"])).toThrow("pull_url_not_verified");
+    expect(() => assertVerifiedPullUrl("https://127.0.0.1/video.mp4", ["127.0.0.1"])).toThrow("pull_url_not_verified");
+    expect(() => assertVerifiedPullUrl("https://[::ffff:127.0.0.1]/video.mp4", ["[::ffff:7f00:1]"])).toThrow("pull_url_not_verified");
+    expect(() => assertVerifiedPullUrl("https://media.example.com:8443/video.mp4", ["media.example.com"])).toThrow("pull_url_not_verified");
+    expect(() => assertVerifiedPullUrl("not-a-url", ["media.example.com"])).toThrow("pull_url_not_verified");
+    expect(assertTikTokUploadUrl("https://open-upload.tiktokapis.com/video?id=1", ["open-upload.tiktokapis.com"])).toContain("open-upload.tiktokapis.com");
   });
 
   it("uses the official upload-draft endpoint and never marks delivery as published", async () => {
     const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => { void input; void init; return new Response(JSON.stringify({ data: { publish_id: "v_inbox_1", upload_url: "https://upload.example/video" }, error: { code: "ok" } }), { status: 200 }); });
-    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch);
+    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch, ["upload.example"]);
     await provider.uploadDraft("secret-token", buildChunkSource(4_000_000));
     expect(request.mock.calls[0]?.[0]).toBe("https://open.tiktokapis.com/v2/post/publish/inbox/video/init/");
     expect(statusFromProvider("SEND_TO_USER_INBOX", "DRAFT_UPLOAD")).toBe("DRAFT_DELIVERED");
@@ -30,7 +36,7 @@ describe("Phase 7B publishing foundation", () => {
 
   it("maps AIGC to the official is_aigc direct-post field", async () => {
     const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => { void input; void init; return new Response(JSON.stringify({ data: { publish_id: "v_pub_1", upload_url: "https://upload.example/video" }, error: { code: "ok" } }), { status: 200 }); });
-    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch);
+    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch, ["upload.example"]);
     await provider.directPost("secret-token", { caption: "caption", privacyLevel: "SELF_ONLY", disableComment: true, disableDuet: true, disableStitch: true, isAigc: true, commercialContent: {} }, buildChunkSource(1_000_000));
     const body = JSON.parse(String((request.mock.calls[0]?.[1] as RequestInit).body));
     expect(request.mock.calls[0]?.[0]).toBe("https://open.tiktokapis.com/v2/post/publish/video/init/");
@@ -39,12 +45,19 @@ describe("Phase 7B publishing foundation", () => {
 
   it("uploads binary chunks sequentially with Content-Range", async () => {
     const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => { void input; void init; return new Response(null, { status: 206 }); });
-    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch);
+    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch, ["upload.example"]);
     const size = 70 * 1024 * 1024;
     await provider.uploadBinary("https://upload.example/video", new Blob([new Uint8Array(size)], { type: "video/mp4" }), buildChunkSource(size));
     expect(request).toHaveBeenCalledTimes(7);
+    expect((request.mock.calls[0]?.[1] as RequestInit).redirect).toBe("error");
     expect((request.mock.calls[0]?.[1] as RequestInit).headers).toMatchObject({ "Content-Range": `bytes 0-${10 * 1024 * 1024 - 1}/${size}` });
     expect((request.mock.calls[6]?.[1] as RequestInit).headers).toMatchObject({ "Content-Range": `bytes ${60 * 1024 * 1024}-${size - 1}/${size}` });
+  });
+
+  it("rejects provider-supplied upload URLs outside the allowlist", async () => {
+    const request = vi.fn(async () => new Response(JSON.stringify({ data: { publish_id: "v_1", upload_url: "https://127.0.0.1/internal" }, error: { code: "ok" } }), { status: 200 }));
+    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch, ["open-upload.tiktokapis.com"]);
+    await expect(provider.uploadDraft("secret-token", buildChunkSource(4_000_000))).rejects.toThrow("upload_url_not_allowed");
   });
 
   it("keeps mock publishing deterministic and separates draft from direct post", async () => {
@@ -78,7 +91,11 @@ describe("Phase 7B publishing foundation", () => {
     const signature = createHmac("sha256", "client-secret").update(`1000.${rawBody}`).digest("hex");
     expect(verifyTikTokWebhookSignature({ rawBody, signatureHeader: `t=1000,s=${signature}`, clientSecret: "client-secret", nowSeconds: 1100 })).toBe(true);
     expect(verifyTikTokWebhookSignature({ rawBody, signatureHeader: `t=1000,s=${signature}`, clientSecret: "client-secret", nowSeconds: 1400 })).toBe(false);
-    expect(parseTikTokPublishWebhook(rawBody).target).toBe("DRAFT_DELIVERED");
+    expect(verifyTikTokWebhookSignature({ rawBody, signatureHeader: "t=1000,s=not-hex", clientSecret: "client-secret", nowSeconds: 1100 })).toBe(false);
+    expect(verifyTikTokWebhookSignature({ rawBody, signatureHeader: `t=1000,t=1000,s=${signature}`, clientSecret: "client-secret", nowSeconds: 1100 })).toBe(false);
+    expect(parseTikTokPublishWebhook(rawBody, "client").target).toBe("DRAFT_DELIVERED");
+    expect(() => parseTikTokPublishWebhook(rawBody, "another-client")).toThrow("webhook_client_key_mismatch");
+    expect(() => parseTikTokPublishWebhook(JSON.stringify({ ...JSON.parse(rawBody), unexpected: true }), "client")).toThrow();
   });
 
   it("uses real effective capacity and deterministic overflow for 10 accounts / 200 candidates", () => {

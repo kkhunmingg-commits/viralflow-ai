@@ -1,18 +1,18 @@
 # ViralFlow AI — Project Master Status
 
-อัปเดตจาก repository และ live Supabase audit วันที่ 2026-09-21
+อัปเดตจาก repository และ live Supabase audit วันที่ 2026-09-23
 
 Baseline branch: **feature/fal-wan-primary-provider**
 
-Baseline HEAD: **cef7032e5d01a5f14402c90a0c928568220c2cd3**
+Phase 11A starting HEAD: **be614e7d0c2485ad80ac1de7e42905f77122a5ca**
 
 ## Executive status
 
 | Metric | Result | Calculation |
 |---|---:|---|
-| Coding completion | **88%** | 88/100 engineering acceptance points |
-| Production readiness | **39%** | 39/100 release-readiness controls |
-| Overall completion | **68%** | coding 60% + production readiness 40% |
+| Coding completion | **89%** | 89/100 engineering acceptance points |
+| Production readiness | **42%** | 42/100 release-readiness controls |
+| Overall completion | **70%** | `(89 × 60%) + (42 × 40%) = 70.2` ปัดเป็นจำนวนเต็ม |
 
 เปอร์เซ็นต์นี้คำนวณใหม่จาก repository, migration history, live RLS/advisors, provider gates, tests และ production operations ไม่ได้ยกค่าจากบทสนทนาเดิม
 
@@ -24,28 +24,28 @@ Baseline HEAD: **cef7032e5d01a5f14402c90a0c928568220c2cd3**
 | Product, category, assignment brains | 12 | 12 | deterministic scoring, persistence และ UI |
 | Creative Brain | 8 | 8 | generate/select/edit/reject/regenerate และ risk/cost metadata |
 | Video Factory | 10 | 9 | FFmpeg/master/variation/quality/storage complete; real provider approval pending |
-| Compliance and originality | 10 | 9 | gates complete; production abuse hardening pending |
+| Compliance and originality | 10 | 10 | gates และ Phase 11A external-boundary hardening complete |
 | TikTok OAuth and publishing foundation | 12 | 9 | official contracts/mock complete; exactly-once/reconcile pending |
 | Shop and Affiliate foundation | 8 | 7 | fail-closed readiness complete; real approval/attachment pending |
 | Analytics and Growth learning | 12 | 11 | scoring/learning complete; real data adapters pending |
 | Auto orchestration | 12 | 9 | durable planning/checkpoint foundation; production executor/atomic budget pending |
 | Tests and engineering docs | 8 | 6 | broad unit suite/docs; CI/E2E/load/release gates pending |
-| **Total** | **100** | **88** | |
+| **Total** | **100** | **89** | |
 
 ### Production readiness rubric
 
 | Control | Weight | Earned | Evidence |
 |---|---:|---:|---|
 | Authentication, RLS, owner isolation | 15 | 13 | 59/59 tables RLS; leaked-password protection pending |
-| Secret/config boundaries | 10 | 8 | server-only validation and no tracked secret hit; production vault/rotation pending |
-| External-call safety | 15 | 5 | real modes disabled; exactly-once and egress hardening pending |
+| Secret/config boundaries | 10 | 9 | server-only validation, redacted errors, security headers และไม่มี client import violation; production vault/rotation pending |
+| External-call safety | 15 | 7 | real modes disabled; webhook/rate-limit/egress guards complete; exactly-once pending |
 | Money/budget safety | 10 | 4 | calculation/per-call cap exists; atomic reservation absent |
 | Data integrity/recovery | 10 | 5 | constraints/idempotency keys exist; multi-write transactions/reconcile pending |
 | Observability/incident response | 10 | 1 | no production monitoring, alerts or runbook |
 | CI/release/deployment | 10 | 2 | local quality commands exist; no CI/staging/rollback gate |
 | Backup/restore/operations | 10 | 1 | managed database exists; no restore drill/ownership evidence |
 | Real provider/TikTok approvals | 10 | 0 | fal benchmark failed; TikTok scopes/audit/Shop/Analytics pending |
-| **Total** | **100** | **39** | |
+| **Total** | **100** | **42** | |
 
 ## Phase status
 
@@ -67,19 +67,21 @@ Baseline HEAD: **cef7032e5d01a5f14402c90a0c928568220c2cd3**
 | 8 | Analytics/learning | PARTIAL | engine complete; real TikTok data access missing |
 | 9 | Growth Engine | DONE | real evidence stream pending external access |
 | 10 | Full Auto Mode | PARTIAL | safe planner complete; external worker and atomic budget absent |
-| 11 | Production hardening/release | PLANNED | ordered plan in FINAL_PRODUCTION_HANDOFF.md |
+| 11A | Security Hardening | DONE | P1-02/P1-03/P1-04 closed; leaked-password protection remains owner action |
+| 11B–11F | Reliability through release readiness | PLANNED | ordered plan in FINAL_PRODUCTION_HANDOFF.md |
 
 ## Verified repository and database state
 
-- 14 local migrations and 14 live migrations with matching phase names/order
+- 15 local migrations and 15 live migrations; `phase_11a_security_hardening` appears once in each history
 - 59 public tables; RLS enabled on all 59
 - 59 PKs, 106 unique constraints, 160 FKs, 449 checks; zero unvalidated constraints
 - video-assets bucket private with owner-path RLS
 - OAuth credentials/states service-only and FORCE RLS
-- Security Advisor: leaked-password warning plus two intentional no-policy info findings
+- Security Advisor after Phase 11A: no new issue; leaked-password warning plus two intentional service-only no-policy info findings
 - Performance Advisor: 34 unindexed FK findings and 27 unused-index findings requiring workload evidence
 - No active live Auto, publishing, generation, OAuth credential or analytics rows at audit
 - No matching real secret pattern in tracked files/history scan
+- Phase 11A quality gates: typecheck ผ่าน, lint 0 errors (8 pre-existing warnings), tests 248/248 ผ่าน และ production build ผ่าน
 
 ## Master flow
 
@@ -229,17 +231,17 @@ flowchart TD
 - Supabase schema/RLS/storage foundation
 - Mock providers and deterministic test fixtures
 - Provider state remains fail-closed after audit fix
+- Phase 11A: bounded JSON webhook input, strict signature/envelope validation, shared database rate limiting, authenticated mutation throttling, upload/pull URL guards, storage ownership validation, error redaction และ baseline security headers
 
 ### PARTIAL
 
 - Provider benchmark: infrastructure complete, real fal evidence failed
 - TikTok OAuth/publishing/Shop/Analytics: contracts complete, production authorization absent
 - Auto Mode: durable planner complete, production executor/idempotency/budget reservation absent
-- Production security: owner isolation good, endpoint hardening/CI/monitoring incomplete
+- Production security: Phase 11A endpoint hardening complete; CI, monitoring, reliability และ operations ยังไม่ครบ
 
 ### PLANNED
 
-- Phase 11A Security Hardening
 - Phase 11B Reliability and Idempotency
 - Phase 11C Observability
 - Phase 11D Performance/Database
@@ -257,17 +259,15 @@ flowchart TD
 ### P1 open
 
 1. Leaked-password protection disabled
-2. Webhook body size and shared rate limit missing
-3. Upload URL egress restriction missing
-4. Auto multi-row writes and START race not transactional
-5. Queue state/event writes not atomic
-6. Server-attested execution data needs tighter write boundaries
-7. CI/type enforcement absent
-8. Worker recovery/dead-letter flow absent
-9. Monitoring/alerts absent
-10. Backup/restore/incident evidence absent
-11. fal quality/reliability approval absent
-12. TikTok production approvals absent
+2. Auto multi-row writes and START race not transactional
+3. Queue state/event writes not atomic
+4. Server-attested execution data needs tighter write boundaries
+5. CI/type enforcement absent
+6. Worker recovery/dead-letter flow absent
+7. Monitoring/alerts absent
+8. Backup/restore/incident evidence absent
+9. fal quality/reliability approval absent
+10. TikTok production approvals absent
 
 ## Owner actions
 
@@ -282,11 +282,11 @@ flowchart TD
 
 ## Next five actions
 
-1. Phase 11A: webhook/rate-limit/egress/security headers
-2. Phase 11B: exactly-once reconciliation and atomic budget ledger
-3. Phase 11C: structured logs, metrics, health and alerts
-4. Phase 11D: query-plan/index/load/retention validation
-5. Phase 11E–11F: environment, CI, staging, backup/rollback and release gates
+1. Phase 11B: exactly-once reconciliation and atomic budget ledger
+2. Phase 11C: structured logs, metrics, health and alerts
+3. Phase 11D: query-plan/index/load/retention validation
+4. Phase 11E: production environment boundaries and secret ownership
+5. Phase 11F: CI, staging, backup/rollback and release gates
 
 รายละเอียด task และ prompt พร้อมใช้ทั้งหมดอยู่ใน docs/FINAL_PRODUCTION_HANDOFF.md
 

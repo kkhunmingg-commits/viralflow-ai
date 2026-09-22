@@ -1,6 +1,16 @@
 import "server-only";
 import { z } from "zod";
 
+const exactHostnameList = z.string().min(1).refine((value) => {
+  const hosts = value.split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
+  return hosts.length > 0 && hosts.every((host) =>
+    !host.includes("://")
+    && !host.includes("/")
+    && !host.includes("*")
+    && /^[a-z0-9.-]+$/.test(host),
+  );
+}, "Expected a comma-separated list of exact hostnames");
+
 const serverEnvSchema = z.object({
   ALLOW_DEV_MOCK_SEED: z.enum(["true", "false"]).default("false"),
   CREATIVE_AI_PROVIDER: z.enum(["mock","openai"]).default("mock"),
@@ -23,7 +33,12 @@ const serverEnvSchema = z.object({
   TIKTOK_PUBLISHING_PROVIDER: z.enum(["mock", "official"]).default("mock"),
   TIKTOK_PUBLISHING_REAL_MODE: z.enum(["true", "false"]).default("false"),
   TIKTOK_ALLOWED_PULL_HOSTS: z.string().default(""),
+  TIKTOK_ALLOWED_UPLOAD_HOSTS: exactHostnameList.default("open-upload.tiktokapis.com,upload.us.tiktokapis.com"),
   TIKTOK_WEBHOOK_TOLERANCE_SECONDS: z.coerce.number().int().min(30).max(900).default(300),
+  TIKTOK_WEBHOOK_MAX_BYTES: z.coerce.number().int().min(1024).max(262144).default(65536),
+  TIKTOK_WEBHOOK_RATE_LIMIT: z.coerce.number().int().min(1).max(10000).default(120),
+  TIKTOK_OAUTH_RATE_LIMIT: z.coerce.number().int().min(1).max(1000).default(20),
+  AUTHENTICATED_MUTATION_RATE_LIMIT: z.coerce.number().int().min(1).max(1000).default(60),
   TIKTOK_SHOP_PROVIDER: z.enum(["mock","official"]).default("mock"),
   TIKTOK_SHOP_REAL_MODE: z.enum(["true","false"]).default("false"),
   TIKTOK_SHOP_APP_KEY: z.preprocess(value=>value===""?undefined:value,z.string().min(3).optional()),
@@ -59,7 +74,12 @@ const parsed = serverEnvSchema.safeParse({
   TIKTOK_PUBLISHING_PROVIDER: process.env.TIKTOK_PUBLISHING_PROVIDER,
   TIKTOK_PUBLISHING_REAL_MODE: process.env.TIKTOK_PUBLISHING_REAL_MODE,
   TIKTOK_ALLOWED_PULL_HOSTS: process.env.TIKTOK_ALLOWED_PULL_HOSTS,
+  TIKTOK_ALLOWED_UPLOAD_HOSTS: process.env.TIKTOK_ALLOWED_UPLOAD_HOSTS,
   TIKTOK_WEBHOOK_TOLERANCE_SECONDS: process.env.TIKTOK_WEBHOOK_TOLERANCE_SECONDS,
+  TIKTOK_WEBHOOK_MAX_BYTES: process.env.TIKTOK_WEBHOOK_MAX_BYTES,
+  TIKTOK_WEBHOOK_RATE_LIMIT: process.env.TIKTOK_WEBHOOK_RATE_LIMIT,
+  TIKTOK_OAUTH_RATE_LIMIT: process.env.TIKTOK_OAUTH_RATE_LIMIT,
+  AUTHENTICATED_MUTATION_RATE_LIMIT: process.env.AUTHENTICATED_MUTATION_RATE_LIMIT,
   TIKTOK_SHOP_PROVIDER: process.env.TIKTOK_SHOP_PROVIDER,
   TIKTOK_SHOP_REAL_MODE: process.env.TIKTOK_SHOP_REAL_MODE,
   TIKTOK_SHOP_APP_KEY: process.env.TIKTOK_SHOP_APP_KEY,
@@ -94,7 +114,12 @@ export const serverEnv = Object.freeze({
   tiktokPublishingProvider: parsed.data.TIKTOK_PUBLISHING_PROVIDER,
   tiktokPublishingRealMode: parsed.data.TIKTOK_PUBLISHING_REAL_MODE === "true",
   tiktokAllowedPullHosts: parsed.data.TIKTOK_ALLOWED_PULL_HOSTS.split(",").map(value=>value.trim().toLowerCase()).filter(Boolean),
+  tiktokAllowedUploadHosts: parsed.data.TIKTOK_ALLOWED_UPLOAD_HOSTS.split(",").map(value=>value.trim().toLowerCase()).filter(Boolean),
   tiktokWebhookToleranceSeconds: parsed.data.TIKTOK_WEBHOOK_TOLERANCE_SECONDS,
+  tiktokWebhookMaxBytes: parsed.data.TIKTOK_WEBHOOK_MAX_BYTES,
+  tiktokWebhookRateLimit: parsed.data.TIKTOK_WEBHOOK_RATE_LIMIT,
+  tiktokOAuthRateLimit: parsed.data.TIKTOK_OAUTH_RATE_LIMIT,
+  authenticatedMutationRateLimit: parsed.data.AUTHENTICATED_MUTATION_RATE_LIMIT,
   tiktokShopProvider:parsed.data.TIKTOK_SHOP_PROVIDER,
   tiktokShopRealMode:parsed.data.TIKTOK_SHOP_REAL_MODE==="true",
   tiktokShopAppKey:parsed.data.TIKTOK_SHOP_APP_KEY,
