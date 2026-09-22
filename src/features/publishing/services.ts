@@ -1,5 +1,5 @@
 import "server-only";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { runPrePublishGate } from "@/features/compliance/services";
 import {assertShoppableIntentReady} from "@/features/commerce/services";
@@ -8,8 +8,8 @@ import { TikTokCreatorService, TikTokTokenService } from "@/features/tiktok/serv
 import { serverEnv } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { assertVerifiedPullUrl, buildChunkSource, MockTikTokPublishingProvider, OfficialTikTokPublishingProvider, type TikTokPublishingProvider } from "./provider";
-import { deterministicNextDaySlot, remainingPublishSlots, retryDelaySeconds } from "./scheduler";
-import { assertConsentSnapshot, assertPublishingPermission, consentHash, publishAttemptKey, statusFromProvider } from "./state";
+import { deterministicNextDaySlot, remainingPublishSlots } from "./scheduler";
+import { assertConsentSnapshot, assertPublishingPermission, consentHash, statusFromProvider } from "./state";
 import { parseTikTokPublishWebhook } from "./webhook";
 import type { PublishMode, PublishQueueRow, PublishQueueStatus, PublishSettings, PublishSource, SourceInfo, VideoKind } from "./types";
 
@@ -45,21 +45,14 @@ export class TikTokPublishingService {
 
   private async transition(queue: PublishQueueRow, toStatus: PublishQueueStatus, patch: Row = {}, source = "SYSTEM", reasonCode?: string) {
     if (queue.status === toStatus && Object.keys(patch).length === 0) return queue;
-    const { data, error } = await this.admin.from("publishing_queue").update({ status: toStatus, ...patch })
-      .eq("owner_id", queue.owner_id).eq("id", queue.id).eq("status", queue.status).select("*").maybeSingle();
-    if (error) throw new PublishingError("queue_transition_failed");
-    if (!data) return this.queue(queue.owner_id, queue.id);
-    const { error: eventError } = await this.admin.from("publish_status_events").insert({
-      owner_id: queue.owner_id,
-      publishing_queue_id: queue.id,
-      source,
-      from_status: queue.status,
-      to_status: toStatus,
-      reason_code: reasonCode ?? null,
-      provider_status: patch.provider_status ?? null,
-      metadata_json: {},
+    const { data, error } = await this.admin.rpc("transition_publish_queue_atomic", {
+      p_owner_id: queue.owner_id,
+      p_queue_id: queue.id,
+      p_expected_status: queue.status,
+      p_to_status: toStatus,
+      p_patch: { ...patch, source, reason_code: reasonCode ?? null },
     });
-    if (eventError) throw new PublishingError("status_event_write_failed");
+    if (error || !data) throw new PublishingError("publish_transition_conflict");
     return data as PublishQueueRow;
   }
 
@@ -96,22 +89,21 @@ export class TikTokPublishingService {
     const pullFromUrl = sourceMethod === "PULL_FROM_URL"
       ? assertVerifiedPullUrl(input.pullFromUrl ?? "", serverEnv.tiktokAllowedPullHosts)
       : null;
-    const { data, error } = await this.admin.from("publishing_queue").insert({
-      owner_id: input.ownerId,
-      tiktok_account_id: input.accountId,
-      video_id: input.videoId,
-      video_kind: input.videoKind,
-      publish_mode: input.publishMode,
-      source_method: sourceMethod,
-      pull_from_url: pullFromUrl,
-      caption_snapshot: input.caption ?? "",
-      priority: input.priority ?? 50,
-      scheduled_for: input.scheduledFor ?? null,
-      status: "REVIEW_REQUIRED",
-      idempotency_key: input.idempotencyKey,
-    }).select("*").single();
+    const { data, error } = await this.admin.rpc("enqueue_publish_atomic", {
+      p_owner_id: input.ownerId,
+      p_tiktok_account_id: input.accountId,
+      p_video_id: input.videoId,
+      p_video_kind: input.videoKind,
+      p_publish_mode: input.publishMode,
+      p_source_method: sourceMethod,
+      p_pull_from_url: pullFromUrl,
+      p_caption: input.caption ?? "",
+      p_priority: input.priority ?? 50,
+      p_scheduled_for: input.scheduledFor ?? null,
+      p_idempotency_key: input.idempotencyKey,
+      p_external_operation_key: `tiktok:${input.idempotencyKey}`,
+    });
     if (error || !data) throw new PublishingError("queue_create_failed");
-    await this.admin.from("publish_status_events").insert({ owner_id: input.ownerId, publishing_queue_id: data.id, source: "USER", from_status: "DRAFT", to_status: "REVIEW_REQUIRED", reason_code: "QUEUED_FOR_REVIEW" });
     return data as PublishQueueRow;
   }
 
@@ -293,42 +285,80 @@ export class TikTokPublishingService {
       throw new PublishingError(error instanceof Error ? error.message : "publishing_permission_not_ready");
     }
 
-    const attemptNumber = queue.retry_count + 1;
-    const operation = expectedMode === "DIRECT_POST" ? "INIT_UPLOAD" : "INIT_UPLOAD";
-    const attemptKey = publishAttemptKey(queue.id, operation, attemptNumber);
-    const { data: attempt, error: attemptError } = await this.admin.from("publish_attempts").insert({
-      owner_id: ownerId, publishing_queue_id: queue.id, attempt_number: attemptNumber, operation,
-      provider: this.provider.name, idempotency_key: attemptKey, request_json: { mode: expectedMode, source: queue.source_method }, status: "STARTED",
-    }).select("id").single();
-    if (attemptError || !attempt) throw new PublishingError("publish_attempt_create_failed");
-    queue = await this.transition(queue, "UPLOADING", { started_at: new Date().toISOString(), claimed_at: new Date().toISOString() }, "SYSTEM", "PROVIDER_INIT_STARTED");
+    const { source, media } = await this.mediaSource(queue, string(video.storage_path), string(asset.mime_type));
+    const accessToken = await this.accessToken(queue);
+    const claim = await this.admin.rpc("claim_publish_operation", {
+      p_owner_id: ownerId,
+      p_queue_id: queue.id,
+      p_worker_id: `publish:${randomUUID()}`,
+      p_lease_seconds: 90,
+    });
+    if (claim.error || !claim.data) throw new PublishingError("publish_claim_failed");
+    const claimed = claim.data as {
+      claimed: boolean;
+      reason?: string;
+      leaseToken?: string;
+      attemptId?: string;
+      queue: PublishQueueRow;
+    };
+    if (!claimed.claimed || !claimed.leaseToken || !claimed.attemptId) {
+      if (claimed.reason === "RECONCILE_OR_COMPLETE") return claimed.queue;
+      throw new PublishingError(claimed.reason === "LEASE_HELD" ? "publish_already_claimed" : "publish_not_claimable");
+    }
+    queue = claimed.queue;
+    const leaseToken = claimed.leaseToken;
+    const attemptId = claimed.attemptId;
+    let submissionStarted = false;
     try {
-      const { source, media } = await this.mediaSource(queue, string(video.storage_path), string(asset.mime_type));
-      const accessToken = await this.accessToken(queue);
+      const begun = await this.admin.rpc("begin_publish_submission", {
+        p_owner_id: ownerId, p_queue_id: queue.id, p_lease_token: leaseToken,
+      });
+      if (begun.error || !begun.data) throw new PublishingError("publish_lease_lost");
+      submissionStarted = true;
       const initialized = expectedMode === "DIRECT_POST"
         ? await this.provider.directPost(accessToken, this.settings(queue), source)
         : await this.provider.uploadDraft(accessToken, source);
-      const persisted = await this.admin.from("publishing_queue").update({
-        provider_publish_id: initialized.publishId,
-        provider_status: source.source === "FILE_UPLOAD" ? "PROCESSING_UPLOAD" : "PROCESSING_DOWNLOAD",
-      }).eq("owner_id", ownerId).eq("id", queue.id).eq("status", "UPLOADING").select("*").maybeSingle();
+      const providerStatus = source.source === "FILE_UPLOAD" ? "PROCESSING_UPLOAD" : "PROCESSING_DOWNLOAD";
+      const persisted = await this.admin.rpc("record_publish_submission", {
+        p_owner_id: ownerId,
+        p_queue_id: queue.id,
+        p_lease_token: leaseToken,
+        p_attempt_id: attemptId,
+        p_provider_publish_id: initialized.publishId,
+        p_provider_status: providerStatus,
+      });
       if (persisted.error || !persisted.data) throw new PublishingError("provider_publish_id_persist_failed");
       queue = persisted.data as PublishQueueRow;
       if (source.source === "FILE_UPLOAD") {
         if (!media || !initialized.uploadUrl) throw new PublishingError("upload_url_missing");
         await this.uploadBinary(initialized.uploadUrl, media, source);
       }
-      await this.admin.from("publish_attempts").update({ status: "SUCCEEDED", response_json: { publish_id: initialized.publishId }, completed_at: new Date().toISOString() }).eq("owner_id", ownerId).eq("id", attempt.id);
-      return this.transition(queue, "PROCESSING", { provider_publish_id: initialized.publishId, provider_status: source.source === "FILE_UPLOAD" ? "PROCESSING_UPLOAD" : "PROCESSING_DOWNLOAD" }, "TIKTOK_API", "MEDIA_TRANSFER_ACCEPTED");
+      return queue;
     } catch (error) {
       const code = error instanceof PublishingError ? error.code : error instanceof Error ? error.message : "publishing_unknown_error";
+      if (queue.provider_publish_id) throw error;
+      if (submissionStarted) {
+        const unknown = await this.admin.rpc("record_publish_unknown", {
+          p_owner_id: ownerId,
+          p_queue_id: queue.id,
+          p_lease_token: leaseToken,
+          p_attempt_id: attemptId,
+          p_error_code: code,
+        });
+        if (unknown.error || !unknown.data) throw new PublishingError("publish_reconciliation_required");
+        return unknown.data as PublishQueueRow;
+      }
       const retryable = /429|5\d\d|internal|network|timeout/i.test(code) && queue.retry_count < queue.max_retries;
-      await this.admin.from("publish_attempts").update({ status: retryable ? "RETRYABLE" : "FAILED", error_code: code, completed_at: new Date().toISOString() }).eq("owner_id", ownerId).eq("id", attempt.id);
-      return this.transition(queue, retryable ? "RETRYING" : "FAILED", {
-        retry_count: queue.retry_count + 1,
-        next_retry_at: retryable ? new Date(Date.now() + retryDelaySeconds(queue.retry_count) * 1000).toISOString() : null,
-        last_error_code: code,
-      }, "TIKTOK_API", code);
+      const failed = await this.admin.rpc("record_publish_failure", {
+        p_owner_id: ownerId,
+        p_queue_id: queue.id,
+        p_lease_token: leaseToken,
+        p_attempt_id: attemptId,
+        p_error_code: code,
+        p_retryable: retryable,
+      });
+      if (failed.error || !failed.data) throw new PublishingError("publish_failure_record_failed");
+      return failed.data as PublishQueueRow;
     }
   }
 
@@ -348,23 +378,17 @@ export class TikTokPublishingService {
     const { data: queue, error } = await this.admin.from("publishing_queue").select("*").eq("provider_publish_id", parsed.content.publish_id).maybeSingle();
     if (error || !queue) return { accepted: true, matched: false, duplicate: false };
     const eventId = createHash("sha256").update(rawBody).digest("hex");
-    const { error: eventError } = await this.admin.from("publish_status_events").insert({
-      owner_id: queue.owner_id, publishing_queue_id: queue.id, source: "TIKTOK_WEBHOOK",
-      from_status: queue.status, to_status: parsed.target, provider_event_id: eventId,
-      provider_status: parsed.envelope.event, reason_code: parsed.content.reason ?? null,
-      metadata_json: { post_id: parsed.content.post_id ?? null, publish_type: parsed.content.publish_type ?? null },
-      occurred_at: new Date(parsed.envelope.create_time * 1000).toISOString(),
+    const result = await this.admin.rpc("apply_publish_webhook_atomic", {
+      p_queue_id: queue.id,
+      p_event_id: eventId,
+      p_to_status: parsed.target,
+      p_provider_status: parsed.envelope.event,
+      p_reason_code: parsed.content.reason ?? null,
+      p_post_id: parsed.content.post_id ? String(parsed.content.post_id) : null,
+      p_occurred_at: new Date(parsed.envelope.create_time * 1000).toISOString(),
     });
-    if (eventError?.code === "23505") return { accepted: true, matched: true, duplicate: true };
-    if (eventError) throw new PublishingError("webhook_event_write_failed");
-    const postIds = parsed.content.post_id ? [String(parsed.content.post_id)] : queue.published_post_ids_json;
-    const { error: updateError } = await this.admin.from("publishing_queue").update({
-      status: parsed.target, provider_status: parsed.envelope.event,
-      published_post_ids_json: postIds, last_error_code: parsed.content.reason ?? null,
-      completed_at: ["FAILED", "DRAFT_DELIVERED", "PUBLISHED"].includes(parsed.target) ? new Date().toISOString() : null,
-    }).eq("owner_id", queue.owner_id).eq("id", queue.id);
-    if (updateError) throw new PublishingError("webhook_queue_update_failed");
-    return { accepted: true, matched: true, duplicate: false };
+    if (result.error || !result.data) throw new PublishingError("webhook_atomic_apply_failed");
+    return { accepted: true, ...(result.data as { matched: boolean; duplicate: boolean }) };
   }
 
   async cancelQueuedPublish(ownerId: string, queueId: string) {
@@ -375,11 +399,14 @@ export class TikTokPublishingService {
 
   async retryPublish(ownerId: string, queueId: string) {
     const queue = await this.queue(ownerId, queueId);
+    if (queue.external_state === "SUBMITTED_UNKNOWN") {
+      if (queue.provider_publish_id) return this.fetchPublishStatus(ownerId, queueId);
+      throw new PublishingError("publish_reconciliation_required");
+    }
     if (!['FAILED', 'RETRYING'].includes(queue.status)) throw new PublishingError("queue_not_retryable");
     if (queue.retry_count >= queue.max_retries) throw new PublishingError("retry_limit_reached");
     if (queue.provider_publish_id) return this.fetchPublishStatus(ownerId, queueId);
-    const reset = await this.transition(queue, "RETRYING", { provider_publish_id: null, provider_status: null, next_retry_at: null }, "USER", "RETRY_REQUESTED");
-    return reset.publish_mode === "DIRECT_POST" ? this.directPost(ownerId, queueId) : this.uploadDraft(ownerId, queueId);
+    return queue.publish_mode === "DIRECT_POST" ? this.directPost(ownerId, queueId) : this.uploadDraft(ownerId, queueId);
   }
 }
 

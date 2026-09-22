@@ -1,12 +1,91 @@
-import type {SupabaseClient} from "@supabase/supabase-js";
-import {pauseAutoMode,planAccount,resumeAutoMode,stableAutoKey,stopAutoMode} from "./engine";
-import type {AutoAccountState,AutoAction,AutoCheckpoint,AutoFailure,AutoRun,AutoState,AutoStep} from "./types";
-import {serverEnv} from "@/lib/server-env";
-import {falAutoModeAvailability} from "@/features/video/provider-routing";
-const ACTIVE=["STARTING","RUNNING","PAUSED","RETRY_PENDING"],AUTO_RUN_VERSION="full-auto-mode-v1";
-export async function getAutoOverview(client:SupabaseClient,owner:string){const [runs,states,actions,failures]=await Promise.all([client.from("auto_runs").select("*").eq("owner_id",owner).order("updated_at",{ascending:false}).limit(30),client.from("auto_account_states").select("*").eq("owner_id",owner).order("priority",{ascending:false}),client.from("auto_actions").select("*").eq("owner_id",owner).order("created_at",{ascending:false}).limit(100),client.from("auto_failures").select("*").eq("owner_id",owner).order("created_at",{ascending:false}).limit(100)]);for(const result of [runs,states,actions,failures])if(result.error)throw new Error(result.error.message);const runRows=(runs.data??[]) as AutoRun[],stateRows=(states.data??[]) as AutoAccountState[];return{runs:runRows,states:stateRows,actions:actions.data??[],failures:failures.data??[],activeRun:runRows.find(x=>ACTIVE.includes(x.state))??null,summary:summarizeAuto(runRows,stateRows,actions.data??[])}}
-export async function getAutoRun(client:SupabaseClient,owner:string,id:string){const [run,states,steps,actions,failures,checkpoints]=await Promise.all([client.from("auto_runs").select("*").eq("owner_id",owner).eq("id",id).maybeSingle(),client.from("auto_account_states").select("*").eq("owner_id",owner).eq("auto_run_id",id).order("priority",{ascending:false}),client.from("auto_run_steps").select("*").eq("owner_id",owner).eq("auto_run_id",id).order("created_at"),client.from("auto_actions").select("*").eq("owner_id",owner).eq("auto_run_id",id).order("created_at"),client.from("auto_failures").select("*").eq("owner_id",owner).eq("auto_run_id",id).order("created_at",{ascending:false}),client.from("auto_checkpoints").select("*").eq("owner_id",owner).eq("auto_run_id",id).order("checkpoint_version",{ascending:false})]);for(const result of [run,states,steps,actions,failures,checkpoints])if(result.error)throw new Error(result.error.message);if(!run.data)return null;return{run:run.data as AutoRun,states:(states.data??[]) as AutoAccountState[],steps:(steps.data??[]) as AutoStep[],actions:(actions.data??[]) as AutoAction[],failures:(failures.data??[]) as AutoFailure[],checkpoints:(checkpoints.data??[]) as AutoCheckpoint[]}}
-export function summarizeAuto(runs:AutoRun[],states:AutoAccountState[],actions:Array<Record<string,unknown>>){const today=new Date().toISOString().slice(0,10),todayRuns=runs.filter(x=>x.run_date===today),active=todayRuns[0];return{running:states.filter(x=>x.state==="RUNNING").length,paused:states.filter(x=>x.state==="PAUSED").length,blocked:states.filter(x=>x.state==="BLOCKED").length,waitingApprovals:states.filter(x=>x.state==="WAITING_FOR_APPROVAL").length,waitingSlots:states.filter(x=>x.state==="WAITING_FOR_SLOT").length,costToday:todayRuns.reduce((s,x)=>s+Number(x.spent_usd),0),generatedToday:states.reduce((s,x)=>s+x.generated_today,0),publishedToday:states.reduce((s,x)=>s+x.published_today,0),winnersToday:actions.filter(x=>x.status==="COMPLETED"&&String(x.action_type).startsWith("SCALE")).length,active}}
-export async function createAutoRun(admin:SupabaseClient,owner:string,requestKey:string){const date=new Date().toISOString().slice(0,10),key=stableAutoKey(owner,date,requestKey,AUTO_RUN_VERSION),existing=await admin.from("auto_runs").select("*").eq("owner_id",owner).eq("idempotency_key",key).maybeSingle();if(existing.error)throw new Error(existing.error.message);if(existing.data)return existing.data as AutoRun;const accounts=await admin.from("tiktok_accounts").select("id,mode,effective_mode,authorization_status,account_status,daily_post_target,daily_post_hard_limit,max_cost_per_video_usd,daily_video_budget_usd,monthly_video_budget_usd").eq("owner_id",owner);if(accounts.error)throw new Error(accounts.error.message);const providerGate=falAutoModeAvailability({keyPresent:Boolean(serverEnv.falKey),state:serverEnv.falWanProviderState}),providerAvailable=providerGate.providerAvailable,videoProvider=providerAvailable?"fal-wan-2.2-turbo":"UNAVAILABLE",inserted=await admin.from("auto_runs").insert({owner_id:owner,state:"RUNNING",trigger_source:"MANUAL",run_date:date,current_step:"PLAN_ACCOUNTS",budget_usd:0,spent_usd:0,idempotency_key:key,started_at:new Date().toISOString(),metrics_json:{externalCalls:0,realPublishing:false,paidProviders:false,videoProvider,providerGateReason:providerGate.reason}}).select("*").single();if(inserted.error)throw new Error(inserted.error.message);const run=inserted.data as AutoRun,source=accounts.data??[],planned=source.map((a,index)=>planAccount({id:a.id,requestedMode:a.mode,commerceReady:a.effective_mode==="AFFILIATE",providerAvailable,providerBudgetAvailable:Number(a.max_cost_per_video_usd)>0&&Number(a.daily_video_budget_usd)>0&&Number(a.monthly_video_budget_usd)>0,analyticsFresh:true,accountHealthy:a.account_status==="active"&&a.authorization_status==="authorized",consent:false,publishRemaining:a.daily_post_hard_limit,desiredCandidates:Math.max(15,a.daily_post_target),desiredPosts:a.daily_post_target,priority:100-index,nextGrowthAction:"WAIT_FOR_DATA",affiliateDecision:"WATCH"}));if(planned.length){const rows=planned.map((p,index)=>({owner_id:owner,auto_run_id:run.id,tiktok_account_id:p.accountId,requested_mode:source[index].mode,effective_mode:p.mode,state:p.state,current_step:"PLAN_ACCOUNTS",next_action:p.nextAction,blockers_json:p.blockers,desired_daily_candidates:Math.max(15,source[index].daily_post_target),desired_daily_posts:source[index].daily_post_target,max_daily_cost_usd:Number(source[index].daily_video_budget_usd??0),generation_capacity:p.generationCapacity,publish_capacity:p.publishCapacity,priority:100-index})),actions=planned.map(p=>({owner_id:owner,auto_run_id:run.id,tiktok_account_id:p.accountId,action_type:p.nextAction,decision_source:p.mode==="GROWTH"?"PHASE_9_GROWTH":"PHASE_8_WINNER",status:p.state==="WAITING_FOR_APPROVAL"?"WAITING_FOR_APPROVAL":p.state==="WAITING_FOR_SLOT"?"WAITING_FOR_SLOT":p.state==="BLOCKED"?"BLOCKED":"PLANNED",payload_json:{mode:p.mode,blockers:p.blockers,videoProvider,providerGateReason:providerGate.reason},estimated_cost_usd:0,actual_cost_usd:0,idempotency_key:stableAutoKey(key,p.accountId,p.nextAction)})),[stateResult,actionResult]=await Promise.all([admin.from("auto_account_states").insert(rows),admin.from("auto_actions").insert(actions)]);if(stateResult.error)throw new Error(stateResult.error.message);if(actionResult.error)throw new Error(actionResult.error.message)}await appendRunEvidence(admin,owner,run.id,"PLAN_ACCOUNTS",key,{accountCount:planned.length,videoProvider,providerGateReason:providerGate.reason});return run}
-async function appendRunEvidence(admin:SupabaseClient,owner:string,run:string,step:string,key:string,state:Record<string,unknown>){const hash=stableAutoKey(run,step,JSON.stringify(state)),[stepInsert,checkpoint]=await Promise.all([admin.from("auto_run_steps").insert({owner_id:owner,auto_run_id:run,step,state:"COMPLETED",idempotency_key:stableAutoKey(key,step),started_at:new Date().toISOString(),completed_at:new Date().toISOString(),output_json:state}),admin.from("auto_checkpoints").insert({owner_id:owner,auto_run_id:run,step,checkpoint_version:1,state_json:state,evidence_hash:hash})]);if(stepInsert.error)throw new Error(stepInsert.error.message);if(checkpoint.error)throw new Error(checkpoint.error.message)}
-export async function transitionAutoRun(admin:SupabaseClient,owner:string,id:string,action:"PAUSE"|"RESUME"|"STOP"){const current=await admin.from("auto_runs").select("state").eq("owner_id",owner).eq("id",id).single();if(current.error)throw new Error(current.error.message);const previous=current.data.state as AutoState,next=action==="PAUSE"?pauseAutoMode(previous):action==="RESUME"?resumeAutoMode(previous):stopAutoMode(previous);if(next===previous)return{previous,state:next};const now=new Date().toISOString(),patch:Record<string,unknown>={state:next,current_step:action};if(action==="PAUSE")patch.paused_at=now;if(action==="RESUME")patch.paused_at=null;if(action==="STOP")patch.completed_at=now;const update=await admin.from("auto_runs").update(patch).eq("owner_id",owner).eq("id",id);if(update.error)throw new Error(update.error.message);const states=await admin.from("auto_account_states").update({state:next,current_step:action}).eq("owner_id",owner).eq("auto_run_id",id).not("state","in",'("COMPLETED","FAILED","BLOCKED")');if(states.error)throw new Error(states.error.message);return{previous,state:next}}
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { planAccount, stableAutoKey } from "./engine";
+import type { AutoAccountState, AutoAction, AutoCheckpoint, AutoFailure, AutoRun, AutoStep } from "./types";
+import { serverEnv } from "@/lib/server-env";
+import { falAutoModeAvailability } from "@/features/video/provider-routing";
+
+const ACTIVE = ["STARTING", "RUNNING", "PAUSED", "RETRY_PENDING"];
+const AUTO_RUN_VERSION = "full-auto-mode-v1";
+
+export async function getAutoOverview(client: SupabaseClient, owner: string) {
+  const [runs, states, actions, failures] = await Promise.all([
+    client.from("auto_runs").select("*").eq("owner_id", owner).order("updated_at", { ascending: false }).limit(30),
+    client.from("auto_account_states").select("*").eq("owner_id", owner).order("priority", { ascending: false }),
+    client.from("auto_actions").select("*").eq("owner_id", owner).order("created_at", { ascending: false }).limit(100),
+    client.from("auto_failures").select("*").eq("owner_id", owner).order("created_at", { ascending: false }).limit(100),
+  ]);
+  for (const result of [runs, states, actions, failures]) if (result.error) throw new Error(result.error.message);
+  const runRows = (runs.data ?? []) as AutoRun[];
+  const stateRows = (states.data ?? []) as AutoAccountState[];
+  return { runs: runRows, states: stateRows, actions: actions.data ?? [], failures: failures.data ?? [], activeRun: runRows.find((row) => ACTIVE.includes(row.state)) ?? null, summary: summarizeAuto(runRows, stateRows, actions.data ?? []) };
+}
+
+export async function getAutoRun(client: SupabaseClient, owner: string, id: string) {
+  const [run, states, steps, actions, failures, checkpoints] = await Promise.all([
+    client.from("auto_runs").select("*").eq("owner_id", owner).eq("id", id).maybeSingle(),
+    client.from("auto_account_states").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("priority", { ascending: false }),
+    client.from("auto_run_steps").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("created_at"),
+    client.from("auto_actions").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("created_at"),
+    client.from("auto_failures").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("created_at", { ascending: false }),
+    client.from("auto_checkpoints").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("checkpoint_version", { ascending: false }),
+  ]);
+  for (const result of [run, states, steps, actions, failures, checkpoints]) if (result.error) throw new Error(result.error.message);
+  if (!run.data) return null;
+  return { run: run.data as AutoRun, states: (states.data ?? []) as AutoAccountState[], steps: (steps.data ?? []) as AutoStep[], actions: (actions.data ?? []) as AutoAction[], failures: (failures.data ?? []) as AutoFailure[], checkpoints: (checkpoints.data ?? []) as AutoCheckpoint[] };
+}
+
+export function summarizeAuto(runs: AutoRun[], states: AutoAccountState[], actions: Array<Record<string, unknown>>) {
+  const today = new Date().toISOString().slice(0, 10);
+  const todayRuns = runs.filter((row) => row.run_date === today);
+  return {
+    running: states.filter((row) => row.state === "RUNNING").length,
+    paused: states.filter((row) => row.state === "PAUSED").length,
+    blocked: states.filter((row) => row.state === "BLOCKED").length,
+    waitingApprovals: states.filter((row) => row.state === "WAITING_FOR_APPROVAL").length,
+    waitingSlots: states.filter((row) => row.state === "WAITING_FOR_SLOT").length,
+    costToday: todayRuns.reduce((sum, row) => sum + Number(row.spent_usd), 0),
+    generatedToday: states.reduce((sum, row) => sum + row.generated_today, 0),
+    publishedToday: states.reduce((sum, row) => sum + row.published_today, 0),
+    winnersToday: actions.filter((row) => row.status === "COMPLETED" && String(row.action_type).startsWith("SCALE")).length,
+    active: todayRuns[0],
+  };
+}
+
+export async function createAutoRun(admin: SupabaseClient, owner: string, requestKey: string) {
+  const date = new Date().toISOString().slice(0, 10);
+  const key = stableAutoKey(owner, date, requestKey, AUTO_RUN_VERSION);
+  const accounts = await admin.from("tiktok_accounts")
+    .select("id,mode,effective_mode,authorization_status,account_status,daily_post_target,daily_post_hard_limit,max_cost_per_video_usd,daily_video_budget_usd,monthly_video_budget_usd")
+    .eq("owner_id", owner);
+  if (accounts.error) throw new Error(accounts.error.message);
+  const providerGate = falAutoModeAvailability({ keyPresent: Boolean(serverEnv.falKey), state: serverEnv.falWanProviderState });
+  const providerAvailable = providerGate.providerAvailable;
+  const videoProvider = providerAvailable ? "fal-wan-2.2-turbo" : "UNAVAILABLE";
+  const plans = (accounts.data ?? []).map((account, index) => {
+    const plan = planAccount({
+      id: account.id, requestedMode: account.mode, commerceReady: account.effective_mode === "AFFILIATE", providerAvailable,
+      providerBudgetAvailable: Number(account.max_cost_per_video_usd) > 0 && Number(account.daily_video_budget_usd) > 0 && Number(account.monthly_video_budget_usd) > 0,
+      analyticsFresh: true, accountHealthy: account.account_status === "active" && account.authorization_status === "authorized", consent: false,
+      publishRemaining: account.daily_post_hard_limit, desiredCandidates: Math.max(15, account.daily_post_target), desiredPosts: account.daily_post_target,
+      priority: 100 - index, nextGrowthAction: "WAIT_FOR_DATA", affiliateDecision: "WATCH",
+    });
+    return {
+      accountId: plan.accountId, requestedMode: account.mode, mode: plan.mode, state: plan.state, nextAction: plan.nextAction, blockers: plan.blockers,
+      desiredCandidates: Math.max(15, account.daily_post_target), desiredPosts: account.daily_post_target,
+      maxDailyCostUsd: Number(account.daily_video_budget_usd ?? 0), generationCapacity: plan.generationCapacity, publishCapacity: plan.publishCapacity,
+      priority: 100 - index, actionKey: stableAutoKey(key, plan.accountId, plan.nextAction),
+    };
+  });
+  const result = await admin.rpc("create_auto_run_atomic", {
+    p_owner_id: owner, p_idempotency_key: key, p_run_date: date, p_video_provider: videoProvider,
+    p_provider_gate_reason: providerGate.reason, p_plans: plans,
+  });
+  if (result.error || !result.data) throw new Error(result.error?.message ?? "auto_run_create_failed");
+  return result.data as AutoRun;
+}
+
+export async function transitionAutoRun(admin: SupabaseClient, owner: string, id: string, action: "PAUSE" | "RESUME" | "STOP") {
+  const result = await admin.rpc("transition_auto_run_atomic", { p_owner_id: owner, p_run_id: id, p_action: action });
+  if (result.error || !result.data) throw new Error(result.error?.message ?? "auto_run_transition_failed");
+  return result.data as { previous: string; state: string };
+}

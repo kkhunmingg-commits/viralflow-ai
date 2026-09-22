@@ -2,7 +2,7 @@
 
 วันที่ audit ล่าสุด: 2026-09-23
 
-Phase 11A starting point: branch **feature/fal-wan-primary-provider**, HEAD **be614e7d0c2485ad80ac1de7e42905f77122a5ca**
+Phase 11B starting point: branch **feature/fal-wan-primary-provider**, HEAD **0b476b10f416fca50b5e7f3dbf765639a086c4d8**
 
 เอกสารนี้อ้างอิง repository และ Supabase project **viralflow-ai** ณ วันที่ audit เท่านั้น
 
@@ -10,10 +10,10 @@ Phase 11A starting point: branch **feature/fal-wan-primary-provider**, HEAD **be
 
 - Stack: Next.js 16.3.5 App Router, React 19.3.0, TypeScript 6.0.3, Tailwind CSS 4.3.3, Supabase JS/SSR 2.116.0
 - Package manager: pnpm 11.19.0; Node.js ขั้นต่ำ 24
-- Local migrations: 15 ไฟล์ ตั้งแต่ Phase 1 ถึง Phase 11A
-- Live migrations: 15 รายการ โดย `phase_11a_security_hardening` ถูก apply สำเร็จหนึ่งครั้ง
-- Live schema: 59 public tables, 59 primary keys, 106 unique constraints, 160 foreign keys, 449 check constraints และไม่มี constraint ที่รอ validate
-- RLS เปิดครบ 59/59 public tables
+- Local migrations: 16 ไฟล์ ตั้งแต่ Phase 1 ถึง Phase 11B
+- Live migrations: 16 รายการ โดย `phase_11b_exactly_once_atomic_budget` ถูก apply สำเร็จหนึ่งครั้ง
+- Phase 11B เพิ่ม `generation_budget_reservations`, 18 transaction RPC, publish lease/reconciliation state และ critical indexes 3 รายการ
+- RLS เปิดบน `generation_budget_reservations`; authenticated อ่านได้เฉพาะ owner และเขียนได้เฉพาะ service role
 - tiktok_oauth_credentials และ tiktok_oauth_states ใช้ FORCE RLS, ไม่มี client policy และไม่มี grant ให้ authenticated โดยตั้งใจ
 - Storage bucket video-assets เป็น private และใช้ owner-path policies ครบ
 - Security Advisor หลัง Phase 11A: ไม่มี finding ใหม่; มี warning leaked-password protection disabled และ info สองรายการสำหรับ service-only OAuth tables
@@ -64,6 +64,7 @@ flowchart LR
 - Phase 10: durable run schema, planning, checkpoints, pause/resume/stop, scheduling และ budget calculation
 - Audit fix: Auto Mode ใช้ falAutoModeAvailability; Google key ไม่สามารถเปิด provider gate และ fal ต้องมี key พร้อม state PRODUCTION_APPROVED
 - Phase 11A: webhook จำกัด 64 KiB และรับเฉพาะ JSON, signature/timestamp/client key/envelope ถูกตรวจแบบ strict, OAuth/webhook/owner mutations ใช้ shared database rate limit, TikTok upload URL และ pull URL fail closed, storage path ผูก owner, error response ไม่เผยรายละเอียดภายใน และเพิ่ม security headers
+- Phase 11B: enqueue/transition/webhook เป็น transaction, external publish ใช้ stable operation key และ renewable lease, timeout หลังเริ่ม submit เข้า `SUBMITTED_UNKNOWN`, paid generation ใช้ atomic reservation/settlement/release ครบ per-video/day/month/run/account/provider และ Auto START/RESUME เป็น transaction
 
 ## D. What must NOT be changed
 
@@ -85,10 +86,10 @@ flowchart LR
 | ID | Finding | Status | Impact |
 |---|---|---|---|
 | P0-01 | Auto provider gate เคยใช้การมี Google key เป็น readiness | FIXED | เปลี่ยนเป็น fal key + PRODUCTION_APPROVED; Google fallback ไม่เปิด Auto |
-| P0-02 | Provider side effect กับ database state ยังไม่ crash-safe exactly-once | OPEN | TikTok อาจรับ init แล้ว response/DB write ขาดหาย; retry อาจ post ซ้ำ และ webhook อาจเหลือ queue state ค้าง |
-| P0-03 | Paid generation ยังไม่มี atomic budget reservation/settlement ledger | OPEN | calculation และ per-call cap ยังกัน concurrent overspend ข้าม run/account/provider/day/month ไม่ได้ |
+| P0-02 | Provider side effect กับ database state ต้อง crash-safe และห้าม blind retry | CLOSED 11B | lease แยก RESERVING/SUBMITTING; timeout หลังเริ่มส่งถูกพักใน SUBMITTED_UNKNOWN และ reconcile ก่อน retry; provider ที่ไม่มี idempotency API ใช้ fail-closed/manual resolution เมื่อไม่มี provider ID |
+| P0-03 | Paid generation ต้องมี atomic budget reservation/settlement ledger | CLOSED 11B | advisory transaction lock และ unique logical key ป้องกัน concurrent overspend/duplicate reserve; uncertain submission คง hold จน reconcile |
 
-P0 ที่เปิดอยู่ถูกลดความเสี่ยงเพราะ real publishing ปิด, fal ยังไม่ approved และ Phase 10 ยังไม่ execute external calls แต่ต้องแก้ก่อนเปิด production flags
+P0 ด้าน reliability ปิดแล้ว แต่ real publishing และ paid Auto ยังต้องคงปิดจนกว่า Phase 11C–11F, provider/TikTok approvals และ owner pilot approval จะครบ
 
 ### P1 — ต้องแก้ก่อน pilot จริง
 
@@ -98,9 +99,9 @@ P0 ที่เปิดอยู่ถูกลดความเสี่ย�
 | P1-02 | FIXED 11A — webhook จำกัดขนาดก่อน buffer และบังคับ JSON |
 | P1-03 | FIXED 11A — OAuth, webhook และ authenticated mutation groups ใช้ shared database rate limit |
 | P1-04 | FIXED 11A — upload/pull URL บังคับ HTTPS, exact host, safe port, no credentials/private IP และ no redirect |
-| P1-05 | createAutoRun เป็น read-before-insert; concurrent START อาจได้ unique error แทน run เดิม |
-| P1-06 | run/states/actions/steps/checkpoints เขียนหลาย statement ไม่มี transaction จึงอาจเหลือ partial run |
-| P1-07 | queue transition กับ status event ไม่ atomic |
+| P1-05 | FIXED 11B — concurrent START serialize ต่อ owner และคืน run เดิมแบบ idempotent |
+| P1-06 | FIXED 11B — run/states/actions/steps/checkpoints สร้างใน transaction RPC เดียว |
+| P1-07 | FIXED 11B — enqueue, transition, webhook และ external submission evidence เขียนใน transaction |
 | P1-08 | บาง Video Factory execution/evidence tables ให้ authenticated owner insert/update โดยตรง ต้องแยก user intent จาก server-attested status/cost |
 | P1-09 | ไม่มี CI บังคับ typecheck/lint/test/build และ next.config.ts ใช้ ignoreBuildErrors=true |
 | P1-10 | ไม่มี production worker lease, heartbeat, stale-job recovery และ dead-letter flow |
@@ -147,6 +148,8 @@ P0 ที่เปิดอยู่ถูกลดความเสี่ย�
 
 ### 11B — Reliability / Idempotency
 
+**Status: DONE (2026-09-23)** — migration rollback validation ผ่านและ apply live หนึ่งครั้ง, transaction RPC ครบ 18 ตัว, budget table เปิด RLS/service-only write, deterministic suite เพิ่มเป็น 262 tests และ external modes ยังปิด Security Advisor ไม่มี finding ใหม่; เหลือ warning leaked-password และ info ของ OAuth service-only เดิม
+
 - Objective: ทำ paid generation และ publishing ให้ crash/retry-safe
 - Likely files: auto/services.ts, video/jobs.ts, cost-router.ts, provider adapters, publishing/services.ts และ migration ใหม่
 - Inspect first: unique keys และทุก failure window ระหว่าง reserve/call/persist
@@ -156,6 +159,26 @@ P0 ที่เปิดอยู่ถูกลดความเสี่ย�
 - Completion: ปิด P0-02/P0-03 และพิสูจน์ no duplicate paid call/post ใน recovery paths
 - Commit: **fix: make external execution idempotent and budget safe**
 - STOP: push แล้วหยุด ห้ามเปิด external mode
+
+#### Publish state and recovery contract
+
+`READY → RESERVING → SUBMITTING → SUBMITTED → CONFIRMED` คือเส้นทางปกติ ส่วนความล้มเหลวก่อนเริ่มส่งไป `FAILED_RETRYABLE` หรือ `FAILED_FINAL` ตาม policy เมื่อ lease หมดใน `RESERVING` ระบบนำกลับมาลองใหม่ได้ แต่ lease ที่หมดหลังเข้า `SUBMITTING` จะไป `SUBMITTED_UNKNOWN` และ `WAITING_FOR_RECONCILIATION` เสมอ
+
+stable `external_operation_key` ผูก unique ต่อ owner และทุก attempt ของ logical operation เดิมใช้ key เดิมเป็นฐาน worker claim ใช้ transaction advisory lock พร้อม token/expiry ผู้ชนะเพียงรายเดียวจึงเริ่ม submit ได้ การตอบ webhook ซ้ำถูก deduplicate ด้วย provider event key และ update queue/event ใน transaction เดียว
+
+TikTok Content Posting contract ปัจจุบันไม่มี idempotency key ที่เรายืนยันได้สำหรับ init request ดังนั้น timeout หลังส่งแต่ก่อนรับ `publish_id` ไม่สามารถพิสูจน์ผลจาก provider ได้ ระบบเลือกความปลอดภัยแบบ at-most-once: ห้ามส่งซ้ำอัตโนมัติและต้องให้ operator reconcile/ปิดรายการ หากมี `publish_id` จะ poll สถานะเดิมก่อน การจำกัดนี้ลด availability แต่ป้องกัน duplicate post
+
+#### Atomic paid budget contract
+
+ทุก paid logical operation ต้อง reserve ยอดสูงสุดก่อน call ภายใต้ owner advisory lock จากนั้นตรวจ cap `per-video`, `daily`, `monthly`, `run`, `account` และ `provider` ใน transaction เดียว reservation มีสถานะ `RESERVED`, `SETTLED`, `RELEASED`, `EXPIRED` และ provider state แยกต่างหาก การ reserve/settle/release ซ้ำใช้ logical key/row เดิมและไม่เพิ่มยอดซ้ำ
+
+- provider ยังไม่ถูกเรียกและ reservation หมดอายุ: เปลี่ยนเป็น `EXPIRED` และคืนวงเงิน
+- provider ปฏิเสธก่อนส่งแบบพิสูจน์ได้: `RELEASED`
+- เริ่มส่งแล้ว timeout/crash: คง `RESERVED`, เปลี่ยนเป็น `SUBMITTED_UNKNOWN`, ห้าม retry/release อัตโนมัติ
+- provider ยืนยันผล: `SETTLED`; actual ต้องไม่เกิน reserved และ ledger cost เขียนครั้งเดียว
+- provider ยืนยันไม่คิดเงินภายหลัง: operator จึง release โดยระบุ known-not-submitted ได้
+
+Recovery job เรียก `recover_publish_operations` และ `recover_generation_budget_reservations` ได้อย่าง idempotent หลัง worker restart แต่ Phase 11C/11E ยังต้องจัด scheduler, alert และ operator UI สำหรับรายการ unknown ก่อน production pilot
 
 ### 11C — Observability / Monitoring
 
