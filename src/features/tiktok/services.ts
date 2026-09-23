@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { logOps } from "../../lib/ops/logger";
 import { serverEnv } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MockTikTokProvider, OfficialTikTokProvider, type TikTokProvider } from "./provider";
@@ -303,6 +304,8 @@ export class TikTokTokenService {
     }
     if (Date.parse(row.refresh_token_expires_at) <= Date.now()) {
       await this.markReauthorization(ownerId, accountId, "refresh_token_expired");
+      logOps({ severity: "WARN", component: "tiktok_oauth", operation: "refresh", owner_id: ownerId,
+        account_id: accountId, to_state: "REAUTH_REQUIRED", error_category: "AUTH", error_code: "REFRESH_TOKEN_EXPIRED" });
       throw new TikTokServiceError("refresh_token_expired");
     }
     try {
@@ -347,9 +350,13 @@ export class TikTokTokenService {
       }).eq("owner_id", ownerId).eq("tiktok_account_id", accountId).eq("provider", "tiktok");
       await this.admin.from("account_publish_health").update({ authorization_status: "authorized" })
         .eq("owner_id", ownerId).eq("tiktok_account_id", accountId);
+      logOps({ severity: "INFO", component: "tiktok_oauth", operation: "refresh", owner_id: ownerId,
+        account_id: accountId, to_state: "AUTHORIZED" });
       return refreshed.accessToken;
     } catch (error) {
       await this.markReauthorization(ownerId, accountId, safeErrorCode(error));
+      logOps({ severity: "ERROR", component: "tiktok_oauth", operation: "refresh", owner_id: ownerId,
+        account_id: accountId, to_state: "REAUTH_REQUIRED", error_category: "AUTH", error_code: "TOKEN_REFRESH_FAILED" });
       throw new TikTokServiceError("token_refresh_failed");
     }
   }

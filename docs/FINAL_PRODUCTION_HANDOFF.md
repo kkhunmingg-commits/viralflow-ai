@@ -2,7 +2,7 @@
 
 วันที่ audit ล่าสุด: 2026-09-23
 
-Phase 11B starting point: branch **feature/fal-wan-primary-provider**, HEAD **0b476b10f416fca50b5e7f3dbf765639a086c4d8**
+Phase 11C starting point: branch **feature/fal-wan-primary-provider**, HEAD **f0f54d421c76e4c6782301a48ee49efff97b81cb**
 
 เอกสารนี้อ้างอิง repository และ Supabase project **viralflow-ai** ณ วันที่ audit เท่านั้น
 
@@ -10,13 +10,13 @@ Phase 11B starting point: branch **feature/fal-wan-primary-provider**, HEAD **0b
 
 - Stack: Next.js 16.3.5 App Router, React 19.3.0, TypeScript 6.0.3, Tailwind CSS 4.3.3, Supabase JS/SSR 2.116.0
 - Package manager: pnpm 11.19.0; Node.js ขั้นต่ำ 24
-- Local migrations: 16 ไฟล์ ตั้งแต่ Phase 1 ถึง Phase 11B
-- Live migrations: 16 รายการ โดย `phase_11b_exactly_once_atomic_budget` ถูก apply สำเร็จหนึ่งครั้ง
+- Local migrations: 17 ไฟล์ ตั้งแต่ Phase 1 ถึง Phase 11C
+- Live migrations: 17 รายการ โดย `phase_11c_recovery_observability` ถูก apply สำเร็จหนึ่งครั้ง
 - Phase 11B เพิ่ม `generation_budget_reservations`, 18 transaction RPC, publish lease/reconciliation state และ critical indexes 3 รายการ
 - RLS เปิดบน `generation_budget_reservations`; authenticated อ่านได้เฉพาะ owner และเขียนได้เฉพาะ service role
 - tiktok_oauth_credentials และ tiktok_oauth_states ใช้ FORCE RLS, ไม่มี client policy และไม่มี grant ให้ authenticated โดยตั้งใจ
 - Storage bucket video-assets เป็น private และใช้ owner-path policies ครบ
-- Security Advisor หลัง Phase 11A: ไม่มี finding ใหม่; มี warning leaked-password protection disabled และ info สองรายการสำหรับ service-only OAuth tables
+- Security Advisor หลัง Phase 11C: ไม่มี finding ใหม่; มี warning leaked-password protection disabled และ info สองรายการสำหรับ service-only OAuth tables
 - Performance Advisor: unindexed foreign keys 34 รายการ และ unused indexes 27 รายการ; ต้องยืนยันด้วย workload ก่อนแก้
 - Live operational rows: auto_runs=0, publishing_queue=0, generation_jobs=0, tiktok_oauth_credentials=0, video_analytics_snapshots=0
 - Tracked secret-pattern scan: ไม่พบ secret pattern ในไฟล์ที่ Git track หรือ commit history ที่สแกน
@@ -24,7 +24,7 @@ Phase 11B starting point: branch **feature/fal-wan-primary-provider**, HEAD **0b
 - VIDEO_BENCHMARK_ALLOW_PAID=true และ cap 0.30 เป็น local benchmark gate เท่านั้น ไม่ใช่ Auto Mode permission
 - fal ใช้ default state PRIMARY_CANDIDATE; ยังไม่ใช่ PRODUCTION_APPROVED
 - Google key ไม่มี และ Google fallback ถูกปิด
-- ไม่มี GitHub Actions, vercel.json, production worker/cron, error monitoring, alerting หรือ health endpoint
+- ยังไม่มี GitHub Actions, vercel.json, production worker/cron หรือ external alert routing; Phase 11C มี internal recovery endpoint, health, alerts และ operator UI แล้ว
 
 Working tree ตอนเริ่ม audit มี AGENTS.md, CLAUDE.md และ next-env.d.ts ที่ dev server สร้าง ไฟล์เหล่านี้ไม่ใช่งาน product และต้องไม่รวมใน audit commit
 
@@ -89,7 +89,7 @@ flowchart LR
 | P0-02 | Provider side effect กับ database state ต้อง crash-safe และห้าม blind retry | CLOSED 11B | lease แยก RESERVING/SUBMITTING; timeout หลังเริ่มส่งถูกพักใน SUBMITTED_UNKNOWN และ reconcile ก่อน retry; provider ที่ไม่มี idempotency API ใช้ fail-closed/manual resolution เมื่อไม่มี provider ID |
 | P0-03 | Paid generation ต้องมี atomic budget reservation/settlement ledger | CLOSED 11B | advisory transaction lock และ unique logical key ป้องกัน concurrent overspend/duplicate reserve; uncertain submission คง hold จน reconcile |
 
-P0 ด้าน reliability ปิดแล้ว แต่ real publishing และ paid Auto ยังต้องคงปิดจนกว่า Phase 11C–11F, provider/TikTok approvals และ owner pilot approval จะครบ
+P0 ด้าน reliability ปิดแล้ว แต่ real publishing และ paid Auto ยังต้องคงปิดจนกว่า Phase 11D–11F, provider/TikTok approvals และ owner pilot approval จะครบ
 
 ### P1 — ต้องแก้ก่อน pilot จริง
 
@@ -104,8 +104,8 @@ P0 ด้าน reliability ปิดแล้ว แต่ real publishing แ�
 | P1-07 | FIXED 11B — enqueue, transition, webhook และ external submission evidence เขียนใน transaction |
 | P1-08 | บาง Video Factory execution/evidence tables ให้ authenticated owner insert/update โดยตรง ต้องแยก user intent จาก server-attested status/cost |
 | P1-09 | ไม่มี CI บังคับ typecheck/lint/test/build และ next.config.ts ใช้ ignoreBuildErrors=true |
-| P1-10 | ไม่มี production worker lease, heartbeat, stale-job recovery และ dead-letter flow |
-| P1-11 | ไม่มี structured logs, correlation IDs, error monitoring, metrics และ alert routing |
+| P1-10 | PARTIAL 11C — recovery heartbeat, stale-job detection, dead-letter และ operator UI มีแล้ว; production worker/cron ยังรอ 11E |
+| P1-11 | PARTIAL 11C — structured logs, correlation, internal health/alerts มีแล้ว; external error monitoring และ on-call routing ยังไม่มี |
 | P1-12 | ไม่มี backup/restore drill, incident runbook และ release rollback evidence |
 | P1-13 | fal benchmark ยังไม่สำเร็จและไม่มี owner quality/reliability approval |
 | P1-14 | TikTok Login, Content Posting, Shop และ Analytics production approvals ยังไม่ยืนยันจริง |
@@ -178,10 +178,17 @@ TikTok Content Posting contract ปัจจุบันไม่มี idempote
 - provider ยืนยันผล: `SETTLED`; actual ต้องไม่เกิน reserved และ ledger cost เขียนครั้งเดียว
 - provider ยืนยันไม่คิดเงินภายหลัง: operator จึง release โดยระบุ known-not-submitted ได้
 
-Recovery job เรียก `recover_publish_operations` และ `recover_generation_budget_reservations` ได้อย่าง idempotent หลัง worker restart แต่ Phase 11C/11E ยังต้องจัด scheduler, alert และ operator UI สำหรับรายการ unknown ก่อน production pilot
+Recovery job เรียก `recover_publish_operations` และ `recover_generation_budget_reservations` ได้อย่าง idempotent หลัง worker restart; Phase 11C เพิ่ม scheduler service, alert และ operator UI แล้ว แต่ Phase 11E ยังต้องตั้ง production trigger ก่อน pilot
 
 ### 11C — Observability / Monitoring
 
+- **Status: DONE (2026-09-23)**. Migration `20260923150000_phase_11c_recovery_observability.sql` อยู่ใน local หนึ่งไฟล์และ `phase_11c_recovery_observability` อยู่ใน live history หนึ่งรายการ (live version `20260922192051` จาก connector); สร้าง `operations_scheduler_runs`, `operations_incidents`, `operations_action_events`, `operations_alerts`, `operations_webhook_failures` โดยเปิด RLS ทั้งหมด เจ้าของอ่าน incidents/actions/alerts ได้เฉพาะของตน และ authenticated เขียนไม่ได้ RPC จัดการสงวนไว้ให้ service role
+- Recovery service `runRecoveryCycle` ใช้ window 5 นาทีแบบ unique claim แล้วเรียก Phase 11B `recover_publish_operations` และ `recover_generation_budget_reservations` ก่อนสแกนคิว, budget, Auto และ generation jobs. งานที่เกิด side effect ภายนอกไม่ถูก resubmit. หากสแกนเกินขอบเขต 200 รายการต่อชนิด รอบตรวจล้มเหลวชัดเจน แทนการรายงานสุขภาพผิด
+- Policy: `AUTO_RECOVERABLE` เฉพาะ pre-send lease/unsent reservation และ retryable publish ที่ไม่มี provider ID; `RECONCILIATION_REQUIRED` สำหรับ submitted unknown, post-send lease, provider pending และ Auto run ค้าง; `FINAL_FAILURE` สำหรับ retry หมดหรือ terminal failure. Unknown result คง budget hold และไม่มี force-retry
+- Operator ที่ `/operations` เห็น account, operation, provider, first/last seen, reason, external ID, budget status และคำแนะนำ; action ผ่าน server auth, owner rate limit, service RPC ที่ lock แถว, owner-scope, unique idempotency key และ append-only audit. `MARK_CONFIRMED` หมายถึงยืนยันรหัส provider และเปลี่ยนไป `PROCESSING` เพื่อรอตรวจสถานะ **ไม่ใช่ยืนยันว่าโพสต์สำเร็จ**. การคืนงบจำกัดเฉพาะ reservation ที่ยังไม่ส่งคำขอ provider
+- Dead letter ใช้ `operations_incidents` classification `FINAL_FAILURE`; รับทราบ/ปิดพร้อมหลักฐานได้โดยไม่ลบ evidence. Structured log บันทึก ID/state/error code ที่อนุญาตและ redact token/secret; ไม่บันทึก payload หรือ credential. Correlation ใช้ run/job/publish/reservation ID เดิม
+- `/api/operations/health` ต้องมี Supabase user session และคืนข้อมูลเฉพาะ owner. `/api/operations/recovery` เป็น POST ที่ต้องมี `OPS_RECOVERY_TOKEN` แบบ server-only; หากไม่ได้ตั้งจะปฏิเสธทุกคำขอ. Internal alert records dedupe ตาม owner/rule/subject; webhook failure spike บันทึกเป็น minute counter และ structured warning
+- **ข้อจำกัด:** ยังไม่ได้ตั้ง cron/worker ภายนอกจริง, alert destination/on-call, auth-refresh telemetry, full recovery browser E2E และ restore drill. ต้องตั้ง trigger กับ token ใน Phase 11E ก่อนถือว่า scheduler ทำงานจริง; health จะแสดง unhealthy เมื่อไม่มี heartbeat. Phase 11D ต้องตรวจ query/load, 11F ต้องเพิ่ม CI/E2E/runbook drill. ห้ามใช้หน้าจอนี้เป็นเหตุให้เปิด real publish หรือ paid Auto
 - Objective: ตรวจพบและสืบเหตุได้โดยไม่ log secret
 - Likely files: logging utility, auto/video/TikTok/publishing boundaries, health route และ runbook
 - Inspect first: error paths, correlation IDs และ sensitive fields

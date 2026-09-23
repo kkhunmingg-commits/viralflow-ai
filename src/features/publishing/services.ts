@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { logOps } from "../../lib/ops/logger";
 import { runPrePublishGate } from "@/features/compliance/services";
 import {assertShoppableIntentReady} from "@/features/commerce/services";
 import {ownsVideoStoragePath} from "@/features/video/storage";
@@ -53,6 +54,8 @@ export class TikTokPublishingService {
       p_patch: { ...patch, source, reason_code: reasonCode ?? null },
     });
     if (error || !data) throw new PublishingError("publish_transition_conflict");
+    logOps({ severity: "INFO", component: "publishing", operation: "transition", owner_id: queue.owner_id,
+      account_id: queue.tiktok_account_id, publish_id: queue.id, from_state: queue.status, to_state: toStatus });
     return data as PublishQueueRow;
   }
 

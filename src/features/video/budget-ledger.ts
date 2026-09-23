@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { logOps } from "../../lib/ops/logger";
 
 export type BudgetReservationState = "RESERVED" | "SETTLED" | "RELEASED" | "EXPIRED";
 export type ProviderSubmissionState = "REQUEST_NOT_SENT" | "SUBMITTING" | "SUBMITTED_UNKNOWN" | "SUBMITTED" | "CONFIRMED" | "FAILED";
@@ -64,7 +65,11 @@ export class AtomicBudgetLedger {
       p_budget_month: input.budgetMonth,
       p_ttl_seconds: input.ttlSeconds ?? 900,
     });
-    return reservation(data, error, "budget_reservation_failed");
+    const result = reservation(data, error, "budget_reservation_failed");
+    logOps({ severity: "INFO", component: "budget", operation: "reserve", owner_id: input.ownerId,
+      account_id: input.accountId, run_id: input.autoRunId, job_id: input.generationJobId,
+      correlation_id: result.id, to_state: result.state });
+    return result;
   }
 
   async begin(ownerId: string, reservationId: string) {
@@ -85,7 +90,10 @@ export class AtomicBudgetLedger {
     const { data, error } = await this.admin.rpc("mark_generation_unknown", {
       p_owner_id: ownerId, p_reservation_id: reservationId, p_provider_request_id: providerRequestId,
     });
-    return reservation(data, error, "budget_uncertain_record_failed");
+    const result = reservation(data, error, "budget_uncertain_record_failed");
+    logOps({ severity: "WARN", component: "budget", operation: "provider_unknown", owner_id: ownerId,
+      correlation_id: reservationId, provider_job_id: providerRequestId, to_state: result.provider_submission_state, error_category: "PROVIDER" });
+    return result;
   }
 
   async settle(ownerId: string, reservationId: string, actualUsd: number, providerRequestId: string | null) {
@@ -93,7 +101,10 @@ export class AtomicBudgetLedger {
       p_owner_id: ownerId, p_reservation_id: reservationId, p_actual_usd: actualUsd,
       p_provider_request_id: providerRequestId,
     });
-    return reservation(data, error, "budget_settlement_failed");
+    const result = reservation(data, error, "budget_settlement_failed");
+    logOps({ severity: "INFO", component: "budget", operation: "settle", owner_id: ownerId,
+      correlation_id: reservationId, provider_job_id: providerRequestId, to_state: result.state });
+    return result;
   }
 
   async release(ownerId: string, reservationId: string, knownNotSubmitted: boolean) {

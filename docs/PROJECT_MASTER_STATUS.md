@@ -4,15 +4,15 @@
 
 Baseline branch: **feature/fal-wan-primary-provider**
 
-Phase 11B starting HEAD: **0b476b10f416fca50b5e7f3dbf765639a086c4d8**
+Phase 11C starting HEAD: **f0f54d421c76e4c6782301a48ee49efff97b81cb**
 
 ## Executive status
 
 | Metric | Result | Calculation |
 |---|---:|---|
 | Coding completion | **94%** | 94/100 engineering acceptance points |
-| Production readiness | **58%** | 58/100 release-readiness controls |
-| Overall completion | **80%** | `(94 × 60%) + (58 × 40%) = 79.6` ปัดเป็นจำนวนเต็ม |
+| Production readiness | **63%** | 63/100 release-readiness controls |
+| Overall completion | **82%** | `(94 × 60%) + (63 × 40%) = 81.6` ปัดเป็นจำนวนเต็ม |
 
 เปอร์เซ็นต์นี้คำนวณใหม่จาก repository, migration history, live RLS/advisors, provider gates, tests และ production operations ไม่ได้ยกค่าจากบทสนทนาเดิม
 
@@ -36,16 +36,16 @@ Phase 11B starting HEAD: **0b476b10f416fca50b5e7f3dbf765639a086c4d8**
 
 | Control | Weight | Earned | Evidence |
 |---|---:|---:|---|
-| Authentication, RLS, owner isolation | 15 | 13 | 60/60 tables RLS; leaked-password protection pending |
+| Authentication, RLS, owner isolation | 15 | 13 | 65/65 tables RLS; leaked-password protection pending |
 | Secret/config boundaries | 10 | 9 | server-only validation, redacted errors, security headers และไม่มี client import violation; production vault/rotation pending |
 | External-call safety | 15 | 13 | lease, stable key, unknown-state reconciliation และ no blind retry complete; real provider evidence pending |
 | Money/budget safety | 10 | 10 | atomic reserve/settle/release และ six-dimensional caps complete |
 | Data integrity/recovery | 10 | 9 | atomic Auto/publish writes และ stale recovery complete; production scheduler/operator tooling pending |
-| Observability/incident response | 10 | 1 | no production monitoring, alerts or runbook |
+| Observability/incident response | 10 | 6 | structured operational logs, recovery health, internal alerts, operator queue; external routing/production schedule/runbook drill ยังขาด |
 | CI/release/deployment | 10 | 2 | local quality commands exist; no CI/staging/rollback gate |
 | Backup/restore/operations | 10 | 1 | managed database exists; no restore drill/ownership evidence |
 | Real provider/TikTok approvals | 10 | 0 | fal benchmark failed; TikTok scopes/audit/Shop/Analytics pending |
-| **Total** | **100** | **58** | |
+| **Total** | **100** | **63** | |
 
 ## Phase status
 
@@ -69,20 +69,22 @@ Phase 11B starting HEAD: **0b476b10f416fca50b5e7f3dbf765639a086c4d8**
 | 10 | Full Auto Mode | PARTIAL | atomic planner and budget ledger complete; production worker remains |
 | 11A | Security Hardening | DONE | P1-02/P1-03/P1-04 closed; leaked-password protection remains owner action |
 | 11B | Reliability / Idempotency | DONE | P0-02/P0-03 and P1-05/P1-06/P1-07 closed |
-| 11C–11F | Observability through release readiness | PLANNED | ordered plan in FINAL_PRODUCTION_HANDOFF.md |
+| 11C | Recovery / Observability | DONE | recovery service, operator UI, internal health/alerts; external schedule ยังรอ 11E |
+| 11D–11F | Performance through release readiness | PLANNED | ordered plan in FINAL_PRODUCTION_HANDOFF.md |
 
 ## Verified repository and database state
 
-- 16 local migrations and 16 live migrations; `phase_11b_exactly_once_atomic_budget` appears once in each history
-- 60 public tables; RLS enabled on all 60
-- 60 PKs, 108 unique constraints, 164 FKs, 470 checks; zero unvalidated constraints
+- 17 local migrations and 17 live migrations; `phase_11c_recovery_observability` appears once in each history
+- 65 public tables; RLS enabled on all 65
+- Phase 11C tables have owner-read/service-write boundaries; scheduler and webhook counters are service-only
 - video-assets bucket private with owner-path RLS
 - OAuth credentials/states service-only and FORCE RLS
-- Security Advisor after Phase 11A: no new issue; leaked-password warning plus two intentional service-only no-policy info findings
+- Security Advisor after Phase 11C: no new issue; leaked-password warning plus two intentional service-only no-policy info findings
 - Performance Advisor: 34 unindexed FK findings and 27 unused-index findings requiring workload evidence
 - No active live Auto, publishing, generation, OAuth credential or analytics rows at audit
 - No matching real secret pattern in tracked files/history scan
 - Phase 11B verification: migration rollback validation/live apply ผ่าน, 18 reliability RPC, RLS และ critical indexes ตรวจจาก catalog แล้ว; typecheck/build ผ่าน, lint 0 errors กับ 8 warning เดิม และ tests 262/262 ผ่าน
+- Phase 11C verification: local migration เรียงหลัง 11B, live migration ชื่อเดียวกันหนึ่งรายการ, scheduler claim และ cross-owner RPC test ผ่านในธุรกรรม rollback; typecheck/build ผ่าน, lint 0 errors กับ 8 warning เดิม และ tests 269/269 ผ่าน
 
 ## Master flow
 
@@ -238,13 +240,11 @@ flowchart TD
 
 - Provider benchmark: infrastructure complete, real fal evidence failed
 - TikTok OAuth/publishing/Shop/Analytics: contracts complete, production authorization absent
-- Auto Mode: durable planner complete, production executor/idempotency/budget reservation absent
-- Production security: Phase 11A endpoint hardening complete; CI, monitoring, reliability และ operations ยังไม่ครบ
+- Auto Mode: durable planner, idempotent start และ atomic budget reservation complete; production executor ยังไม่เปิด
+- Production operations: Phase 11C recovery/health/operator queue complete; external scheduler, on-call routing และ restore drill ยังขาด
 
 ### PLANNED
 
-- Phase 11B Reliability and Idempotency
-- Phase 11C Observability
 - Phase 11D Performance/Database
 - Phase 11E Production Environment
 - Phase 11F Release Readiness
@@ -254,15 +254,15 @@ flowchart TD
 
 ### P0 open
 
-ไม่มี P0 ด้าน code architecture หลัง Phase 11B; production ยังถูก block ด้วย Phase 11C–11F และ external/owner approvals
+ไม่มี P0 ด้าน code architecture หลัง Phase 11C; production ยังถูก block ด้วย Phase 11D–11F และ external/owner approvals
 
 ### P1 open
 
 1. Leaked-password protection disabled
 2. Server-attested execution data needs tighter write boundaries
 3. CI/type enforcement absent
-4. Production worker scheduler/dead-letter and operator reconciliation UI absent
-5. Monitoring/alerts absent
+4. Production worker/external schedule ยังไม่ตั้ง; 11C มี recovery endpoint, dead-letter และ operator UI แล้ว
+5. External monitoring/on-call routing ยังไม่ตั้ง; 11C มี internal alerts/health แล้ว
 6. Backup/restore/incident evidence absent
 7. fal quality/reliability approval absent
 8. TikTok production approvals absent
@@ -280,11 +280,11 @@ flowchart TD
 
 ## Next five actions
 
-1. Phase 11C: structured logs, metrics, health and alerts
-2. Phase 11D: query-plan/index/load/retention validation
-3. Phase 11E: production environment boundaries, recovery scheduler and secret ownership
-4. Phase 11F: CI, staging, backup/rollback and release gates
-5. Owner actions: provider benchmark approval, TikTok approvals, leaked-password protection และ pilot caps
+1. Phase 11D: query-plan/index/load/retention validation
+2. Phase 11E: production environment boundaries, recovery schedule and secret ownership
+3. Phase 11F: CI, staging, backup/rollback and release gates
+4. Owner actions: provider benchmark approval, TikTok approvals, leaked-password protection และ pilot caps
+5. ก่อน pilot: ตั้ง external alert routing, backup/restore drill และตรวจ operations dashboard ด้วยข้อมูลจริง
 
 รายละเอียด task และ prompt พร้อมใช้ทั้งหมดอยู่ใน docs/FINAL_PRODUCTION_HANDOFF.md
 

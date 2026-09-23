@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { logOps } from "../../lib/ops/logger";
 import { planAccount, stableAutoKey } from "./engine";
 import type { AutoAccountState, AutoAction, AutoCheckpoint, AutoFailure, AutoRun, AutoStep } from "./types";
 import { serverEnv } from "@/lib/server-env";
@@ -81,11 +82,13 @@ export async function createAutoRun(admin: SupabaseClient, owner: string, reques
     p_provider_gate_reason: providerGate.reason, p_plans: plans,
   });
   if (result.error || !result.data) throw new Error(result.error?.message ?? "auto_run_create_failed");
+  logOps({ severity: "INFO", component: "auto", operation: "create_run", owner_id: owner, run_id: result.data.id, correlation_id: key, to_state: result.data.state });
   return result.data as AutoRun;
 }
 
 export async function transitionAutoRun(admin: SupabaseClient, owner: string, id: string, action: "PAUSE" | "RESUME" | "STOP") {
   const result = await admin.rpc("transition_auto_run_atomic", { p_owner_id: owner, p_run_id: id, p_action: action });
   if (result.error || !result.data) throw new Error(result.error?.message ?? "auto_run_transition_failed");
+  logOps({ severity: "INFO", component: "auto", operation: action, owner_id: owner, run_id: id, from_state: result.data.previous, to_state: result.data.state });
   return result.data as { previous: string; state: string };
 }
