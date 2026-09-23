@@ -1,6 +1,6 @@
 export const navigation = [
-  { href: "/auto", label: "เริ่มงาน", short: "GO" },
-  { href: "/accounts", label: "บัญชี TikTok", short: "AC" },
+  { href: "/auto", label: "Control Center", short: "CC" },
+  { href: "/accounts", label: "Accounts", short: "AC" },
   { href: "/dashboard", label: "ภาพรวม", short: "OV" },
   { href: "/product-radar", label: "Product Radar", short: "PR" },
   { href: "/recommendations", label: "คำแนะนำวันนี้", short: "RC" },

@@ -43,7 +43,7 @@ export function SidebarNav() {
     <>
       <NavGroup items={primaryNavigation} label="ใช้งานหลัก" />
       <details className="advanced-nav" key={pathname.startsWith("/auto") || pathname.startsWith("/accounts") ? "primary" : "advanced"} open={!pathname.startsWith("/auto") && !pathname.startsWith("/accounts")}>
-        <summary>เครื่องมือขั้นสูง <span aria-hidden="true">⌄</span></summary>
+        <summary>Advanced <span aria-hidden="true">⌄</span></summary>
         <NavGroup items={advancedNavigation} label="เครื่องมือขั้นสูง" />
         <NavGroup items={settingsNavigation} label="การตั้งค่า" />
       </details>
