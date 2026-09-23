@@ -40,7 +40,10 @@ export async function GET(request: NextRequest) {
   const authorizationUrl = await service.buildAuthorizationUrl({
     ownerId: data.user.id,
     origin: request.nextUrl.origin,
-    requestedScopes: requestedScopes(scenario),
+    requestedScopes: serverEnv.tiktokProvider === "official"
+      ? ["user.info.basic", "video.publish", "video.upload",
+        ...(serverEnv.tiktokAnalyticsRealMode ? ["video.list" as const] : [])]
+      : requestedScopes(scenario),
     mockScenario: serverEnv.tiktokProvider === "official" ? undefined : scenario,
   });
   return NextResponse.redirect(authorizationUrl);

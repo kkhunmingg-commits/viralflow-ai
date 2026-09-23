@@ -2,6 +2,7 @@ export const TIKTOK_SCOPES = [
   "user.info.basic",
   "video.publish",
   "video.upload",
+  "video.list",
 ] as const;
 
 export type TikTokScope = (typeof TIKTOK_SCOPES)[number];

@@ -20,6 +20,7 @@ describe("TikTok scope and readiness mapping", () => {
   it("normalizes only official prepared scopes", () => {
     expect(normalizeTikTokScopes(["video.upload", "fake.scope", "video.upload", "user.info.basic"]))
       .toEqual(["user.info.basic", "video.upload"]);
+    expect(normalizeTikTokScopes(["video.list", "video.publish"])).toEqual(["video.list", "video.publish"]);
   });
 
   it.each([

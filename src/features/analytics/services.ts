@@ -1,5 +1,5 @@
 import type {SupabaseClient} from "@supabase/supabase-js";
-import type {AnalyticsSummary,LearningSignalRow,VideoSnapshotRow,WinnerRow} from "./types";
+import type {AccountBaseline,AnalyticsSummary,LearningSignalRow,VideoSnapshotRow,WinnerRow} from "./types";
 import type {WinnerResult} from "./types";
 import type {VideoAnalyticsObservation} from "./provider";
 import {evidenceHash} from "./scoring";
@@ -36,9 +36,10 @@ export async function getProductAnalytics(client:SupabaseClient,ownerId:string,i
 }
 export async function getLearningOverview(client:SupabaseClient,ownerId:string){const [signals,decisions,experiments]=await Promise.all([read<LearningSignalRow>(client,"learning_signals",ownerId),read<Record<string,unknown>>(client,"learning_decisions",ownerId),read<Record<string,unknown>>(client,"experiment_variants",ownerId)]);return{signals,decisions,experiments};}
 
-export async function persistVideoEvaluation(admin:SupabaseClient,input:{ownerId:string;accountId:string;videoId:string;videoKind:"MASTER"|"VARIATION"|"EXTERNAL";mode:"GROWTH"|"AFFILIATE";observation:VideoAnalyticsObservation;result:WinnerResult;baseline:Record<string,number>;productId?:string|null}){
- const {externalVideoId,capturedAt,sourceConfidence,...metrics}=input.observation;
- const snapshotValues={owner_id:input.ownerId,tiktok_account_id:input.accountId,video_id:input.videoId,video_kind:input.videoKind,external_video_id:externalVideoId,product_id:input.productId??null,source_snapshot_at:capturedAt,...metrics,source_confidence:sourceConfidence,availability_json:{favorites:input.observation.favorites===null?"UNKNOWN":"AVAILABLE",commerce:input.observation.orders===null?"UNKNOWN":"AVAILABLE"},raw_metadata_json:{}};
+export async function persistVideoEvaluation(admin:SupabaseClient,input:{ownerId:string;accountId:string;videoId:string;videoKind:"MASTER"|"VARIATION"|"EXTERNAL";mode:"GROWTH"|"AFFILIATE";observation:VideoAnalyticsObservation;result:WinnerResult;baseline:AccountBaseline;productId?:string|null}){
+ const {externalVideoId,capturedAt,sourceConfidence,publishedAt,...metrics}=input.observation;
+ const availability=Object.fromEntries((["views","likes","comments","shares","favorites","clicks","orders","gmv","commission"] as const).map(key=>[key,input.observation[key]===null?"UNKNOWN":"AVAILABLE"]));
+ const snapshotValues={owner_id:input.ownerId,tiktok_account_id:input.accountId,video_id:input.videoId,video_kind:input.videoKind,external_video_id:externalVideoId,product_id:input.productId??null,source_snapshot_at:capturedAt,published_at:publishedAt??null,...metrics,source_confidence:sourceConfidence,availability_json:availability,raw_metadata_json:{}};
  const inserted=await admin.from("video_analytics_snapshots").insert(snapshotValues).select("id").maybeSingle();
  let snapshot=inserted.data;if(inserted.error?.code==="23505"){const existing=await admin.from("video_analytics_snapshots").select("id").eq("owner_id",input.ownerId).eq("source",input.observation.source).eq("external_video_id",input.observation.externalVideoId).eq("source_snapshot_at",input.observation.capturedAt).single();if(existing.error)throw new Error(existing.error.message);snapshot=existing.data;}else if(inserted.error)throw new Error(inserted.error.message);if(!snapshot)throw new Error("analytics_snapshot_missing");
  const hash=evidenceHash({snapshotId:snapshot.id,mode:input.mode,result:input.result});const scoreValues={owner_id:input.ownerId,tiktok_account_id:input.accountId,video_snapshot_id:snapshot.id,video_id:input.videoId,video_kind:input.videoKind,mode:input.mode,growth_score:input.result.growthScore,affiliate_score:input.result.affiliateScore,final_score:input.result.finalScore,decision:input.result.decision,confidence:input.result.confidence,sample_factor:input.result.sampleFactor,freshness_factor:input.result.freshnessFactor,account_baseline_json:input.baseline,components_json:input.result.components,explanation_json:{relativeTo:"ACCOUNT_BASELINE"},evidence_hash:hash,evaluated_at:new Date().toISOString()};
