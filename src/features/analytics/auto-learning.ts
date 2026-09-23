@@ -38,7 +38,9 @@ export async function recordAutoLearning(admin: SupabaseClient, input: {
       snapshotAt: score.data.evaluated_at, followerCount: account.data?.follower_count ?? null,
       followerDelta: null, views: null, engagement: null, attributionConfidence: 0,
       categoryPerformance: {}, availability: { followerDelta: "UNKNOWN" }, source: "PHASE_8_ANALYTICS",
-      sourceSnapshotId: score.data.video_snapshot_id });
+      // growth_account_snapshots.source_snapshot_id references account analytics,
+      // while this winner is backed by a video analytics snapshot.
+      sourceSnapshotId: null });
   }
   return { learningDecisionId: saved.data.id as string, learningDecision: decision };
 }

@@ -10,6 +10,8 @@ import { falAutoModeAvailability } from "@/features/video/provider-routing";
 import { serverEnv } from "@/lib/server-env";
 import { createClient } from "@/lib/supabase/server";
 
+export const maxDuration = 300;
+
 export default async function AutoPage({ searchParams }: { searchParams: Promise<{ setup?: string }> }) {
   const { setup } = await searchParams;
   const client = await createClient();
@@ -60,6 +62,7 @@ export default async function AutoPage({ searchParams }: { searchParams: Promise
         <p className="eyebrow">02 / LIVE STATUS</p><h2>{status.title}</h2><p>{status.detail}</p>
         {run && <><div className="operator-live-meta"><span>บัญชี <strong>{selectedAccount?.display_name ?? "ไม่ทราบบัญชี"}</strong></span><span>โหมด <strong>{current?.effective_mode ?? "—"}</strong></span><span>ขั้นตอนล่าสุด <strong>{operatorStepLabel(run.current_step)}</strong></span></div><OperatorRunControls runId={run.id} state={run.state}/></>}
         {status.setupRequired && <div className="operator-notice"><strong>SETUP REQUIRED</strong><p>{status.detail}</p><Link href="/settings/integrations">ตรวจการเชื่อมต่อ →</Link></div>}
+        {current?.state === "WAITING_FOR_APPROVAL" && <div className="operator-notice"><strong>ต้องตรวจและยินยอมก่อนส่ง</strong><p>เปิดรายการเผยแพร่เพื่อตรวจวิดีโอและบันทึกความยินยอมอย่างชัดเจน ระบบจะตรวจสถานะเดิมต่อโดยไม่ส่งซ้ำ</p><Link href="/publishing">ตรวจคิวเผยแพร่ →</Link></div>}
         {!provider.providerAvailable && <div className="operator-notice"><strong>ผู้สร้างวิดีโอยังไม่พร้อม</strong><p>ต้องมีการอนุมัติใช้งานจริงและกุญแจผู้ให้บริการบนเซิร์ฟเวอร์ก่อนสร้างวิดีโอแบบอัตโนมัติ</p></div>}
       </article>
     </section>

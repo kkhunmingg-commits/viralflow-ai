@@ -1,4 +1,4 @@
-export const AUTO_STATES=["IDLE","STARTING","RUNNING","PAUSED","WAITING_FOR_DATA","WAITING_FOR_APPROVAL","WAITING_FOR_SLOT","WAITING_FOR_PROVIDER","RETRY_PENDING","BLOCKED","COMPLETED","FAILED","STOPPED"] as const;
+export const AUTO_STATES=["IDLE","STARTING","RUNNING","PAUSED","WAITING_FOR_DATA","WAITING_FOR_APPROVAL","WAITING_FOR_SLOT","WAITING_FOR_PROVIDER","WAITING_FOR_RECONCILIATION","RETRY_PENDING","BLOCKED","COMPLETED","FAILED","STOPPED"] as const;
 export type AutoState=(typeof AUTO_STATES)[number];
 export type AutoMode="GROWTH"|"AFFILIATE"|"AUTO";
 export type EffectiveAutoMode=Exclude<AutoMode,"AUTO">;
@@ -10,7 +10,7 @@ export interface AutoStep {id:string;step:string;state:string;attempt:number;}
 export interface AutoFailure {id:string;failure_type:FailureType;retryable:boolean;reason:string;}
 export interface AutoAction {id:string;action_type:string;status:string;}
 export interface AutoCheckpoint {id:string;checkpoint_version:number;step:string;}
-export interface AccountContext {id:string;requestedMode:AutoMode;commerceReady:boolean;providerAvailable:boolean;providerBudgetAvailable?:boolean;analyticsFresh:boolean;accountHealthy:boolean;consent:boolean;publishRemaining:number;desiredCandidates:number;desiredPosts:number;priority:number;nextGrowthAction?:string;affiliateDecision?:"SCALE"|"WATCH"|"STOP"|"INSUFFICIENT_DATA";}
+export interface AccountContext {id:string;requestedMode:AutoMode;commerceReady:boolean;providerAvailable:boolean;providerBudgetAvailable?:boolean;analyticsFresh:boolean;accountHealthy:boolean;consent:boolean;deferConsentUntilPublish?:boolean;publishRemaining:number;desiredCandidates:number;desiredPosts:number;priority:number;nextGrowthAction?:string;affiliateDecision?:"SCALE"|"WATCH"|"STOP"|"INSUFFICIENT_DATA";}
 export interface BudgetContext {estimated:number;runBudget:number;runSpent:number;accountBudget:number;accountSpent:number;providerBudget:number;providerSpent:number;perVideoBudget:number;dailyBudget:number;dailySpent:number;monthlyBudget:number;monthlySpent:number;}
 export interface GateInput {mode:EffectiveAutoMode;quality:boolean;compliance:boolean;productTruth:boolean;aigc:boolean;originality:boolean;crossAccountUnique:boolean;accountHealth:boolean;commerceReady:boolean;publishCapacity:boolean;consent:boolean;}
 export interface PlannedAccount {accountId:string;mode:EffectiveAutoMode;state:Exclude<AutoState,"IDLE">;nextAction:string;blockers:string[];generationCapacity:number;publishCapacity:number;}

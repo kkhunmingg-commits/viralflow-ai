@@ -52,12 +52,12 @@ export async function loadCreativeContext(client:SupabaseClient,owner:string,pro
   if(categoryScore.error)throw new Error(categoryScore.error.message);
   return {project:project as unknown as CreativeProjectRow,context:buildCreativeContext({assignment:assignment as never,account:account as never,product:product as never,productScore:productScore.data as never,categoryScore:categoryScore.data as never,affinity:affinity.data as never,assignmentScore:assignmentScore.data as never,history:(history.data??[]) as never,growthRecommendation:growthRecommendation.data as never})};
 }
-function providerFor(context:Awaited<ReturnType<typeof loadCreativeContext>>["context"]){
-  if(serverEnv.creativeAIProvider==="openai")return new OpenAIProvider(serverEnv.openAIApiKey!,serverEnv.creativeAIModel);
+function providerFor(context:Awaited<ReturnType<typeof loadCreativeContext>>["context"],forceMock=false){
+  if(!forceMock&&serverEnv.creativeAIProvider==="openai")return new OpenAIProvider(serverEnv.openAIApiKey!,serverEnv.creativeAIModel);
   return new MockAIProvider(context);
 }
-export async function generateCreativeProject(client:SupabaseClient,owner:string,projectId:string){
-  const {project,context}=await loadCreativeContext(client,owner,projectId),provider=providerFor(context),generationId=randomUUID(),prompt=buildCreativePrompt(context);
+export async function generateCreativeProject(client:SupabaseClient,owner:string,projectId:string,options:{forceMock?:boolean;forAutoWorker?:boolean}={}){
+  const {project,context}=await loadCreativeContext(client,owner,projectId),provider=providerFor(context,options.forceMock),generationId=randomUUID(),prompt=buildCreativePrompt(context);
   const generatingStatus=nextProjectStatus(project.status,"GENERATE");
   const generating=await client.from("creative_projects").update({status:generatingStatus}).eq("owner_id",owner).eq("id",projectId);
   if(generating.error)throw new Error(generating.error.message);
@@ -69,7 +69,9 @@ export async function generateCreativeProject(client:SupabaseClient,owner:string
     const scripts=scored.map((s,index)=>({id:randomUUID(),owner_id:owner,creative_project_id:projectId,creative_angle_id:angleIds[index],duration_seconds:8,hook_text:s.concept.hook,voice_script:s.concept.voiceScript,overlay_text_json:s.concept.overlayText,scene_plan_json:s.concept.scenePlan,cta_text:s.concept.cta,caption:s.concept.caption,hashtags_json:s.concept.hashtags,language:"th",status:s.riskStatus==="REJECT"?"REJECTED":"DRAFT",version:CREATIVE_SCORE_VERSION,created_at:new Date().toISOString(),updated_at:new Date().toISOString()}));
     const cost=estimateCreativeGenerationCost(provider.model,result.usage.inputTokens,result.usage.outputTokens);
     const generation={id:generationId,owner_id:owner,creative_project_id:projectId,provider:provider.provider,model:provider.model,prompt_version:PROMPT_VERSION,input_tokens:result.usage.inputTokens,output_tokens:result.usage.outputTokens,estimated_cost:cost,raw_response_json:result.raw,validated_output_json:output,status:"SUCCEEDED",error:null,created_at:new Date().toISOString()};
-    const {error}=await client.rpc("save_creative_generation",{p_project_id:projectId,p_generation:generation,p_angles:angles,p_scripts:scripts});
+    const {error}=options.forAutoWorker
+      ? await client.rpc("save_auto_creative_generation",{p_owner_id:owner,p_project_id:projectId,p_generation:generation,p_angles:angles,p_scripts:scripts})
+      : await client.rpc("save_creative_generation",{p_project_id:projectId,p_generation:generation,p_angles:angles,p_scripts:scripts});
     if(error)throw new Error(error.message);return {generationId,provider:provider.provider,model:provider.model,cost,count:angles.length};
   }catch(error){
     await client.from("creative_generations").insert({id:generationId,owner_id:owner,creative_project_id:projectId,provider:provider.provider,model:provider.model,prompt_version:PROMPT_VERSION,status:"FAILED",error:error instanceof Error?error.message:"Generation failed"});

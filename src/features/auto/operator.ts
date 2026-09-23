@@ -9,6 +9,7 @@ const stateCopy: Record<AutoState, { title: string; detail: string; tone: string
   WAITING_FOR_APPROVAL: { title: "รออนุมัติ", detail: "ต้องได้รับความยินยอมและผ่านการตรวจเผยแพร่", tone: "waiting" },
   WAITING_FOR_SLOT: { title: "รอคิวเผยแพร่", detail: "บัญชีถึงขีดจำกัดโพสต์วันนี้แล้ว", tone: "waiting" },
   WAITING_FOR_PROVIDER: { title: "ต้องตั้งค่าผู้สร้างวิดีโอ", detail: "ผู้ให้บริการยังไม่พร้อมหรือยังไม่ได้รับอนุมัติ", tone: "waiting" },
+  WAITING_FOR_RECONCILIATION: { title: "รอยืนยันผลภายนอก", detail: "ระบบจะตรวจผลการส่งเดิมก่อนทำงานต่อ และจะไม่ส่งซ้ำ", tone: "waiting" },
   RETRY_PENDING: { title: "รอตรวจและลองใหม่", detail: "ระบบจะตรวจผลเดิมก่อนทำซ้ำ", tone: "waiting" },
   BLOCKED: { title: "ต้องแก้เงื่อนไข", detail: "ตรวจสุขภาพบัญชี สิทธิ์ และงบที่ตั้งไว้", tone: "blocked" },
   COMPLETED: { title: "เสร็จแล้ว", detail: "แผนวันนี้สิ้นสุดแล้ว", tone: "success" },

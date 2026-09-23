@@ -8,6 +8,8 @@ import {CostRouter,chooseVideoStrategy} from "./cost-router";
 import {MockImageProvider,MockVideoProvider,MockVoiceProvider,TemplateVideoProvider} from "./providers";
 import {DeterministicVideoQualityEvaluator} from "./quality";
 import {FFmpegVideoRenderer} from "./renderer";
+import {extractVideoFrameEvidence,OpenAIFrameVisionProvider,verifyVideoFrames,type FrameVisionProvider} from "./frame-verification";
+import {serverEnv} from "@/lib/server-env";
 import {videoSimilarity} from "./similarity";
 import {masterJobKey,nextJobAttempt,variationJobKey,variationRunId} from "./jobs";
 import {videoStoragePath} from "./storage";
@@ -68,10 +70,10 @@ async function spend(client:SupabaseClient,owner:string){
 }
 function budget(account:Row,spent:{daySpend:number;monthSpend:number}):VideoBudget{return {maxCostPerVideoUsd:Number(account.max_cost_per_video_usd??0),dailyVideoBudgetUsd:Number(account.daily_video_budget_usd??0),monthlyVideoBudgetUsd:Number(account.monthly_video_budget_usd??0),spentTodayUsd:spent.daySpend,spentMonthUsd:spent.monthSpend}}
 
-export async function buildMasterVideo(client:SupabaseClient,owner:string,projectId:string){
+export async function buildMasterVideo(client:SupabaseClient,owner:string,projectId:string,visionProvider?:FrameVisionProvider){
   const src=await source(client,owner,projectId),existing=await client.from("master_videos").select("*").eq("owner_id",owner).eq("creative_project_id",projectId).maybeSingle();
   if(existing.error)throw new Error(existing.error.message);
-  if(existing.data&&["READY","APPROVED"].includes(existing.data.status)){if(existing.data.generation_job_id)await recordZeroCost(client,owner,existing.data.generation_job_id);return existing.data}
+  if(existing.data&&["READY","APPROVED"].includes(existing.data.status)&&existing.data.quality_status==="PASS"){if(existing.data.generation_job_id)await recordZeroCost(client,owner,existing.data.generation_job_id);return existing.data}
   const decision=chooseVideoStrategy({existingApprovedMaster:existing.data?.status==="APPROVED",hasUsableAssets:true,qualityRequirement:85,budget:budget(src.account,await spend(client,owner)),availability:{freeCredit:false,lowCostPaid:false,premium:false,paidAllowed:false}});
   const masterId=String(existing.data?.id??randomUUID()),job=await jobFor(client,owner,masterJobKey(projectId,String(src.script.id)),{creativeProjectId:projectId,scriptId:src.script.id,strategy:decision.strategy},"MASTER_RENDER");
   const row={id:masterId,owner_id:owner,tiktok_account_id:src.project.tiktok_account_id,product_id:src.project.product_id,creative_project_id:projectId,selected_script_id:src.script.id,generation_job_id:job.id,provider:"local-ffmpeg",model:"ffmpeg-template-v1",render_strategy:decision.strategy,duration_seconds:8,width:1080,height:1920,fps:30,estimated_cost_usd:0,status:"PROCESSING",quality_explanation_json:{}};
@@ -83,7 +85,11 @@ export async function buildMasterVideo(client:SupabaseClient,owner:string,projec
   try{
     const imageProvider=new MockImageProvider(),voiceProvider=new MockVoiceProvider(),provider=new TemplateVideoProvider(),renderer=new FFmpegVideoRenderer(),qualityEvaluator=new DeterministicVideoQualityEvaluator();
     const image=await imageProvider.createProductImage(String(src.product.title),join(dir,"product.ppm")),voice=await voiceProvider.createVoiceTrack(String(src.script.voice_script),join(dir,"voice.wav"),8),plan=await provider.plan(src.input),rendered=await renderer.render(plan,image.path,voice.path,join(dir,"master.mp4"));
-    const quality=qualityEvaluator.evaluate({...rendered,overlay:plan.overlay,scenes:plan.scenes,productVisible:true,ctaVisible:Boolean(plan.cta),malformedAssets:false,inheritedRisk:"SAFE"});
+    const frameEvidence=await extractVideoFrameEvidence(rendered.path,image.path,rendered.duration);
+    const visualVerification=await verifyVideoFrames({...frameEvidence,productTitle:String(src.product.title),expectedText:[String(src.script.cta_text??"")]},
+      visionProvider??(serverEnv.openAIApiKey?new OpenAIFrameVisionProvider(serverEnv.openAIApiKey):null));
+    const quality=qualityEvaluator.evaluate({...rendered,overlay:plan.overlay,scenes:plan.scenes,visualVerification,
+      productVisible:visualVerification.productVisible,ctaVisible:visualVerification.ctaVisible,malformedAssets:false,inheritedRisk:"SAFE"});
     const imagePath=videoStoragePath(owner,"products",String(src.product.id),"mock-product.ppm"),videoPath=videoStoragePath(owner,"masters",masterId,"master.mp4"),voicePath=videoStoragePath(owner,"masters",masterId,"voice.wav");
     const [imageUpload,videoUpload,voiceUpload]=await Promise.all([upload(client,imagePath,image.path,"image/x-portable-pixmap"),upload(client,videoPath,rendered.path,"video/mp4"),upload(client,voicePath,voice.path,"audio/wav")]);
     const assets=[
@@ -92,7 +98,7 @@ export async function buildMasterVideo(client:SupabaseClient,owner:string,projec
       {owner_id:owner,product_id:src.product.id,creative_project_id:projectId,asset_type:"VIDEO",source_type:"RENDERED",storage_path:videoPath,mime_type:"video/mp4",width:rendered.width,height:rendered.height,duration_seconds:rendered.duration,provider:renderer.provider,model:renderer.model,checksum:videoUpload.checksum},
     ];
     const assetResult=await client.from("media_assets").upsert(assets,{onConflict:"owner_id,storage_path"});if(assetResult.error)throw new Error(assetResult.error.message);
-    const status=quality.status==="PASS"?"READY":"FAILED",update=await client.from("master_videos").update({storage_path:videoPath,duration_seconds:rendered.duration,width:rendered.width,height:rendered.height,fps:rendered.fps,quality_score:quality.score,quality_status:quality.status,quality_explanation_json:quality.explanation,status}).eq("owner_id",owner).eq("id",masterId);if(update.error)throw new Error(update.error.message);
+    const status=quality.status==="REJECT"?"FAILED":"READY",update=await client.from("master_videos").update({storage_path:videoPath,duration_seconds:rendered.duration,width:rendered.width,height:rendered.height,fps:rendered.fps,quality_score:quality.score,quality_status:quality.status,quality_explanation_json:quality.explanation,status}).eq("owner_id",owner).eq("id",masterId);if(update.error)throw new Error(update.error.message);
     await recordZeroCost(client,owner,String(job.id));
     await client.from("generation_jobs").update({status:"COMPLETED",output_json:{masterId,storagePath:videoPath,quality,rendered,version:VIDEO_FACTORY_VERSION},completed_at:new Date().toISOString()}).eq("owner_id",owner).eq("id",job.id);
     return {...row,storage_path:videoPath,quality_score:quality.score,quality_status:quality.status,status};
@@ -117,7 +123,7 @@ export async function createVideoVariations(client:SupabaseClient,owner:string,m
   const result=await client.from("video_variations").select("*").eq("owner_id",owner).eq("master_video_id",masterId).order("variation_index");if(result.error)throw new Error(result.error.message);return result.data??[];
 }
 
-export async function buildVideoVariation(client:SupabaseClient,owner:string,variationId:string){
+export async function buildVideoVariation(client:SupabaseClient,owner:string,variationId:string,visionProvider?:FrameVisionProvider){
   const variation=await one(client,"video_variations",owner,variationId);if(!variation)throw new Error("Variation not found");
   if(["READY","APPROVED"].includes(String(variation.status))&&variation.storage_path)return variation;
   const master=await one(client,"master_videos",owner,String(variation.master_video_id));if(!master)throw new Error("Master not found");
@@ -127,9 +133,13 @@ export async function buildVideoVariation(client:SupabaseClient,owner:string,var
   try{
     const imageProvider=new MockImageProvider(),voiceProvider=new MockVoiceProvider(),provider=new MockVideoProvider(),renderer=new FFmpegVideoRenderer(),qualityEvaluator=new DeterministicVideoQualityEvaluator();
     const image=await imageProvider.createProductImage(String(src.product.title),join(dir,"product.ppm")),voice=await voiceProvider.createVoiceTrack(String(src.script.voice_script),join(dir,"voice.wav"),VIDEO_DURATION_SECONDS),input={...src.input,hook:planData.hook,cta:planData.cta,variation:planData},rendered=await renderer.render(await provider.plan(input),image.path,voice.path,join(dir,"variation.mp4"));
-    const quality=qualityEvaluator.evaluate({...rendered,overlay:input.overlay,scenes:input.scenes,productVisible:true,ctaVisible:Boolean(input.cta),malformedAssets:false,inheritedRisk:"SAFE"}),path=videoStoragePath(owner,"variations",String(variation.id),"video.mp4"),file=await upload(client,path,rendered.path,"video/mp4");
+    const frameEvidence=await extractVideoFrameEvidence(rendered.path,image.path,rendered.duration);
+    const visualVerification=await verifyVideoFrames({...frameEvidence,productTitle:String(src.product.title),expectedText:[String(src.script.cta_text??"")]},
+      visionProvider??(serverEnv.openAIApiKey?new OpenAIFrameVisionProvider(serverEnv.openAIApiKey):null));
+    const quality=qualityEvaluator.evaluate({...rendered,overlay:input.overlay,scenes:input.scenes,visualVerification,
+      productVisible:visualVerification.productVisible,ctaVisible:visualVerification.ctaVisible,malformedAssets:false,inheritedRisk:"SAFE"}),path=videoStoragePath(owner,"variations",String(variation.id),"video.mp4"),file=await upload(client,path,rendered.path,"video/mp4");
     await client.from("media_assets").upsert({owner_id:owner,product_id:variation.product_id,creative_project_id:variation.creative_project_id,asset_type:"VIDEO",source_type:"RENDERED",storage_path:path,mime_type:"video/mp4",width:rendered.width,height:rendered.height,duration_seconds:rendered.duration,provider:renderer.provider,model:renderer.model,checksum:file.checksum},{onConflict:"owner_id,storage_path"});
-    const status=quality.status==="PASS"?"READY":"FAILED";await client.from("video_variations").update({generation_job_id:job.id,storage_path:path,quality_score:quality.score,quality_status:quality.status,quality_explanation_json:quality.explanation,status}).eq("owner_id",owner).eq("id",variation.id);
+    const status=quality.status==="REJECT"?"FAILED":"READY";await client.from("video_variations").update({generation_job_id:job.id,storage_path:path,quality_score:quality.score,quality_status:quality.status,quality_explanation_json:quality.explanation,status}).eq("owner_id",owner).eq("id",variation.id);
     await recordZeroCost(client,owner,String(job.id));
     await client.from("generation_jobs").update({status:"COMPLETED",output_json:{variationId:variation.id,storagePath:path,quality,rendered},completed_at:new Date().toISOString()}).eq("owner_id",owner).eq("id",job.id);
     return {...variation,generation_job_id:job.id,storage_path:path,quality_score:quality.score,quality_status:quality.status,status};

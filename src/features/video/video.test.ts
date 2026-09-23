@@ -7,6 +7,7 @@ import {masterJobKey,nextJobAttempt,variationJobKey,variationRunId} from "./jobs
 import {MockImageProvider,MockVideoProvider,MockVoiceProvider,TemplateVideoProvider} from "./providers";
 import {DeterministicVideoQualityEvaluator} from "./quality";
 import {FFmpegVideoRenderer} from "./renderer";
+import {extractVideoFrameEvidence,MockFrameVisionProvider,verifyVideoFrames} from "./frame-verification";
 import {videoSimilarity} from "./similarity";
 import {ownsVideoStoragePath,videoStoragePath} from "./storage";
 import {COMMERCE_TEMPLATES,templateFor,variationPlan} from "./templates";
@@ -30,13 +31,18 @@ describe("similarity, quality, jobs and storage",()=>{
   const meta:SimilarityMetadata={masterId:"m",hook:"h",cta:"c",scenes:renderInput.scenes,motion:{pattern:"zoom"},overlay:renderInput.overlay,audio:{voice:"mock"}};
   it("rejects fixture E near duplicates",()=>expect(videoSimilarity(meta,{...meta})).toMatchObject({score:1,accepted:false}));
   it("accepts controlled meaningful variation",()=>expect(videoSimilarity(meta,{...meta,hook:"new hook",cta:"new cta",motion:{pattern:"pan"},overlay:{position:"bottom"}}).accepted).toBe(true));
-  it("passes valid output metadata and rejects fixture D broken output",()=>{const evaluator=new DeterministicVideoQualityEvaluator(),valid=evaluator.evaluate({path:"x",duration:8,width:1080,height:1920,fps:30,videoCodec:"h264",audioCodec:"aac",hasAudio:true,sizeBytes:100000,overlay:renderInput.overlay,scenes:renderInput.scenes,productVisible:true,ctaVisible:true,malformedAssets:false,inheritedRisk:"SAFE"}),broken=evaluator.evaluate({path:"x",duration:2,width:0,height:0,fps:0,videoCodec:"",audioCodec:null,hasAudio:false,sizeBytes:0,overlay:[],scenes:[],productVisible:false,ctaVisible:false,malformedAssets:true,inheritedRisk:"REJECT"});expect(valid).toMatchObject({score:100,status:"PASS"});expect(broken.status).toBe("REJECT")});
+  it("never passes storyboard-only metadata and rejects fixture D broken output",()=>{const evaluator=new DeterministicVideoQualityEvaluator(),storyboardOnly=evaluator.evaluate({path:"x",duration:8,width:1080,height:1920,fps:30,videoCodec:"h264",audioCodec:"aac",hasAudio:true,sizeBytes:100000,overlay:renderInput.overlay,scenes:renderInput.scenes,productVisible:true,ctaVisible:true,malformedAssets:false,inheritedRisk:"SAFE"}),broken=evaluator.evaluate({path:"x",duration:2,width:0,height:0,fps:0,videoCodec:"",audioCodec:null,hasAudio:false,sizeBytes:0,overlay:[],scenes:[],productVisible:false,ctaVisible:false,malformedAssets:true,inheritedRisk:"REJECT"});expect(storyboardOnly).toMatchObject({status:"RETRY",explanation:{visualVerificationStatus:"REVIEW"}});expect(broken.status).toBe("REJECT")});
   it("uses stable run and idempotency keys with bounded retry state",()=>{const master="11111111-1111-4111-8111-111111111111";expect(masterJobKey("p","s")).toBe(masterJobKey("p","s"));expect(variationRunId(master)).toBe(variationRunId(master));expect(variationRunId(master)).toMatch(/^[0-9a-f-]{36}$/);expect(variationJobKey("v","r")).toBe(variationJobKey("v","r"));expect(nextJobAttempt(0,2).status).toBe("PROCESSING");expect(nextJobAttempt(1,2).status).toBe("RETRYING");expect(nextJobAttempt(2,2).allowed).toBe(false)});
   it("scopes private storage paths to the owner",()=>{const path=videoStoragePath(owner,"masters","m","video.mp4");expect(ownsVideoStoragePath(owner,path)).toBe(true);expect(ownsVideoStoragePath("22222222-2222-4222-8222-222222222222",path)).toBe(false)});
 });
 describe("real FFmpeg fallback",()=>{
   it("renders and probes a real eight-second vertical H.264/AAC MP4",async()=>{
     const dir=await mkdtemp(join(tmpdir(),"viralflow-ffmpeg-"));
-    try{const image=await new MockImageProvider().createProductImage("Fixture A Growth Beauty",join(dir,"product.ppm")),voice=await new MockVoiceProvider().createVoiceTrack("test-safe generated voice",join(dir,"voice.wav"),8),renderer=new FFmpegVideoRenderer(),video=await renderer.render(renderInput,image.path,voice.path,join(dir,"fixture-a.mp4"));expect(video.duration).toBeGreaterThanOrEqual(7.95);expect(video.duration).toBeLessThanOrEqual(8.05);expect(video).toMatchObject({width:1080,height:1920,videoCodec:"h264",audioCodec:"aac",hasAudio:true});expect(video.fps).toBeCloseTo(30,1)}finally{await rm(dir,{recursive:true,force:true})}
+    try{const image=await new MockImageProvider().createProductImage("Fixture A Growth Beauty",join(dir,"product.ppm")),voice=await new MockVoiceProvider().createVoiceTrack("test-safe generated voice",join(dir,"voice.wav"),8),renderer=new FFmpegVideoRenderer(),video=await renderer.render(renderInput,image.path,voice.path,join(dir,"fixture-a.mp4"));expect(video.duration).toBeGreaterThanOrEqual(7.95);expect(video.duration).toBeLessThanOrEqual(8.05);expect(video).toMatchObject({width:1080,height:1920,videoCodec:"h264",audioCodec:"aac",hasAudio:true});expect(video.fps).toBeCloseTo(30,1);
+      const evidence=await extractVideoFrameEvidence(video.path,image.path,video.duration),provider=new MockFrameVisionProvider(),visual=await verifyVideoFrames({...evidence,productTitle:"Fixture A",expectedText:["Save this"]},provider);
+      expect(provider.inputs).toHaveLength(1);expect(evidence.frames.map(frame=>frame.atSeconds)).toEqual([.75,4,7.25]);expect(evidence.frames.every(frame=>frame.jpeg.length>100)).toBe(true);
+      const quality=new DeterministicVideoQualityEvaluator().evaluate({...video,overlay:renderInput.overlay,scenes:renderInput.scenes,productVisible:true,ctaVisible:true,malformedAssets:false,inheritedRisk:"SAFE",visualVerification:visual});
+      expect(quality).toMatchObject({score:100,status:"PASS",explanation:{visualVerificationStatus:"PASS"}});
+    }finally{await rm(dir,{recursive:true,force:true})}
   },60_000);
 });

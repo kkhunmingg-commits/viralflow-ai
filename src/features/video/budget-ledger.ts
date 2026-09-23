@@ -138,17 +138,29 @@ function requestIdFrom(error: unknown) {
 export async function executePaidGeneration<T>(input: {
   ledger: AtomicBudgetLedger;
   reservation: ReserveBudgetInput;
-  callProvider: () => Promise<{ value: T; providerRequestId: string; actualUsd: number }>;
+  callProvider: (reservation: BudgetReservation) => Promise<{ value: T; providerRequestId: string; actualUsd: number }>;
+  recoverSubmitted?: (providerRequestId: string) => Promise<{ value: T; actualUsd: number }>;
 }) {
   const hold = await input.ledger.reserve(input.reservation);
   if (hold.state === "SETTLED") return { reservation: hold, value: null as T | null, replayed: true };
+  if (hold.state === "RESERVED" && hold.provider_request_id &&
+    ["SUBMITTING", "SUBMITTED", "SUBMITTED_UNKNOWN"].includes(hold.provider_submission_state) && input.recoverSubmitted) {
+    try {
+      // Retrieval is read-only at the provider. Never send a second paid generation request.
+      const recovered = await input.recoverSubmitted(hold.provider_request_id);
+      const settled = await input.ledger.settle(input.reservation.ownerId, hold.id, recovered.actualUsd, hold.provider_request_id);
+      return { reservation: settled, value: recovered.value, replayed: true };
+    } catch (error) {
+      throw new PaidGenerationUncertainError(hold.id, hold.provider_request_id, error);
+    }
+  }
   if (hold.state !== "RESERVED" || hold.provider_submission_state !== "REQUEST_NOT_SENT") {
     throw new PaidGenerationUncertainError(hold.id, hold.provider_request_id, new Error("existing_operation_requires_reconciliation"));
   }
   await input.ledger.begin(input.reservation.ownerId, hold.id);
   let result: { value: T; providerRequestId: string; actualUsd: number };
   try {
-    result = await input.callProvider();
+    result = await input.callProvider(hold);
   } catch (error) {
     if (error instanceof PaidProviderNotSubmittedError) {
       await input.ledger.release(input.reservation.ownerId, hold.id, true);

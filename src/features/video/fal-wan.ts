@@ -18,7 +18,7 @@ export interface FalWanCapabilities {
   queue:true;
   commercialUse:true;
 }
-export interface FalWanGenerateInput {image:Blob;prompt:string;seed?:number;maxCostUsd:number;resolution?:"480p"|"580p"|"720p";aspectRatio?:"auto"|"16:9"|"9:16"|"1:1"}
+export interface FalWanGenerateInput {image:Blob;prompt:string;seed?:number;maxCostUsd:number;resolution?:"480p"|"580p"|"720p";aspectRatio?:"auto"|"16:9"|"9:16"|"1:1";onSubmitted?:(requestId:string)=>Promise<void>}
 export interface FalWanNormalizedResult {requestId:string;videoUrl:string;provider:"fal";model:typeof FAL_WAN_ENDPOINT;resolution:"480p"|"580p"|"720p";aspectRatio:"auto"|"16:9"|"9:16"|"1:1";estimatedCostUsd:number;actualCostUsd:number;retryCount:0;sourceDurationSeconds:null}
 export interface FalWanGenerationResult extends FalWanNormalizedResult {bytes:Uint8Array;checksum:string}
 type FalResult={data?:{video?:{url?:string;content_type?:string;file_name?:string;file_size?:number}};requestId?:string};
@@ -69,19 +69,21 @@ export class FalWanVideoProvider {
     if(!this.isAvailable())throw new FalWanProviderError("UNAVAILABLE","FAL_KEY is not configured");
     const resolution=input.resolution??"720p",aspectRatio=input.aspectRatio??"9:16",estimatedCostUsd=this.estimateCost({resolution});
     if(estimatedCostUsd>input.maxCostUsd)throw new FalWanProviderError("BUDGET_EXCEEDED",`Estimated cost $${estimatedCostUsd.toFixed(2)} exceeds the approved cap`);
-    let requestId:string|null=null;
+    let requestId:string|null=null,submissionAttempted=false;
     try{
       const imageUrl=await this.client.upload(input.image);
+      submissionAttempted=true;
       const submitted=await this.client.submit(this.model,{image_url:imageUrl,prompt:input.prompt,seed:input.seed,resolution,aspect_ratio:aspectRatio,enable_safety_checker:true,enable_output_safety_checker:true,enable_prompt_expansion:false,acceleration:"regular",video_quality:"high",video_write_mode:"balanced"});
       requestId=submitted.request_id;
-      if(!requestId)throw new FalWanProviderError("INVALID_OUTPUT","fal did not return a request id",false,0,null);
+      if(!requestId)throw new FalWanProviderError("INVALID_OUTPUT","fal did not return a request id",false,estimatedCostUsd,null);
+      await input.onSubmitted?.(requestId);
       await this.poll(requestId);
       const result=await this.client.result(this.model,requestId),normalized=this.normalizeResult(result,{requestId,resolution,aspectRatio,estimatedCostUsd}),bytes=await this.downloadResult(normalized.videoUrl);
       return {...normalized,bytes,checksum:createHash("sha256").update(bytes).digest("hex")};
     }catch(error){
       if(error instanceof FalWanProviderError)throw error;
       const failure=this.getFailureReason(error);
-      throw new FalWanProviderError(failure.code,failure.message,failure.retryable,requestId?estimatedCostUsd:0,requestId);
+      throw new FalWanProviderError(failure.code,failure.message,failure.retryable,submissionAttempted?estimatedCostUsd:0,requestId);
     }
   }
   async poll(requestId:string){
@@ -94,6 +96,13 @@ export class FalWanVideoProvider {
     throw new FalWanProviderError("TIMEOUT",`fal request did not finish after ${this.maxPollAttempts} polls`,false,FAL_WAN_NOMINAL_COST_USD,requestId);
   }
   async downloadResult(url:string){const response=await this.fetchImpl(url,{redirect:"follow"});if(!response.ok)throw new FalWanProviderError("DOWNLOAD_FAILED",`fal video download failed (${response.status})`,false,FAL_WAN_NOMINAL_COST_USD);const bytes=new Uint8Array(await response.arrayBuffer());if(!bytes.length)throw new FalWanProviderError("INVALID_OUTPUT","fal returned an empty video",false,FAL_WAN_NOMINAL_COST_USD);return bytes}
+  async retrieve(requestId:string):Promise<FalWanGenerationResult>{
+    if(!this.isAvailable())throw new FalWanProviderError("UNAVAILABLE","FAL_KEY is not configured");
+    const result=await this.client.result(this.model,requestId);
+    const normalized=this.normalizeResult(result,{requestId,resolution:"720p",aspectRatio:"9:16",estimatedCostUsd:FAL_WAN_NOMINAL_COST_USD});
+    const bytes=await this.downloadResult(normalized.videoUrl);
+    return {...normalized,bytes,checksum:createHash("sha256").update(bytes).digest("hex")};
+  }
   normalizeResult(result:FalResult,context:{requestId:string;resolution:"480p"|"580p"|"720p";aspectRatio:"auto"|"16:9"|"9:16"|"1:1";estimatedCostUsd:number}):FalWanNormalizedResult{const videoUrl=result.data?.video?.url;if(!videoUrl)throw new FalWanProviderError("INVALID_OUTPUT","fal completed without a video URL",false,context.estimatedCostUsd,context.requestId);return{requestId:result.requestId??context.requestId,videoUrl,provider:this.provider,model:this.model,resolution:context.resolution,aspectRatio:context.aspectRatio,estimatedCostUsd:context.estimatedCostUsd,actualCostUsd:context.estimatedCostUsd,retryCount:0,sourceDurationSeconds:null}}
   getFailureReason(error:unknown):{code:FalWanFailureCode;message:string;retryable:boolean}{if(error instanceof FalWanProviderError)return{code:error.code,message:redact(error.message,this.apiKey),retryable:error.retryable};const message=redact(error instanceof Error?error.message:error,this.apiKey);if(/safety|moderation|blocked|nsfw/i.test(message))return{code:"SAFETY_REJECTED",message,retryable:false};if(/timeout/i.test(message))return{code:"TIMEOUT",message,retryable:false};return{code:"PROVIDER_FAILED",message,retryable:false}}
   private failureFrom(error:unknown,requestId:string,cost:number){const failure=this.getFailureReason(error);return new FalWanProviderError(failure.code,failure.message,failure.retryable,cost,requestId)}

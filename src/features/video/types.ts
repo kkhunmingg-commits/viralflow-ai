@@ -63,8 +63,21 @@ export interface VideoQualityInput extends RenderedVideo {
   ctaVisible:boolean;
   malformedAssets:boolean;
   inheritedRisk:"SAFE"|"REVIEW"|"REJECT";
+  visualVerification?:FrameVerificationResult;
 }
-export interface VideoQualityResult {score:number;status:VideoQualityStatus;explanation:Record<string,number|string|boolean>}
+export type FrameCheckStatus="PASS"|"REVIEW"|"FAIL";
+export interface FrameVerificationResult {
+  status:FrameCheckStatus;
+  reason:string;
+  reasons:string[];
+  provider:string;
+  model:string;
+  productVisible:boolean;
+  ctaVisible:boolean;
+  checks:{shape:FrameCheckStatus;colors:FrameCheckStatus;packaging:FrameCheckStatus;details:FrameCheckStatus;deformation:FrameCheckStatus;visibleText:FrameCheckStatus;commercialSafety:FrameCheckStatus};
+  evidence:Array<{atSeconds:number;sha256:string}>;
+}
+export interface VideoQualityResult {score:number;status:VideoQualityStatus;explanation:Record<string,unknown>}
 export interface VideoQualityEvaluator {evaluate(input:VideoQualityInput):VideoQualityResult}
 export interface VariationPlan {
   variationIndex:number;

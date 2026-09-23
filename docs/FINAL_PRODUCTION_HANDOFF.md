@@ -1,12 +1,14 @@
 # ViralFlow AI — Final Production Readiness Handoff
 
-วันที่ audit ล่าสุด: 2026-09-23
+> สถานะ code ล่าสุด 2026-09-24: Phase 11F production service path, migration และ DB-backed START→COMPLETED E2E ผ่านแล้ว; CODEX ROADMAP ใน scope Phase 0–11F ครบ 100%. **Production GO ยังถูกบล็อกโดย owner/external actions** เช่น fal visual approval/billing, TikTok scopes/audit/consent และ staging/operations sign-off. หัวข้อ audit ลงวันที่ 2026-09-23 ด้านล่างเป็นประวัติ; สรุปปัจจุบันอยู่ท้ายไฟล์.
+
+วันที่ audit ล่าสุด: 2026-09-24
 
 Phase 11C starting point: branch **feature/fal-wan-primary-provider**, HEAD **f0f54d421c76e4c6782301a48ee49efff97b81cb**
 
 เอกสารนี้อ้างอิง repository และ Supabase project **viralflow-ai** ณ วันที่ audit เท่านั้น
 
-## A. Current exact repository state
+## A. Historical repository snapshot at Phase 11C (superseded)
 
 - Stack: Next.js 16.3.5 App Router, React 19.3.0, TypeScript 6.0.3, Tailwind CSS 4.3.3, Supabase JS/SSR 2.116.0
 - Package manager: pnpm 11.19.0; Node.js ขั้นต่ำ 24
@@ -48,7 +50,7 @@ flowchart LR
   Store[(Private video-assets)] --- Video
 ~~~
 
-ข้อมูลเจ้าของทุก domain ใช้ owner_id และ RLS เป็นขอบเขตหลัก Server actions เริ่มจาก auth.getUser() ก่อนส่ง owner ID ไปยัง service. OAuth credentials ใช้ server-only admin client และ AES-GCM. External providers ถูกครอบด้วย provider interfaces และ environment gates. Phase 10 ปัจจุบันเป็น planner/checkpoint UI; ยังไม่มี production worker ที่ทำ external calls.
+ข้อมูลเจ้าของทุก domain ใช้ owner_id และ RLS เป็นขอบเขตหลัก Server actions เริ่มจาก auth.getUser() ก่อนส่ง owner ID ไปยัง service. OAuth credentials ใช้ server-only admin client และ AES-GCM. External providers ถูกครอบด้วย provider interfaces และ environment gates. ข้อความใน Section A เป็น baseline Phase 11C; Phase 11F เพิ่ม production execution worker แล้วตามสรุปท้ายไฟล์.
 
 ## C. What is DONE
 
@@ -416,7 +418,7 @@ After changes: pnpm typecheck; pnpm lint; pnpm test; pnpm build; commit "chore: 
 
 ระบบพร้อมสำหรับ local/mock technical validation แต่ยังไม่ production ready. Phase 11B ปิด external exactly-once และ atomic money reservation แล้ว; Phase 11D ปิด query/index/pagination ระดับ pilot โดยยังไม่มี production-sized latency proof. ตัวบล็อกที่เหลือคือ real provider evidence, TikTok approvals, production environment/operations, CI/release และ owner actions. ห้ามเปิด paid Auto Mode หรือ real publishing จนกว่า 11A–11F และ owner actions ที่เกี่ยวข้องจะเสร็จครบ
 
-## FINAL CODEX COMPLETION — audit 2026-09-23
+## Historical FINAL CODEX COMPLETION audit (2026-09-23; superseded)
 
 **สถานะ: PARTIAL; CODEX / REPOSITORY 96%; production readiness 69%.** ส่วนที่ระบุ Phase 11G ในเอกสารเดิมเป็นแผนประวัติที่ถูกยกเลิกแล้ว; ไม่มี Phase 11G หรือ Phase 12. งาน engineering ที่เหลือยังนับใน Phase 11F. ห้ามใช้ข้อความ `PHASE 11 COMPLETE` จนกว่า acceptance ครบจริง.
 
@@ -425,3 +427,23 @@ After changes: pnpm typecheck; pnpm lint; pnpm test; pnpm build; commit "chore: 
 **CODEX / REPOSITORY — OPEN (P0):** ยังไม่มี production/sandbox executor ที่ consume `auto_actions` แล้วเรียก service chain จาก opportunity จน analytics/learning. ดังนั้น one-click happy/failure E2E ที่ร้องขอยังไม่ผ่าน และ START ยังเป็นการเริ่มแผน ไม่ใช่การจบ workflow อัตโนมัติ. ต้องเชื่อม worker เดิมกับ domain services, transaction/checkpoint/idempotency และ mock publisher โดยไม่ bypass gates; ทดสอบ provider unavailable, budget, compliance reject, unknown publish/reconciliation, scheduler, duplicate START และ STOP. **P1:** audit เขียนจาก Creative/Radar/Analytics เพิ่ม, staging browser/accessibility/release/restore evidence. ห้ามเปิด real publishing หรือ paid Auto จาก UI นี้.
 
 **OWNER / EXTERNAL — ACTION REQUIRED:** เปิด leaked-password protection; จัด provider billing/quality approval, TikTok authorization/scopes/production audit/consent และ Shop/Analytics; provision staging/production secrets/domain/scheduler/alert owner; ทำ restore drill และอนุมัติ pilot. ข้อนี้ไม่ถูกนำมาสร้างเฟสใหม่ แต่ production readiness ยังต่ำกว่า 100%.
+
+**Production-path audit update, 2026-09-23:** Auto executor ใน working tree เชื่อม fal กับ atomic budget reservation/settlement และ generation job โดยไม่ใช้ test-only orchestration; network boundary tests ครอบคลุม replay, pre-submit release และ uncertain submit. ยังห้าม commit/release เป็น Phase 11F DONE: migration ใหม่ไม่ผ่าน isolated validation/ยังไม่ applied (22 local/21 live), DB-backed E2E ยังไม่มี, TikTok Analytics production adapter ยังเป็น stub, และ fal clip ยังไม่มีการตรวจ product identity/overlay จริง จึง fail closed ที่ quality gate. สิ่งเหล่านี้เป็น **engineering work** ที่ต้องทำแม้ owner ใส่ credentials ครบแล้ว; ไม่ใช่ owner action only. ชุดตรวจ local ล่าสุด: typecheck, lint (0 errors/8 warnings), 304 tests, build, release check ผ่านเมื่อ FFmpeg รันได้.
+
+## Phase 11F final code handoff — 2026-09-24
+
+**CODE COMPLETE: Phase 11F / CODEX ROADMAP 100% สำหรับ scope Phase 0–11F. PRODUCTION GO: BLOCKED.** คะแนน production readiness 96/69 หรือ 95/68 ใน historical audits ข้างบนไม่ใช่คะแนนปัจจุบัน และรอบนี้ไม่ได้คำนวณเปอร์เซ็นต์ readiness/overall ใหม่. ไม่มี Phase 11G หรือ Phase 12 ใน roadmap ปัจจุบัน.
+
+### Production-path acceptance
+
+- START → assignment → Creative Brain → real provider abstraction/fal production adapter → atomic budget reserve/settle → `generation_jobs`/master → actual FFmpeg frame extraction และ quality → compliance/originality → publishing queue → TikTok production adapter → analytics ingestion → learning → next item/`COMPLETED` ใช้ execution service/orchestrator path เดียวกันใน app, worker และ tests. ไม่มี test-only orchestration path.
+- `TikTokAnalyticsProvider` มี official production ingestion/mapping และเลือกตาม server-side provider flags/scopes; เมื่อยังไม่มี permission จะ fail closed. fal routing ต้องมี `FAL_KEY` และ state `PRODUCTION_APPROVED`; ไม่มี paid fallback อัตโนมัติ. Production clip ต้องมีภาพอ้างอิงและเฟรมจริงต้น/กลาง/ท้ายก่อน quality/compliance; vision model ให้ PASS/REVIEW/FAIL และกรณีไม่มีหลักฐานจะไม่ผ่านแบบเงียบ.
+- DB-backed E2E ใช้ Supabase จริงและ production service path โดย mock เฉพาะ fal/TikTok network และ vision API. ผ่าน START→`COMPLETED` พร้อม consent, PAUSE/RESUME, STOP, analytics replay/idempotency. ไม่มี paid call หรือ TikTok publishing จริง. Temporary Auth users/accounts/products ถูกลบและตรวจเหลือ 0.
+- Migration history local/live 23/23 logical names; `phase_11f_auto_execution_processor` และ `phase_11f_auto_creative_worker` apply อย่างละหนึ่งครั้ง. Creative worker RPC เป็น service-role-only, ตรวจ owner/project และไม่เปิด execute ให้ anon/authenticated; RLS owner boundaries ยังใช้กับตารางที่เกี่ยวข้อง.
+- Quality gates ล่าสุด: `pnpm typecheck` ผ่าน; `pnpm lint` 0 errors/8 warnings เดิม; `pnpm test` 327 ผ่าน/1 opt-in DB E2E ข้ามตามปกติ; opt-in DB E2E ผ่านเมื่อเปิดแยก; `pnpm build` และ `pnpm release:check` ผ่าน. Supabase Security Advisor เหลือ WARN leaked-password protection disabled และ INFO สองรายการของ OAuth service-only no-policy เดิม ไม่มี finding ใหม่.
+
+### Release boundary and owner actions
+
+**ไม่มี integration/orchestration code ที่ทราบว่าต้องเขียนเพิ่มหลังใส่ credentials ตาม acceptance นี้.** การทดสอบด้วย network mock ไม่ยืนยันว่า external API/account ได้รับอนุมัติหรือ output ผ่านการตัดสินคุณภาพของเจ้าของ. จึงห้ามเปิด paid Auto, real TikTok posting หรือประกาศ production launch จากผล E2E นี้เพียงอย่างเดียว.
+
+เจ้าของต้อง (1) แก้ fal billing/access, benchmark คลิปจริงและอนุมัติคุณภาพก่อน `PRODUCTION_APPROVED`; (2) ขอ TikTok Login/Content Posting/Direct Post audit, Shop/Analytics scopes, authorize account และบันทึก publishing consent; (3) ตั้ง Vercel/Supabase staging/production, secrets/vault, domain, Cron, branch protection และ callback; (4) เปิด leaked-password protection, ตั้ง monitoring/alerts/on-call, backup/PITR และทำ restore/rollback drill; (5) อนุมัติหนึ่งบัญชี pilot, allowlist, cap และ reviewer. หลัง owner actions ให้ทำ staging smoke กับ external credentials จริงและตรวจ health/cost/reconciliation ก่อน pilot.
