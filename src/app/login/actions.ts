@@ -30,6 +30,6 @@ export async function login(
   const { error } = await supabase.auth.signInWithPassword(values.data);
   if (error) return { error: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" };
 
-  redirect("/dashboard");
+  redirect("/auto");
 }
 

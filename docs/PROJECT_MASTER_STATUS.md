@@ -4,7 +4,9 @@
 
 Baseline branch: **feature/fal-wan-primary-provider**
 
-Phase 11E starting HEAD: **7203779406f3630836e64566b5fa7513f6d79865**
+Phase 11F baseline HEAD: **91a73bfff7a2a029d11fda993aae714ef75d841e**
+
+> สถานะล่าสุด 2026-09-23: Phase 11F ยัง **PARTIAL**. ตารางและแผนเก่าด้านล่างเป็นบันทึกก่อนการตรวจครั้งนี้; การประเมินท้ายไฟล์ใช้แทนตัวเลขและข้อสรุปเดิม
 
 ## Executive status
 
@@ -72,7 +74,7 @@ Phase 11E starting HEAD: **7203779406f3630836e64566b5fa7513f6d79865**
 | 11C | Recovery / Observability | DONE | recovery service, operator UI, internal health/alerts; external schedule ยังรอ 11E |
 | 11D | Performance / Database / Concurrency | DONE | bounded pages, recovery keyset scan, 12 evidence-backed indexes; large-data latency ยังไม่วัด |
 | 11E | Production engineering / CI / scheduler | DONE | repo config พร้อม; owner ยังต้อง provision platform/secrets และเปิด scheduler หลัง sign-off |
-| 11F | Release readiness | PLANNED | staging E2E, dependency/security scan, restore/rollback rehearsal |
+| 11F | One-click operator และ release completion | PARTIAL | UI/atomic start/browser smoke ผ่าน; execution chain และ final sandbox E2E ยังขาด |
 
 ## Verified repository and database state
 
@@ -302,3 +304,15 @@ flowchart TD
 - 10-account scale: **BLOCKED**
 
 ห้ามประกาศ production ready จนกว่า P0 ทั้งหมด, Phase 11A–11F และ owner approvals ที่เกี่ยวข้องจะเสร็จ
+
+## Phase 11F repository audit — current decision (2026-09-23)
+
+**CODEX ROADMAP COMPLETION: 96% (96/100 engineering acceptance points). Production readiness: 69% (69/100 controls). Phase 11F: PARTIAL.** ตัวเลขนี้แทน 95%/68% ในส่วนเก่า: เพิ่ม 1 จุด engineering จาก Operator UI และ atomic selection/budget ที่ทดสอบจริง และ 1 จุด readiness จาก server-attested write boundary; ไม่ให้คะแนน one-click execution, sandbox E2E, staging/restore/rollback evidence ที่ยังไม่มี. ไม่ประกาศ `CODEX ROADMAP 100%` หรือ `PHASE 11 COMPLETE` ก่อนหลักฐานครบ.
+
+หลักฐานปัจจุบัน: 21 local migrations และ 21 live migrations; migration ใหม่ 3 ชื่อ (`phase_11f_operator_budget`, `phase_11f_auto_digest_fix`, `phase_11f_resume_gate_restore`) ปรากฏครั้งเดียวในแต่ละฝั่ง. RLS ยังเปิดบนตารางเจ้าของ; authenticated ถูกตัดสิทธิ์เขียน 11 ตารางหลักที่เก็บหลักฐาน execution/บัญชี และ private storage write policy ถูกปิด. Auth Admin API ลบผู้ใช้ทดสอบแล้ว โดยตรวจ `auth.users`, `auto_runs`, `tiktok_accounts` เหลือ 0 สำหรับ owner ทดสอบ. Security Advisor มี INFO สองรายการของ OAuth service-only tables และ WARN เรื่อง leaked-password protection เดิม ไม่มี finding ใหม่จาก 11F.
+
+หน้า `/auto` เป็น Operator Center สำหรับเลือกบัญชี/โหมด/เป้าหมาย/งบและ START/PAUSE/RESUME/STOP จาก state machine เดิม. Timeline แสดงเฉพาะหลักฐานจริง; ถ้า provider ไม่พร้อม จะขึ้น `WAITING_FOR_PROVIDER` ไม่แสดงว่าขั้นตอนต่อไปสำเร็จ. `/`, `/auto`, `/accounts`, `/operations`, `/publishing`, `/video-factory` ผ่าน browser smoke บนจอมือถือ 390 px โดยไม่มี horizontal overflow และหน้า Auto ไม่มี console error/warning หลังปรับ development CSP. Advanced navigation ยังเข้าถึงเครื่องมือเดิมได้.
+
+**P0 engineering ที่ยังเปิด:** Auto planner ยังไม่ consume `auto_actions` เพื่อรัน opportunity → creative → video → quality → compliance → queue → mock publish → analytics → learning แบบอัตโนมัติ. Repository มี service แยกส่วนและ recovery แต่ไม่มี worker ที่เชื่อม chain นี้; จึงยังไม่มี final happy-path/failure sandbox E2E ตามเกณฑ์ 11F. ห้ามบอกผู้ใช้ว่า START จะเผยแพร่หรือเรียนรู้เองจนกว่าจะ implement และทดสอบครบ. P1: ตรวจ server-controlled writes ที่เหลือใน Creative/Radar/Analytics และพิสูจน์ responsive/accessibility เชิงลึกกับ staging data. ไม่สร้าง Phase 11G/12; งานนี้คงอยู่ใน Phase 11F.
+
+Owner/external เท่านั้น: fal benchmark/visual approval และ billing, TikTok scopes/audit/consent/Shop/Analytics access, Supabase leaked-password protection, staging/production provisioning และ secrets, branch protection/monitoring/on-call, backup restore drill และ pilot sign-off. สิ่งเหล่านี้ไม่ใช่เหตุผลเพิ่มเฟสใหม่ แต่ยัง block production readiness.

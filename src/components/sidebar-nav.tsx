@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { navigation, settingsNavigation } from "@/lib/navigation";
+import { advancedNavigation, primaryNavigation, settingsNavigation } from "@/lib/navigation";
 
 function NavGroup({
   items,
+  label,
 }: {
   items: ReadonlyArray<{ href: string; label: string; short: string }>;
+  label: string;
 }) {
   const pathname = usePathname();
 
   return (
-    <nav aria-label="เมนูหลัก">
+    <nav aria-label={label}>
       {items.map((item) => {
         const active =
           pathname === item.href ||
@@ -36,11 +38,15 @@ function NavGroup({
 }
 
 export function SidebarNav() {
+  const pathname = usePathname();
   return (
     <>
-      <NavGroup items={navigation} />
-      <div className="nav-divider" />
-      <NavGroup items={settingsNavigation} />
+      <NavGroup items={primaryNavigation} label="ใช้งานหลัก" />
+      <details className="advanced-nav" key={pathname.startsWith("/auto") || pathname.startsWith("/accounts") ? "primary" : "advanced"} open={!pathname.startsWith("/auto") && !pathname.startsWith("/accounts")}>
+        <summary>เครื่องมือขั้นสูง <span aria-hidden="true">⌄</span></summary>
+        <NavGroup items={advancedNavigation} label="เครื่องมือขั้นสูง" />
+        <NavGroup items={settingsNavigation} label="การตั้งค่า" />
+      </details>
     </>
   );
 }

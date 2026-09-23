@@ -5,6 +5,7 @@ import { planAccount, stableAutoKey } from "./engine";
 import type { AutoAccountState, AutoAction, AutoCheckpoint, AutoFailure, AutoRun, AutoStep } from "./types";
 import { serverEnv } from "@/lib/server-env";
 import { falAutoModeAvailability } from "@/features/video/provider-routing";
+import { realProviderAllowedForAccount } from "./operator";
 
 const ACTIVE = ["STARTING", "RUNNING", "PAUSED", "RETRY_PENDING"];
 const AUTO_RUN_VERSION = "full-auto-mode-v1";
@@ -59,34 +60,46 @@ export function summarizeAuto(runs: AutoRun[], states: AutoAccountState[], actio
   };
 }
 
-export async function createAutoRun(admin: SupabaseClient, owner: string, requestKey: string) {
+export interface OperatorSelection { accountId: string; mode: "AUTO" | "GROWTH" | "AFFILIATE"; dailyTarget: number; dailyBudgetUsd: number }
+
+export async function createAutoRun(admin: SupabaseClient, owner: string, requestKey: string, selection?: OperatorSelection) {
   const date = new Date().toISOString().slice(0, 10);
   const key = stableAutoKey(owner, date, requestKey, AUTO_RUN_VERSION);
-  const accounts = await admin.from("tiktok_accounts")
-    .select("id,mode,effective_mode,authorization_status,account_status,daily_post_target,daily_post_hard_limit,max_cost_per_video_usd,daily_video_budget_usd,monthly_video_budget_usd")
+  let accountQuery = admin.from("tiktok_accounts")
+    .select("id,is_mock,mode,effective_mode,authorization_status,account_status,daily_post_target,daily_post_hard_limit,max_cost_per_video_usd,daily_video_budget_usd,monthly_video_budget_usd")
     .eq("owner_id", owner);
+  if (selection) accountQuery = accountQuery.eq("id", selection.accountId);
+  const accounts = await accountQuery;
   if (accounts.error) throw new Error(accounts.error.message);
+  if (selection && accounts.data?.length !== 1) throw new Error("account_not_found");
+  if (selection && (!Number.isInteger(selection.dailyTarget) || selection.dailyTarget < 1 || selection.dailyTarget > 20 || !Number.isFinite(selection.dailyBudgetUsd) || selection.dailyBudgetUsd < 0 || selection.dailyBudgetUsd > 1000)) throw new Error("invalid_operator_selection");
   const providerGate = falAutoModeAvailability({ keyPresent: Boolean(serverEnv.falKey), state: serverEnv.falWanProviderState });
   const providerAvailable = providerGate.providerAvailable;
   const videoProvider = providerAvailable ? "fal-wan-2.2-turbo" : "UNAVAILABLE";
   const plans = (accounts.data ?? []).map((account, index) => {
+    const requestedMode = selection?.mode ?? account.mode;
+    const dailyTarget = selection?.dailyTarget ?? account.daily_post_target;
+    const dailyBudgetUsd = selection?.dailyBudgetUsd ?? Number(account.daily_video_budget_usd ?? 0);
+    if (dailyTarget > account.daily_post_hard_limit) throw new Error("daily_target_exceeds_account_limit");
+    if (requestedMode === "AFFILIATE" && (account.effective_mode !== "AFFILIATE" || account.is_mock)) throw new Error("affiliate_not_eligible");
     const plan = planAccount({
-      id: account.id, requestedMode: account.mode, commerceReady: account.effective_mode === "AFFILIATE", providerAvailable,
-      providerBudgetAvailable: Number(account.max_cost_per_video_usd) > 0 && Number(account.daily_video_budget_usd) > 0 && Number(account.monthly_video_budget_usd) > 0,
+      id: account.id, requestedMode, commerceReady: account.effective_mode === "AFFILIATE" && !account.is_mock, providerAvailable: realProviderAllowedForAccount(providerAvailable, account.is_mock),
+      providerBudgetAvailable: Number(account.max_cost_per_video_usd) > 0 && Number(account.monthly_video_budget_usd) > 0 && dailyBudgetUsd > 0 && dailyBudgetUsd <= Number(account.daily_video_budget_usd),
       analyticsFresh: true, accountHealthy: account.account_status === "active" && account.authorization_status === "authorized", consent: false,
-      publishRemaining: account.daily_post_hard_limit, desiredCandidates: Math.max(15, account.daily_post_target), desiredPosts: account.daily_post_target,
+      publishRemaining: account.daily_post_hard_limit, desiredCandidates: Math.max(15, dailyTarget), desiredPosts: dailyTarget,
       priority: 100 - index, nextGrowthAction: "WAIT_FOR_DATA", affiliateDecision: "WATCH",
     });
     return {
-      accountId: plan.accountId, requestedMode: account.mode, mode: plan.mode, state: plan.state, nextAction: plan.nextAction, blockers: plan.blockers,
-      desiredCandidates: Math.max(15, account.daily_post_target), desiredPosts: account.daily_post_target,
-      maxDailyCostUsd: Number(account.daily_video_budget_usd ?? 0), generationCapacity: plan.generationCapacity, publishCapacity: plan.publishCapacity,
+      accountId: plan.accountId, requestedMode, mode: plan.mode, state: plan.state, nextAction: plan.nextAction, blockers: plan.blockers,
+      desiredCandidates: Math.max(15, dailyTarget), desiredPosts: dailyTarget,
+      maxDailyCostUsd: dailyBudgetUsd, generationCapacity: plan.generationCapacity, publishCapacity: plan.publishCapacity,
       priority: 100 - index, actionKey: stableAutoKey(key, plan.accountId, plan.nextAction),
     };
   });
-  const result = await admin.rpc("create_auto_run_atomic", {
+  const result = await admin.rpc(selection ? "create_operator_auto_run_atomic" : "create_auto_run_atomic", {
     p_owner_id: owner, p_idempotency_key: key, p_run_date: date, p_video_provider: videoProvider,
     p_provider_gate_reason: providerGate.reason, p_plans: plans,
+    ...(selection ? { p_budget_usd: selection.dailyBudgetUsd } : {}),
   });
   if (result.error || !result.data) throw new Error(result.error?.message ?? "auto_run_create_failed");
   logOps({ severity: "INFO", component: "auto", operation: "create_run", owner_id: owner, run_id: result.data.id, correlation_id: key, to_state: result.data.state });

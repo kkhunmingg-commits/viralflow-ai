@@ -12,9 +12,9 @@ export function Topbar({
   return (
     <header className="topbar">
       <div>
-        <p className="topbar-kicker">VIRALFLOW CONTROL ROOM</p>
+        <p className="topbar-kicker">VIRALFLOW AI</p>
         <p className="topbar-status">
-          <span className="signal-dot" /> ข้อมูลพร้อมสำหรับการวางแผน
+          <span className="signal-dot" /> ศูนย์ควบคุมงานประจำวัน
         </p>
       </div>
       <div className="user-menu">

@@ -43,7 +43,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   if (data?.claims && pathname === "/login") {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    return NextResponse.redirect(new URL("/auto", request.url));
   }
 
   return response;

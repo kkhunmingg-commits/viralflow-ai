@@ -51,3 +51,11 @@
 ## Remaining after 11E
 
 Phase 11F: browser smoke E2E, staging release rehearsal, dependency/security scan, CI branch protection evidence, restore drill evidence, incident runbook exercise และ rollback gate. External owner actions: Vercel/Supabase provisioning, leaked-password protection, fal benchmark/quality approval, TikTok approvals, production secrets/domain/monitoring และ pilot sign-off. งานเหล่านี้ยังไม่ใช่เหตุให้เปิด production publishing ใน Phase 11E.
+
+## Phase 11F operator runbook — current state
+
+เปิด `/auto` หลัง login เพื่อเลือกหนึ่งบัญชี โหมด เป้าหมายโพสต์ และงบรายวัน แล้วกด START. หน้าเดียวกันใช้ PAUSE/RESUME/STOP; STOP จะถามยืนยันและคำสั่งซ้ำไม่สร้างงานใหม่. ระบบบันทึกแผนด้วย idempotency key/transaction และแสดง `WAITING_FOR_PROVIDER` เมื่อ fal ยังไม่ผ่าน approval. `SETUP REQUIRED` ชี้ไปหน้าการเชื่อมต่อ. ค่าใน timeline จะขึ้นว่าเสร็จเฉพาะเมื่อมี `auto_run_steps` ที่สำเร็จจริง. หากบัญชีเป็น mock หน้าความพร้อมต้องระบุว่าไม่ได้เชื่อม TikTok จริง.
+
+**Operator safety:** START ยังไม่เรียก paid provider หรือ TikTok โดยตัวเองในสถานะปัจจุบัน; pipeline หลังการวางแผนยังไม่มี executor. หาก run ติด provider ให้แก้ external prerequisites ก่อน; ห้ามย้าย state ในฐานข้อมูลด้วยมือเพื่อให้ UI ดูเสร็จ. หากเกิด unknown publish/reconciliation ให้ใช้ Operations ตรวจ evidence ก่อน retry. หากจะหยุดให้ใช้ STOP และยืนยันว่าบัญชีทุกตัว terminal; ห้ามลบ run เพื่อเคลียร์สถานะ.
+
+**Release gate ที่ยังไม่ผ่าน:** final deterministic mock end-to-end, failure matrix ครบ, server-write audit ครบทุก domain, staging/restore/rollback drill. `pnpm release:check` ผ่านบน runner ที่อนุญาต FFmpeg; sandbox Windows แบบจำกัดสิทธิ์ให้ `spawn EPERM` เฉพาะ integration test นี้. 21 local/live migrations ตรงตาม logical names และไม่ apply ซ้ำ. Security Advisor เหลือ leaked-password protection WARN กับ OAuth service-only INFO สองรายการเดิม. ห้ามประกาศ production GO หรือเปิด external modes จนกว่า engineering gate และ owner actions ใน `FINAL_PRODUCTION_HANDOFF.md` จะเสร็จ.

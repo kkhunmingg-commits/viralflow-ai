@@ -1,6 +1,7 @@
 export const navigation = [
-  { href: "/dashboard", label: "ภาพรวม", short: "OV" },
+  { href: "/auto", label: "เริ่มงาน", short: "GO" },
   { href: "/accounts", label: "บัญชี TikTok", short: "AC" },
+  { href: "/dashboard", label: "ภาพรวม", short: "OV" },
   { href: "/product-radar", label: "Product Radar", short: "PR" },
   { href: "/recommendations", label: "คำแนะนำวันนี้", short: "RC" },
   { href: "/categories", label: "หมวดหมู่", short: "CA" },
@@ -12,9 +13,11 @@ export const navigation = [
   { href: "/analytics", label: "Analytics", short: "AN" },
   { href: "/learning", label: "Learning Loop", short: "LL" },
   { href: "/growth", label: "Growth Engine", short: "GR" },
-  { href: "/auto", label: "Auto Mode", short: "AU" },
   { href: "/operations", label: "Operations", short: "OP" },
 ] as const;
+
+export const primaryNavigation = navigation.slice(0, 2);
+export const advancedNavigation = navigation.slice(2);
 
 export const settingsNavigation = [
   { href: "/settings", label: "ตั้งค่า", short: "ST" },

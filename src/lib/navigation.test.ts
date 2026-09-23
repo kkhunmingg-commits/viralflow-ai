@@ -2,8 +2,9 @@ import { describe, expect, it } from "vitest";
 import { navigation, settingsNavigation } from "./navigation";
 
 const requiredRoutes = [
-  "/dashboard",
+  "/auto",
   "/accounts",
+  "/dashboard",
   "/product-radar",
   "/recommendations",
   "/categories",
@@ -15,7 +16,6 @@ const requiredRoutes = [
   "/analytics",
   "/learning",
   "/growth",
-    "/auto",
     "/operations",
   "/settings",
   "/settings/integrations",

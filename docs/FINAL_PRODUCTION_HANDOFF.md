@@ -415,3 +415,13 @@ After changes: pnpm typecheck; pnpm lint; pnpm test; pnpm build; commit "chore: 
 ## Audit conclusion
 
 ระบบพร้อมสำหรับ local/mock technical validation แต่ยังไม่ production ready. Phase 11B ปิด external exactly-once และ atomic money reservation แล้ว; Phase 11D ปิด query/index/pagination ระดับ pilot โดยยังไม่มี production-sized latency proof. ตัวบล็อกที่เหลือคือ real provider evidence, TikTok approvals, production environment/operations, CI/release และ owner actions. ห้ามเปิด paid Auto Mode หรือ real publishing จนกว่า 11A–11F และ owner actions ที่เกี่ยวข้องจะเสร็จครบ
+
+## FINAL CODEX COMPLETION — audit 2026-09-23
+
+**สถานะ: PARTIAL; CODEX / REPOSITORY 96%; production readiness 69%.** ส่วนที่ระบุ Phase 11G ในเอกสารเดิมเป็นแผนประวัติที่ถูกยกเลิกแล้ว; ไม่มี Phase 11G หรือ Phase 12. งาน engineering ที่เหลือยังนับใน Phase 11F. ห้ามใช้ข้อความ `PHASE 11 COMPLETE` จนกว่า acceptance ครบจริง.
+
+**CODEX / REPOSITORY — DONE:** หน้า Operator `/auto` มี account/mode/target/budget และสถานะจริง; START ใช้ transaction เดิมพร้อมตั้งงบแบบ atomic, PAUSE/RESUME/STOP ใช้ RPC เดิม; RESUME คง provider blocker. หน้า login/root พาผู้ใช้ไป Operator; เครื่องมือเดิมย้ายเข้า Advanced. RLS/privilege migration ปิด direct authenticated writes บน 11 attested tables และ storage write boundary. Browser mock account ยืนยัน START → `WAITING_FOR_PROVIDER`, PAUSE/RESUME, mobile smoke และไม่มี console warning บน Auto. Tests 292/292, typecheck, lint (0 errors/8 warning เดิม), build, `release:check` ผ่านเมื่อ FFmpeg รันในสภาพแวดล้อมที่อนุญาต. Test Auth user/account/run ถูกลบด้วย Auth Admin API แล้ว.
+
+**CODEX / REPOSITORY — OPEN (P0):** ยังไม่มี production/sandbox executor ที่ consume `auto_actions` แล้วเรียก service chain จาก opportunity จน analytics/learning. ดังนั้น one-click happy/failure E2E ที่ร้องขอยังไม่ผ่าน และ START ยังเป็นการเริ่มแผน ไม่ใช่การจบ workflow อัตโนมัติ. ต้องเชื่อม worker เดิมกับ domain services, transaction/checkpoint/idempotency และ mock publisher โดยไม่ bypass gates; ทดสอบ provider unavailable, budget, compliance reject, unknown publish/reconciliation, scheduler, duplicate START และ STOP. **P1:** audit เขียนจาก Creative/Radar/Analytics เพิ่ม, staging browser/accessibility/release/restore evidence. ห้ามเปิด real publishing หรือ paid Auto จาก UI นี้.
+
+**OWNER / EXTERNAL — ACTION REQUIRED:** เปิด leaked-password protection; จัด provider billing/quality approval, TikTok authorization/scopes/production audit/consent และ Shop/Analytics; provision staging/production secrets/domain/scheduler/alert owner; ทำ restore drill และอนุมัติ pilot. ข้อนี้ไม่ถูกนำมาสร้างเฟสใหม่ แต่ production readiness ยังต่ำกว่า 100%.

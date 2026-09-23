@@ -5,6 +5,7 @@ import { z } from "zod";
 import { serverEnv } from "@/lib/server-env";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 const triState = z.enum(["true", "false", "unknown"]).transform((value) =>
   value === "unknown" ? null : value === "true",
@@ -67,7 +68,7 @@ async function authenticatedOwner() {
   const { data, error } = await supabase.auth.getUser();
   if (error || !data.user) throw new Error("Authentication required");
   await enforceOwnerMutationRateLimit("accounts", data.user.id);
-  return { supabase, ownerId: data.user.id };
+  return { supabase: createAdminClient(), ownerId: data.user.id };
 }
 
 function refreshAccountPages(accountId?: string) {
