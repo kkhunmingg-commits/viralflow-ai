@@ -1,0 +1,35 @@
+name: Quality gates
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop, 'feature/**']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_ENV: development
+      NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder_only
+      OPS_RECOVERY_ENABLED: 'false'
+      TIKTOK_PROVIDER: mock
+      TIKTOK_PUBLISHING_PROVIDER: mock
+      TIKTOK_SHOP_PROVIDER: mock
+      VIDEO_BENCHMARK_ALLOW_PAID: 'false'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm release:check

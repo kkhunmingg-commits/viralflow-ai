@@ -4,15 +4,15 @@
 
 Baseline branch: **feature/fal-wan-primary-provider**
 
-Phase 11D starting HEAD: **b016151ebb15ceeb29a7be6d5571f1800b30e25c**
+Phase 11E starting HEAD: **7203779406f3630836e64566b5fa7513f6d79865**
 
 ## Executive status
 
 | Metric | Result | Calculation |
 |---|---:|---|
-| Coding completion | **94%** | 94/100 engineering acceptance points |
-| Production readiness | **63%** | 63/100 release-readiness controls |
-| Overall completion | **82%** | `(94 × 60%) + (63 × 40%) = 81.6` ปัดเป็นจำนวนเต็ม |
+| Coding completion | **95%** | 95/100 engineering acceptance points |
+| Production readiness | **68%** | 68/100 release-readiness controls |
+| Overall completion | **84%** | `(95 × 60%) + (68 × 40%) = 84.2` ปัดเป็นจำนวนเต็ม |
 
 เปอร์เซ็นต์นี้คำนวณใหม่จาก repository, migration history, live RLS/advisors, provider gates, tests และ production operations ไม่ได้ยกค่าจากบทสนทนาเดิม
 
@@ -29,8 +29,8 @@ Phase 11D starting HEAD: **b016151ebb15ceeb29a7be6d5571f1800b30e25c**
 | Shop and Affiliate foundation | 8 | 7 | fail-closed readiness complete; real approval/attachment pending |
 | Analytics and Growth learning | 12 | 11 | scoring/learning complete; real data adapters pending |
 | Auto orchestration | 12 | 11 | atomic START/transition และ budget ledger complete; production worker pending |
-| Tests and engineering docs | 8 | 7 | deterministic reliability/150–200-candidate load suite; CI/E2E/release gates pending |
-| **Total** | **100** | **94** | |
+| Tests and engineering docs | 8 | 8 | CI + local release check, deterministic reliability/150–200-candidate tests; formal staging E2E ยังรอ 11F |
+| **Total** | **100** | **95** | |
 
 ### Production readiness rubric
 
@@ -41,11 +41,11 @@ Phase 11D starting HEAD: **b016151ebb15ceeb29a7be6d5571f1800b30e25c**
 | External-call safety | 15 | 13 | lease, stable key, unknown-state reconciliation และ no blind retry complete; real provider evidence pending |
 | Money/budget safety | 10 | 10 | atomic reserve/settle/release และ six-dimensional caps complete |
 | Data integrity/recovery | 10 | 9 | atomic Auto/publish writes, bounded recovery scans และ operator tooling complete; production scheduler pending |
-| Observability/incident response | 10 | 6 | structured operational logs, recovery health, internal alerts, operator queue; external routing/production schedule/runbook drill ยังขาด |
-| CI/release/deployment | 10 | 2 | local quality commands exist; no CI/staging/rollback gate |
-| Backup/restore/operations | 10 | 1 | managed database exists; no restore drill/ownership evidence |
+| Observability/incident response | 10 | 7 | structured logs, health, internal alerts และ optional webhook/cron contract; external destination/runbook drill ยังไม่ยืนยัน |
+| CI/release/deployment | 10 | 5 | GitHub Actions + `release:check` + Vercel Cron config; branch protection/staging/rollback gate ยังไม่ยืนยัน |
+| Backup/restore/operations | 10 | 2 | backup/restore runbook พร้อม; owner ยังไม่ทำ restore drill/ownership evidence |
 | Real provider/TikTok approvals | 10 | 0 | fal benchmark failed; TikTok scopes/audit/Shop/Analytics pending |
-| **Total** | **100** | **63** | |
+| **Total** | **100** | **68** | |
 
 ## Phase status
 
@@ -71,7 +71,8 @@ Phase 11D starting HEAD: **b016151ebb15ceeb29a7be6d5571f1800b30e25c**
 | 11B | Reliability / Idempotency | DONE | P0-02/P0-03 and P1-05/P1-06/P1-07 closed |
 | 11C | Recovery / Observability | DONE | recovery service, operator UI, internal health/alerts; external schedule ยังรอ 11E |
 | 11D | Performance / Database / Concurrency | DONE | bounded pages, recovery keyset scan, 12 evidence-backed indexes; large-data latency ยังไม่วัด |
-| 11E–11F | Production environment through release readiness | PLANNED | ordered plan in FINAL_PRODUCTION_HANDOFF.md |
+| 11E | Production engineering / CI / scheduler | DONE | repo config พร้อม; owner ยังต้อง provision platform/secrets และเปิด scheduler หลัง sign-off |
+| 11F | Release readiness | PLANNED | staging E2E, dependency/security scan, restore/rollback rehearsal |
 
 ## Verified repository and database state
 
@@ -87,7 +88,9 @@ Phase 11D starting HEAD: **b016151ebb15ceeb29a7be6d5571f1800b30e25c**
 - Phase 11B verification: migration rollback validation/live apply ผ่าน, 18 reliability RPC, RLS และ critical indexes ตรวจจาก catalog แล้ว; typecheck/build ผ่าน, lint 0 errors กับ 8 warning เดิม และ tests 262/262 ผ่าน
 - Phase 11C verification: local migration เรียงหลัง 11B, live migration ชื่อเดียวกันหนึ่งรายการ, scheduler claim และ cross-owner RPC test ผ่านในธุรกรรม rollback; typecheck/build ผ่าน, lint 0 errors กับ 8 warning เดิม และ tests 269/269 ผ่าน
 - Phase 11D verification: 12 indexes อยู่ใน live catalog, RLS 65/65, query plan ของ owner/recent incident ใช้ index ใหม่; scheduler claim พร้อมกัน 8 คำขอได้สิทธิ์ 1 คำขอ แล้วลบแถวทดสอบ; live tables ยังเล็ก จึงยังไม่มี production-sized latency evidence
-- Completion percentages คงเดิมตาม rubric: Phase 11D ไม่ปิด CI/E2E, production schedule, restore drill หรือ external approval
+- Phase 11E: local/live migrations คงเดิม 18/18; GitHub Actions, release check, fail-closed Vercel Cron/environment contract, health/alert boundary และ operations runbook เพิ่มแล้ว; Security Advisor ไม่มี issue ใหม่ (warning leaked-password และ OAuth service-only info เดิม); ยังไม่ได้ deploy หรือเปิด external mode
+- Phase 11E quality: tests 288/288, typecheck/lint/build และ `pnpm release:check` ผ่าน; lint มี warning เดิม 8 รายการ. CI config ตรวจ local/static; ยังไม่ได้ยืนยัน GitHub-hosted run หรือ branch protection
+- Percentages จาก rubric ข้างบนเพิ่ม coding 1 จุด (CI/docs) และ readiness 5 จุด (CI/scheduler/backup contract); ไม่ให้คะแนนในส่วน staging/restore drill/external approvals ที่ยังไม่เกิด
 
 ## Master flow
 
@@ -244,11 +247,10 @@ flowchart TD
 - Provider benchmark: infrastructure complete, real fal evidence failed
 - TikTok OAuth/publishing/Shop/Analytics: contracts complete, production authorization absent
 - Auto Mode: durable planner, idempotent start และ atomic budget reservation complete; production executor ยังไม่เปิด
-- Production operations: Phase 11C recovery/health/operator queue และ Phase 11D bounded queries/indexes complete; external scheduler, on-call routing, production-sized load evidence และ restore drill ยังขาด
+- Production operations: Phase 11C recovery/health/operator queue, Phase 11D bounded queries/indexes และ Phase 11E Cron/CI contract complete; owner ยังต้องเปิด scheduler/on-call, พิสูจน์ production-sized load และ restore drill
 
 ### PLANNED
 
-- Phase 11E Production Environment
 - Phase 11F Release Readiness
 - Phase 11G one-account Growth pilot after external approvals
 
@@ -256,15 +258,15 @@ flowchart TD
 
 ### P0 open
 
-ไม่มี P0 ด้าน code architecture หลัง Phase 11D; production ยังถูก block ด้วย Phase 11E–11F และ external/owner approvals
+ไม่มี P0 ด้าน code architecture หลัง Phase 11E; production ยังถูก block ด้วย Phase 11F และ external/owner approvals
 
 ### P1 open
 
 1. Leaked-password protection disabled
 2. Server-attested execution data needs tighter write boundaries
-3. CI/type enforcement absent
-4. Production worker/external schedule ยังไม่ตั้ง; 11C มี recovery endpoint, dead-letter และ operator UI แล้ว
-5. External monitoring/on-call routing ยังไม่ตั้ง; 11C มี internal alerts/health แล้ว
+3. CI workflow มีแล้ว แต่ branch protection และ formal staging/release gates ยังไม่ตั้ง (11F/owner)
+4. Production Cron config มีแล้ว แต่ owner ยังไม่ deploy/เปิด `OPS_RECOVERY_ENABLED`
+5. Optional alert webhook มีแล้ว แต่ external destination/on-call ยังไม่ตั้ง
 6. Backup/restore/incident evidence absent
 7. fal quality/reliability approval absent
 8. TikTok production approvals absent
@@ -282,8 +284,8 @@ flowchart TD
 
 ## Next five actions
 
-1. Phase 11E: production environment boundaries, recovery schedule and secret ownership
-2. Phase 11F: CI, staging, backup/rollback and release gates
+1. Phase 11F: staging E2E, security/dependency scan, restore/rollback rehearsal และ release gates
+2. Owner: เชื่อม Vercel/Supabase, ตั้ง vault secrets/branch protection และเปิด Cron หลัง health sign-off
 3. Staging load: วัด latency/locks จริงด้วย 10 accounts และ 150–200 candidates/day ก่อนขยาย pilot
 4. Owner actions: provider benchmark approval, TikTok approvals, leaked-password protection และ pilot caps
 5. ก่อน pilot: ตั้ง external alert routing, backup/restore drill และตรวจ operations dashboard ด้วยข้อมูลจริง

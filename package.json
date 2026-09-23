@@ -13,6 +13,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --pool=threads --maxWorkers=1",
+    "release:check": "tsx scripts/release-check.ts",
     "benchmark:video": "tsx scripts/video-provider-benchmark.ts"
   },
   "dependencies": {

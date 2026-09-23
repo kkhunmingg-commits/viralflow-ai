@@ -5,6 +5,7 @@ import { z } from "zod";
 import { TikTokPublishingService } from "@/features/publishing/services";
 import { logOps, redactOpsText } from "@/lib/ops/logger";
 import { operationalPage, operationalWindow } from "../../lib/pagination";
+import { summarizeSchedulerHealth } from "./scheduler-health";
 
 export const manualActionSchema = z.object({
   incidentId: z.uuid(),
@@ -49,8 +50,10 @@ export async function listOwnerOperations(client: SupabaseClient, ownerId: strin
 }
 
 export async function ownerOperationsHealth(admin: SupabaseClient, ownerId: string, now = new Date()) {
-  const [scheduler, reconciliation, deadLetter, failedOperations, budgets, publishing, runs, jobs, recentAttempts] = await Promise.all([
+  const [scheduler, lastSuccess, lastFailure, reconciliation, deadLetter, failedOperations, budgets, publishing, runs, jobs, recentAttempts] = await Promise.all([
     admin.from("operations_scheduler_runs").select("state,started_at,completed_at,error_code").order("started_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("operations_scheduler_runs").select("state,started_at,completed_at,summary_json").eq("state", "COMPLETED").order("started_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("operations_scheduler_runs").select("state,started_at,completed_at").eq("state", "FAILED").order("started_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("operations_incidents").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).neq("lifecycle", "RESOLVED").eq("classification", "RECONCILIATION_REQUIRED"),
     admin.from("operations_incidents").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).neq("lifecycle", "RESOLVED").eq("classification", "FINAL_FAILURE"),
     admin.from("operations_incidents").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).neq("lifecycle", "RESOLVED").like("reason_code", "%FAILED%"),
@@ -60,12 +63,9 @@ export async function ownerOperationsHealth(admin: SupabaseClient, ownerId: stri
     admin.from("generation_jobs").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).in("status", ["PROCESSING", "RETRYING"]).lt("started_at", new Date(now.getTime() - 20 * 60_000).toISOString()),
     admin.from("publish_attempts").select("error_code,created_at").eq("owner_id", ownerId).in("status", ["FAILED", "RETRYABLE"]).order("created_at", { ascending: false }).limit(5),
   ]);
-  for (const result of [scheduler, reconciliation, deadLetter, failedOperations, budgets, publishing, runs, jobs, recentAttempts]) if (result.error) throw new Error("operations_health_read_failed");
-  const lastRun = scheduler.data;
-  const schedulerAgeMinutes = lastRun ? Math.floor((now.getTime() - Date.parse(lastRun.started_at)) / 60_000) : null;
+  for (const result of [scheduler, lastSuccess, lastFailure, reconciliation, deadLetter, failedOperations, budgets, publishing, runs, jobs, recentAttempts]) if (result.error) throw new Error("operations_health_read_failed");
   return {
-    scheduler: { status: lastRun?.state ?? "NOT_STARTED", last_started_at: lastRun?.started_at ?? null, age_minutes: schedulerAgeMinutes,
-      healthy: lastRun?.state === "COMPLETED" && schedulerAgeMinutes !== null && schedulerAgeMinutes <= 15 },
+    scheduler: summarizeSchedulerHealth(scheduler.data, lastSuccess.data, lastFailure.data, now),
     stale_jobs: (jobs.count ?? 0) + (runs.count ?? 0),
     reconciliation: reconciliation.count ?? 0,
     dead_letter: deadLetter.count ?? 0,

@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { validateDeploymentConfig } from "./deployment-config";
 
 const exactHostnameList = z.string().min(1).refine((value) => {
   const hosts = value.split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
@@ -22,6 +23,11 @@ const serverEnvSchema = z.object({
   FAL_WAN_PROVIDER_STATE: z.enum(["PRIMARY_CANDIDATE","BENCHMARK_FAILED","BENCHMARK_PASS_PENDING_OWNER_REVIEW","PRODUCTION_APPROVED"]).default("PRIMARY_CANDIDATE"),
   SUPABASE_SECRET_KEY: z.preprocess(value=>value===""?undefined:value,z.string().startsWith("sb_secret_").min(24).optional()),
   OPS_RECOVERY_TOKEN: z.preprocess(value=>value===""?undefined:value,z.string().min(32).optional()),
+  CRON_SECRET: z.preprocess(value=>value===""?undefined:value,z.string().min(32).optional()),
+  OPS_RECOVERY_ENABLED: z.enum(["true", "false"]).default("false"),
+  OPS_ALERT_WEBHOOK_URL: z.preprocess(value=>value===""?undefined:value,z.url().optional()),
+  OPS_ALERT_WEBHOOK_HOST: z.preprocess(value=>value===""?undefined:value,z.string().optional()),
+  OPS_ALERT_WEBHOOK_TOKEN: z.preprocess(value=>value===""?undefined:value,z.string().min(20).optional()),
   TIKTOK_PROVIDER: z.enum(["mock", "official"]).default("mock"),
   TIKTOK_CLIENT_KEY: z.preprocess(value=>value===""?undefined:value,z.string().min(3).optional()),
   TIKTOK_CLIENT_SECRET: z.preprocess(value=>value===""?undefined:value,z.string().min(8).optional()),
@@ -64,6 +70,11 @@ const parsed = serverEnvSchema.safeParse({
   FAL_WAN_PROVIDER_STATE: process.env.FAL_WAN_PROVIDER_STATE,
   SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY,
   OPS_RECOVERY_TOKEN: process.env.OPS_RECOVERY_TOKEN,
+  CRON_SECRET: process.env.CRON_SECRET,
+  OPS_RECOVERY_ENABLED: process.env.OPS_RECOVERY_ENABLED,
+  OPS_ALERT_WEBHOOK_URL: process.env.OPS_ALERT_WEBHOOK_URL,
+  OPS_ALERT_WEBHOOK_HOST: process.env.OPS_ALERT_WEBHOOK_HOST,
+  OPS_ALERT_WEBHOOK_TOKEN: process.env.OPS_ALERT_WEBHOOK_TOKEN,
   TIKTOK_PROVIDER: process.env.TIKTOK_PROVIDER,
   TIKTOK_CLIENT_KEY: process.env.TIKTOK_CLIENT_KEY,
   TIKTOK_CLIENT_SECRET: process.env.TIKTOK_CLIENT_SECRET,
@@ -94,7 +105,15 @@ if (!parsed.success) {
   );
 }
 
+const deployment = validateDeploymentConfig(process.env);
+
 export const serverEnv = Object.freeze({
+  appEnvironment: deployment.environment,
+  appUrl: deployment.appUrl,
+  recoveryEnabled: deployment.recoveryEnabled,
+  cronSecret: parsed.data.CRON_SECRET,
+  opsAlertWebhookUrl: parsed.data.OPS_ALERT_WEBHOOK_URL,
+  opsAlertWebhookToken: parsed.data.OPS_ALERT_WEBHOOK_TOKEN,
   allowDevMockSeed: parsed.data.ALLOW_DEV_MOCK_SEED === "true",
   creativeAIProvider: parsed.data.CREATIVE_AI_PROVIDER,
   creativeAIModel: parsed.data.CREATIVE_AI_MODEL,

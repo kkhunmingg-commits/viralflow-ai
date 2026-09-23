@@ -5,6 +5,8 @@ import { env } from "@/lib/env";
 const publicPaths = new Set(["/login"]);
 
 export async function updateSession(request: NextRequest) {
+  // Skip cookie auth for this exact route; the handler checks a server-only bearer secret.
+  if (request.nextUrl.pathname === "/api/operations/recovery") return NextResponse.next({ request });
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

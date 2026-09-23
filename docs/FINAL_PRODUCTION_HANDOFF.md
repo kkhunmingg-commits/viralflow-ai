@@ -103,10 +103,10 @@ P0 ด้าน reliability ปิดแล้ว แต่ real publishing แ�
 | P1-06 | FIXED 11B — run/states/actions/steps/checkpoints สร้างใน transaction RPC เดียว |
 | P1-07 | FIXED 11B — enqueue, transition, webhook และ external submission evidence เขียนใน transaction |
 | P1-08 | บาง Video Factory execution/evidence tables ให้ authenticated owner insert/update โดยตรง ต้องแยก user intent จาก server-attested status/cost |
-| P1-09 | ไม่มี CI บังคับ typecheck/lint/test/build และ next.config.ts ใช้ ignoreBuildErrors=true |
-| P1-10 | PARTIAL 11C — recovery heartbeat, stale-job detection, dead-letter และ operator UI มีแล้ว; production worker/cron ยังรอ 11E |
-| P1-11 | PARTIAL 11C — structured logs, correlation, internal health/alerts มีแล้ว; external error monitoring และ on-call routing ยังไม่มี |
-| P1-12 | ไม่มี backup/restore drill, incident runbook และ release rollback evidence |
+| P1-09 | PARTIAL 11E — GitHub Actions และ `release:check` บังคับ typecheck/lint/test/build ใน CI; owner ต้องเปิด branch protection และ 11F ต้องตรวจ release gates (next.config.ts ยังใช้ ignoreBuildErrors=true โดยมี typecheck แยก) |
+| P1-10 | PARTIAL 11E — recovery heartbeat/operator UI และ Vercel Cron config มีแล้ว; owner ต้อง deploy/ตั้ง secret/เปิด scheduler หลัง sign-off |
+| P1-11 | PARTIAL 11E — structured logs, internal health/alerts และ generic alert webhook boundary มีแล้ว; external destination/on-call routing ยังไม่ตั้ง |
+| P1-12 | PARTIAL 11E — backup/restore/incident/rollback checklist มีแล้ว; owner ยังไม่ทำ restore drill และ 11F ต้องเก็บ rollback evidence |
 | P1-13 | fal benchmark ยังไม่สำเร็จและไม่มี owner quality/reliability approval |
 | P1-14 | TikTok Login, Content Posting, Shop และ Analytics production approvals ยังไม่ยืนยันจริง |
 
@@ -226,6 +226,12 @@ Recovery job เรียก `recover_publish_operations` และ `recover_gen
 - STOP: push แล้วหยุด
 
 ### 11E — Production Environment
+
+**Status: DONE (code/config/docs, 2026-09-23)** — เพิ่ม GitHub Actions quality gates แบบไม่มี production secrets, `pnpm release:check` ที่ตรวจ environment/local migration uniqueness และรัน typecheck/lint/test/build, `vercel.json` สำหรับ Cron ทุก 5 นาที, endpoint GET แบบ constant-time `CRON_SECRET` พร้อม `OPS_RECOVERY_ENABLED=false` เป็นค่าเริ่มต้น, environment contract ของ development/staging/production, alert summary webhook แบบ best effort, และ scheduler health ที่แสดง last success/failure/recovery count. ใช้ recovery RPC/idempotent window ของ 11C เดิม; ไม่สร้าง migration, ไม่ deploy และไม่เปิด real provider/publishing.
+
+**Verification:** local/live migration history 18/18 เดิม; tests 288/288 ผ่าน, typecheck/lint/build และ `pnpm release:check` ผ่าน (lint มี warning เดิม 8 รายการ). Tests ครอบคลุม unauthorized/authorized/duplicate Cron, stale health, staging real-publishing block, missing scheduler credentials, optional provider env และ alert-delivery failure หลัง recovery commit. CI workflow ผ่านการตรวจ static/local เท่านั้น; GitHub-hosted run และ branch protection ต้องยืนยันหลัง push.
+
+รายละเอียด deployment prerequisites, secret ownership, Vercel/Supabase setup, Cron plan/health, incident startup, backup/restore, rollback และ release checklist อยู่ใน `docs/PRODUCTION_OPERATIONS.md`. Owner ยังต้องเชื่อม Vercel project/domain, ใส่ vault secrets, แยก Supabase staging/production, เปิด branch protection, ยืนยันแผน Cron ที่รองรับทุก 5 นาที, ตั้ง alert destination/on-call, เปิด leaked-password protection และทำ restore drill. Phase 11F ยังต้องพิสูจน์ staging E2E, rollback/release gates และ security scan; จึงห้ามถือว่า production launch approved.
 
 - Objective: เตรียม staging/production config โดยยังไม่ deploy
 - Likely files: .env.example, environment validation, Vercel/Supabase docs, disabled worker/cron config
