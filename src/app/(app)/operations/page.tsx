@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { PageHeading } from "@/components/page-heading";
 import { listOwnerOperations, ownerOperationsHealth } from "@/features/operations/services";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { parseOperationalPage } from "@/lib/pagination";
 import { operatorAction } from "./actions";
 
 const actionLabels = {
@@ -16,12 +18,13 @@ const actionLabels = {
   RESOLVE: "ปิดรายการ",
 } as const;
 
-export default async function OperationsPage() {
+export default async function OperationsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const client = await createClient();
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) redirect("/login");
+  const page = parseOperationalPage((await searchParams).page);
   const [overview, health] = await Promise.all([
-    listOwnerOperations(client, data.user.id),
+    listOwnerOperations(client, data.user.id, page),
     ownerOperationsHealth(createAdminClient(), data.user.id),
   ]);
   return <>
@@ -59,6 +62,7 @@ export default async function OperationsPage() {
           <button type="submit" className="button">ดำเนินการ</button>
         </form>}
       </article>)}</div> : <p className="muted">ยังไม่มีรายการค้างที่พบจากรอบตรวจล่าสุด</p>}
+      <nav className="form-actions" aria-label="Operations pages">{page > 1 && <Link href={`/operations?page=${page - 1}`}>← ก่อนหน้า</Link>}{overview.hasMore && <Link href={`/operations?page=${page + 1}`}>ถัดไป →</Link>}</nav>
     </section>
   </>;
 }

@@ -5,16 +5,35 @@ import type {VideoAnalyticsObservation} from "./provider";
 import {evidenceHash} from "./scoring";
 
 async function read<T>(client:SupabaseClient,table:string,ownerId:string,limit=500){const {data,error}=await client.from(table).select("*").eq("owner_id",ownerId).order("created_at",{ascending:false}).limit(limit);if(error)throw new Error(`Analytics query failed: ${error.message}`);return(data??[]) as T[];}
+function latestWinners(rows:WinnerRow[]){const latest=new Map<string,WinnerRow>();for(const row of rows)if(!latest.has(`${row.video_kind}:${row.video_id}`))latest.set(`${row.video_kind}:${row.video_id}`,row);return [...latest.values()];}
 export async function getAnalyticsOverview(client:SupabaseClient,ownerId:string){
  const [scores,snapshots,accounts,products]=await Promise.all([read<WinnerRow>(client,"winner_scores",ownerId),read<VideoSnapshotRow>(client,"video_analytics_snapshots",ownerId),client.from("tiktok_accounts").select("id,display_name,effective_mode").eq("owner_id",ownerId),client.from("products").select("id,title").eq("owner_id",ownerId)]);
  if(accounts.error)throw new Error(accounts.error.message);if(products.error)throw new Error(products.error.message);
- const latest=new Map<string,WinnerRow>();for(const row of scores)if(!latest.has(`${row.video_kind}:${row.video_id}`))latest.set(`${row.video_kind}:${row.video_id}`,row);
- const winners=[...latest.values()];const summary:AnalyticsSummary={totalVideos:winners.length,scale:winners.filter(x=>x.decision==="SCALE").length,watch:winners.filter(x=>x.decision==="WATCH").length,stop:winners.filter(x=>x.decision==="STOP").length,insufficient:winners.filter(x=>x.decision==="INSUFFICIENT_DATA").length,views:snapshots.reduce((s,x)=>s+(x.views??0),0),orders:snapshots.reduce((s,x)=>s+(x.orders??0),0),gmv:snapshots.reduce((s,x)=>s+(x.gmv??0),0),commission:snapshots.reduce((s,x)=>s+(x.commission??0),0)};
+ const winners=latestWinners(scores);const summary:AnalyticsSummary={totalVideos:winners.length,scale:winners.filter(x=>x.decision==="SCALE").length,watch:winners.filter(x=>x.decision==="WATCH").length,stop:winners.filter(x=>x.decision==="STOP").length,insufficient:winners.filter(x=>x.decision==="INSUFFICIENT_DATA").length,views:snapshots.reduce((s,x)=>s+(x.views??0),0),orders:snapshots.reduce((s,x)=>s+(x.orders??0),0),gmv:snapshots.reduce((s,x)=>s+(x.gmv??0),0),commission:snapshots.reduce((s,x)=>s+(x.commission??0),0)};
  return{summary,winners,snapshots,accounts:(accounts.data??[]) as Array<{id:string;display_name:string;effective_mode:string}>,products:(products.data??[]) as Array<{id:string;title:string}>};
 }
-export async function getAccountAnalytics(client:SupabaseClient,ownerId:string,id:string){const overview=await getAnalyticsOverview(client,ownerId);const account=overview.accounts.find(x=>x.id===id);if(!account)return null;return{account,winners:overview.winners.filter(x=>x.tiktok_account_id===id),snapshots:overview.snapshots.filter(x=>x.tiktok_account_id===id)};}
-export async function getVideoAnalytics(client:SupabaseClient,ownerId:string,id:string){const overview=await getAnalyticsOverview(client,ownerId);const snapshots=overview.snapshots.filter(x=>x.video_id===id);if(!snapshots.length)return null;return{snapshots,winners:overview.winners.filter(x=>x.video_id===id)};}
-export async function getProductAnalytics(client:SupabaseClient,ownerId:string,id:string){const overview=await getAnalyticsOverview(client,ownerId);const product=overview.products.find(x=>x.id===id);if(!product)return null;return{product,snapshots:overview.snapshots.filter(x=>x.product_id===id)};}
+export async function getAccountAnalytics(client:SupabaseClient,ownerId:string,id:string){
+ const [account,winners,snapshots]=await Promise.all([
+  client.from("tiktok_accounts").select("id,display_name,effective_mode").eq("owner_id",ownerId).eq("id",id).maybeSingle(),
+  client.from("winner_scores").select("*").eq("owner_id",ownerId).eq("tiktok_account_id",id).order("evaluated_at",{ascending:false}).limit(500),
+  client.from("video_analytics_snapshots").select("*").eq("owner_id",ownerId).eq("tiktok_account_id",id).order("source_snapshot_at",{ascending:false}).limit(500),
+ ]);if(account.error||winners.error||snapshots.error)throw new Error("Analytics query failed");if(!account.data)return null;
+ return{account:account.data,winners:latestWinners((winners.data??[]) as WinnerRow[]),snapshots:(snapshots.data??[]) as VideoSnapshotRow[]};
+}
+export async function getVideoAnalytics(client:SupabaseClient,ownerId:string,id:string){
+ const [snapshots,winners]=await Promise.all([
+  client.from("video_analytics_snapshots").select("*").eq("owner_id",ownerId).eq("video_id",id).order("source_snapshot_at",{ascending:false}).limit(500),
+  client.from("winner_scores").select("*").eq("owner_id",ownerId).eq("video_id",id).order("evaluated_at",{ascending:false}).limit(500),
+ ]);if(snapshots.error||winners.error)throw new Error("Analytics query failed");if(!snapshots.data?.length)return null;
+ return{snapshots:snapshots.data as VideoSnapshotRow[],winners:latestWinners((winners.data??[]) as WinnerRow[])};
+}
+export async function getProductAnalytics(client:SupabaseClient,ownerId:string,id:string){
+ const [product,snapshots]=await Promise.all([
+  client.from("products").select("id,title").eq("owner_id",ownerId).eq("id",id).maybeSingle(),
+  client.from("video_analytics_snapshots").select("*").eq("owner_id",ownerId).eq("product_id",id).order("source_snapshot_at",{ascending:false}).limit(500),
+ ]);if(product.error||snapshots.error)throw new Error("Analytics query failed");if(!product.data)return null;
+ return{product:product.data,snapshots:(snapshots.data??[]) as VideoSnapshotRow[]};
+}
 export async function getLearningOverview(client:SupabaseClient,ownerId:string){const [signals,decisions,experiments]=await Promise.all([read<LearningSignalRow>(client,"learning_signals",ownerId),read<Record<string,unknown>>(client,"learning_decisions",ownerId),read<Record<string,unknown>>(client,"experiment_variants",ownerId)]);return{signals,decisions,experiments};}
 
 export async function persistVideoEvaluation(admin:SupabaseClient,input:{ownerId:string;accountId:string;videoId:string;videoKind:"MASTER"|"VARIATION"|"EXTERNAL";mode:"GROWTH"|"AFFILIATE";observation:VideoAnalyticsObservation;result:WinnerResult;baseline:Record<string,number>;productId?:string|null}){

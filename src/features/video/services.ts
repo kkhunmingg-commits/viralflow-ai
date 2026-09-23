@@ -3,6 +3,7 @@ import {mkdir,readFile,rm} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import type {SupabaseClient} from "@supabase/supabase-js";
+import {operationalPage,operationalWindow} from "../../lib/pagination";
 import {CostRouter,chooseVideoStrategy} from "./cost-router";
 import {MockImageProvider,MockVideoProvider,MockVoiceProvider,TemplateVideoProvider} from "./providers";
 import {DeterministicVideoQualityEvaluator} from "./quality";
@@ -141,32 +142,40 @@ export async function setVideoStatus(client:SupabaseClient,owner:string,kind:"ma
   if(status==="APPROVED"&&row.quality_status!=="PASS")throw new Error("Only a passing video can be approved");
   const {error}=await client.from(table).update({status}).eq("owner_id",owner).eq("id",id);if(error)throw new Error(error.message);
 }
-export async function listVideoFactory(client:SupabaseClient,owner:string){
-  const [masters,variations,accounts,products,eligibility,compliance,originality,health]=await Promise.all([
-    client.from("master_videos").select("*").eq("owner_id",owner).order("updated_at",{ascending:false}),
-    client.from("video_variations").select("*").eq("owner_id",owner).order("created_at",{ascending:true}),
-    client.from("tiktok_accounts").select("id,display_name,mode,effective_mode").eq("owner_id",owner),
-    client.from("products").select("id,title").eq("owner_id",owner),
-    client.from("publish_eligibility_checks").select("*").eq("owner_id",owner).order("created_at",{ascending:false}),
-    client.from("content_compliance_checks").select("*").eq("owner_id",owner).order("checked_at",{ascending:false}),
-    client.from("originality_checks").select("*").eq("owner_id",owner).order("created_at",{ascending:false}),
-    client.from("account_publish_health").select("*").eq("owner_id",owner),
-  ]);for(const result of [masters,variations,accounts,products,eligibility,compliance,originality,health])if(result.error)throw new Error(result.error.message);
+export async function listVideoFactory(client:SupabaseClient,owner:string,page=1){
+  const {from,to}=operationalWindow(page);
+  const masters=await client.from("master_videos").select("*").eq("owner_id",owner).order("updated_at",{ascending:false}).order("id",{ascending:false}).range(from,to);
+  if(masters.error)throw new Error(masters.error.message);
+  const masterPage=operationalPage(masters.data??[],page);
+  if(!masterPage.items.length)return{...masterPage,items:[]};
+  const ids=masterPage.items.map(v=>v.id),accountIds=[...new Set(masterPage.items.map(v=>v.tiktok_account_id))],productIds=[...new Set(masterPage.items.map(v=>v.product_id))];
+  const [variations,accounts,products,eligibility,compliance,originality,health]=await Promise.all([
+    client.from("video_variations").select("*").eq("owner_id",owner).in("master_video_id",ids).order("variation_index"),
+    client.from("tiktok_accounts").select("id,display_name,mode,effective_mode").eq("owner_id",owner).in("id",accountIds),
+    client.from("products").select("id,title").eq("owner_id",owner).in("id",productIds),
+    client.from("publish_eligibility_checks").select("*").eq("owner_id",owner).in("video_id",ids).order("created_at",{ascending:false}).limit(2000),
+    client.from("content_compliance_checks").select("*").eq("owner_id",owner).in("video_id",ids).order("checked_at",{ascending:false}).limit(2000),
+    client.from("originality_checks").select("*").eq("owner_id",owner).in("video_id",ids).order("created_at",{ascending:false}).limit(2000),
+    client.from("account_publish_health").select("*").eq("owner_id",owner).in("tiktok_account_id",accountIds),
+  ]);for(const result of [variations,accounts,products,eligibility,compliance,originality,health])if(result.error)throw new Error(result.error.message);
   const accountMap=new Map((accounts.data??[]).map(v=>[v.id,v])),productMap=new Map((products.data??[]).map(v=>[v.id,v.title]));
   const latest=<T extends {video_id:string}>(rows:T[])=>{const map=new Map<string,T>();for(const row of rows)if(!map.has(row.video_id))map.set(row.video_id,row);return map};
   const eligibilityMap=latest(eligibility.data??[]),complianceMap=latest(compliance.data??[]),originalityMap=latest(originality.data??[]),healthMap=new Map((health.data??[]).map(row=>[row.tiktok_account_id,row]));
-  return (masters.data??[]).map(master=>{const account=accountMap.get(master.tiktok_account_id);return {...master,account_name:account?.display_name??"Unknown",requested_mode:account?.mode??"—",effective_mode:account?.effective_mode??"—",product_title:productMap.get(master.product_id)??"Unknown",publish_status:eligibilityMap.get(master.id)?.final_status??"NOT_CHECKED",eligibility:eligibilityMap.get(master.id),compliance:complianceMap.get(master.id),originality:originalityMap.get(master.id),publish_health:healthMap.get(master.tiktok_account_id),variations:(variations.data??[]).filter(v=>v.master_video_id===master.id)}});
+  const variationMap=new Map<string,typeof variations.data>();for(const variation of variations.data??[]){const rows=variationMap.get(variation.master_video_id)??[];rows.push(variation);variationMap.set(variation.master_video_id,rows)}
+  return {...masterPage,items:masterPage.items.map(master=>{const account=accountMap.get(master.tiktok_account_id);return {...master,account_name:account?.display_name??"Unknown",requested_mode:account?.mode??"—",effective_mode:account?.effective_mode??"—",product_title:productMap.get(master.product_id)??"Unknown",publish_status:eligibilityMap.get(master.id)?.final_status??"NOT_CHECKED",eligibility:eligibilityMap.get(master.id),compliance:complianceMap.get(master.id),originality:originalityMap.get(master.id),publish_health:healthMap.get(master.tiktok_account_id),variations:variationMap.get(master.id)??[]}})};
 }
 export async function getVideoDetail(client:SupabaseClient,owner:string,masterId:string){
   const master=await one(client,"master_videos",owner,masterId);if(!master)throw new Error("Video not found");
-  const [project,script,account,product,variations,jobs,costs]=await Promise.all([
+  const [project,script,account,product,variations,jobs]=await Promise.all([
     one(client,"creative_projects",owner,String(master.creative_project_id)),one(client,"scripts",owner,String(master.selected_script_id)),one(client,"tiktok_accounts",owner,String(master.tiktok_account_id)),one(client,"products",owner,String(master.product_id)),
     client.from("video_variations").select("*").eq("owner_id",owner).eq("master_video_id",masterId).order("variation_index"),
-    client.from("generation_jobs").select("*").eq("owner_id",owner).eq("master_video_id",masterId).order("created_at",{ascending:false}),
-    client.from("generation_costs").select("*").eq("owner_id",owner).order("created_at",{ascending:false}),
-  ]);if(variations.error||jobs.error||costs.error)throw new Error(variations.error?.message??jobs.error?.message??costs.error?.message);
+    client.from("generation_jobs").select("*").eq("owner_id",owner).eq("master_video_id",masterId).order("created_at",{ascending:false}).limit(100),
+  ]);if(variations.error||jobs.error)throw new Error(variations.error?.message??jobs.error?.message);
+  const jobIds=(jobs.data??[]).map(j=>j.id);
+  const costs=jobIds.length?await client.from("generation_costs").select("*").eq("owner_id",owner).in("generation_job_id",jobIds).order("created_at",{ascending:false}).limit(200):{data:[],error:null};
+  if(costs.error)throw new Error(costs.error.message);
   let signedUrl:string|null=null;if(master.storage_path){const signed=await client.storage.from(VIDEO_BUCKET).createSignedUrl(String(master.storage_path),900);if(signed.error)throw new Error(signed.error.message);signedUrl=signed.data.signedUrl}
   const variationRows=await Promise.all((variations.data??[]).map(async v=>{let url:string|null=null;if(v.storage_path){const s=await client.storage.from(VIDEO_BUCKET).createSignedUrl(v.storage_path,900);url=s.data?.signedUrl??null}return {...v,signed_url:url}}));
-  const jobIds=new Set((jobs.data??[]).map(j=>j.id));return {master,project,script,account,product,variations:variationRows,jobs:jobs.data??[],costs:(costs.data??[]).filter(c=>jobIds.has(c.generation_job_id)),signedUrl};
+  return {master,project,script,account,product,variations:variationRows,jobs:jobs.data??[],costs:costs.data??[],signedUrl};
 }
 export const videoCostRouter=new CostRouter();

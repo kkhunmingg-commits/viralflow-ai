@@ -6,12 +6,14 @@ import { getAutoOverview } from "@/features/auto/services";
 import { createVideoCostPlan, falAutoModeAvailability } from "@/features/video/provider-routing";
 import { serverEnv } from "@/lib/server-env";
 import { createClient } from "@/lib/supabase/server";
+import { parseOperationalPage } from "@/lib/pagination";
 
-export default async function AutoPage() {
+export default async function AutoPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const client = await createClient();
   const { data } = await client.auth.getUser();
   if (!data.user) redirect("/login");
-  const overview = await getAutoOverview(client, data.user.id);
+  const page = parseOperationalPage((await searchParams).page);
+  const overview = await getAutoOverview(client, data.user.id, page);
   const summary = overview.summary;
   const pilot = createVideoCostPlan("CURRENT_3_ACCOUNTS");
   const fal = pilot.providers.find((provider) => provider.provider === "fal-wan-2.2-turbo")!;
@@ -49,6 +51,7 @@ export default async function AutoPage() {
     <section className="panel">
       <div className="panel-heading"><div><p className="eyebrow">RUN HISTORY</p><h2>Durable runs</h2></div><span className="phase-chip">full-auto-mode-v1</span></div>
       {overview.runs.length?<div className="data-list">{overview.runs.map(run=><div key={run.id}><Link href={`/auto/runs/${run.id}`}><strong>{run.run_date} · {run.state}</strong></Link><span>${Number(run.spent_usd).toFixed(2)} / ${Number(run.budget_usd).toFixed(2)}</span><small>{run.current_step} · attempt {run.attempt} · {run.blockers_json.join(", ")||"ไม่มี blocker"}</small></div>)}</div>:<p className="muted">ยังไม่มี Auto run — START จะสร้างแผนและหยุดที่ approval โดยไม่ส่งงานจริงออกภายนอก</p>}
+      <nav className="form-actions" aria-label="Auto run pages">{page>1&&<Link href={`/auto?page=${page-1}`}>← ก่อนหน้า</Link>}{overview.hasMore&&<Link href={`/auto?page=${page+1}`}>ถัดไป →</Link>}</nav>
     </section>
   </>;
 }

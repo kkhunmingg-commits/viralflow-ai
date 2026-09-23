@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logOps } from "@/lib/ops/logger";
 import { classifyAutoRun, classifyBudget, classifyGenerationJob, classifyPublish, evaluateAlertRules, type RecoveryDecision, type SubjectType } from "./policy";
+import { RECOVERY_BATCH_SIZE, scanOperationalBatches } from "./scan";
 
 type Row = Record<string, unknown>;
 const text = (value: unknown) => typeof value === "string" ? value : null;
@@ -75,6 +76,16 @@ async function mustRpc(admin: SupabaseClient, name: string, params: Row) {
   return data;
 }
 
+async function scanCandidates(admin: SupabaseClient, table: string, columns: string, stateColumn: string, states: string[]) {
+  return scanOperationalBatches(async (after) => {
+    let query = admin.from(table).select(columns).in(stateColumn, states).order("id").limit(RECOVERY_BATCH_SIZE);
+    if (after) query = query.gt("id", after);
+    const { data, error } = await query;
+    if (error) throw new Error(`${table}_scan_failed`);
+    return (data ?? []) as unknown as Array<Row & { id: string }>;
+  });
+}
+
 export async function runRecoveryCycle(admin: SupabaseClient, now = new Date()) {
   const windowKey = recoveryWindowKey(now);
   const claimed = await mustRpc(admin, "claim_operations_scheduler_window", { p_window_key: windowKey });
@@ -87,20 +98,18 @@ export async function runRecoveryCycle(admin: SupabaseClient, now = new Date()) 
       mustRpc(admin, "recover_generation_budget_reservations", { p_now: now.toISOString() }),
     ]);
     const [publishing, budgets, runs, jobs, webhookFailures, openAlerts] = await Promise.all([
-      admin.from("publishing_queue").select("id,owner_id,tiktok_account_id,provider_publish_id,status,external_state,lease_expires_at,retry_count,max_retries,updated_at").in("status", ["UPLOADING", "PROCESSING", "WAITING_FOR_RECONCILIATION", "RETRYING", "FAILED"]).limit(200),
-      admin.from("generation_budget_reservations").select("id,owner_id,tiktok_account_id,auto_run_id,provider,provider_request_id,state,provider_submission_state,expires_at").eq("state", "RESERVED").limit(200),
-      admin.from("auto_runs").select("id,owner_id,state,updated_at").in("state", ["STARTING", "RUNNING", "RETRY_PENDING", "FAILED"]).limit(200),
-      admin.from("generation_jobs").select("id,owner_id,status,provider,attempt,max_attempts,started_at,created_at").in("status", ["PROCESSING", "RETRYING", "FAILED"]).limit(200),
+      scanCandidates(admin, "publishing_queue", "id,owner_id,tiktok_account_id,provider_publish_id,status,external_state,lease_expires_at,retry_count,max_retries,updated_at", "status", ["UPLOADING", "PROCESSING", "WAITING_FOR_RECONCILIATION", "RETRYING", "FAILED"]),
+      scanCandidates(admin, "generation_budget_reservations", "id,owner_id,tiktok_account_id,auto_run_id,provider,provider_request_id,state,provider_submission_state,expires_at", "state", ["RESERVED"]),
+      scanCandidates(admin, "auto_runs", "id,owner_id,state,updated_at", "state", ["STARTING", "RUNNING", "RETRY_PENDING", "FAILED"]),
+      scanCandidates(admin, "generation_jobs", "id,owner_id,status,provider,attempt,max_attempts,started_at,created_at", "status", ["PROCESSING", "RETRYING", "FAILED"]),
       admin.from("operations_webhook_failures").select("failure_count").gte("minute_bucket", new Date(now.getTime() - 15 * 60_000).toISOString()).limit(20),
       admin.from("operations_alerts").select("owner_id,rule_code").eq("state", "OPEN").limit(200),
     ]);
-    if (publishing.error || budgets.error || runs.error || jobs.error || webhookFailures.error || openAlerts.error) throw new Error("operations_scan_failed");
-    if ([publishing.data, budgets.data, runs.data, jobs.data, openAlerts.data].some((rows) => (rows?.length ?? 0) >= 200)) {
-      throw new Error("operations_scan_limit_reached");
-    }
+    if (webhookFailures.error || openAlerts.error) throw new Error("operations_scan_failed");
+    if ((openAlerts.data?.length ?? 0) >= 200) throw new Error("operations_alert_scan_limit_reached");
     const recentWebhookFailures = (webhookFailures.data ?? []).reduce((sum, item) => sum + item.failure_count, 0);
     if (recentWebhookFailures >= 5) logOps({ severity: "WARN", component: "operations", operation: "webhook_failure_spike", error_category: "WEBHOOK", error_code: "WEBHOOK_FAILURE_SPIKE" });
-    const incidents = collectRecoveryIncidents({ publishing: publishing.data ?? [], budgets: budgets.data ?? [], runs: runs.data ?? [], jobs: jobs.data ?? [], now });
+    const incidents = collectRecoveryIncidents({ publishing, budgets, runs, jobs, now });
     const ownerMetrics = new Map<string, { reconciliation: number; deadLetter: number; providerFailures: number; publishFailures: number; staleAutoRuns: number; budgetBacklog: number }>();
     for (const item of incidents) {
       await mustRpc(admin, "upsert_operations_incident", {

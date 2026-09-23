@@ -89,7 +89,7 @@ flowchart LR
 | P0-02 | Provider side effect กับ database state ต้อง crash-safe และห้าม blind retry | CLOSED 11B | lease แยก RESERVING/SUBMITTING; timeout หลังเริ่มส่งถูกพักใน SUBMITTED_UNKNOWN และ reconcile ก่อน retry; provider ที่ไม่มี idempotency API ใช้ fail-closed/manual resolution เมื่อไม่มี provider ID |
 | P0-03 | Paid generation ต้องมี atomic budget reservation/settlement ledger | CLOSED 11B | advisory transaction lock และ unique logical key ป้องกัน concurrent overspend/duplicate reserve; uncertain submission คง hold จน reconcile |
 
-P0 ด้าน reliability ปิดแล้ว แต่ real publishing และ paid Auto ยังต้องคงปิดจนกว่า Phase 11D–11F, provider/TikTok approvals และ owner pilot approval จะครบ
+P0 ด้าน reliability ปิดแล้ว แต่ real publishing และ paid Auto ยังต้องคงปิดจนกว่า Phase 11E–11F, provider/TikTok approvals และ owner pilot approval จะครบ
 
 ### P1 — ต้องแก้ก่อน pilot จริง
 
@@ -200,6 +200,20 @@ Recovery job เรียก `recover_publish_operations` และ `recover_gen
 - STOP: push แล้วหยุด
 
 ### 11D — Performance / Database
+
+**Status: DONE (2026-09-23)** — migration `20260923153000_phase_11d_performance_indexes.sql` อยู่ใน local หนึ่งไฟล์และ live `phase_11d_performance_indexes` หนึ่งรายการ (connector version `20260923024728`). ทดสอบ DDL ด้วย transaction rollback ก่อน apply; เพิ่ม 12 indexes, ไม่ลบ index เดิม, ไม่เปลี่ยน RLS/schema semantics. หลัง apply ตรวจ catalog พบครบ 12 และ RLS ยังเปิด 65/65 public tables.
+
+**Query findings/fixes:** Publishing Queue, Video Factory, Operations และ Auto run history เคยอ่านรายการกว้างหรือดึงข้อมูลประกอบทั้ง owner; ตอนนี้หน้าแสดง 50 รายการต่อหน้า + 1 lookahead, ดึงข้อมูลประกอบเฉพาะ ID ในหน้านั้น และใช้ tie-break ID สำหรับลำดับคงที่. Analytics account/video/product detail กรอง owner + target ในฐานข้อมูล แทนการโหลด overview ทั้งหมดแล้วกรองในแอป. Video detail ดึง cost เฉพาะ job ที่แสดง. Recovery เคยสแกนได้สูงสุด 200 แถวต่อ state; เปลี่ยนเป็น keyset scan ทีละ 200 โดยมีเพดาน 10,000 และ fail-closed เมื่อเกินเพดาน. ไม่มีการเปลี่ยน scoring, provider หรือ authorization.
+
+**Index evidence:** `EXPLAIN` ก่อนแก้พบ sort ใน owner/recent incident, owner/priority queue และ owner/recent master paths และ owner-only scan ก่อนกรอง video analytics. Indexes ใหม่ครอบคลุม owner/order pagination, owner/master job, owner/video/product time และ partial recovery state scans ตาม query ที่เรียกจริง. `EXPLAIN` หลังแก้บน live สำหรับ owner/recent incident ใช้ `operations_incidents_owner_seen_page_idx`. Live tables ส่วนใหญ่ยังว่าง/เล็กมาก จึงไม่อ้างว่าได้วัด latency ที่ 10 accounts หรือ 200 candidates/day แล้ว. Performance Advisor ยังแจ้ง 36 unindexed FK ซึ่งต้องพิจารณาตาม deletion/join workload ที่มีหลักฐาน; คำเตือน unused index บนฐานข้อมูลเล็กไม่ใช่เหตุให้ drop.
+
+**Concurrency/scale:** ตรวจ transaction-backed START/transition, publish lease, budget reservation, webhook และ scheduler claims แล้วไม่เปลี่ยน lock/unique/reconciliation primitives. Live scheduler claim 8 คำขอพร้อมกันใน window ทดสอบเดียว: 1 true, 7 false; ลบแถวทดสอบแล้ว. Deterministic tests ครอบคลุม pagination 50/51 และ large input, recovery scan 200/201/2,000 พร้อม duplicate cursor/scan-limit fail-closed, และ fair schedule 10 accounts × 15/20 = 150/200 candidates โดยไม่เรียก provider. Existing tests ยังคุ้มครอง publish lease, atomic budget และ duplicate webhook. ยังไม่มี live DB contention test ของ concurrent publish/budget เพราะไม่มี account/queue test fixture ที่เหมาะสม; ต้องทำใน staging พร้อมข้อมูลสังเคราะห์ก่อน production scale.
+
+**Retention/orphan policy:** ไม่ลบ append-only audit, cost, attempts, snapshots หรือ failure evidence อัตโนมัติใน phase นี้. Recovery scan เพดาน 10,000 จะหยุดแบบ fail-closed หาก backlog โตเกินขอบเขต; ต้องกำหนด archival/retention, orphan reconciliation และ restore policy หลัง backup/PITR sign-off ใน 11E/11F. UI detail histories ถูกจำกัดล่าสุด 100–500 ตาม service เพื่อป้องกัน payload โต; complete audit ยังคงอยู่ในฐานข้อมูล. Analytics overview ยังเป็น recent 500-row window จึงห้ามตีความ totals เป็น all-time เมื่อข้อมูลมากกว่าขอบเขตนี้.
+
+**Advisors:** Security Advisor หลัง migration คง warning leaked-password protection และ info ของ OAuth service-only no-policy สองตาราง; ไม่มี finding ใหม่จาก 11D. Production readiness ตาม rubric ใน `PROJECT_MASTER_STATUS.md` คง 63%; coding completion คง 94% เพราะ CI/E2E/staging proof และ external approvals ยังไม่เสร็จ. Phase 11E และ 11F ยังคงค้าง; ห้ามเปิด real provider หรือ TikTok publishing จากผล load simulation นี้.
+
+**Quality gate:** `pnpm typecheck` ผ่าน, `pnpm lint` ผ่านโดยมี warning เดิม 8 รายการ, `pnpm test` ผ่าน 278/278 (รวม FFmpeg ภายใต้สิทธิ์ที่อนุญาต), `pnpm build` ผ่าน. ไม่ได้เรียก paid provider, ไม่ได้ deploy หรือ publish TikTok.
 
 - Objective: ยืนยัน query/index/retention สำหรับ concurrent accounts
 - Likely files: migration ใหม่, analytics/publishing/auto/video queries และ load tests
@@ -394,4 +408,4 @@ After changes: pnpm typecheck; pnpm lint; pnpm test; pnpm build; commit "chore: 
 
 ## Audit conclusion
 
-ระบบพร้อมสำหรับ local/mock technical validation แต่ยังไม่ production ready. ตัวบล็อกหลักคือ external exactly-once, atomic money reservation, real provider evidence, TikTok approvals และ production operations. ห้ามเปิด paid Auto Mode หรือ real publishing จนกว่า 11A–11F และ owner actions ที่เกี่ยวข้องจะเสร็จครบ
+ระบบพร้อมสำหรับ local/mock technical validation แต่ยังไม่ production ready. Phase 11B ปิด external exactly-once และ atomic money reservation แล้ว; Phase 11D ปิด query/index/pagination ระดับ pilot โดยยังไม่มี production-sized latency proof. ตัวบล็อกที่เหลือคือ real provider evidence, TikTok approvals, production environment/operations, CI/release และ owner actions. ห้ามเปิด paid Auto Mode หรือ real publishing จนกว่า 11A–11F และ owner actions ที่เกี่ยวข้องจะเสร็จครบ

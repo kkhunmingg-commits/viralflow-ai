@@ -2,6 +2,7 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logOps } from "../../lib/ops/logger";
+import { operationalPage, operationalWindow } from "../../lib/pagination";
 import { runPrePublishGate } from "@/features/compliance/services";
 import {assertShoppableIntentReady} from "@/features/commerce/services";
 import {ownsVideoStoragePath} from "@/features/video/storage";
@@ -413,20 +414,15 @@ export class TikTokPublishingService {
   }
 }
 
-export async function listPublishingQueue(client: SupabaseClient, ownerId: string) {
-  const [queue, accounts, masters, variations, attempts] = await Promise.all([
-    client.from("publishing_queue").select("*").eq("owner_id", ownerId).order("priority", { ascending: false }).order("created_at"),
+export async function listPublishingQueue(client: SupabaseClient, ownerId: string, page = 1) {
+  const { from, to } = operationalWindow(page);
+  const [queue, accounts] = await Promise.all([
+    client.from("publishing_queue").select("id,tiktok_account_id,video_id,video_kind,publish_mode,priority,source_method,scheduled_for,consent_id,status,created_at").eq("owner_id", ownerId).order("priority", { ascending: false }).order("created_at").order("id").range(from, to),
     client.from("tiktok_accounts").select("id,display_name,username,connection_status,audit_status,effective_mode").eq("owner_id", ownerId),
-    client.from("master_videos").select("id,product_id,storage_path").eq("owner_id", ownerId),
-    client.from("video_variations").select("id,master_video_id,product_id,storage_path").eq("owner_id", ownerId),
-    client.from("publish_attempts").select("publishing_queue_id,status,created_at").eq("owner_id", ownerId).order("created_at", { ascending: false }),
   ]);
-  for (const result of [queue, accounts, masters, variations, attempts]) if (result.error) throw new PublishingError("publishing_queue_read_failed");
+  for (const result of [queue, accounts]) if (result.error) throw new PublishingError("publishing_queue_read_failed");
   const accountMap = new Map((accounts.data ?? []).map(row => [row.id, row]));
-  const videoMap = new Map([...(masters.data ?? []), ...(variations.data ?? [])].map(row => [row.id, row]));
-  const latestAttempt = new Map<string, Row>();
-  for (const row of attempts.data ?? []) if (!latestAttempt.has(row.publishing_queue_id)) latestAttempt.set(row.publishing_queue_id, row);
-  return (queue.data ?? []).map(row => ({ ...row, account: accountMap.get(row.tiktok_account_id), video: videoMap.get(row.video_id), latest_attempt: latestAttempt.get(row.id) }));
+  return operationalPage((queue.data ?? []).map(row => ({ ...row, account: accountMap.get(row.tiktok_account_id) })), page);
 }
 
 export async function getPublishingDetail(client: SupabaseClient, ownerId: string, queueId: string) {
@@ -434,11 +430,11 @@ export async function getPublishingDetail(client: SupabaseClient, ownerId: strin
   if (error || !queue) throw new PublishingError("publish_queue_not_found");
   const [account, attempts, events, consents, intents, shopProducts] = await Promise.all([
     client.from("tiktok_accounts").select("*").eq("owner_id", ownerId).eq("id", queue.tiktok_account_id).single(),
-    client.from("publish_attempts").select("*").eq("owner_id", ownerId).eq("publishing_queue_id", queueId).order("created_at", { ascending: false }),
-    client.from("publish_status_events").select("*").eq("owner_id", ownerId).eq("publishing_queue_id", queueId).order("occurred_at", { ascending: false }),
-    client.from("publish_consents").select("*").eq("owner_id", ownerId).eq("publishing_queue_id", queueId).order("consented_at", { ascending: false }),
-    client.from("shoppable_content_intents").select("*").eq("owner_id",ownerId).eq("publishing_queue_id",queueId).order("created_at",{ascending:false}),
-    client.from("shop_products").select("*").eq("owner_id",ownerId).eq("product_status","ACTIVE").eq("audit_status","APPROVED"),
+    client.from("publish_attempts").select("*").eq("owner_id", ownerId).eq("publishing_queue_id", queueId).order("created_at", { ascending: false }).limit(100),
+    client.from("publish_status_events").select("*").eq("owner_id", ownerId).eq("publishing_queue_id", queueId).order("occurred_at", { ascending: false }).limit(100),
+    client.from("publish_consents").select("*").eq("owner_id", ownerId).eq("publishing_queue_id", queueId).order("consented_at", { ascending: false }).limit(100),
+    client.from("shoppable_content_intents").select("*").eq("owner_id",ownerId).eq("publishing_queue_id",queueId).order("created_at",{ascending:false}).limit(100),
+    client.from("shop_products").select("*").eq("owner_id",ownerId).eq("product_status","ACTIVE").eq("audit_status","APPROVED").limit(200),
   ]);
   for (const result of [account, attempts, events, consents,intents,shopProducts]) if (result.error) throw new PublishingError("publishing_detail_read_failed");
   return { queue, account: account.data, attempts: attempts.data ?? [], events: events.data ?? [], consents: consents.data ?? [],intents:intents.data??[],shopProducts:shopProducts.data??[] };

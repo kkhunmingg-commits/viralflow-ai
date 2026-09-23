@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logOps } from "../../lib/ops/logger";
+import { operationalPage, operationalWindow } from "../../lib/pagination";
 import { planAccount, stableAutoKey } from "./engine";
 import type { AutoAccountState, AutoAction, AutoCheckpoint, AutoFailure, AutoRun, AutoStep } from "./types";
 import { serverEnv } from "@/lib/server-env";
@@ -8,27 +9,33 @@ import { falAutoModeAvailability } from "@/features/video/provider-routing";
 const ACTIVE = ["STARTING", "RUNNING", "PAUSED", "RETRY_PENDING"];
 const AUTO_RUN_VERSION = "full-auto-mode-v1";
 
-export async function getAutoOverview(client: SupabaseClient, owner: string) {
-  const [runs, states, actions, failures] = await Promise.all([
-    client.from("auto_runs").select("*").eq("owner_id", owner).order("updated_at", { ascending: false }).limit(30),
+export async function getAutoOverview(client: SupabaseClient, owner: string, page = 1) {
+  const { from, to } = operationalWindow(page);
+  const [runs, active, states, actions, failures] = await Promise.all([
+    client.from("auto_runs").select("*").eq("owner_id", owner).order("updated_at", { ascending: false }).order("id", { ascending: false }).range(from, to),
+    client.from("auto_runs").select("*").eq("owner_id", owner).in("state", ACTIVE).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
     client.from("auto_account_states").select("*").eq("owner_id", owner).order("priority", { ascending: false }),
     client.from("auto_actions").select("*").eq("owner_id", owner).order("created_at", { ascending: false }).limit(100),
     client.from("auto_failures").select("*").eq("owner_id", owner).order("created_at", { ascending: false }).limit(100),
   ]);
-  for (const result of [runs, states, actions, failures]) if (result.error) throw new Error(result.error.message);
-  const runRows = (runs.data ?? []) as AutoRun[];
+  for (const result of [runs, active, states, actions, failures]) if (result.error) throw new Error(result.error.message);
+  const runPage = operationalPage((runs.data ?? []) as AutoRun[], page);
+  const runRows = runPage.items;
   const stateRows = (states.data ?? []) as AutoAccountState[];
-  return { runs: runRows, states: stateRows, actions: actions.data ?? [], failures: failures.data ?? [], activeRun: runRows.find((row) => ACTIVE.includes(row.state)) ?? null, summary: summarizeAuto(runRows, stateRows, actions.data ?? []) };
+  const latest = page === 1 ? null : await client.from("auto_runs").select("*").eq("owner_id", owner).order("updated_at", { ascending: false }).limit(50);
+  if (latest?.error) throw new Error(latest.error.message);
+  const summaryRuns = latest ? (latest.data ?? []) as AutoRun[] : runRows;
+  return { runs: runRows, page, hasMore: runPage.hasMore, states: stateRows, actions: actions.data ?? [], failures: failures.data ?? [], activeRun: active.data as AutoRun | null, summary: summarizeAuto(summaryRuns, stateRows, actions.data ?? []) };
 }
 
 export async function getAutoRun(client: SupabaseClient, owner: string, id: string) {
   const [run, states, steps, actions, failures, checkpoints] = await Promise.all([
     client.from("auto_runs").select("*").eq("owner_id", owner).eq("id", id).maybeSingle(),
     client.from("auto_account_states").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("priority", { ascending: false }),
-    client.from("auto_run_steps").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("created_at"),
-    client.from("auto_actions").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("created_at"),
-    client.from("auto_failures").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("created_at", { ascending: false }),
-    client.from("auto_checkpoints").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("checkpoint_version", { ascending: false }),
+    client.from("auto_run_steps").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("created_at").limit(200),
+    client.from("auto_actions").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("created_at").limit(200),
+    client.from("auto_failures").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("created_at", { ascending: false }).limit(200),
+    client.from("auto_checkpoints").select("*").eq("owner_id", owner).eq("auto_run_id", id).order("checkpoint_version", { ascending: false }).limit(200),
   ]);
   for (const result of [run, states, steps, actions, failures, checkpoints]) if (result.error) throw new Error(result.error.message);
   if (!run.data) return null;

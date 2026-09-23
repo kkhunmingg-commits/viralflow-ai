@@ -4,7 +4,7 @@
 
 Baseline branch: **feature/fal-wan-primary-provider**
 
-Phase 11C starting HEAD: **f0f54d421c76e4c6782301a48ee49efff97b81cb**
+Phase 11D starting HEAD: **b016151ebb15ceeb29a7be6d5571f1800b30e25c**
 
 ## Executive status
 
@@ -29,7 +29,7 @@ Phase 11C starting HEAD: **f0f54d421c76e4c6782301a48ee49efff97b81cb**
 | Shop and Affiliate foundation | 8 | 7 | fail-closed readiness complete; real approval/attachment pending |
 | Analytics and Growth learning | 12 | 11 | scoring/learning complete; real data adapters pending |
 | Auto orchestration | 12 | 11 | atomic START/transition และ budget ledger complete; production worker pending |
-| Tests and engineering docs | 8 | 7 | deterministic reliability suite/docs; CI/E2E/load/release gates pending |
+| Tests and engineering docs | 8 | 7 | deterministic reliability/150–200-candidate load suite; CI/E2E/release gates pending |
 | **Total** | **100** | **94** | |
 
 ### Production readiness rubric
@@ -40,7 +40,7 @@ Phase 11C starting HEAD: **f0f54d421c76e4c6782301a48ee49efff97b81cb**
 | Secret/config boundaries | 10 | 9 | server-only validation, redacted errors, security headers และไม่มี client import violation; production vault/rotation pending |
 | External-call safety | 15 | 13 | lease, stable key, unknown-state reconciliation และ no blind retry complete; real provider evidence pending |
 | Money/budget safety | 10 | 10 | atomic reserve/settle/release และ six-dimensional caps complete |
-| Data integrity/recovery | 10 | 9 | atomic Auto/publish writes และ stale recovery complete; production scheduler/operator tooling pending |
+| Data integrity/recovery | 10 | 9 | atomic Auto/publish writes, bounded recovery scans และ operator tooling complete; production scheduler pending |
 | Observability/incident response | 10 | 6 | structured operational logs, recovery health, internal alerts, operator queue; external routing/production schedule/runbook drill ยังขาด |
 | CI/release/deployment | 10 | 2 | local quality commands exist; no CI/staging/rollback gate |
 | Backup/restore/operations | 10 | 1 | managed database exists; no restore drill/ownership evidence |
@@ -70,21 +70,24 @@ Phase 11C starting HEAD: **f0f54d421c76e4c6782301a48ee49efff97b81cb**
 | 11A | Security Hardening | DONE | P1-02/P1-03/P1-04 closed; leaked-password protection remains owner action |
 | 11B | Reliability / Idempotency | DONE | P0-02/P0-03 and P1-05/P1-06/P1-07 closed |
 | 11C | Recovery / Observability | DONE | recovery service, operator UI, internal health/alerts; external schedule ยังรอ 11E |
-| 11D–11F | Performance through release readiness | PLANNED | ordered plan in FINAL_PRODUCTION_HANDOFF.md |
+| 11D | Performance / Database / Concurrency | DONE | bounded pages, recovery keyset scan, 12 evidence-backed indexes; large-data latency ยังไม่วัด |
+| 11E–11F | Production environment through release readiness | PLANNED | ordered plan in FINAL_PRODUCTION_HANDOFF.md |
 
 ## Verified repository and database state
 
-- 17 local migrations and 17 live migrations; `phase_11c_recovery_observability` appears once in each history
+- 18 local migrations and 18 live migrations; `phase_11d_performance_indexes` appears once in each history (connector กำหนด live version `20260923024728`)
 - 65 public tables; RLS enabled on all 65
 - Phase 11C tables have owner-read/service-write boundaries; scheduler and webhook counters are service-only
 - video-assets bucket private with owner-path RLS
 - OAuth credentials/states service-only and FORCE RLS
-- Security Advisor after Phase 11C: no new issue; leaked-password warning plus two intentional service-only no-policy info findings
-- Performance Advisor: 34 unindexed FK findings and 27 unused-index findings requiring workload evidence
+- Security Advisor after Phase 11D: no new issue; leaked-password warning plus two intentional service-only no-policy info findings
+- Performance Advisor after Phase 11D: 36 unindexed FK findings; ไม่เพิ่ม/ลบ index ตามคำเตือนเพียงอย่างเดียวโดยไม่มี query evidence
 - No active live Auto, publishing, generation, OAuth credential or analytics rows at audit
 - No matching real secret pattern in tracked files/history scan
 - Phase 11B verification: migration rollback validation/live apply ผ่าน, 18 reliability RPC, RLS และ critical indexes ตรวจจาก catalog แล้ว; typecheck/build ผ่าน, lint 0 errors กับ 8 warning เดิม และ tests 262/262 ผ่าน
 - Phase 11C verification: local migration เรียงหลัง 11B, live migration ชื่อเดียวกันหนึ่งรายการ, scheduler claim และ cross-owner RPC test ผ่านในธุรกรรม rollback; typecheck/build ผ่าน, lint 0 errors กับ 8 warning เดิม และ tests 269/269 ผ่าน
+- Phase 11D verification: 12 indexes อยู่ใน live catalog, RLS 65/65, query plan ของ owner/recent incident ใช้ index ใหม่; scheduler claim พร้อมกัน 8 คำขอได้สิทธิ์ 1 คำขอ แล้วลบแถวทดสอบ; live tables ยังเล็ก จึงยังไม่มี production-sized latency evidence
+- Completion percentages คงเดิมตาม rubric: Phase 11D ไม่ปิด CI/E2E, production schedule, restore drill หรือ external approval
 
 ## Master flow
 
@@ -241,11 +244,10 @@ flowchart TD
 - Provider benchmark: infrastructure complete, real fal evidence failed
 - TikTok OAuth/publishing/Shop/Analytics: contracts complete, production authorization absent
 - Auto Mode: durable planner, idempotent start และ atomic budget reservation complete; production executor ยังไม่เปิด
-- Production operations: Phase 11C recovery/health/operator queue complete; external scheduler, on-call routing และ restore drill ยังขาด
+- Production operations: Phase 11C recovery/health/operator queue และ Phase 11D bounded queries/indexes complete; external scheduler, on-call routing, production-sized load evidence และ restore drill ยังขาด
 
 ### PLANNED
 
-- Phase 11D Performance/Database
 - Phase 11E Production Environment
 - Phase 11F Release Readiness
 - Phase 11G one-account Growth pilot after external approvals
@@ -254,7 +256,7 @@ flowchart TD
 
 ### P0 open
 
-ไม่มี P0 ด้าน code architecture หลัง Phase 11C; production ยังถูก block ด้วย Phase 11D–11F และ external/owner approvals
+ไม่มี P0 ด้าน code architecture หลัง Phase 11D; production ยังถูก block ด้วย Phase 11E–11F และ external/owner approvals
 
 ### P1 open
 
@@ -280,9 +282,9 @@ flowchart TD
 
 ## Next five actions
 
-1. Phase 11D: query-plan/index/load/retention validation
-2. Phase 11E: production environment boundaries, recovery schedule and secret ownership
-3. Phase 11F: CI, staging, backup/rollback and release gates
+1. Phase 11E: production environment boundaries, recovery schedule and secret ownership
+2. Phase 11F: CI, staging, backup/rollback and release gates
+3. Staging load: วัด latency/locks จริงด้วย 10 accounts และ 150–200 candidates/day ก่อนขยาย pilot
 4. Owner actions: provider benchmark approval, TikTok approvals, leaked-password protection และ pilot caps
 5. ก่อน pilot: ตั้ง external alert routing, backup/restore drill และตรวจ operations dashboard ด้วยข้อมูลจริง
 

@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { TikTokPublishingService } from "@/features/publishing/services";
 import { logOps, redactOpsText } from "@/lib/ops/logger";
+import { operationalPage, operationalWindow } from "../../lib/pagination";
 
 export const manualActionSchema = z.object({
   incidentId: z.uuid(),
@@ -15,51 +16,60 @@ export const manualActionSchema = z.object({
 
 export type ManualActionInput = z.infer<typeof manualActionSchema>;
 
-export async function listOwnerOperations(client: SupabaseClient, ownerId: string) {
-  const [incidents, alerts, accounts, events, publishAttempts] = await Promise.all([
-    client.from("operations_incidents").select("*").eq("owner_id", ownerId).order("last_seen_at", { ascending: false }).limit(100),
+export async function listOwnerOperations(client: SupabaseClient, ownerId: string, page = 1) {
+  const { from, to } = operationalWindow(page);
+  const incidents = await client.from("operations_incidents").select("*").eq("owner_id", ownerId)
+    .order("last_seen_at", { ascending: false }).order("id", { ascending: false }).range(from, to);
+  if (incidents.error) throw new Error("operations_read_failed");
+  const incidentPage = operationalPage(incidents.data ?? [], page);
+  const incidentIds = incidentPage.items.map((item) => item.id);
+  const publishIds = incidentPage.items.filter((item) => item.subject_type === "PUBLISH").map((item) => item.subject_id);
+  const [alerts, accounts, events, publishAttempts] = await Promise.all([
     client.from("operations_alerts").select("*").eq("owner_id", ownerId).eq("state", "OPEN").order("last_seen_at", { ascending: false }).limit(50),
     client.from("tiktok_accounts").select("id,display_name,username").eq("owner_id", ownerId),
-    client.from("operations_action_events").select("incident_id,action,created_at,outcome").eq("owner_id", ownerId).order("created_at", { ascending: false }).limit(100),
-    client.from("publish_attempts").select("publishing_queue_id,started_at,status").eq("owner_id", ownerId).order("started_at", { ascending: false }).limit(100),
+    incidentIds.length ? client.from("operations_action_events").select("incident_id,action,created_at,outcome").eq("owner_id", ownerId).in("incident_id", incidentIds).order("created_at", { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
+    publishIds.length ? client.from("publish_attempts").select("publishing_queue_id,started_at,status").eq("owner_id", ownerId).in("publishing_queue_id", publishIds).order("started_at", { ascending: false }).limit(500) : Promise.resolve({ data: [], error: null }),
   ]);
-  for (const result of [incidents, alerts, accounts, events, publishAttempts]) if (result.error) throw new Error("operations_read_failed");
+  for (const result of [alerts, accounts, events, publishAttempts]) if (result.error) throw new Error("operations_read_failed");
   const accountNames = new Map((accounts.data ?? []).map((item) => [item.id, item.display_name || item.username || "Account"]));
   const lastAction = new Map<string, { action: string; created_at: string }>();
   for (const item of events.data ?? []) if (!lastAction.has(item.incident_id)) lastAction.set(item.incident_id, item);
   const lastPublishAttempt = new Map<string, { started_at: string; status: string }>();
   for (const item of publishAttempts.data ?? []) if (!lastPublishAttempt.has(item.publishing_queue_id)) lastPublishAttempt.set(item.publishing_queue_id, item);
   return {
-    incidents: (incidents.data ?? []).map((item) => ({
+    incidents: incidentPage.items.map((item) => ({
       ...item, account_name: item.tiktok_account_id ? accountNames.get(item.tiktok_account_id) ?? "Account" : "—",
       last_action: lastAction.get(item.id) ?? null,
       last_publish_attempt: item.subject_type === "PUBLISH" ? lastPublishAttempt.get(item.subject_id) ?? null : null,
     })),
     alerts: alerts.data ?? [],
+    page,
+    hasMore: incidentPage.hasMore,
   };
 }
 
 export async function ownerOperationsHealth(admin: SupabaseClient, ownerId: string, now = new Date()) {
-  const [scheduler, incidents, budgets, publishing, runs, jobs, recentAttempts] = await Promise.all([
+  const [scheduler, reconciliation, deadLetter, failedOperations, budgets, publishing, runs, jobs, recentAttempts] = await Promise.all([
     admin.from("operations_scheduler_runs").select("state,started_at,completed_at,error_code").order("started_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("operations_incidents").select("classification,lifecycle,subject_type,reason_code").eq("owner_id", ownerId).neq("lifecycle", "RESOLVED").limit(1000),
+    admin.from("operations_incidents").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).neq("lifecycle", "RESOLVED").eq("classification", "RECONCILIATION_REQUIRED"),
+    admin.from("operations_incidents").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).neq("lifecycle", "RESOLVED").eq("classification", "FINAL_FAILURE"),
+    admin.from("operations_incidents").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).neq("lifecycle", "RESOLVED").like("reason_code", "%FAILED%"),
     admin.from("generation_budget_reservations").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).eq("state", "RESERVED"),
     admin.from("publishing_queue").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).in("external_state", ["RESERVING", "SUBMITTING"]),
     admin.from("auto_runs").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).in("state", ["STARTING", "RUNNING", "RETRY_PENDING"]).lt("updated_at", new Date(now.getTime() - 20 * 60_000).toISOString()),
     admin.from("generation_jobs").select("id", { count: "exact", head: true }).eq("owner_id", ownerId).in("status", ["PROCESSING", "RETRYING"]).lt("started_at", new Date(now.getTime() - 20 * 60_000).toISOString()),
     admin.from("publish_attempts").select("error_code,created_at").eq("owner_id", ownerId).in("status", ["FAILED", "RETRYABLE"]).order("created_at", { ascending: false }).limit(5),
   ]);
-  for (const result of [scheduler, incidents, budgets, publishing, runs, jobs, recentAttempts]) if (result.error) throw new Error("operations_health_read_failed");
-  const incidentRows = incidents.data ?? [];
+  for (const result of [scheduler, reconciliation, deadLetter, failedOperations, budgets, publishing, runs, jobs, recentAttempts]) if (result.error) throw new Error("operations_health_read_failed");
   const lastRun = scheduler.data;
   const schedulerAgeMinutes = lastRun ? Math.floor((now.getTime() - Date.parse(lastRun.started_at)) / 60_000) : null;
   return {
     scheduler: { status: lastRun?.state ?? "NOT_STARTED", last_started_at: lastRun?.started_at ?? null, age_minutes: schedulerAgeMinutes,
       healthy: lastRun?.state === "COMPLETED" && schedulerAgeMinutes !== null && schedulerAgeMinutes <= 15 },
     stale_jobs: (jobs.count ?? 0) + (runs.count ?? 0),
-    reconciliation: incidentRows.filter((item) => item.classification === "RECONCILIATION_REQUIRED").length,
-    dead_letter: incidentRows.filter((item) => item.classification === "FINAL_FAILURE").length,
-    failed_operations: incidentRows.filter((item) => item.reason_code.includes("FAILED")).length,
+    reconciliation: reconciliation.count ?? 0,
+    dead_letter: deadLetter.count ?? 0,
+    failed_operations: failedOperations.count ?? 0,
     pending_leases: publishing.count ?? 0,
     pending_budget_reservations: budgets.count ?? 0,
     recent_provider_errors: (recentAttempts.data ?? []).map((item) => ({ code: redactOpsText(item.error_code), at: item.created_at })),
