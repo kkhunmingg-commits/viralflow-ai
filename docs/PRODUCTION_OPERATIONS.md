@@ -12,6 +12,7 @@
 | TikTok OAuth/publishing | `TIKTOK_PROVIDER`, `TIKTOK_CLIENT_KEY`, `TIKTOK_CLIENT_SECRET`, `TIKTOK_REDIRECT_URI`, `TIKTOK_TOKEN_ENCRYPTION_KEY`, `TIKTOK_PUBLISHING_PROVIDER`, `TIKTOK_PUBLISHING_REAL_MODE`, approval flags | REQUIRED_FOR_FEATURE | mock เป็นค่าเริ่มต้น; real publishing ต้องเป็น production + official + approvals; callback ต้องตรง `APP_URL` |
 | TikTok Shop | `TIKTOK_SHOP_PROVIDER`, `TIKTOK_SHOP_REAL_MODE`, app key/secret | REQUIRED_FOR_FEATURE | mock เป็นค่าเริ่มต้น; real mode ใช้เฉพาะ production |
 | Video/Creative | `FAL_KEY`, `FAL_WAN_PROVIDER_STATE`, `GOOGLE_GENAI_API_KEY`, `OPENAI_API_KEY`, model settings | REQUIRED_FOR_FEATURE | server-only; fal Auto ใช้ได้ต่อเมื่อมี key และ `PRODUCTION_APPROVED`; Google ไม่เป็น paid fallback อัตโนมัติ |
+| FFmpeg | `FFMPEG_BINARY`, `FFPROBE_BINARY` | OPTIONAL | ใช้ bundled binary เป็นค่าเริ่มต้น; CI ระบุ system FFmpeg ที่มี `drawtext` เพื่อทดสอบ render จริง |
 | Benchmark | `VIDEO_BENCHMARK_ALLOW_PAID`, `VIDEO_BENCHMARK_MAX_USD` | OPTIONAL | CLI เท่านั้น; staging/production ห้ามตั้ง paid=true |
 | Recovery Cron | `OPS_RECOVERY_ENABLED`, `CRON_SECRET`, `OPS_RECOVERY_TOKEN` | REQUIRED_FOR_FEATURE | ปิดเป็นค่าเริ่มต้น; `CRON_SECRET` ใช้กับ Vercel GET, token แยกสำหรับ POST; ทั้งสอง server-only |
 | Alerts | `OPS_ALERT_WEBHOOK_URL`, `OPS_ALERT_WEBHOOK_HOST`, `OPS_ALERT_WEBHOOK_TOKEN` | OPTIONAL | HTTPS exact host, no redirect, timeout 5s; delivery เป็น best effort; internal alerts อยู่ใน Supabase เสมอ |

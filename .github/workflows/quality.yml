@@ -21,6 +21,8 @@ jobs:
       TIKTOK_PUBLISHING_PROVIDER: mock
       TIKTOK_SHOP_PROVIDER: mock
       VIDEO_BENCHMARK_ALLOW_PAID: 'false'
+      FFMPEG_BINARY: /usr/bin/ffmpeg
+      FFPROBE_BINARY: /usr/bin/ffprobe
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -32,4 +34,9 @@ jobs:
           node-version: '24'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Install FFmpeg with drawtext support
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          ffmpeg -hide_banner -filters | grep -q drawtext
       - run: pnpm release:check

@@ -89,7 +89,7 @@ Phase 11E starting HEAD: **7203779406f3630836e64566b5fa7513f6d79865**
 - Phase 11C verification: local migration เรียงหลัง 11B, live migration ชื่อเดียวกันหนึ่งรายการ, scheduler claim และ cross-owner RPC test ผ่านในธุรกรรม rollback; typecheck/build ผ่าน, lint 0 errors กับ 8 warning เดิม และ tests 269/269 ผ่าน
 - Phase 11D verification: 12 indexes อยู่ใน live catalog, RLS 65/65, query plan ของ owner/recent incident ใช้ index ใหม่; scheduler claim พร้อมกัน 8 คำขอได้สิทธิ์ 1 คำขอ แล้วลบแถวทดสอบ; live tables ยังเล็ก จึงยังไม่มี production-sized latency evidence
 - Phase 11E: local/live migrations คงเดิม 18/18; GitHub Actions, release check, fail-closed Vercel Cron/environment contract, health/alert boundary และ operations runbook เพิ่มแล้ว; Security Advisor ไม่มี issue ใหม่ (warning leaked-password และ OAuth service-only info เดิม); ยังไม่ได้ deploy หรือเปิด external mode
-- Phase 11E quality: tests 288/288, typecheck/lint/build และ `pnpm release:check` ผ่าน; lint มี warning เดิม 8 รายการ. CI config ตรวจ local/static; ยังไม่ได้ยืนยัน GitHub-hosted run หรือ branch protection
+- Phase 11E quality: tests 288/288, typecheck/lint/build และ `pnpm release:check` ผ่าน; lint มี warning เดิม 8 รายการ. CI ใช้ system FFmpeg สำหรับ render test บน Linux; ต้องให้ GitHub-hosted run ผ่านก่อน merge และ owner เปิด branch protection
 - Percentages จาก rubric ข้างบนเพิ่ม coding 1 จุด (CI/docs) และ readiness 5 จุด (CI/scheduler/backup contract); ไม่ให้คะแนนในส่วน staging/restore drill/external approvals ที่ยังไม่เกิด
 
 ## Master flow

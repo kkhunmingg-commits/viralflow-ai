@@ -17,8 +17,8 @@ const esc=(text:string)=>text.normalize("NFKC").replace(/[\\':,%\[\]]/g,m=>`\\${
 export class FFmpegVideoRenderer implements VideoRenderer {
   readonly provider="local-ffmpeg";
   readonly model="ffmpeg-template-v1";
-  private ffmpeg=(()=>{const local=join(process.cwd(),"node_modules","ffmpeg-static",process.platform==="win32"?"ffmpeg.exe":"ffmpeg");return existsSync(local)?local:ffmpegPath})();
-  private ffprobe=(()=>{const local=join(process.cwd(),"node_modules","ffprobe-static","bin",process.platform,process.arch==="arm64"?"arm64":"x64",process.platform==="win32"?"ffprobe.exe":"ffprobe");return existsSync(local)?local:ffprobeStatic.path})();
+  private ffmpeg=(()=>{if(process.env.FFMPEG_BINARY)return process.env.FFMPEG_BINARY;const local=join(process.cwd(),"node_modules","ffmpeg-static",process.platform==="win32"?"ffmpeg.exe":"ffmpeg");return existsSync(local)?local:ffmpegPath})();
+  private ffprobe=(()=>{if(process.env.FFPROBE_BINARY)return process.env.FFPROBE_BINARY;const local=join(process.cwd(),"node_modules","ffprobe-static","bin",process.platform,process.arch==="arm64"?"arm64":"x64",process.platform==="win32"?"ffprobe.exe":"ffprobe");return existsSync(local)?local:ffprobeStatic.path})();
   async render(input:VideoRenderInput,productImagePath:string,voicePath:string,outputPath:string){
     if(!this.ffmpeg)throw new Error("FFmpeg binary is unavailable");
     const motion=input.variation?.motionPattern??"ZOOM_IN",zoom=motion==="ZOOM_OUT"?"if(eq(on,0),1.06,max(zoom-0.00025,1))":motion==="STATIC"?"1":"min(zoom+0.00025,1.06)";
