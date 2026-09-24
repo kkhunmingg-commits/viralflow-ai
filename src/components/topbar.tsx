@@ -1,11 +1,14 @@
 import { signOut } from "@/app/(app)/actions";
+import Image from "next/image";
 
 export function Topbar({
   displayName,
   email,
+  avatarUrl,
 }: {
   displayName: string;
   email: string;
+  avatarUrl?: string | null;
 }) {
   const initial = (displayName || email || "V").slice(0, 1).toUpperCase();
 
@@ -18,7 +21,7 @@ export function Topbar({
         </p>
       </div>
       <div className="user-menu">
-        <span className="avatar">{initial}</span>
+        {avatarUrl ? <Image className="avatar" src={avatarUrl} alt="" width={34} height={34} unoptimized referrerPolicy="no-referrer" /> : <span className="avatar">{initial}</span>}
         <div className="user-copy">
           <strong>{displayName}</strong>
           <small>{email}</small>

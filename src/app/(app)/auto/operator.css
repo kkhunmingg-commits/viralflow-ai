@@ -1,30 +1,30 @@
-.app-frame:has(.operator-page) {
+.app-frame:has(:is(.operator-page, .accounts-page)) {
   background: #0d1018;
 }
-.app-frame:has(.operator-page) .sidebar {
+.app-frame:has(:is(.operator-page, .accounts-page)) .sidebar {
   background: linear-gradient(180deg, #111522, #0c1019);
   border-right: 1px solid #252b3b;
 }
-.app-frame:has(.operator-page) .nav-link.active {
+.app-frame:has(:is(.operator-page, .accounts-page)) .nav-link.active {
   background: linear-gradient(90deg, rgba(113, 100, 245, .24), rgba(66, 142, 232, .06));
   box-shadow: inset 2px 0 #8373ff;
 }
-.app-frame:has(.operator-page) .nav-link.active .nav-icon { color: #a89dff; border-color: #5b5494; }
-.app-frame:has(.operator-page) .brand-mark {
+.app-frame:has(:is(.operator-page, .accounts-page)) .nav-link.active .nav-icon { color: #a89dff; border-color: #5b5494; }
+.app-frame:has(:is(.operator-page, .accounts-page)) .brand-mark {
   color: white;
   background: linear-gradient(145deg, #8170ff, #30a9c9);
   box-shadow: 0 0 0 5px rgba(129, 112, 255, .1);
 }
-.app-frame:has(.operator-page) .topbar {
+.app-frame:has(:is(.operator-page, .accounts-page)) .topbar {
   color: #e9edf7;
   background: #111620;
   border-color: #252c3a;
 }
-.app-frame:has(.operator-page) .topbar-kicker { color: #a99cff; }
-.app-frame:has(.operator-page) .topbar-status,
-.app-frame:has(.operator-page) .user-copy small { color: #9aa7bc; }
-.app-frame:has(.operator-page) .avatar { color: #e9e7ff; background: #37365d; }
-.app-frame:has(.operator-page) .page-content {
+.app-frame:has(:is(.operator-page, .accounts-page)) .topbar-kicker { color: #a99cff; }
+.app-frame:has(:is(.operator-page, .accounts-page)) .topbar-status,
+.app-frame:has(:is(.operator-page, .accounts-page)) .user-copy small { color: #9aa7bc; }
+.app-frame:has(:is(.operator-page, .accounts-page)) .avatar { color: #e9e7ff; background: #37365d; }
+.app-frame:has(:is(.operator-page, .accounts-page)) .page-content {
   min-width: 0;
   background: radial-gradient(circle at 52% -18%, rgba(83, 71, 155, .25), transparent 38%), #0d1018;
 }
@@ -357,8 +357,8 @@
   .operator-page .operator-start-button { width: 100%; }
 }
 @media (max-width: 580px) {
-  .app-frame:has(.operator-page) .sidebar { border-right: 0; border-bottom: 1px solid #2a3141; }
-  .app-frame:has(.operator-page) .page-content { padding: 16px 12px; }
+  .app-frame:has(:is(.operator-page, .accounts-page)) .sidebar { border-right: 0; border-bottom: 1px solid #2a3141; }
+  .app-frame:has(:is(.operator-page, .accounts-page)) .page-content { padding: 16px 12px; }
   .operator-page .operator-hero { gap: 11px; margin-bottom: 15px; }
   .operator-brand-mark { flex-basis: 43px; width: 43px; height: 43px; border-radius: 12px; font-size: 19px; }
   .operator-page .operator-hero h1 { font-size: 26px; }
