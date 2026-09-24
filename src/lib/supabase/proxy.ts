@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 
-const publicPaths = new Set(["/login"]);
+const publicPaths = new Set(["/login", "/terms", "/privacy"]);
 
 export async function updateSession(request: NextRequest) {
   // Skip cookie auth for this exact route; the handler checks a server-only bearer secret.
