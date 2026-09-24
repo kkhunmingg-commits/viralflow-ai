@@ -26,9 +26,15 @@ export async function login(
     };
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword(values.data);
-  if (error) return { error: "อีเมลหรือรหัสผ่านไม่ถูกต้อง" };
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.signInWithPassword(values.data);
+    if (error) {
+      return { error: error.code === "invalid_credentials" ? "อีเมลหรือรหัสผ่านไม่ถูกต้อง" : "ไม่สามารถเข้าสู่ระบบได้ในขณะนี้ กรุณาลองอีกครั้ง" };
+    }
+  } catch {
+    return { error: "ไม่สามารถเข้าสู่ระบบได้ในขณะนี้ กรุณาลองอีกครั้ง" };
+  }
 
   redirect("/auto");
 }

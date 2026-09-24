@@ -1,48 +1,38 @@
 import type { Metadata } from "next";
 import { LoginForm } from "./login-form";
+import { loginErrorMessage } from "./auth-flow";
+import "./login.css";
 
 export const metadata: Metadata = { title: "เข้าสู่ระบบ" };
 
-export default function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
+  const { error } = await searchParams;
   return (
-    <main className="login-page">
-      <section className="login-story">
-        <div className="brand">
-          <span className="brand-mark">V</span>
-          <span>ViralFlow AI</span>
-        </div>
-        <div className="story-copy">
-          <p className="eyebrow">THAILAND COMMERCE INTELLIGENCE</p>
-          <h1>
-            ตัดสินใจจากโมเมนตัม
-            <br />
-            สร้างอย่างมีระบบ
-          </h1>
-          <p>
-            ศูนย์ควบคุมเดียวสำหรับบัญชี สินค้า ครีเอทีฟ ต้นทุน และผลลัพธ์จริง
-          </p>
-        </div>
-        <div className="signal-card">
-          <span className="signal-dot" />
-          <div>
-            <strong>Foundation online</strong>
-            <small>Supabase secured · RLS enabled</small>
+    <main className="auth-page">
+      <div className="auth-layout">
+        <section className="auth-story" aria-label="ViralFlow AI">
+          <div className="auth-brand"><span className="auth-brand-mark" aria-hidden="true">V<span>✦</span></span><span>ViralFlow <b>AI</b></span></div>
+          <div className="auth-story-main">
+            <p className="auth-kicker"><span /> YOUR CONTENT COMMAND CENTER</p>
+            <h1>Automate.<br />Publish.<br /><em>Learn. Grow.</em></h1>
+            <p className="auth-story-description">ศูนย์ควบคุม AI สำหรับสร้างคอนเทนต์ TikTok ติดตามผล และพัฒนากลยุทธ์ของแต่ละบัญชีในที่เดียว</p>
+            <div className="auth-flow-preview" aria-label="กระบวนการทำงาน"><span>IDEA</span><i aria-hidden="true" /><span>CREATE</span><i aria-hidden="true" /><span>PUBLISH</span><i aria-hidden="true" /><span>LEARN</span></div>
           </div>
-        </div>
-      </section>
-      <section className="login-panel">
-        <div className="login-card">
-          <p className="eyebrow">WELCOME BACK</p>
-          <h2>เข้าสู่ระบบควบคุม</h2>
-          <p className="muted">
-            ใช้บัญชีที่ได้รับอนุญาตให้เข้าถึง ViralFlow AI
-          </p>
-          <LoginForm />
-          <p className="login-note">
-            การเข้าถึงทั้งหมดถูกแยกตามเจ้าของด้วย Supabase RLS
-          </p>
-        </div>
-      </section>
+          <p className="auth-story-foot">CREATE WITH INTENT <span>·</span> GROW WITH EVIDENCE</p>
+        </section>
+        <section className="auth-panel" aria-labelledby="auth-heading">
+          <div className="auth-mobile-brand"><span className="auth-brand-mark" aria-hidden="true">V<span>✦</span></span><span>ViralFlow <b>AI</b></span></div>
+          <div className="auth-card">
+            <div className="auth-card-accent" aria-hidden="true" />
+            <p className="auth-card-kicker">WELCOME BACK</p>
+            <h2 id="auth-heading">ยินดีต้อนรับกลับ</h2>
+            <p className="auth-card-subtitle">เข้าสู่ระบบเพื่อเปิด Control Center ของคุณ</p>
+            <LoginForm initialError={loginErrorMessage(error)} />
+            <p className="auth-privacy">เซสชันของคุณจัดการโดย Supabase Auth อย่างปลอดภัย</p>
+          </div>
+          <p className="auth-panel-foot">ViralFlow AI <span>·</span> Create. Publish. Learn. Grow.</p>
+        </section>
+      </div>
     </main>
   );
 }
