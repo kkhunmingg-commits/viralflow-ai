@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PageHeading } from "@/components/page-heading";
-import { serverEnv } from "@/lib/server-env";
+import { serverEnv, tiktokOfficialSetupMissing } from "@/lib/server-env";
+import { tiktokRequirementLabel } from "@/lib/tiktok-config";
 
 export const metadata: Metadata = { title: "เชื่อม TikTok" };
 
@@ -30,7 +31,7 @@ export default async function ConnectTikTokPage({
         description="เริ่ม OAuth จาก server, ตรวจ state แบบใช้ครั้งเดียว และเก็บ token แบบเข้ารหัสโดยไม่ส่งไป browser"
         action={<Link className="secondary-action" href="/accounts">กลับไปบัญชี</Link>}
       />
-      {error ? <p className="notice danger">เชื่อมต่อไม่สำเร็จ: <code>{error}</code></p> : null}
+      {error ? <p className="notice danger" role="alert">{error === "tiktok_setup_required" ? "TikTok setup required — ตั้งค่าที่ขาดก่อนเชื่อมบัญชี" : "เชื่อมต่อ TikTok ไม่สำเร็จ โปรดลองอีกครั้งหรือตรวจการตั้งค่า"}</p> : null}
       <section className="panel">
         <div className="panel-heading">
           <div><p className="eyebrow">PROVIDER</p><h2>{serverEnv.tiktokProvider === "mock" ? "MockTikTokProvider" : "OfficialTikTokProvider"}</h2></div>
@@ -46,6 +47,13 @@ export default async function ConnectTikTokPage({
                 <Link className="primary-action" href={`/auth/tiktok/start?scenario=${scenario}`}>Connect TikTok</Link>
               </article>
             ))}
+          </div>
+        ) : tiktokOfficialSetupMissing.length ? (
+          <div className="large-empty">
+            <h2>TikTok setup required</h2>
+            <p>ยังไม่สามารถเริ่มการเชื่อมต่อได้ กรุณาเพิ่มค่าต่อไปนี้ในสภาพแวดล้อมของ server:</p>
+            <ul>{tiktokOfficialSetupMissing.map((key) => <li key={key}>{tiktokRequirementLabel(key)} missing</li>)}</ul>
+            <p>ระบบยังไม่ได้ติดต่อ TikTok และยังไม่ได้สร้าง OAuth request</p>
           </div>
         ) : (
           <div className="large-empty">

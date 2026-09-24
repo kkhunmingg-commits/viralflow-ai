@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logOps } from "../../lib/ops/logger";
-import { serverEnv } from "@/lib/server-env";
+import { serverEnv, tiktokOfficialSetupMissing } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MockTikTokProvider, OfficialTikTokProvider, type TikTokProvider } from "./provider";
 import { calculateTikTokReadiness, isCreatorInfoFresh } from "./readiness";
@@ -43,7 +43,7 @@ function approval(value: boolean) {
 
 export function createTikTokProvider(scenario?: MockTikTokScenario): TikTokProvider {
   if (serverEnv.tiktokProvider === "mock") return new MockTikTokProvider(scenario);
-  if (!serverEnv.tiktokClientKey || !serverEnv.tiktokClientSecret || !serverEnv.tiktokRedirectUri) {
+  if (tiktokOfficialSetupMissing.length || !serverEnv.tiktokClientKey || !serverEnv.tiktokClientSecret || !serverEnv.tiktokRedirectUri) {
     throw new TikTokServiceError("tiktok_official_configuration_missing");
   }
   return new OfficialTikTokProvider({

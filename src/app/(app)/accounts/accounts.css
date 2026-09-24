@@ -19,6 +19,10 @@
 .accounts-connect:hover { color: white; filter: brightness(1.12); transform: translateY(-1px); }
 .accounts-connect:focus-visible, .accounts-detail-link:focus-visible, .accounts-page button:focus-visible, .accounts-page summary:focus-visible { outline: 2px solid #93dded; outline-offset: 3px; }
 .accounts-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: 15px; margin: 0 0 16px; }
+.accounts-setup { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: -14px 0 24px; padding: 16px 18px; border: 1px solid #685436; border-radius: 14px; color: #fce0a7; background: #2b261f; }
+.accounts-setup strong { font-size: 13px; }
+.accounts-setup p { margin: 5px 0 0; color: #d6c6a9; font-size: 11px; line-height: 1.6; }
+.accounts-setup a { flex: none; color: #fce0a7; font-size: 11px; font-weight: 800; }
 .accounts-section-head h2 { margin: 0; font-size: 18px; letter-spacing: -.025em; }
 .accounts-section-head span { color: var(--account-muted); font-size: 12px; }
 .accounts-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
@@ -69,6 +73,7 @@
 @media (max-width: 1050px) { .accounts-grid { grid-template-columns: 1fr; } }
 @media (max-width: 580px) {
   .accounts-hero { align-items: stretch; flex-direction: column; gap: 17px; margin-bottom: 22px; }
+  .accounts-setup { align-items: flex-start; flex-direction: column; margin-top: 0; }
   .accounts-connect { width: 100%; min-height: 48px; }
   .accounts-empty { min-height: 385px; padding: 32px 18px; }
   .accounts-card { padding: 17px; }

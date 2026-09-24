@@ -4,7 +4,8 @@ import Link from "next/link";
 import { AccountFields } from "@/components/account-fields";
 import { getOwnerAccounts } from "@/features/accounts/queries";
 import type { TikTokAccount } from "@/features/accounts/types";
-import { serverEnv } from "@/lib/server-env";
+import { serverEnv, tiktokOfficialSetupMissing } from "@/lib/server-env";
+import { tiktokRequirementLabel } from "@/lib/tiktok-config";
 import { createClient } from "@/lib/supabase/server";
 import { createMockAccount, deleteMockAccount, seedDevelopmentAccounts, updateMockAccount } from "./actions";
 import { presentAccount, type AccountBadge, type AccountHealthSnapshot, type ShopSnapshot } from "./account-presentation";
@@ -67,6 +68,7 @@ export default async function AccountsPage() {
 
   return <div className="accounts-page">
     <header className="accounts-hero"><div className="accounts-hero-copy"><p className="accounts-overline">VIRALFLOW / ACCOUNTS</p><h1>บัญชี TikTok</h1><p>เชื่อมและจัดการบัญชีที่ ViralFlow จะใช้ทำงานอัตโนมัติ</p></div><Link className="accounts-connect" href="/accounts/connect/tiktok"><span aria-hidden="true">＋</span> เชื่อม TikTok</Link></header>
+    {tiktokOfficialSetupMissing.length ? <section className="accounts-setup" role="status"><div><strong>TikTok setup required</strong><p>{tiktokOfficialSetupMissing.map((key) => `${tiktokRequirementLabel(key)} missing`).join(" · ")}</p></div><Link href="/accounts/connect/tiktok">ดูการตั้งค่า →</Link></section> : null}
     {loadError ? <section className="accounts-empty accounts-error" role="alert"><span className="accounts-empty-icon" aria-hidden="true">!</span><h2>โหลดบัญชีไม่สำเร็จ</h2><p>โปรดลองอีกครั้ง หากยังพบปัญหา ให้ตรวจสอบการเชื่อมต่อของระบบ</p><Link className="accounts-connect" href="/accounts">ลองอีกครั้ง</Link></section>
       : accounts.length ? <section aria-label="บัญชี TikTok ที่เชื่อมต่อ"><div className="accounts-section-head"><h2>บัญชีของคุณ</h2><span>{accounts.length.toLocaleString("th-TH")} บัญชี</span></div><div className="accounts-grid">{accounts.map((account) => <AccountCard key={account.id} account={account} health={healthByAccount.get(account.id)} shop={shopByAccount.get(account.id)} canSeed={canSeed} />)}</div></section>
         : <section className="accounts-empty"><span className="accounts-empty-icon" aria-hidden="true">♪</span><h2>ยังไม่มีบัญชี TikTok</h2><p>เชื่อมบัญชีแรกของคุณเพื่อเริ่มใช้ ViralFlow</p><Link className="accounts-connect" href="/accounts/connect/tiktok">เชื่อม TikTok <span aria-hidden="true">→</span></Link><small>คุณสามารถเชื่อมหลายบัญชีได้</small></section>}

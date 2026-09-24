@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { TikTokOAuthService } from "@/features/tiktok/services";
-import { serverEnv } from "@/lib/server-env";
+import { serverEnv, tiktokOfficialSetupMissing } from "@/lib/server-env";
 import { enforceRateLimit } from "@/lib/security/rate-limit";
 import { RequestSecurityError, requestFingerprint } from "@/lib/security/request";
 
@@ -33,8 +33,11 @@ export async function GET(request: NextRequest) {
   const state = request.nextUrl.searchParams.get("state");
   const code = request.nextUrl.searchParams.get("code");
   const providerError = request.nextUrl.searchParams.get("error");
-  const service = new TikTokOAuthService();
   if (!state) return NextResponse.redirect(resultUrl(request, { error: "oauth_state_missing" }));
+  if (tiktokOfficialSetupMissing.length) {
+    return NextResponse.redirect(resultUrl(request, { error: "tiktok_setup_required" }));
+  }
+  const service = new TikTokOAuthService();
 
   try {
     await enforceRateLimit({

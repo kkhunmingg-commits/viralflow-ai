@@ -8,7 +8,8 @@ import { assignmentDate } from "@/features/assignments/planner";
 import { canStartOperatorRun, describeOperatorRun, operatorStepLabel } from "@/features/auto/operator";
 import { getAutoOverview, getAutoRun } from "@/features/auto/services";
 import { falAutoModeAvailability } from "@/features/video/provider-routing";
-import { serverEnv } from "@/lib/server-env";
+import { serverEnv, tiktokOfficialSetupMissing } from "@/lib/server-env";
+import { tiktokRequirementLabel } from "@/lib/tiktok-config";
 import { createClient } from "@/lib/supabase/server";
 import "./operator.css";
 
@@ -162,6 +163,7 @@ export default async function AutoPage({ searchParams }: {
   const runProvider = run && typeof run.metrics_json?.videoProvider === "string" ? run.metrics_json.videoProvider : null;
   const accountHealthy = Boolean(health && ["READY", "GOOD", "HEALTHY"].includes(health));
   const setupItems = [
+    ...tiktokOfficialSetupMissing.map((key) => ({ text: `${tiktokRequirementLabel(key)} missing`, href: "/accounts/connect/tiktok" })),
     !selectedAccount ? { text: "เพิ่มบัญชี TikTok เพื่อเริ่มใช้งาน", href: "/accounts" } : null,
     selectedAccount && !providerReady && !selectedAccount.is_mock
       ? { text: "fal ยังไม่พร้อมใช้งานจริง", href: "/settings/integrations" } : null,

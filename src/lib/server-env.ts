@@ -1,6 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import { validateDeploymentConfig } from "./deployment-config";
+import { assertTikTokOfficialConfig, missingTikTokOfficialConfig } from "./tiktok-config";
 
 const exactHostnameList = z.string().min(1).refine((value) => {
   const hosts = value.split(",").map((host) => host.trim().toLowerCase()).filter(Boolean);
@@ -55,7 +56,6 @@ const serverEnvSchema = z.object({
   TIKTOK_SHOP_APP_SECRET: z.preprocess(value=>value===""?undefined:value,z.string().min(8).optional()),
 }).superRefine((value,ctx)=>{
   if(value.CREATIVE_AI_PROVIDER==="openai"&&!value.OPENAI_API_KEY)ctx.addIssue({code:"custom",path:["OPENAI_API_KEY"],message:"OPENAI_API_KEY is required when CREATIVE_AI_PROVIDER=openai"});
-  if(value.TIKTOK_PROVIDER==="official") for(const key of ["SUPABASE_SECRET_KEY","TIKTOK_CLIENT_KEY","TIKTOK_CLIENT_SECRET","TIKTOK_REDIRECT_URI","TIKTOK_TOKEN_ENCRYPTION_KEY"] as const) if(!value[key])ctx.addIssue({code:"custom",path:[key],message:`${key} is required when TIKTOK_PROVIDER=official`});
   if(value.TIKTOK_PUBLISHING_PROVIDER==="official"&&value.TIKTOK_PUBLISHING_REAL_MODE!=="true")ctx.addIssue({code:"custom",path:["TIKTOK_PUBLISHING_REAL_MODE"],message:"TIKTOK_PUBLISHING_REAL_MODE=true is required for official publishing"});
   if(value.TIKTOK_PUBLISHING_PROVIDER==="official") for(const key of ["SUPABASE_SECRET_KEY","TIKTOK_CLIENT_SECRET","TIKTOK_TOKEN_ENCRYPTION_KEY"] as const) if(!value[key])ctx.addIssue({code:"custom",path:[key],message:`${key} is required for official publishing`});
   if(value.TIKTOK_ANALYTICS_PROVIDER==="official"&&value.TIKTOK_ANALYTICS_REAL_MODE!=="true")ctx.addIssue({code:"custom",path:["TIKTOK_ANALYTICS_REAL_MODE"],message:"TIKTOK_ANALYTICS_REAL_MODE=true is required for official analytics"});
@@ -114,6 +114,11 @@ if (!parsed.success) {
 }
 
 const deployment = validateDeploymentConfig(process.env);
+// An incomplete local setup may render the setup screen. Staging and production
+// still fail at boot; the OAuth route also refuses every incomplete attempt.
+if (parsed.data.TIKTOK_PROVIDER === "official" && deployment.environment !== "development") {
+  assertTikTokOfficialConfig(parsed.data);
+}
 
 export const serverEnv = Object.freeze({
   appEnvironment: deployment.environment,
@@ -158,3 +163,13 @@ export const serverEnv = Object.freeze({
   tiktokShopAppKey:parsed.data.TIKTOK_SHOP_APP_KEY,
   tiktokShopAppSecret:parsed.data.TIKTOK_SHOP_APP_SECRET,
 });
+
+export const tiktokOfficialSetupMissing = serverEnv.tiktokProvider === "official"
+  ? missingTikTokOfficialConfig({
+    SUPABASE_SECRET_KEY: serverEnv.supabaseSecretKey,
+    TIKTOK_CLIENT_KEY: serverEnv.tiktokClientKey,
+    TIKTOK_CLIENT_SECRET: serverEnv.tiktokClientSecret,
+    TIKTOK_REDIRECT_URI: serverEnv.tiktokRedirectUri,
+    TIKTOK_TOKEN_ENCRYPTION_KEY: serverEnv.tiktokTokenEncryptionKey,
+  })
+  : [];
