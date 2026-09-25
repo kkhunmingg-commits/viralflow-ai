@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { getAccountAffiliateReadiness } from "../accounts/account-performance";
 import type { TikTokAccount } from "../accounts/types";
 import { MockTikTokProvider, OfficialTikTokProvider, creatorInfoSchema } from "./provider";
+import { officialTikTokRequestedScopes } from "./oauth-scopes";
 import { calculateTikTokReadiness, isCreatorInfoFresh, normalizeTikTokScopes } from "./readiness";
 import { publicTikTokAccount } from "./serialization";
 import { TikTokTokenCipher } from "./token-crypto";
@@ -17,6 +18,26 @@ const base = {
 };
 
 describe("TikTok scope and readiness mapping", () => {
+  it("requests only basic identity in sandbox mode and keeps publishing blocked", () => {
+    const requestedScopes = officialTikTokRequestedScopes("basic", true);
+    expect(requestedScopes).toEqual(["user.info.basic"]);
+    const readiness = calculateTikTokReadiness({
+      ...base,
+      requestedScopes,
+      grantedScopes: ["user.info.basic"],
+    });
+    expect(readiness.connectionStatus).toBe("CONNECTED");
+    expect(readiness.directPostStatus).toBe("MISSING_SCOPE");
+    expect(readiness.uploadStatus).toBe("MISSING_SCOPE");
+  });
+
+  it("retains publishing scopes after approval mode is enabled", () => {
+    expect(officialTikTokRequestedScopes("publishing", false))
+      .toEqual(["user.info.basic", "video.publish", "video.upload"]);
+    expect(officialTikTokRequestedScopes("publishing", true))
+      .toEqual(["user.info.basic", "video.publish", "video.upload", "video.list"]);
+  });
+
   it("normalizes only official prepared scopes", () => {
     expect(normalizeTikTokScopes(["video.upload", "fake.scope", "video.upload", "user.info.basic"]))
       .toEqual(["user.info.basic", "video.upload"]);

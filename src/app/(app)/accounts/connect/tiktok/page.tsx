@@ -58,7 +58,9 @@ export default async function ConnectTikTokPage({
         ) : (
           <div className="large-empty">
             <h2>Official TikTok Login Kit</h2>
-            <p>ร้องขอเฉพาะ user.info.basic, video.publish และ video.upload โดยสิทธิ์จริงขึ้นกับ app approval และการยินยอมของผู้ใช้</p>
+            <p>{serverEnv.tiktokOAuthScopeMode === "basic"
+              ? "เชื่อมบัญชีด้วย user.info.basic เท่านั้น บัญชีนี้ยังไม่พร้อมเผยแพร่จนกว่าแอปจะได้รับสิทธิ์ video.publish หรือ video.upload และผู้ใช้อนุญาต"
+              : "ร้องขอ user.info.basic, video.publish และ video.upload โดยสิทธิ์จริงขึ้นกับ app approval และการยินยอมของผู้ใช้"}</p>
             <Link className="primary-action" href="/auth/tiktok/start">Connect TikTok</Link>
           </div>
         )}

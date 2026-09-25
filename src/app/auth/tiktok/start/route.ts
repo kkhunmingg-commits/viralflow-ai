@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { TikTokOAuthService } from "@/features/tiktok/services";
+import { officialTikTokRequestedScopes } from "@/features/tiktok/oauth-scopes";
 import type { MockTikTokScenario, TikTokScope } from "@/features/tiktok/types";
 import { serverEnv, tiktokOfficialSetupMissing } from "@/lib/server-env";
 import { enforceRateLimit } from "@/lib/security/rate-limit";
@@ -44,8 +45,7 @@ export async function GET(request: NextRequest) {
     ownerId: data.user.id,
     origin: request.nextUrl.origin,
     requestedScopes: serverEnv.tiktokProvider === "official"
-      ? ["user.info.basic", "video.publish", "video.upload",
-        ...(serverEnv.tiktokAnalyticsRealMode ? ["video.list" as const] : [])]
+      ? officialTikTokRequestedScopes(serverEnv.tiktokOAuthScopeMode, serverEnv.tiktokAnalyticsRealMode)
       : requestedScopes(scenario),
     mockScenario: serverEnv.tiktokProvider === "official" ? undefined : scenario,
   });
