@@ -6,6 +6,7 @@ import { serverEnv, tiktokOfficialSetupMissing } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MockTikTokProvider, OfficialTikTokProvider, type TikTokProvider } from "./provider";
 import { calculateTikTokReadiness, isCreatorInfoFresh } from "./readiness";
+import { officialTikTokRequestedScopes } from "./oauth-scopes";
 import { TikTokTokenCipher, type EncryptedToken } from "./token-crypto";
 export { publicTikTokAccount } from "./serialization";
 import type {
@@ -319,7 +320,7 @@ export class TikTokTokenService {
       const readiness = calculateTikTokReadiness({
         authorizationStatus: "authorized",
         grantedScopes: refreshed.scopes,
-        requestedScopes: ["user.info.basic", "video.publish", "video.upload"],
+        requestedScopes: officialTikTokRequestedScopes(serverEnv.tiktokOAuthScopeMode),
         publishApproval: account.video_publish_approval_status,
         uploadApproval: account.video_upload_approval_status,
         auditStatus: account.audit_status,
@@ -435,7 +436,7 @@ export class TikTokCreatorService {
       const readiness = calculateTikTokReadiness({
         authorizationStatus: account.authorization_status,
         grantedScopes: account.granted_scopes,
-        requestedScopes: ["user.info.basic", "video.publish", "video.upload"],
+        requestedScopes: officialTikTokRequestedScopes(serverEnv.tiktokOAuthScopeMode),
         publishApproval: account.video_publish_approval_status,
         uploadApproval: account.video_upload_approval_status,
         auditStatus: account.audit_status,

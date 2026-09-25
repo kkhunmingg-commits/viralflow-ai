@@ -7,6 +7,7 @@ import {createShoppableIntentForQueue} from "@/features/commerce/services";
 import {z} from "zod";
 import type { PublishSettings } from "@/features/publishing/types";
 import { createClient } from "@/lib/supabase/server";
+import { serverEnv } from "@/lib/server-env";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 
 async function ownerId() {
@@ -22,7 +23,7 @@ export async function queueVideoAction(formData: FormData) {
   const accountId = String(formData.get("account_id") ?? "");
   const videoId = String(formData.get("video_id") ?? "");
   const videoKind = String(formData.get("video_kind") ?? "MASTER") as "MASTER" | "VARIATION";
-  const publishMode = String(formData.get("publish_mode") ?? "DRAFT_UPLOAD") as "DRAFT_UPLOAD" | "DIRECT_POST";
+  const publishMode = "DIRECT_POST" as const;
   const row = await new TikTokPublishingService().queueVideo({
     ownerId: owner, accountId, videoId, videoKind, publishMode,
     sourceMethod: "FILE_UPLOAD",
@@ -62,10 +63,13 @@ export async function consentPublishAction(queueId: string, formData: FormData) 
 }
 
 export async function sendPublishAction(queueId: string, mode: "DRAFT_UPLOAD" | "DIRECT_POST") {
+  if (mode !== "DIRECT_POST") throw new Error("direct_post_only");
+  if (serverEnv.tiktokPublishingProvider !== "official" || !serverEnv.tiktokPublishingRealMode) {
+    throw new Error("official_direct_post_not_enabled");
+  }
   const service = new TikTokPublishingService();
   const owner = await ownerId();
-  if (mode === "DIRECT_POST") await service.directPost(owner, queueId);
-  else await service.uploadDraft(owner, queueId);
+  await service.directPost(owner, queueId);
   refresh(queueId);
 }
 
@@ -86,6 +90,9 @@ export async function cancelPublishAction(queueId: string) {
 }
 
 export async function retryPublishAction(queueId: string) {
+  if (serverEnv.tiktokPublishingProvider !== "official" || !serverEnv.tiktokPublishingRealMode) {
+    throw new Error("official_direct_post_not_enabled");
+  }
   await new TikTokPublishingService().retryPublish(await ownerId(), queueId);
   refresh(queueId);
 }

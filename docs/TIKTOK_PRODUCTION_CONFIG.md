@@ -15,10 +15,12 @@ ViralFlow ใช้ OAuth และ provider ที่มีอยู่แล�
 
 ## Scopes ที่ code ขออยู่ในปัจจุบัน
 
-OAuth official ขอ `user.info.basic`, `video.publish`, `video.upload`; เพิ่ม `video.list` เฉพาะเมื่อ `TIKTOK_ANALYTICS_REAL_MODE=true` เท่านั้น การขอ scope **ไม่ถือว่า TikTok อนุมัติ app หรือผู้ใช้ยินยอมแล้ว** ต้องตรวจ app permissions/scopes ใน Developer Portal ก่อนใช้งานจริง ไม่มีการเปิด Shop scope ในขั้นตอนนี้
+OAuth official โหมด `basic` ขอเพียง `user.info.basic`; โหมด `publishing` สำหรับ Direct Post ขอเพียง `user.info.basic` และ `video.publish` เท่านั้น ไม่ขอ `video.upload` หรือ `video.list` ใน flow นี้ การขอ scope **ไม่ถือว่า TikTok อนุมัติ app หรือผู้ใช้ยินยอมแล้ว** ต้องเปิด Login Kit และ Content Posting API → Direct Post, เพิ่ม `video.publish` ใน Sandbox แล้ว Apply changes ใน Developer Portal ก่อนเชื่อมบัญชีใหม่ บัญชีที่เคยเชื่อมด้วยสิทธิ์พื้นฐานต้องอนุญาต scope ใหม่อีกครั้ง
 
 ## Gates ที่ยังปิดไว้
 
-คง `TIKTOK_VIDEO_PUBLISH_APPROVED=false`, `TIKTOK_VIDEO_UPLOAD_APPROVED=false`, `TIKTOK_DIRECT_POST_AUDIT_STATUS=UNAUDITED`, `TIKTOK_PUBLISHING_PROVIDER=mock`, `TIKTOK_PUBLISHING_REAL_MODE=false`, `TIKTOK_ANALYTICS_PROVIDER=mock`, `TIKTOK_ANALYTICS_REAL_MODE=false`, `TIKTOK_SHOP_PROVIDER=mock` และ `TIKTOK_SHOP_REAL_MODE=false` จนกว่า approval, scopes, owner consent และ audit จะครบตามเส้นทางการใช้งานจริง Growth mode ไม่ต้องพึ่ง Shop approval เพื่อแสดงและวางแผนงาน
+คง `TIKTOK_VIDEO_PUBLISH_APPROVED=false`, `TIKTOK_VIDEO_UPLOAD_APPROVED=false`, `TIKTOK_DIRECT_POST_AUDIT_STATUS=UNAUDITED`, `TIKTOK_PUBLISHING_PROVIDER=mock`, `TIKTOK_PUBLISHING_REAL_MODE=false`, `TIKTOK_ANALYTICS_PROVIDER=mock`, `TIKTOK_ANALYTICS_REAL_MODE=false`, `TIKTOK_SHOP_PROVIDER=mock` และ `TIKTOK_SHOP_REAL_MODE=false` จนกว่า approval, scopes และ owner consent จะครบตามเส้นทางที่ใช้งานจริง Direct Post ของ client ที่ยังไม่ผ่าน audit จำกัด `SELF_ONLY` เท่านั้น Growth mode ไม่ต้องพึ่ง Shop approval เพื่อแสดงและวางแผนงาน
+
+ลำดับ demo สั้นที่สุดหลัง Sandbox พร้อม: เปิด ViralFlow → Accounts → Connect TikTok → อนุญาต `user.info.basic` และ `video.publish` ใน TikTok → กลับหน้า Connected → เลือกวิดีโอที่ผ่าน Quality/Compliance ใน Video Factory → Queue Direct Post → ตรวจและยินยอม `SELF_ONLY` ใน Publishing Queue → Direct Post → Refresh Status จนเห็นผลจริงจาก TikTok ห้ามใช้ mock provider หรือวิดีโอที่ไม่ผ่าน gate แทนการทำงานจริง
 
 Staging/production จะไม่ boot ใน official OAuth mode ถ้า server key, TikTok credentials, redirect URI หรือ encryption key ขาด; development boot ได้เพื่อแสดง setup status แต่ route และ provider จะปฏิเสธการเชื่อมต่อที่ตั้งค่าไม่ครบ

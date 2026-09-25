@@ -19,7 +19,7 @@ const base = {
 
 describe("TikTok scope and readiness mapping", () => {
   it("requests only basic identity in sandbox mode and keeps publishing blocked", () => {
-    const requestedScopes = officialTikTokRequestedScopes("basic", true);
+    const requestedScopes = officialTikTokRequestedScopes("basic");
     expect(requestedScopes).toEqual(["user.info.basic"]);
     const readiness = calculateTikTokReadiness({
       ...base,
@@ -31,11 +31,9 @@ describe("TikTok scope and readiness mapping", () => {
     expect(readiness.uploadStatus).toBe("MISSING_SCOPE");
   });
 
-  it("retains publishing scopes after approval mode is enabled", () => {
-    expect(officialTikTokRequestedScopes("publishing", false))
-      .toEqual(["user.info.basic", "video.publish", "video.upload"]);
-    expect(officialTikTokRequestedScopes("publishing", true))
-      .toEqual(["user.info.basic", "video.publish", "video.upload", "video.list"]);
+  it("requests only Direct Post scopes in publishing mode", () => {
+    expect(officialTikTokRequestedScopes("publishing"))
+      .toEqual(["user.info.basic", "video.publish"]);
   });
 
   it("normalizes only official prepared scopes", () => {

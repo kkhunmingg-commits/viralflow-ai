@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     ownerId: data.user.id,
     origin: request.nextUrl.origin,
     requestedScopes: serverEnv.tiktokProvider === "official"
-      ? officialTikTokRequestedScopes(serverEnv.tiktokOAuthScopeMode, serverEnv.tiktokAnalyticsRealMode)
+      ? officialTikTokRequestedScopes(serverEnv.tiktokOAuthScopeMode)
       : requestedScopes(scenario),
     mockScenario: serverEnv.tiktokProvider === "official" ? undefined : scenario,
   });

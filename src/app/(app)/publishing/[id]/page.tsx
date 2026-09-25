@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { PageHeading } from "@/components/page-heading";
 import { getPublishingDetail } from "@/features/publishing/services";
 import { createClient } from "@/lib/supabase/server";
+import { serverEnv } from "@/lib/server-env";
 import { cancelPublishAction, consentPublishAction, createShoppableIntentAction, fetchPublishStatusAction, preparePublishAction, retryPublishAction, schedulePublishAction, sendPublishAction } from "../actions";
 
 export default async function PublishingDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -26,6 +27,7 @@ export default async function PublishingDetailPage({ params }: { params: Promise
         <div><dt>Retry</dt><dd>{queue.retry_count} / {queue.max_retries}</dd></div>
       </dl></article>
       <article className="panel"><h2>Controls</h2><div className="video-actions">
+        {serverEnv.tiktokPublishingProvider !== "official" || !serverEnv.tiktokPublishingRealMode ? <p className="notice">Direct Post จริงยังไม่เปิดใช้ ระหว่างนี้ระบบจะไม่ส่งวิดีโอด้วย mock provider</p> : null}
         {queue.status === "REVIEW_REQUIRED" && !queue.eligibility_check_id ? <form action={preparePublishAction.bind(null, id)}><button className="secondary-action">REFRESH CHECKS</button></form> : null}
         {queue.status === "REVIEW_REQUIRED" ? <form className="account-form" action={consentPublishAction.bind(null, id)}>
           <label>Caption<textarea name="caption" maxLength={2200} defaultValue={queue.caption_snapshot} /></label>
@@ -38,10 +40,10 @@ export default async function PublishingDetailPage({ params }: { params: Promise
           <label><input name="brand_content_toggle" type="checkbox" /> Branded content</label>
           <button className="primary-action">I CONSENT TO SEND TO TIKTOK</button>
         </form> : null}
-        {["APPROVED", "QUEUED", "RETRYING"].includes(queue.status) ? <form action={sendPublishAction.bind(null, id, queue.publish_mode)}><button className="primary-action">{queue.publish_mode === "DIRECT_POST" ? "DIRECT POST" : "UPLOAD DRAFT"}</button></form> : null}
+        {queue.publish_mode === "DIRECT_POST" && ["APPROVED", "QUEUED", "RETRYING"].includes(queue.status) && serverEnv.tiktokPublishingProvider === "official" && serverEnv.tiktokPublishingRealMode ? <form action={sendPublishAction.bind(null, id, "DIRECT_POST")}><button className="primary-action">DIRECT POST</button></form> : null}
         {queue.status === "APPROVED" ? <form className="account-form" action={schedulePublishAction.bind(null, id)}><label>Schedule<input name="scheduled_for" type="datetime-local" required /></label><button className="secondary-action">SCHEDULE</button></form> : null}
         {queue.provider_publish_id && ["PROCESSING", "UPLOADING"].includes(queue.status) ? <form action={fetchPublishStatusAction.bind(null, id)}><button className="secondary-action">REFRESH STATUS</button></form> : null}
-        {["FAILED", "RETRYING"].includes(queue.status) && queue.retry_count < queue.max_retries ? <form action={retryPublishAction.bind(null, id)}><button className="secondary-action">RETRY</button></form> : null}
+        {queue.publish_mode === "DIRECT_POST" && ["FAILED", "RETRYING"].includes(queue.status) && queue.retry_count < queue.max_retries && serverEnv.tiktokPublishingProvider === "official" && serverEnv.tiktokPublishingRealMode ? <form action={retryPublishAction.bind(null, id)}><button className="secondary-action">RETRY</button></form> : null}
         {canCancel ? <form action={cancelPublishAction.bind(null, id)}><button className="danger-action">CANCEL</button></form> : null}
       </div></article>
     </section>

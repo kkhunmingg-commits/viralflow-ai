@@ -32,7 +32,7 @@ Never prefix these names with `NEXT_PUBLIC_`. Do not put real values in source c
 
 - `user.info.basic`: `open_id`, `union_id`, display name, and avatar.
 - `video.publish`: creator info and future Direct Post authorization.
-- `video.upload`: future draft upload authorization.
+- `video.upload`: สิทธิ์สำหรับ draft upload ที่ flow Direct Post ปัจจุบันไม่ร้องขอ.
 
 TikTok app approval and each creator's user grant are independent. `username` is persisted only when returned by `creator_info`; `follower_count` remains unchanged because it requires `user.info.stats`, which Phase 7A intentionally does not request.
 
