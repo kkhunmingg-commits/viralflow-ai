@@ -62,6 +62,7 @@ export default async function ConnectTikTokPage({
               ? "เชื่อมบัญชีด้วย user.info.basic เท่านั้น หากต้องการ Direct Post ต้องให้แอปได้รับสิทธิ์ video.publish และเชื่อมบัญชีใหม่"
               : "ร้องขอเฉพาะ user.info.basic และ video.publish สำหรับ Direct Post โดยสิทธิ์จริงขึ้นกับ app approval และการยินยอมของผู้ใช้"}</p>
             <Link className="primary-action" href="/auth/tiktok/start">Connect TikTok</Link>
+            <Link className="secondary-action" href="/accounts/connect/tiktok/qr">เชื่อมบัญชีอื่นด้วย QR</Link>
           </div>
         )}
       </section>

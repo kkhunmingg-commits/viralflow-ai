@@ -47,7 +47,7 @@ function AccountCard({ account, health, shop, canSeed }: {
       {!account.is_mock && account.connection_status !== "DISCONNECTED" && ["authorized", "expired", "error"].includes(account.authorization_status)
         ? <DisconnectTikTokButton accountId={account.id} accountName={account.display_name} />
         : !account.is_mock && (account.connection_status === "DISCONNECTED" || account.authorization_status === "revoked" || account.authorization_status === "disconnected")
-          ? <Link className="accounts-other-link" href="/auth/tiktok/start?new_account=1">เชื่อม TikTok บัญชีอื่น <span aria-hidden="true">→</span></Link>
+          ? <Link className="accounts-other-link" href="/accounts/connect/tiktok/qr">เชื่อม TikTok บัญชีอื่น <span aria-hidden="true">→</span></Link>
           : null}
     </div>
     {canSeed && account.is_mock ? <details className="accounts-dev-edit"><summary>แก้ไขบัญชีจำลอง</summary><form action={updateMockAccount.bind(null, account.id)} className="account-form"><AccountFields account={account} /><div className="form-actions"><button className="primary-action" type="submit">บันทึก</button><button className="danger-action" formAction={deleteMockAccount.bind(null, account.id)}>ลบบัญชีจำลอง</button></div></form></details> : null}
@@ -75,7 +75,7 @@ export default async function AccountsPage() {
   const shopByAccount = new Map((shopResult.data ?? []).map((value) => [value.tiktok_account_id, value as ShopSnapshot]));
 
   return <div className="accounts-page">
-    <header className="accounts-hero"><div className="accounts-hero-copy"><p className="accounts-overline">VIRALFLOW / ACCOUNTS</p><h1>บัญชี TikTok</h1><p>เชื่อมและจัดการบัญชีที่ ViralFlow จะใช้ทำงานอัตโนมัติ</p></div><Link className="accounts-connect" href={accounts.length ? "/auth/tiktok/start?new_account=1" : "/accounts/connect/tiktok"}><span aria-hidden="true">＋</span> {accounts.length ? "เชื่อม TikTok บัญชีอื่น" : "เชื่อม TikTok"}</Link></header>
+    <header className="accounts-hero"><div className="accounts-hero-copy"><p className="accounts-overline">VIRALFLOW / ACCOUNTS</p><h1>บัญชี TikTok</h1><p>เชื่อมและจัดการบัญชีที่ ViralFlow จะใช้ทำงานอัตโนมัติ</p></div><Link className="accounts-connect" href={accounts.length && serverEnv.tiktokProvider === "official" ? "/accounts/connect/tiktok/qr" : accounts.length ? "/auth/tiktok/start?new_account=1" : "/accounts/connect/tiktok"}><span aria-hidden="true">＋</span> {accounts.length ? "เชื่อม TikTok บัญชีอื่น" : "เชื่อม TikTok"}</Link></header>
     {tiktokOfficialSetupMissing.length ? <section className="accounts-setup" role="status"><div><strong>TikTok setup required</strong><p>{tiktokOfficialSetupMissing.map((key) => `${tiktokRequirementLabel(key)} missing`).join(" · ")}</p></div><Link href="/accounts/connect/tiktok">ดูการตั้งค่า →</Link></section> : null}
     {loadError ? <section className="accounts-empty accounts-error" role="alert"><span className="accounts-empty-icon" aria-hidden="true">!</span><h2>โหลดบัญชีไม่สำเร็จ</h2><p>โปรดลองอีกครั้ง หากยังพบปัญหา ให้ตรวจสอบการเชื่อมต่อของระบบ</p><Link className="accounts-connect" href="/accounts">ลองอีกครั้ง</Link></section>
       : accounts.length ? <section aria-label="บัญชี TikTok ที่เชื่อมต่อ"><div className="accounts-section-head"><h2>บัญชีของคุณ</h2><span>{accounts.length.toLocaleString("th-TH")} บัญชี</span></div><div className="accounts-grid">{accounts.map((account) => <AccountCard key={account.id} account={account} health={healthByAccount.get(account.id)} shop={shopByAccount.get(account.id)} canSeed={canSeed} />)}</div></section>

@@ -74,11 +74,28 @@ export class TikTokOAuthService {
     mockScenario?: MockTikTokScenario;
     disableAutoAuth?: boolean;
   }) {
-    const state = randomBytes(32).toString("base64url");
+    const state = await this.createAuthorizationState(input);
     const redirectUri = serverEnv.tiktokProvider === "official"
       ? serverEnv.tiktokRedirectUri
       : `${input.origin}/auth/tiktok/callback`;
     if (!redirectUri) throw new TikTokServiceError("tiktok_redirect_uri_missing");
+
+    return this.provider.buildAuthorizationUrl({
+      clientKey: serverEnv.tiktokClientKey ?? "mock-client-key",
+      redirectUri,
+      scopes: input.requestedScopes,
+      state,
+      disableAutoAuth: input.disableAutoAuth,
+    });
+  }
+
+  async createAuthorizationState(input: {
+    ownerId: string;
+    requestedScopes: TikTokScope[];
+    returnPath?: string;
+    mockScenario?: MockTikTokScenario;
+  }) {
+    const state = randomBytes(32).toString("base64url");
 
     const { error } = await this.admin.from("tiktok_oauth_states").insert({
       owner_id: input.ownerId,
@@ -89,14 +106,7 @@ export class TikTokOAuthService {
       expires_at: new Date(Date.now() + 10 * 60_000).toISOString(),
     });
     if (error) throw new TikTokServiceError("oauth_state_persist_failed");
-
-    return this.provider.buildAuthorizationUrl({
-      clientKey: serverEnv.tiktokClientKey ?? "mock-client-key",
-      redirectUri,
-      scopes: input.requestedScopes,
-      state,
-      disableAutoAuth: input.disableAutoAuth,
-    });
+    return state;
   }
 
   async consumeState(ownerId: string, state: string) {
@@ -118,6 +128,7 @@ export class TikTokOAuthService {
     ownerId: string;
     code: string;
     state: string;
+    requireNewAccount?: boolean;
   }) {
     const state = await this.consumeState(input.ownerId, input.state);
     const provider = state.mock_scenario
@@ -126,6 +137,13 @@ export class TikTokOAuthService {
     const token = await provider.exchangeAuthorizationCode(input.code);
     const user = await provider.getBasicUserInfo(token.accessToken);
     if (user.openId !== token.openId) throw new TikTokServiceError("oauth_identity_mismatch");
+    if (input.requireNewAccount) {
+      const { data: existing, error: existingError } = await this.admin.from("tiktok_accounts")
+        .select("id").eq("owner_id", input.ownerId).eq("provider", "tiktok")
+        .eq("open_id", token.openId).maybeSingle();
+      if (existingError) throw new TikTokServiceError("tiktok_account_lookup_failed");
+      if (existing) throw new TikTokServiceError("tiktok_account_already_added");
+    }
 
     let creator: TikTokCreatorInfo | null = null;
     let creatorError: string | null = null;

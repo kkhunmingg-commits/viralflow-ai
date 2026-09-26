@@ -121,6 +121,11 @@ describe("TikTok multi-account OAuth persistence", () => {
     const tokens = new TikTokTokenService(client, provider, new TikTokTokenCipher("isolated-multi-account-test-encryption-key"));
     expect(await tokens.getAccessToken(ownerId, a.accountId)).toBe("access-A-2");
     expect(await tokens.getAccessToken(ownerId, b.accountId)).toBe("access-B-1");
+    tokenVersion = 3;
+    await expect(oauth.completeCallback({ ownerId, code: "A", state: "new-account-qr", requireNewAccount: true }))
+      .rejects.toThrow("tiktok_account_already_added");
+    expect(await tokens.getAccessToken(ownerId, a.accountId)).toBe("access-A-2");
+    expect(await tokens.getAccessToken(ownerId, b.accountId)).toBe("access-B-1");
     await tokens.revokeAndDisconnect(ownerId, a.accountId);
     expect(revoked).toEqual(["access-A-2"]);
     expect(admin.records("tiktok_oauth_credentials").filter((row) => row.owner_id === ownerId)
