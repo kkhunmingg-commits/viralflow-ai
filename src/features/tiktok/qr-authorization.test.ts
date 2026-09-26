@@ -37,6 +37,14 @@ describe("official TikTok QR authorization", () => {
     expect(() => openQrSession(sealed, "wrong-key")).toThrow();
   });
 
+  it("preserves TikTok's token_expire status so the UI can request a new QR", async () => {
+    const authorization = new TikTokQrAuthorization({
+      clientKey: "test-key", clientSecret: "secret",
+      fetch: vi.fn(async () => Response.json({ error: "token_expire" }, { status: 400 })) as typeof fetch,
+    });
+    await expect(authorization.check("expired-token")).rejects.toThrow("tiktok_qr_token_expire");
+  });
+
   it("accepts only the matching ticket, state, and callback before account persistence", () => {
     const status = {
       status: "confirmed" as const,

@@ -5,7 +5,8 @@ import { z } from "zod";
 import { TikTokTokenCipher, type EncryptedToken } from "./token-crypto";
 
 export const TIKTOK_QR_COOKIE = "viralflow_tiktok_qr";
-export const TIKTOK_QR_MAX_AGE_SECONDS = 600;
+// Keep displayed QR codes short-lived even if TikTok does not publish its token TTL.
+export const TIKTOK_QR_MAX_AGE_SECONDS = 120;
 
 const qrSessionSchema = z.object({
   ownerId: z.string().uuid(),

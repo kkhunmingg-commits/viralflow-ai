@@ -37,13 +37,14 @@ export async function POST(request: NextRequest) {
       clientKey: serverEnv.tiktokClientKey,
       clientSecret: serverEnv.tiktokClientSecret,
     }).create(scopes, state);
-    const response = NextResponse.json({ image: qr.image, status: "new" }, { headers: { "Cache-Control": "no-store" } });
+    const expiresAt = Date.now() + TIKTOK_QR_MAX_AGE_SECONDS * 1000;
+    const response = NextResponse.json({ image: qr.image, status: "new", expiresAt }, { headers: { "Cache-Control": "no-store" } });
     response.cookies.set(TIKTOK_QR_COOKIE, sealQrSession({
       ownerId: data.user.id,
       token: qr.token,
       ticket: qr.ticket,
       state,
-      expiresAt: Date.now() + TIKTOK_QR_MAX_AGE_SECONDS * 1000,
+      expiresAt,
     }, secret), {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

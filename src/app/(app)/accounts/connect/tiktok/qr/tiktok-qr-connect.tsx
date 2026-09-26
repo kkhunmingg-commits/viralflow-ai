@@ -9,17 +9,22 @@ export function TikTokQrConnect() {
   const [image, setImage] = useState<string | null>(null);
   const [status, setStatus] = useState<QrState>("idle");
   const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const polling = useRef(false);
 
   async function start() {
     setImage(null);
+    setExpiresAt(null);
     setStatus("loading");
     setErrorCode(null);
     try {
       const response = await fetch("/auth/tiktok/qr/session", { method: "POST", cache: "no-store" });
-      const body: { image?: string } = await response.json();
-      if (!response.ok || !body.image?.startsWith("data:image/png;base64,")) throw new Error("qr_start_failed");
+      const body: { image?: string; expiresAt?: number } = await response.json();
+      if (!response.ok || !body.image?.startsWith("data:image/png;base64,") || !Number.isFinite(body.expiresAt) || body.expiresAt! <= Date.now()) {
+        throw new Error("qr_start_failed");
+      }
       setImage(body.image);
+      setExpiresAt(body.expiresAt!);
       setStatus("new");
     } catch {
       setStatus("error");
@@ -27,9 +32,25 @@ export function TikTokQrConnect() {
   }
 
   useEffect(() => {
+    if (!expiresAt || (status !== "new" && status !== "scanned")) return;
+    const remaining = expiresAt - Date.now();
+    if (remaining <= 0) return;
+    const timer = window.setTimeout(() => setStatus("expired"), remaining);
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && Date.now() >= expiresAt) setStatus("expired");
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [expiresAt, status]);
+
+  useEffect(() => {
     if (!image || (status !== "new" && status !== "scanned")) return;
     const timer = window.setInterval(async () => {
       if (polling.current) return;
+      if (expiresAt && Date.now() >= expiresAt) { setStatus("expired"); return; }
       polling.current = true;
       try {
         const response = await fetch("/auth/tiktok/qr/status", { method: "POST", cache: "no-store" });
@@ -49,14 +70,14 @@ export function TikTokQrConnect() {
       }
     }, 4000);
     return () => window.clearInterval(timer);
-  }, [image, status]);
+  }, [expiresAt, image, status]);
 
   return <div className="large-empty" aria-live="polite">
-    {!image || status === "expired" || status === "error" ? <button className="primary-action" type="button" onClick={start} disabled={status === "loading"}>
+    <button className="primary-action" type="button" onClick={start} disabled={status === "loading"}>
       {status === "loading" ? "กำลังเตรียม QR…" : image ? "สร้าง QR ใหม่" : "แสดง QR เพื่อเชื่อมบัญชี"}
-    </button> : null}
+    </button>
     {image && status !== "expired" && status !== "error" ? <Image src={image} width={320} height={320} alt="QR สำหรับอนุญาต TikTok ด้วยบัญชีที่เลือกบนโทรศัพท์" unoptimized /> : null}
-    {status === "new" ? <p>เปิดแอป TikTok ที่เข้าสู่บัญชีใหม่ แล้วสแกน QR และอนุญาตสิทธิ์</p> : null}
+    {status === "new" ? <p>เปิดแอป TikTok ที่เข้าสู่บัญชีใหม่ แล้วสแกน QR และอนุญาตสิทธิ์ หาก TikTok แจ้ง token_expire ให้กดสร้าง QR ใหม่แล้วสแกนทันที</p> : null}
     {status === "scanned" ? <p>สแกนแล้ว — ยืนยันการอนุญาตในแอป TikTok</p> : null}
     {status === "expired" ? <p>QR หมดอายุแล้ว กรุณาสร้างใหม่</p> : null}
     {status === "error" ? <p role="alert">{errorCode === "tiktok_account_already_added"

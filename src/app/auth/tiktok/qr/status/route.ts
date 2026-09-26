@@ -27,7 +27,8 @@ export async function POST(request: NextRequest) {
   }
   const secret = serverEnv.tiktokTokenEncryptionKey ?? serverEnv.supabaseSecretKey;
   const cookie = request.cookies.get(TIKTOK_QR_COOKIE)?.value;
-  if (!secret || !cookie) return NextResponse.json({ error: "qr_session_missing" }, { status: 400 });
+  if (!secret) return NextResponse.json({ error: "tiktok_setup_required" }, { status: 503 });
+  if (!cookie) return NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } });
 
   try {
     const session = openQrSession(cookie, secret);
@@ -51,6 +52,9 @@ export async function POST(request: NextRequest) {
       accountPath: `/accounts/${result.accountId}?connected=${result.connectionStatus}`,
     }, { headers: { "Cache-Control": "no-store" } }));
   } catch (caught) {
+    if (caught instanceof Error && ["qr_session_expired", "tiktok_qr_token_expire", "tiktok_qr_token_expired"].includes(caught.message)) {
+      return clearSession(NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } }));
+    }
     const error = caught instanceof Error && caught.message === "tiktok_account_already_added"
       ? "tiktok_account_already_added" : "qr_authorization_failed";
     return clearSession(NextResponse.json({ error }, { status: 400 }));
