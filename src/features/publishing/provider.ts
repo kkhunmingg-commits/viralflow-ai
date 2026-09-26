@@ -14,6 +14,7 @@ const initResponseSchema = z.object({
   data: z.object({ publish_id: z.string().min(1).max(64), upload_url: z.string().url().nullish() }),
   error: z.object({ code: z.literal("ok") }),
 });
+const providerErrorSchema = z.object({ error: z.object({ code: z.string().min(1) }) });
 const statusResponseSchema = z.object({
   data: z.object({
     status: z.enum(["PROCESSING_UPLOAD", "PROCESSING_DOWNLOAD", "SEND_TO_USER_INBOX", "PUBLISH_COMPLETE", "FAILED"]),
@@ -106,7 +107,10 @@ export class OfficialTikTokPublishingProvider implements TikTokPublishingProvide
       body: JSON.stringify(body),
     });
     const json: unknown = await response.json();
-    if (!response.ok) throw new Error(`tiktok_http_${response.status}`);
+    const providerError = providerErrorSchema.safeParse(json);
+    if (!response.ok || (providerError.success && providerError.data.error.code !== "ok")) {
+      throw new Error(providerError.success ? providerError.data.error.code : `tiktok_http_${response.status}`);
+    }
     const parsed = initResponseSchema.parse(json).data;
     return {
       publishId: parsed.publish_id,

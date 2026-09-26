@@ -43,6 +43,13 @@ describe("Phase 7B publishing foundation", () => {
     expect(body.post_info.is_aigc).toBe(true);
   });
 
+  it("reports the real TikTok Direct Post error code", async () => {
+    const request = vi.fn(async () => new Response(JSON.stringify({ error: { code: "unaudited_client_can_only_post_to_private_accounts" } }), { status: 403 }));
+    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch);
+    await expect(provider.directPost("token", { caption: "", privacyLevel: "SELF_ONLY", disableComment: true, disableDuet: true, disableStitch: true, isAigc: false, commercialContent: {} }, buildChunkSource(100_000)))
+      .rejects.toThrow("unaudited_client_can_only_post_to_private_accounts");
+  });
+
   it("uploads binary chunks sequentially with Content-Range", async () => {
     const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => { void input; void init; return new Response(null, { status: 206 }); });
     const provider = new OfficialTikTokPublishingProvider(request as typeof fetch, ["upload.example"]);
