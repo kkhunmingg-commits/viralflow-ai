@@ -75,9 +75,12 @@ export async function POST(request: Request) {
     publishId = initialized.publishId;
     if (!initialized.uploadUrl) throw new Error("tiktok_upload_url_missing");
     await publisher.uploadBinary(initialized.uploadUrl, media, source);
+    console.info(JSON.stringify({ event: "sandbox_private_post", result: "UPLOAD_COMPLETE", publish_id: publishId }));
     return Response.json({ publish_id: publishId, privacy_level: "SELF_ONLY", upload: "COMPLETE", provider: "OfficialTikTokPublishingProvider" });
   } catch (error) {
-    return Response.json({ publish_id: publishId, error_code: errorCode(error) }, { status: 400 });
+    const code = errorCode(error);
+    console.warn(JSON.stringify({ event: "sandbox_private_post", result: "ERROR", error_code: code, publish_id: publishId }));
+    return Response.json({ publish_id: publishId, error_code: code }, { status: 400 });
   }
 }
 
