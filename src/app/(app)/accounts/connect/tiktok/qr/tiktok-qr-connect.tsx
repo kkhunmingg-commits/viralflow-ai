@@ -77,11 +77,11 @@ export function TikTokQrConnect() {
       {status === "loading" ? "กำลังเตรียม QR…" : image ? "สร้าง QR ใหม่" : "แสดง QR เพื่อเชื่อมบัญชี"}
     </button>
     {image && status !== "expired" && status !== "error" ? <Image src={image} width={320} height={320} alt="QR สำหรับอนุญาต TikTok ด้วยบัญชีที่เลือกบนโทรศัพท์" unoptimized /> : null}
-    {status === "new" ? <p>เปิดแอป TikTok ที่เข้าสู่บัญชีใหม่ แล้วสแกน QR และอนุญาตสิทธิ์ หาก TikTok แจ้ง token_expire ให้กดสร้าง QR ใหม่แล้วสแกนทันที</p> : null}
+    {status === "new" ? <p>ใช้เครื่องสแกนในแอป TikTok สแกน QR บนหน้านี้ หากมือถือแสดง QR โปรไฟล์ของคุณ ให้กดไอคอนสแกนบนหน้านั้นก่อน หาก TikTok แจ้ง token_expire ให้สร้าง QR ใหม่แล้วสแกนทันที</p> : null}
     {status === "scanned" ? <p>สแกนแล้ว — ยืนยันการอนุญาตในแอป TikTok</p> : null}
     {status === "expired" ? <p>QR หมดอายุแล้ว กรุณาสร้างใหม่</p> : null}
     {status === "error" ? <p role="alert">{errorCode === "tiktok_account_already_added"
       ? "บัญชีนี้อยู่ใน ViralFlow แล้ว กรุณาสแกนด้วย TikTok บัญชีอื่น"
-      : "เชื่อมต่อไม่สำเร็จ กรุณาลองสร้าง QR ใหม่"}</p> : null}
+      : `เชื่อมต่อไม่สำเร็จ (${errorCode ?? "qr_authorization_failed"}) กรุณาสร้าง QR ใหม่`}</p> : null}
   </div>;
 }

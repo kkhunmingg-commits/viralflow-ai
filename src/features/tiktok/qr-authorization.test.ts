@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { TikTokQrAuthorization, openQrSession, parseQrConfirmation, sealQrSession } from "./qr-authorization";
+import { TikTokQrAuthorization, openQrSession, parseQrConfirmation, sealQrSession, withQrClientTicket } from "./qr-authorization";
 
 vi.mock("server-only", () => ({}));
 
@@ -28,6 +28,19 @@ describe("official TikTok QR authorization", () => {
     expect(qr.ticket).not.toBe("tobefilled");
     expect(qr.image).toMatch(/^data:image\/png;base64,/);
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it("preserves TikTok's original deep-link encoding outside client_ticket", async () => {
+    const originalUrl = "aweme://authorize?state=a%20b&client_ticket=tobefilled&scope=user.info.basic%2Cvideo.publish";
+    expect(withQrClientTicket(originalUrl, "new-ticket")).toBe(
+      "aweme://authorize?state=a%20b&client_ticket=new-ticket&scope=user.info.basic%2Cvideo.publish",
+    );
+    const qr = await new TikTokQrAuthorization({
+      clientKey: "test-key", clientSecret: "secret",
+      fetch: vi.fn(async () => Response.json({ scan_qrcode_url: originalUrl, token: "status-token" })) as typeof fetch,
+    }).create(["user.info.basic", "video.publish"], "state");
+    expect(qr.image).toMatch(/^data:image\/png;base64,/);
+    expect(qr.ticket).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
   it("keeps the QR status token in an encrypted, owner-bound session", () => {

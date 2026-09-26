@@ -15,6 +15,18 @@ function clearSession(response: NextResponse) {
   return response;
 }
 
+const publicQrErrors = new Set([
+  "tiktok_account_already_added",
+  "oauth_state_invalid_or_replayed",
+  "oauth_identity_mismatch",
+  "tiktok_account_lookup_failed",
+  "tiktok_account_save_failed",
+  "tiktok_integration_update_failed",
+  "invalid_grant",
+  "invalid_request",
+  "invalid_client",
+]);
+
 export async function POST(request: NextRequest) {
   if (request.headers.get("origin") !== request.nextUrl.origin) {
     return NextResponse.json({ error: "invalid_origin" }, { status: 403 });
@@ -55,8 +67,8 @@ export async function POST(request: NextRequest) {
     if (caught instanceof Error && ["qr_session_expired", "tiktok_qr_token_expire", "tiktok_qr_token_expired"].includes(caught.message)) {
       return clearSession(NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } }));
     }
-    const error = caught instanceof Error && caught.message === "tiktok_account_already_added"
-      ? "tiktok_account_already_added" : "qr_authorization_failed";
+    const error = caught instanceof Error && publicQrErrors.has(caught.message)
+      ? caught.message : "qr_authorization_failed";
     return clearSession(NextResponse.json({ error }, { status: 400 }));
   }
 }

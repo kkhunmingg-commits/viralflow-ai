@@ -36,6 +36,17 @@ function sameSecret(a: string, b: string) {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
+export function withQrClientTicket(providerUrl: string, ticket: string) {
+  const scanUrl = new URL(providerUrl);
+  const ticketFields = providerUrl.match(/(?:\?|&)client_ticket=[^&]*/g);
+  if (scanUrl.protocol !== "aweme:" || scanUrl.hostname !== "authorize" || ticketFields?.length !== 1) {
+    throw new Error("tiktok_qr_url_invalid");
+  }
+  // TikTok owns the rest of this deep link. Re-serializing it can change
+  // percent-encoding of signed or nested parameters.
+  return providerUrl.replace(/([?&]client_ticket=)[^&]*/, `$1${ticket}`);
+}
+
 export function sealQrSession(session: TikTokQrSession, secret: string) {
   const encrypted = new TikTokTokenCipher(secret).encrypt(JSON.stringify(qrSessionSchema.parse(session)));
   return Buffer.from(JSON.stringify(encrypted)).toString("base64url");
@@ -89,16 +100,12 @@ export class TikTokQrAuthorization {
       cache: "no-store",
     });
     const result = qrStartSchema.parse(await tikTokQrResponse(response));
-    const scanUrl = new URL(result.scan_qrcode_url);
-    if (scanUrl.protocol !== "aweme:" || !scanUrl.searchParams.has("client_ticket")) {
-      throw new Error("tiktok_qr_url_invalid");
-    }
     const ticket = randomBytes(24).toString("base64url");
-    scanUrl.searchParams.set("client_ticket", ticket);
+    const authorizedUrl = withQrClientTicket(result.scan_qrcode_url, ticket);
     return {
       token: result.token,
       ticket,
-      image: await QRCode.toDataURL(scanUrl.toString(), { errorCorrectionLevel: "M", margin: 2, width: 320 }),
+      image: await QRCode.toDataURL(authorizedUrl, { errorCorrectionLevel: "M", margin: 2, width: 320 }),
     };
   }
 

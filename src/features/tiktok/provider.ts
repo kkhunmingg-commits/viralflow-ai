@@ -81,6 +81,8 @@ function tokenSet(raw: z.infer<typeof tokenResponseSchema>): TikTokTokenSet {
 
 async function parseJson(response: Response) {
   const json: unknown = await response.json();
+  const oauthError = z.object({ error: z.string().min(1) }).safeParse(json);
+  if (oauthError.success) throw new Error(oauthError.data.error);
   if (!response.ok) {
     const parsed = apiErrorSchema.safeParse(json);
     throw new Error(parsed.success ? parsed.data.error?.code ?? "tiktok_api_error" : "tiktok_api_error");

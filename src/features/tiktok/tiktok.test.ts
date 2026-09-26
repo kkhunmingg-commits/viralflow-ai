@@ -120,6 +120,16 @@ describe("TikTok providers and token lifecycle", () => {
     expect(String(fetchMock.mock.calls[1]?.[1]?.body)).toContain("grant_type=refresh_token");
   });
 
+  it("preserves the documented OAuth error code without exposing its description", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      error: "invalid_grant", error_description: "code was rejected", log_id: "provider-log",
+    }), { status: 400, headers: { "Content-Type": "application/json" } }));
+    const provider = new OfficialTikTokProvider({
+      clientKey: "client", clientSecret: "secret123", redirectUri: "https://app.example/callback", fetch: fetchMock,
+    });
+    await expect(provider.exchangeAuthorizationCode("code")).rejects.toThrow("invalid_grant");
+  });
+
   it("handles successful empty revoke responses", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 200 }));
     const provider = new OfficialTikTokProvider({ clientKey: "client", clientSecret: "secret123", redirectUri: "https://app.example/callback", fetch: fetchMock });
