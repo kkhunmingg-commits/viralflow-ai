@@ -14,6 +14,7 @@ export interface TikTokProvider {
     redirectUri: string;
     scopes: readonly TikTokScope[];
     state: string;
+    disableAutoAuth?: boolean;
   }): string;
   exchangeAuthorizationCode(code: string): Promise<TikTokTokenSet>;
   refreshAccessToken(refreshToken: string): Promise<TikTokTokenSet>;
@@ -102,6 +103,7 @@ export class OfficialTikTokProvider implements TikTokProvider {
     redirectUri: string;
     scopes: readonly TikTokScope[];
     state: string;
+    disableAutoAuth?: boolean;
   }) {
     const url = new URL("https://www.tiktok.com/v2/auth/authorize/");
     url.search = new URLSearchParams({
@@ -110,6 +112,7 @@ export class OfficialTikTokProvider implements TikTokProvider {
       response_type: "code",
       redirect_uri: input.redirectUri,
       state: input.state,
+      ...(input.disableAutoAuth ? { disable_auto_auth: "1" } : {}),
     }).toString();
     return url.toString();
   }

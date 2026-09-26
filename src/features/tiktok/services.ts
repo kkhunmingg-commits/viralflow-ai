@@ -72,6 +72,7 @@ export class TikTokOAuthService {
     requestedScopes: TikTokScope[];
     returnPath?: string;
     mockScenario?: MockTikTokScenario;
+    disableAutoAuth?: boolean;
   }) {
     const state = randomBytes(32).toString("base64url");
     const redirectUri = serverEnv.tiktokProvider === "official"
@@ -94,6 +95,7 @@ export class TikTokOAuthService {
       redirectUri,
       scopes: input.requestedScopes,
       state,
+      disableAutoAuth: input.disableAutoAuth,
     });
   }
 

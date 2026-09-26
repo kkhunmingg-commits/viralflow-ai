@@ -9,6 +9,7 @@ import { tiktokRequirementLabel } from "@/lib/tiktok-config";
 import { createClient } from "@/lib/supabase/server";
 import { createMockAccount, deleteMockAccount, seedDevelopmentAccounts, updateMockAccount } from "./actions";
 import { presentAccount, type AccountBadge, type AccountHealthSnapshot, type ShopSnapshot } from "./account-presentation";
+import { DisconnectTikTokButton } from "./disconnect-tiktok-button";
 
 export const metadata: Metadata = { title: "บัญชี TikTok" };
 
@@ -41,7 +42,14 @@ function AccountCard({ account, health, shop, canSeed }: {
       <div><dt>TikTok Shop</dt><dd><Badge value={state.shopStatus} /></dd></div>
       <div><dt>กิจกรรมล่าสุด</dt><dd className="accounts-activity">{displayActivity(state.activity)}</dd></div>
     </dl>
-    <Link className="accounts-detail-link" href={`/accounts/${account.id}`}>เปิดบัญชี <span aria-hidden="true">→</span></Link>
+    <div className="accounts-card-actions">
+      <Link className="accounts-detail-link" href={`/accounts/${account.id}`}>เปิดบัญชี <span aria-hidden="true">→</span></Link>
+      {!account.is_mock && account.authorization_status === "authorized"
+        ? <DisconnectTikTokButton accountId={account.id} accountName={account.display_name} />
+        : !account.is_mock && account.connection_status === "DISCONNECTED"
+          ? <Link className="accounts-other-link" href="/auth/tiktok/start?new_account=1">เชื่อม TikTok บัญชีอื่น <span aria-hidden="true">→</span></Link>
+          : null}
+    </div>
     {canSeed && account.is_mock ? <details className="accounts-dev-edit"><summary>แก้ไขบัญชีจำลอง</summary><form action={updateMockAccount.bind(null, account.id)} className="account-form"><AccountFields account={account} /><div className="form-actions"><button className="primary-action" type="submit">บันทึก</button><button className="danger-action" formAction={deleteMockAccount.bind(null, account.id)}>ลบบัญชีจำลอง</button></div></form></details> : null}
   </article>;
 }

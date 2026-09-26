@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
       ? officialTikTokRequestedScopes(serverEnv.tiktokOAuthScopeMode)
       : requestedScopes(scenario),
     mockScenario: serverEnv.tiktokProvider === "official" ? undefined : scenario,
+    disableAutoAuth: serverEnv.tiktokProvider === "official" && request.nextUrl.searchParams.get("new_account") === "1",
   });
   return NextResponse.redirect(authorizationUrl);
 }

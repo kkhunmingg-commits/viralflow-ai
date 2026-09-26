@@ -94,6 +94,15 @@ describe("TikTok providers and token lifecycle", () => {
     expect(url.origin + url.pathname).toBe("https://www.tiktok.com/v2/auth/authorize/");
     expect(url.searchParams.get("state")).toBe("unguessable-state");
     expect(url.searchParams.get("scope")).toBe("user.info.basic,video.publish");
+    expect(url.searchParams.has("disable_auto_auth")).toBe(false);
+    const newAccountUrl = new URL(provider.buildAuthorizationUrl({
+      clientKey: "client",
+      redirectUri: "https://app.example/callback",
+      scopes: ["user.info.basic", "video.publish"],
+      state: "another-state",
+      disableAutoAuth: true,
+    }));
+    expect(newAccountUrl.searchParams.get("disable_auto_auth")).toBe("1");
   });
 
   it("exchanges and refreshes through the official v2 token endpoint", async () => {

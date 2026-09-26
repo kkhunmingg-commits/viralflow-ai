@@ -26,5 +26,5 @@ export async function disconnectTikTokAccount(accountId: string) {
   await new TikTokTokenService().revokeAndDisconnect(owner, accountId);
   revalidatePath("/accounts");
   revalidatePath(`/accounts/${accountId}`);
-  redirect(`/accounts/${accountId}?disconnected=1`);
+  redirect("/accounts?disconnected=1");
 }

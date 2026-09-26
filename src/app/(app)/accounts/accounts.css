@@ -52,6 +52,15 @@
 .accounts-details dd { margin: 0; color: #e2e8f2; font-size: 12px; text-align: right; overflow-wrap: anywhere; }
 .accounts-detail-link { display: inline-flex; min-height: 44px; align-items: center; gap: 9px; margin-top: 13px; color: #bcb3ff; font-size: 12px; font-weight: 800; }
 .accounts-detail-link:hover { color: #e3deff; }
+.accounts-card-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 13px; }
+.accounts-card-actions .accounts-detail-link { margin-top: 0; }
+.accounts-other-link { display: inline-flex; min-height: 44px; align-items: center; gap: 7px; color: #a6ece5; font-size: 12px; font-weight: 800; }
+.accounts-other-link:hover { color: #d6fffa; }
+.accounts-disconnect { min-height: 44px; padding: 9px 13px; border: 1px solid #a74b58; border-radius: 10px; color: #ffd6da; background: #512831; font: inherit; font-size: 12px; font-weight: 800; cursor: pointer; }
+.accounts-disconnect:hover { background: #69303c; }
+.accounts-disconnect-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.accounts-disconnect-confirm p { flex-basis: 100%; margin: 0; color: #ffd6da; font-size: 12px; }
+.accounts-disconnect-cancel { min-height: 44px; padding: 9px 13px; border: 1px solid #586276; border-radius: 10px; color: #e3e8f3; background: #29313f; font: inherit; font-size: 12px; cursor: pointer; }
 .accounts-empty { display: flex; min-height: 420px; flex-direction: column; align-items: center; justify-content: center; padding: 36px 24px; border: 1px solid #394154; border-radius: 22px; background: radial-gradient(circle at 50% 5%, rgba(104, 91, 215, .15), transparent 45%), linear-gradient(145deg, #1e2430, #181e29); text-align: center; }
 .accounts-empty-icon { display: grid; width: 70px; height: 70px; place-items: center; margin-bottom: 22px; border: 1px solid #595395; border-radius: 20px; color: #c8c1ff; background: linear-gradient(145deg, #3b386a, #27384f); font-size: 32px; }
 .accounts-empty h2 { margin: 0; font-size: clamp(21px, 3vw, 26px); letter-spacing: -.025em; }
