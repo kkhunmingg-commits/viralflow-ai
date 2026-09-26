@@ -44,9 +44,9 @@ function AccountCard({ account, health, shop, canSeed }: {
     </dl>
     <div className="accounts-card-actions">
       <Link className="accounts-detail-link" href={`/accounts/${account.id}`}>เปิดบัญชี <span aria-hidden="true">→</span></Link>
-      {!account.is_mock && account.authorization_status !== "disconnected" && account.authorization_status !== "revoked"
+      {!account.is_mock && account.connection_status !== "DISCONNECTED" && ["authorized", "expired", "error"].includes(account.authorization_status)
         ? <DisconnectTikTokButton accountId={account.id} accountName={account.display_name} />
-        : !account.is_mock && account.connection_status === "DISCONNECTED"
+        : !account.is_mock && (account.connection_status === "DISCONNECTED" || account.authorization_status === "revoked" || account.authorization_status === "disconnected")
           ? <Link className="accounts-other-link" href="/auth/tiktok/start?new_account=1">เชื่อม TikTok บัญชีอื่น <span aria-hidden="true">→</span></Link>
           : null}
     </div>

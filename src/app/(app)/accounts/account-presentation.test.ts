@@ -35,7 +35,12 @@ describe("account presentation", () => {
   it("does not mark blocked authorization ready even with stale provider fields", () => {
     const state = presentAccount({ ...account, authorization_status: "revoked" },
       { tiktok_account_id: "account", health_status: "READY", updated_at: "2026-09-22T00:00:00Z" });
-    expect(state.connection.label).toBe("ต้องเชื่อมต่อใหม่");
+    expect(state.connection.label).toBe("ยกเลิกการเชื่อมต่อแล้ว");
     expect(state.publishing.label).toBe("ยังไม่พร้อม");
+  });
+
+  it("shows expired authorization as requiring reconnection", () => {
+    const state = presentAccount({ ...account, authorization_status: "expired", connection_status: "REAUTH_REQUIRED" });
+    expect(state.connection.label).toBe("ต้องเชื่อมต่อใหม่");
   });
 });

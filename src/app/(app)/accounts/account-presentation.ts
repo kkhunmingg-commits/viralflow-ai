@@ -26,10 +26,10 @@ export function presentAccount(account: TikTokAccount, health?: AccountHealthSna
   const authorizationReady = account.authorization_status === "authorized";
   const connection: AccountBadge = account.is_mock
     ? { label: "บัญชีจำลอง", tone: "neutral" }
-    : account.connection_status === "REAUTH_REQUIRED" || ["expired", "revoked", "error"].includes(account.authorization_status)
-      ? { label: "ต้องเชื่อมต่อใหม่", tone: "setup" }
-      : account.connection_status === "DISCONNECTED" || account.authorization_status === "disconnected"
-        ? { label: "ต้องตั้งค่า", tone: "setup" }
+    : account.connection_status === "DISCONNECTED" || account.authorization_status === "revoked" || account.authorization_status === "disconnected"
+      ? { label: "ยกเลิกการเชื่อมต่อแล้ว", tone: "neutral" }
+      : account.connection_status === "REAUTH_REQUIRED" || ["expired", "error"].includes(account.authorization_status)
+        ? { label: "ต้องเชื่อมต่อใหม่", tone: "setup" }
         : !authorizationReady
           ? { label: "รอการอนุญาต", tone: "setup" }
           : health?.health_status === "READY"
