@@ -8,7 +8,6 @@ import { RequestSecurityError, requestFingerprint } from "@/lib/security/request
 const publicOAuthErrors = new Set([
   "oauth_state_invalid_or_replayed",
   "oauth_identity_mismatch",
-  "tiktok_account_owned_by_another_owner",
 ]);
 
 function publicOAuthError(error: unknown) {

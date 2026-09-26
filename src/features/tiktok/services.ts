@@ -127,16 +127,6 @@ export class TikTokOAuthService {
     const user = await provider.getBasicUserInfo(token.accessToken);
     if (user.openId !== token.openId) throw new TikTokServiceError("oauth_identity_mismatch");
 
-    const { data: duplicate, error: duplicateError } = await this.admin
-      .from("tiktok_accounts")
-      .select("id,owner_id")
-      .eq("open_id", token.openId)
-      .maybeSingle();
-    if (duplicateError) throw new TikTokServiceError("duplicate_check_failed");
-    if (duplicate && duplicate.owner_id !== input.ownerId) {
-      throw new TikTokServiceError("tiktok_account_owned_by_another_owner");
-    }
-
     let creator: TikTokCreatorInfo | null = null;
     let creatorError: string | null = null;
     if (token.scopes.includes("video.publish") && state.mock_scenario !== "expired" && state.mock_scenario !== "revoked") {
@@ -175,6 +165,7 @@ export class TikTokOAuthService {
 
     const accountValues = {
       owner_id: input.ownerId,
+      provider: "tiktok",
       open_id: token.openId,
       union_id: user.unionId,
       display_name: creator?.nickname ?? user.displayName,
@@ -205,15 +196,11 @@ export class TikTokOAuthService {
       is_mock: serverEnv.tiktokProvider === "mock",
     };
 
-    let accountId = duplicate?.id as string | undefined;
-    if (accountId) {
-      const { error } = await this.admin.from("tiktok_accounts").update(accountValues).eq("id", accountId).eq("owner_id", input.ownerId);
-      if (error) throw new TikTokServiceError("tiktok_account_update_failed");
-    } else {
-      const { data, error } = await this.admin.from("tiktok_accounts").insert(accountValues).select("id").single();
-      if (error || !data) throw new TikTokServiceError("tiktok_account_create_failed");
-      accountId = data.id as string;
-    }
+    const { data: account, error: accountError } = await this.admin.from("tiktok_accounts")
+      .upsert(accountValues, { onConflict: "owner_id,provider,open_id" })
+      .select("id").single();
+    if (accountError || !account) throw new TikTokServiceError("tiktok_account_save_failed");
+    const accountId = account.id as string;
 
     const tokenService = new TikTokTokenService(this.admin, provider, tokenCipher());
     const credentialId = await tokenService.store(input.ownerId, accountId, token);
