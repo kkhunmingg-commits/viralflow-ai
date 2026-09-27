@@ -10,6 +10,7 @@ export function TikTokQrConnect() {
   const [status, setStatus] = useState<QrState>("idle");
   const [errorCode, setErrorCode] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const generation = useRef(0);
   const starting = useRef(false);
   const automaticRefreshes = useRef(0);
@@ -21,17 +22,19 @@ export function TikTokQrConnect() {
     starting.current = true;
     setImage(null);
     setExpiresAt(null);
+    setSessionId(null);
     setStatus("loading");
     setErrorCode(null);
     try {
       const response = await fetch("/auth/tiktok/qr/session", { method: "POST", cache: "no-store" });
-      const body: { image?: string; expiresAt?: number; error?: string } = await response.json();
+      const body: { image?: string; expiresAt?: number; sessionId?: string; error?: string } = await response.json();
       if (generation.current !== currentGeneration) return;
-      if (!response.ok || !body.image?.startsWith("data:image/png;base64,") || !Number.isFinite(body.expiresAt) || body.expiresAt! <= Date.now()) {
+      if (!response.ok || !body.image?.startsWith("data:image/png;base64,") || !Number.isFinite(body.expiresAt) || body.expiresAt! <= Date.now() || !body.sessionId || !/^[A-Za-z0-9_-]{32}$/.test(body.sessionId)) {
         throw new Error(body.error ?? "qr_start_failed");
       }
       setImage(body.image);
       setExpiresAt(body.expiresAt!);
+      setSessionId(body.sessionId);
       setStatus("new");
     } catch (caught) {
       if (generation.current !== currentGeneration) return;
@@ -69,7 +72,7 @@ export function TikTokQrConnect() {
   }, [expiresAt, refreshExpired, status]);
 
   useEffect(() => {
-    if (!image || (status !== "new" && status !== "scanned")) return;
+    if (!image || !sessionId || (status !== "new" && status !== "scanned")) return;
     const currentGeneration = generation.current;
     let active = true;
     let polling = false;
@@ -78,7 +81,11 @@ export function TikTokQrConnect() {
       if (expiresAt && Date.now() >= expiresAt) { refreshExpired(); return; }
       polling = true;
       try {
-        const response = await fetch("/auth/tiktok/qr/status", { method: "POST", cache: "no-store" });
+        const response = await fetch("/auth/tiktok/qr/status", {
+          method: "POST", cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId }),
+        });
         const body: { status?: string; accountPath?: string; error?: string } = await response.json();
         if (!active || generation.current !== currentGeneration) return;
         if (!response.ok) throw new Error(body.error ?? "qr_status_failed");
@@ -97,7 +104,7 @@ export function TikTokQrConnect() {
       }
     }, 4000);
     return () => { active = false; window.clearInterval(timer); };
-  }, [expiresAt, image, refreshExpired, status]);
+  }, [expiresAt, image, refreshExpired, sessionId, status]);
 
   return <div className="large-empty" aria-live="polite">
     <button className="primary-action" type="button" onClick={() => void start()} disabled={status === "loading"}>

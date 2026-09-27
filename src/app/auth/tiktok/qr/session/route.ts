@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { serverEnv, tiktokOfficialSetupMissing } from "@/lib/server-env";
@@ -38,8 +39,9 @@ export async function POST(request: NextRequest) {
       clientSecret: serverEnv.tiktokClientSecret,
     }).create(scopes, state);
     const expiresAt = Date.now() + TIKTOK_QR_MAX_AGE_SECONDS * 1000;
-    const response = NextResponse.json({ image: qr.image, status: "new", expiresAt }, { headers: { "Cache-Control": "no-store" } });
-    response.cookies.set(TIKTOK_QR_COOKIE, sealQrSession({
+    const sessionId = randomBytes(24).toString("base64url");
+    const response = NextResponse.json({ image: qr.image, status: "new", expiresAt, sessionId }, { headers: { "Cache-Control": "no-store" } });
+    response.cookies.set(`${TIKTOK_QR_COOKIE}_${sessionId}`, sealQrSession({
       ownerId: data.user.id,
       token: qr.token,
       ticket: qr.ticket,

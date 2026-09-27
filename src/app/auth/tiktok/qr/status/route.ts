@@ -28,8 +28,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "tiktok_setup_required" }, { status: 503 });
   }
   const secret = serverEnv.tiktokTokenEncryptionKey ?? serverEnv.supabaseSecretKey;
-  const cookie = request.cookies.get(TIKTOK_QR_COOKIE)?.value;
   if (!secret) return NextResponse.json({ error: "tiktok_setup_required" }, { status: 503 });
+  const payload: unknown = await request.json().catch(() => null);
+  const sessionId = payload && typeof payload === "object" && "sessionId" in payload ? payload.sessionId : null;
+  if (typeof sessionId !== "string" || !/^[A-Za-z0-9_-]{32}$/.test(sessionId)) {
+    return NextResponse.json({ error: "qr_session_invalid" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+  }
+  const cookie = request.cookies.get(`${TIKTOK_QR_COOKIE}_${sessionId}`)?.value;
   if (!cookie) return NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } });
 
   try {
@@ -40,8 +45,8 @@ export async function POST(request: NextRequest) {
       clientSecret: serverEnv.tiktokClientSecret,
     }).check(session.token);
     if (status.status === "expired" || status.status === "utilised") {
-      // A previous QR poll may finish after the browser has received a newer
-      // session cookie. Clearing it here would invalidate the QR now on screen.
+      // A previous QR poll may finish after this tab has received a newer QR.
+      // Clearing the cookie here would invalidate an in-flight consent.
       return NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } });
     }
     if (status.status !== "confirmed") {
