@@ -37,6 +37,34 @@ const apiErrorSchema = z.object({
   error: z.object({ code: z.string(), message: z.string().optional() }).optional(),
 });
 
+export type TikTokApiStage = "token_exchange" | "token_refresh" | "user_info" | "creator_info" | "revoke";
+
+export class TikTokProviderApiError extends Error {
+  constructor(
+    code: string,
+    readonly stage: TikTokApiStage,
+    readonly reason: string,
+    readonly logId: string | null,
+  ) {
+    super(/^[a-z_]{1,60}$/.test(code) ? code : "tiktok_api_error");
+    this.name = "TikTokProviderApiError";
+  }
+}
+
+function providerErrorReason(description: string | undefined) {
+  const value = description?.toLowerCase() ?? "";
+  if (/redirect[_ ]?uri|redirect url/.test(value)) {
+    return /match|mismatch|different|invalid/.test(value) ? "redirect_uri_mismatch" : "redirect_uri_rejected";
+  }
+  if (/authorization code|auth code/.test(value) && /invalid|expired|used/.test(value)) return "authorization_code_rejected";
+  if (/missing|required|malformed/.test(value)) return "request_parameters_rejected";
+  return "unspecified";
+}
+
+function providerLogId(value: string | undefined) {
+  return value && /^[A-Za-z0-9_-]{8,100}$/.test(value) ? value : null;
+}
+
 const userInfoSchema = z.object({
   data: z.object({
     user: z.object({
@@ -79,13 +107,21 @@ function tokenSet(raw: z.infer<typeof tokenResponseSchema>): TikTokTokenSet {
   };
 }
 
-async function parseJson(response: Response) {
+async function parseJson(response: Response, stage: TikTokApiStage) {
   const json: unknown = await response.json();
-  const oauthError = z.object({ error: z.string().min(1) }).safeParse(json);
-  if (oauthError.success) throw new Error(oauthError.data.error);
+  const oauthError = z.object({
+    error: z.string().min(1),
+    error_description: z.string().optional(),
+    log_id: z.string().optional(),
+  }).safeParse(json);
+  if (oauthError.success) {
+    throw new TikTokProviderApiError(oauthError.data.error, stage,
+      providerErrorReason(oauthError.data.error_description), providerLogId(oauthError.data.log_id));
+  }
   if (!response.ok) {
     const parsed = apiErrorSchema.safeParse(json);
-    throw new Error(parsed.success ? parsed.data.error?.code ?? "tiktok_api_error" : "tiktok_api_error");
+    throw new TikTokProviderApiError(parsed.success ? parsed.data.error?.code ?? "tiktok_api_error" : "tiktok_api_error",
+      stage, providerErrorReason(parsed.success ? parsed.data.error?.message : undefined), null);
   }
   return json;
 }
@@ -132,7 +168,8 @@ export class OfficialTikTokProvider implements TikTokProvider {
         }),
       },
     );
-    return tokenSet(tokenResponseSchema.parse(await parseJson(response)));
+    const stage = parameters.grant_type === "authorization_code" ? "token_exchange" : "token_refresh";
+    return tokenSet(tokenResponseSchema.parse(await parseJson(response, stage)));
   }
 
   exchangeAuthorizationCode(code: string) {
@@ -160,7 +197,7 @@ export class OfficialTikTokProvider implements TikTokProvider {
         }),
       },
     );
-    if (!response.ok) await parseJson(response);
+    if (!response.ok) await parseJson(response, "revoke");
   }
 
   async getBasicUserInfo(accessToken: string) {
@@ -169,7 +206,7 @@ export class OfficialTikTokProvider implements TikTokProvider {
     const response = await (this.config.fetch ?? fetch)(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    const parsed = userInfoSchema.parse(await parseJson(response)).data.user;
+    const parsed = userInfoSchema.parse(await parseJson(response, "user_info")).data.user;
     return {
       openId: parsed.open_id,
       unionId: parsed.union_id ?? null,
@@ -189,7 +226,7 @@ export class OfficialTikTokProvider implements TikTokProvider {
         },
       },
     );
-    const parsed = creatorInfoSchema.parse(await parseJson(response)).data;
+    const parsed = creatorInfoSchema.parse(await parseJson(response, "creator_info")).data;
     return {
       username: parsed.creator_username,
       nickname: parsed.creator_nickname,

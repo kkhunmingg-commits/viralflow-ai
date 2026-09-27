@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { getAccountAffiliateReadiness } from "../accounts/account-performance";
 import type { TikTokAccount } from "../accounts/types";
-import { MockTikTokProvider, OfficialTikTokProvider, creatorInfoSchema } from "./provider";
+import { MockTikTokProvider, OfficialTikTokProvider, TikTokProviderApiError, creatorInfoSchema } from "./provider";
 import { officialTikTokRequestedScopes } from "./oauth-scopes";
 import { calculateTikTokReadiness, isCreatorInfoFresh, normalizeTikTokScopes } from "./readiness";
 import { publicTikTokAccount } from "./serialization";
@@ -120,14 +120,65 @@ describe("TikTok providers and token lifecycle", () => {
     expect(String(fetchMock.mock.calls[1]?.[1]?.body)).toContain("grant_type=refresh_token");
   });
 
-  it("preserves the documented OAuth error code without exposing its description", async () => {
+  it("classifies an OAuth redirect mismatch without exposing credentials or the provider description", async () => {
+    const authorizationCode = "private-authorization-code";
+    const providerDescription = `Redirect URI mismatch for ${authorizationCode} and private-access-token`;
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
-      error: "invalid_grant", error_description: "code was rejected", log_id: "provider-log",
+      error: "invalid_grant", error_description: providerDescription, log_id: "provider_log_123",
     }), { status: 400, headers: { "Content-Type": "application/json" } }));
     const provider = new OfficialTikTokProvider({
       clientKey: "client", clientSecret: "secret123", redirectUri: "https://app.example/callback", fetch: fetchMock,
     });
-    await expect(provider.exchangeAuthorizationCode("code")).rejects.toThrow("invalid_grant");
+    const error: unknown = await provider.exchangeAuthorizationCode(authorizationCode).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(TikTokProviderApiError);
+    expect(error).toMatchObject({
+      message: "invalid_grant", stage: "token_exchange", reason: "redirect_uri_mismatch", logId: "provider_log_123",
+    });
+    if (!(error instanceof TikTokProviderApiError)) throw error;
+    const diagnostic = JSON.stringify({ message: error.message, stage: error.stage, reason: error.reason, logId: error.logId });
+    expect(diagnostic).not.toContain(authorizationCode);
+    expect(diagnostic).not.toContain("private-access-token");
+    expect(diagnostic).not.toContain(providerDescription);
+  });
+
+  it("rejects unsafe provider error codes and log IDs while retaining a safe reason", async () => {
+    const refreshToken = "private-refresh-token";
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      error: `invalid_grant ${refreshToken}`,
+      error_description: `Authorization code expired for ${refreshToken}`,
+      log_id: `unsafe log id ${refreshToken}`,
+    }), { status: 400, headers: { "Content-Type": "application/json" } }));
+    const provider = new OfficialTikTokProvider({
+      clientKey: "client", clientSecret: "secret123", redirectUri: "https://app.example/callback", fetch: fetchMock,
+    });
+    const error: unknown = await provider.refreshAccessToken(refreshToken).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(TikTokProviderApiError);
+    expect(error).toMatchObject({
+      message: "tiktok_api_error", stage: "token_refresh", reason: "authorization_code_rejected", logId: null,
+    });
+    if (!(error instanceof TikTokProviderApiError)) throw error;
+    expect(JSON.stringify({ message: error.message, stage: error.stage, reason: error.reason, logId: error.logId }))
+      .not.toContain(refreshToken);
+  });
+
+  it.each([
+    ["user info", "user_info", (provider: OfficialTikTokProvider) => provider.getBasicUserInfo("private-access-token")],
+    ["creator info", "creator_info", (provider: OfficialTikTokProvider) => provider.queryCreatorInfo("private-access-token")],
+    ["revoke", "revoke", (provider: OfficialTikTokProvider) => provider.revokeAuthorization("private-access-token")],
+  ] as const)("labels %s API failures with the %s stage", async (_name, stage, request) => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
+      error: { code: "access_token_invalid", message: "Missing required private-access-token" },
+    }), { status: 400, headers: { "Content-Type": "application/json" } }));
+    const provider = new OfficialTikTokProvider({
+      clientKey: "client", clientSecret: "secret123", redirectUri: "https://app.example/callback", fetch: fetchMock,
+    });
+    const error: unknown = await request(provider).catch((caught: unknown) => caught);
+    expect(error).toBeInstanceOf(TikTokProviderApiError);
+    expect(error).toMatchObject({
+      message: "access_token_invalid", stage, reason: "request_parameters_rejected", logId: null,
+    });
+    if (!(error instanceof TikTokProviderApiError)) throw error;
+    expect(error.message).not.toContain("private-access-token");
   });
 
   it("handles successful empty revoke responses", async () => {

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { serverEnv } from "@/lib/server-env";
 import { TikTokQrAuthorization, TIKTOK_QR_COOKIE, openQrSession, parseQrConfirmation } from "@/features/tiktok/qr-authorization";
 import { TikTokOAuthService } from "@/features/tiktok/services";
+import { TikTokProviderApiError } from "@/features/tiktok/provider";
 
 const publicQrErrors = new Set([
   "tiktok_account_already_added",
@@ -55,6 +56,14 @@ export async function POST(request: NextRequest) {
       accountPath: `/accounts/${result.accountId}?connected=${result.connectionStatus}`,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (caught) {
+    if (caught instanceof TikTokProviderApiError) {
+      console.error("TikTok QR OAuth provider error", {
+        stage: caught.stage,
+        code: caught.message,
+        reason: caught.reason,
+        logId: caught.logId,
+      });
+    }
     if (caught instanceof Error && ["qr_session_expired", "tiktok_qr_token_expire", "tiktok_qr_token_expired"].includes(caught.message)) {
       return NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } });
     }
