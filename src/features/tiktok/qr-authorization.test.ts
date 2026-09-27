@@ -90,6 +90,33 @@ describe("official TikTok QR authorization", () => {
     expect(parseQrConfirmation(status, session, callback)).toBe("authorization-code");
     expect(() => parseQrConfirmation({ ...status, client_ticket: "other" }, session, callback)).toThrow("qr_confirmation_invalid");
     expect(() => parseQrConfirmation({ ...status, state: "other" }, session, callback)).toThrow("qr_state_mismatch");
+    expect(() => parseQrConfirmation({ ...status, redirect_uri: `${callback}?code=authorization-code&state=other` }, session, callback))
+      .toThrow("qr_state_mismatch");
+    expect(() => parseQrConfirmation({ ...status, redirect_uri: `${callback}?code=authorization-code&state=${session.state}&state=other` }, session, callback))
+      .toThrow("qr_state_mismatch");
     expect(() => parseQrConfirmation(status, session, "https://another.example/auth/tiktok/callback")).toThrow("qr_redirect_mismatch");
+  });
+
+  it("accepts a confirmed QR redirect without echoed state after checking the ticket and callback", async () => {
+    const authorization = new TikTokQrAuthorization({
+      clientKey: "test-key", clientSecret: "secret",
+      fetch: vi.fn(async () => Response.json({
+        status: "confirmed", client_ticket: session.ticket,
+        redirect_uri: `${callback}?code=authorization-code`,
+      })) as typeof fetch,
+    });
+    const status = await authorization.check(session.token);
+
+    expect(parseQrConfirmation(status, session, callback)).toBe("authorization-code");
+    expect(() => parseQrConfirmation({ ...status, client_ticket: "other" }, session, callback))
+      .toThrow("qr_confirmation_invalid");
+    expect(() => parseQrConfirmation(status, session, "https://another.example/auth/tiktok/callback"))
+      .toThrow("qr_redirect_mismatch");
+  });
+
+  it("still requires echoed state when TikTok provides only a raw code", () => {
+    expect(() => parseQrConfirmation({
+      status: "confirmed", client_ticket: session.ticket, code: "authorization-code",
+    }, session, callback)).toThrow("qr_state_mismatch");
   });
 });

@@ -71,8 +71,12 @@ export function parseQrConfirmation(status: TikTokQrStatus, session: TikTokQrSes
       throw new Error("qr_redirect_mismatch");
     }
   }
-  const state = status.state ?? redirect?.searchParams.get("state");
-  if (!state || !sameSecret(state, session.state)) throw new Error("qr_state_mismatch");
+  const echoedStates = [status.state, ...(redirect?.searchParams.getAll("state") ?? [])]
+    .filter((value): value is string => value != null);
+  // QR status may omit state; the session ticket and verified redirect still bind its code.
+  if ((!redirect && echoedStates.length === 0) || echoedStates.some((state) => !sameSecret(state, session.state))) {
+    throw new Error("qr_state_mismatch");
+  }
   const code = redirect ? redirect.searchParams.get("code") : status.code;
   if (!code) throw new Error("qr_code_missing");
   return code;

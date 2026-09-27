@@ -16,6 +16,14 @@ const publicQrErrors = new Set([
   "invalid_request",
   "invalid_client",
 ]);
+const preExchangeQrErrors = new Set([
+  "qr_owner_mismatch",
+  "qr_session_expired",
+  "qr_confirmation_invalid",
+  "qr_redirect_mismatch",
+  "qr_state_mismatch",
+  "qr_code_missing",
+]);
 
 export async function POST(request: NextRequest) {
   if (request.headers.get("origin") !== request.nextUrl.origin) {
@@ -37,9 +45,11 @@ export async function POST(request: NextRequest) {
   const cookie = request.cookies.get(`${TIKTOK_QR_COOKIE}_${sessionId}`)?.value;
   if (!cookie) return NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } });
 
+  let phase: "session" | "provider_status" | "confirmation" | "callback" = "session";
   try {
     const session = openQrSession(cookie, secret);
     if (session.ownerId !== data.user.id) throw new Error("qr_owner_mismatch");
+    phase = "provider_status";
     const status = await new TikTokQrAuthorization({
       clientKey: serverEnv.tiktokClientKey,
       clientSecret: serverEnv.tiktokClientSecret,
@@ -52,7 +62,9 @@ export async function POST(request: NextRequest) {
     if (status.status !== "confirmed") {
       return NextResponse.json({ status: status.status }, { headers: { "Cache-Control": "no-store" } });
     }
+    phase = "confirmation";
     const code = parseQrConfirmation(status, session, serverEnv.tiktokRedirectUri);
+    phase = "callback";
     const result = await new TikTokOAuthService().completeCallback({
       ownerId: data.user.id, code, state: session.state, requireNewAccount: true, flow: "qr",
     });
@@ -71,6 +83,10 @@ export async function POST(request: NextRequest) {
     }
     if (caught instanceof Error && ["qr_session_expired", "tiktok_qr_token_expire", "tiktok_qr_token_expired"].includes(caught.message)) {
       return NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } });
+    }
+    if (phase !== "callback") {
+      const code = caught instanceof Error && preExchangeQrErrors.has(caught.message) ? caught.message : "unknown";
+      console.error("TikTok QR failed before token exchange", { phase, code });
     }
     const error = caught instanceof Error && publicQrErrors.has(caught.message)
       ? caught.message : "qr_authorization_failed";

@@ -162,7 +162,7 @@ describe("TikTok QR sessions across tabs", () => {
       if (url.endsWith("/check_qrcode/")) {
         return Response.json({
           status: "confirmed", client_ticket: session.ticket,
-          code: "qr-authorization-code", state: session.state,
+          redirect_uri: "https://viralflow.example/auth/tiktok/callback?code=qr-authorization-code",
         });
       }
       throw new Error("unexpected_provider_request");
@@ -177,5 +177,42 @@ describe("TikTok QR sessions across tabs", () => {
       ownerId: session.ownerId, code: "qr-authorization-code", state: session.state,
       requireNewAccount: true, flow: "qr",
     });
+  });
+
+  it("logs only an allowlisted code for a rejected QR confirmation", async () => {
+    const started = await startQr(startRequest());
+    const sessionId = (await started.json() as { sessionId: string }).sessionId;
+    const cookie = qrCookie(started);
+    const session = openQrSession(cookie.value, "isolated-test-key");
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url.endsWith("/check_qrcode/")) {
+        return Response.json({
+          status: "confirmed", client_ticket: session.ticket,
+          redirect_uri: "https://viralflow.example/auth/tiktok/callback?code=private-authorization-code",
+          state: "private-wrong-state",
+        });
+      }
+      throw new Error("unexpected_provider_request");
+    }));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      const response = await checkQr(statusRequest({ sessionId }, `${cookie.name}=${cookie.value}`));
+
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({ error: "qr_authorization_failed" });
+      expect(completeCallback).not.toHaveBeenCalled();
+      expect(log).toHaveBeenCalledWith("TikTok QR failed before token exchange", {
+        phase: "confirmation", code: "qr_state_mismatch",
+      });
+      const diagnostic = JSON.stringify(log.mock.calls);
+      expect(diagnostic).not.toContain("private-authorization-code");
+      expect(diagnostic).not.toContain("private-wrong-state");
+      expect(diagnostic).not.toContain(session.ticket);
+      expect(diagnostic).not.toContain(session.token);
+      expect(diagnostic).not.toContain(session.state);
+    } finally {
+      log.mockRestore();
+    }
   });
 });
