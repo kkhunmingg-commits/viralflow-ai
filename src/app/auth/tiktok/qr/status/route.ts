@@ -4,17 +4,6 @@ import { serverEnv } from "@/lib/server-env";
 import { TikTokQrAuthorization, TIKTOK_QR_COOKIE, openQrSession, parseQrConfirmation } from "@/features/tiktok/qr-authorization";
 import { TikTokOAuthService } from "@/features/tiktok/services";
 
-function clearSession(response: NextResponse) {
-  response.cookies.set(TIKTOK_QR_COOKIE, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/auth/tiktok/qr",
-    maxAge: 0,
-  });
-  return response;
-}
-
 const publicQrErrors = new Set([
   "tiktok_account_already_added",
   "oauth_state_invalid_or_replayed",
@@ -50,7 +39,9 @@ export async function POST(request: NextRequest) {
       clientSecret: serverEnv.tiktokClientSecret,
     }).check(session.token);
     if (status.status === "expired" || status.status === "utilised") {
-      return clearSession(NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } }));
+      // A previous QR poll may finish after the browser has received a newer
+      // session cookie. Clearing it here would invalidate the QR now on screen.
+      return NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } });
     }
     if (status.status !== "confirmed") {
       return NextResponse.json({ status: status.status }, { headers: { "Cache-Control": "no-store" } });
@@ -59,16 +50,16 @@ export async function POST(request: NextRequest) {
     const result = await new TikTokOAuthService().completeCallback({
       ownerId: data.user.id, code, state: session.state, requireNewAccount: true,
     });
-    return clearSession(NextResponse.json({
+    return NextResponse.json({
       status: "connected",
       accountPath: `/accounts/${result.accountId}?connected=${result.connectionStatus}`,
-    }, { headers: { "Cache-Control": "no-store" } }));
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (caught) {
     if (caught instanceof Error && ["qr_session_expired", "tiktok_qr_token_expire", "tiktok_qr_token_expired"].includes(caught.message)) {
-      return clearSession(NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } }));
+      return NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } });
     }
     const error = caught instanceof Error && publicQrErrors.has(caught.message)
       ? caught.message : "qr_authorization_failed";
-    return clearSession(NextResponse.json({ error }, { status: 400 }));
+    return NextResponse.json({ error }, { status: 400, headers: { "Cache-Control": "no-store" } });
   }
 }

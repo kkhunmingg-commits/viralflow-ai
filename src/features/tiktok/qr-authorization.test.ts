@@ -43,11 +43,25 @@ describe("official TikTok QR authorization", () => {
     expect(qr.ticket).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 
+  it.each([
+    "https://tiktok.com/authorize?client_ticket=tobefilled",
+    "aweme://other?client_ticket=tobefilled",
+    "aweme://authorize?state=valid",
+    "aweme://authorize?client_ticket=first&client_ticket=second",
+  ])("rejects an unsafe or ambiguous provider QR deep link: %s", (providerUrl) => {
+    expect(() => withQrClientTicket(providerUrl, "new-ticket")).toThrow("tiktok_qr_url_invalid");
+  });
+
   it("keeps the QR status token in an encrypted, owner-bound session", () => {
     const sealed = sealQrSession(session, "isolated-test-key");
     expect(sealed).not.toContain(session.token);
     expect(openQrSession(sealed, "isolated-test-key")).toEqual(session);
     expect(() => openQrSession(sealed, "wrong-key")).toThrow();
+  });
+
+  it("rejects a QR session when its local expiration has passed", () => {
+    const expired = sealQrSession({ ...session, expiresAt: Date.now() - 1 }, "isolated-test-key");
+    expect(() => openQrSession(expired, "isolated-test-key")).toThrow("qr_session_expired");
   });
 
   it("preserves TikTok's token_expire status so the UI can request a new QR", async () => {
@@ -56,6 +70,15 @@ describe("official TikTok QR authorization", () => {
       fetch: vi.fn(async () => Response.json({ error: "token_expire" }, { status: 400 })) as typeof fetch,
     });
     await expect(authorization.check("expired-token")).rejects.toThrow("tiktok_qr_token_expire");
+  });
+
+  it("honors provider QR expiration even when the local session is still valid", async () => {
+    const authorization = new TikTokQrAuthorization({
+      clientKey: "test-key", clientSecret: "secret",
+      fetch: vi.fn(async () => Response.json({ status: "expired" })) as typeof fetch,
+    });
+    expect(openQrSession(sealQrSession(session, "isolated-test-key"), "isolated-test-key")).toEqual(session);
+    await expect(authorization.check(session.token)).resolves.toMatchObject({ status: "expired" });
   });
 
   it("accepts only the matching ticket, state, and callback before account persistence", () => {

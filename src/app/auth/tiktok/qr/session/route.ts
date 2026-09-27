@@ -56,6 +56,8 @@ export async function POST(request: NextRequest) {
   } catch (caught) {
     const securityResponse = securityErrorResponse(caught);
     if (securityResponse) return securityResponse;
-    return NextResponse.json({ error: "qr_start_failed" }, { status: 502 });
+    const error = caught instanceof Error && /^tiktok_qr_[a-z_]{1,40}$/.test(caught.message)
+      ? caught.message : "qr_start_failed";
+    return NextResponse.json({ error }, { status: 502, headers: { "Cache-Control": "no-store" } });
   }
 }
