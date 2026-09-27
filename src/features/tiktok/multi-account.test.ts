@@ -82,6 +82,25 @@ class MemoryQuery implements PromiseLike<Result> {
 }
 
 describe("TikTok multi-account OAuth persistence", () => {
+  it("forwards the QR flow to the provider and keeps web callbacks on the default flow", async () => {
+    const { TikTokOAuthService } = await import("./services");
+    const exchangeAuthorizationCode = vi.fn(async () => { throw new Error("test_exchange_stop"); });
+    const service = new TikTokOAuthService(
+      new MemoryAdmin() as unknown as SupabaseClient,
+      { exchangeAuthorizationCode } as unknown as TikTokProvider,
+    );
+
+    await expect(service.completeCallback({ ownerId: "owner-1", code: "web-code", state: "web-state" }))
+      .rejects.toThrow("test_exchange_stop");
+    await expect(service.completeCallback({ ownerId: "owner-1", code: "qr-code", state: "qr-state", flow: "qr" }))
+      .rejects.toThrow("test_exchange_stop");
+
+    expect(exchangeAuthorizationCode.mock.calls).toEqual([
+      ["web-code", undefined],
+      ["qr-code", "qr"],
+    ]);
+  });
+
   it("keeps A and B separate, reconnects A in place, and disconnects only A", async () => {
     const { TikTokOAuthService, TikTokTokenService } = await import("./services");
     const admin = new MemoryAdmin();

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { openQrSession } from "@/features/tiktok/qr-authorization";
 
 const { getUser, createAuthorizationState, completeCallback, enforceRateLimit } = vi.hoisted(() => ({
   getUser: vi.fn(),
@@ -150,5 +151,31 @@ describe("TikTok QR sessions across tabs", () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: "qr_authorization_failed" });
     expect(providerTokens).toEqual([]);
+  });
+
+  it("passes a confirmed QR code to the QR token exchange flow", async () => {
+    const started = await startQr(startRequest());
+    const sessionId = (await started.json() as { sessionId: string }).sessionId;
+    const cookie = qrCookie(started);
+    const session = openQrSession(cookie.value, "isolated-test-key");
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (url.endsWith("/check_qrcode/")) {
+        return Response.json({
+          status: "confirmed", client_ticket: session.ticket,
+          code: "qr-authorization-code", state: session.state,
+        });
+      }
+      throw new Error("unexpected_provider_request");
+    }));
+    completeCallback.mockResolvedValue({ accountId: "connected-account", connectionStatus: "CONNECTED" });
+
+    const response = await checkQr(statusRequest({ sessionId }, `${cookie.name}=${cookie.value}`));
+
+    expect(response.status).toBe(200);
+    expect(completeCallback).toHaveBeenCalledOnce();
+    expect(completeCallback).toHaveBeenCalledWith({
+      ownerId: session.ownerId, code: "qr-authorization-code", state: session.state,
+      requireNewAccount: true, flow: "qr",
+    });
   });
 });

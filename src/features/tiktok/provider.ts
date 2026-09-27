@@ -8,6 +8,8 @@ import type {
   TikTokTokenSet,
 } from "./types";
 
+export type TikTokAuthorizationFlow = "web" | "qr";
+
 export interface TikTokProvider {
   buildAuthorizationUrl(input: {
     clientKey: string;
@@ -16,7 +18,7 @@ export interface TikTokProvider {
     state: string;
     disableAutoAuth?: boolean;
   }): string;
-  exchangeAuthorizationCode(code: string): Promise<TikTokTokenSet>;
+  exchangeAuthorizationCode(code: string, flow?: TikTokAuthorizationFlow): Promise<TikTokTokenSet>;
   refreshAccessToken(refreshToken: string): Promise<TikTokTokenSet>;
   revokeAuthorization(accessToken: string): Promise<void>;
   getBasicUserInfo(accessToken: string): Promise<TikTokBasicUserInfo>;
@@ -172,11 +174,11 @@ export class OfficialTikTokProvider implements TikTokProvider {
     return tokenSet(tokenResponseSchema.parse(await parseJson(response, stage)));
   }
 
-  exchangeAuthorizationCode(code: string) {
+  exchangeAuthorizationCode(code: string, flow: TikTokAuthorizationFlow = "web") {
     return this.tokenRequest({
       code,
       grant_type: "authorization_code",
-      redirect_uri: this.config.redirectUri,
+      ...(flow === "web" ? { redirect_uri: this.config.redirectUri } : {}),
     });
   }
 

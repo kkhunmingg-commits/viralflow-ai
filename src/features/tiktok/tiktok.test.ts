@@ -120,6 +120,35 @@ describe("TikTok providers and token lifecycle", () => {
     expect(String(fetchMock.mock.calls[1]?.[1]?.body)).toContain("grant_type=refresh_token");
   });
 
+  it("omits redirect_uri for QR codes while retaining it for web callbacks", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({
+      open_id: "open-1", access_token: "access-secret", refresh_token: "refresh-secret",
+      token_type: "Bearer", scope: "user.info.basic", expires_in: 86400,
+      refresh_expires_in: 31536000,
+    }));
+    const provider = new OfficialTikTokProvider({
+      clientKey: "client", clientSecret: "secret123", redirectUri: "https://app.example/callback", fetch: fetchMock,
+    });
+
+    await provider.exchangeAuthorizationCode("web-code");
+    await provider.exchangeAuthorizationCode("qr-code", "qr");
+
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://open.tiktokapis.com/v2/oauth/token/",
+      "https://open.tiktokapis.com/v2/oauth/token/",
+    ]);
+    const webBody = new URLSearchParams(String(fetchMock.mock.calls[0]?.[1]?.body));
+    const qrBody = new URLSearchParams(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(Object.fromEntries(webBody)).toEqual({
+      client_key: "client", client_secret: "secret123", code: "web-code",
+      grant_type: "authorization_code", redirect_uri: "https://app.example/callback",
+    });
+    expect(Object.fromEntries(qrBody)).toEqual({
+      client_key: "client", client_secret: "secret123", code: "qr-code",
+      grant_type: "authorization_code",
+    });
+  });
+
   it("classifies an OAuth redirect mismatch without exposing credentials or the provider description", async () => {
     const authorizationCode = "private-authorization-code";
     const providerDescription = `Redirect URI mismatch for ${authorizationCode} and private-access-token`;

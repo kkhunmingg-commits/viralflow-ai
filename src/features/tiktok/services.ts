@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logOps } from "../../lib/ops/logger";
 import { serverEnv, tiktokOfficialSetupMissing } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { MockTikTokProvider, OfficialTikTokProvider, type TikTokProvider } from "./provider";
+import { MockTikTokProvider, OfficialTikTokProvider, type TikTokAuthorizationFlow, type TikTokProvider } from "./provider";
 import { calculateTikTokReadiness, isCreatorInfoFresh } from "./readiness";
 import { officialTikTokRequestedScopes } from "./oauth-scopes";
 import { TikTokTokenCipher, type EncryptedToken } from "./token-crypto";
@@ -129,12 +129,13 @@ export class TikTokOAuthService {
     code: string;
     state: string;
     requireNewAccount?: boolean;
+    flow?: TikTokAuthorizationFlow;
   }) {
     const state = await this.consumeState(input.ownerId, input.state);
     const provider = state.mock_scenario
       ? createTikTokProvider(state.mock_scenario)
       : this.provider;
-    const token = await provider.exchangeAuthorizationCode(input.code);
+    const token = await provider.exchangeAuthorizationCode(input.code, input.flow);
     const user = await provider.getBasicUserInfo(token.accessToken);
     if (user.openId !== token.openId) throw new TikTokServiceError("oauth_identity_mismatch");
     if (input.requireNewAccount) {

@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
     const code = parseQrConfirmation(status, session, serverEnv.tiktokRedirectUri);
     const result = await new TikTokOAuthService().completeCallback({
-      ownerId: data.user.id, code, state: session.state, requireNewAccount: true,
+      ownerId: data.user.id, code, state: session.state, requireNewAccount: true, flow: "qr",
     });
     return NextResponse.json({
       status: "connected",
