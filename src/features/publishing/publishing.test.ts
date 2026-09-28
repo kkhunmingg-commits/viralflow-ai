@@ -23,11 +23,20 @@ describe("Phase 7B publishing foundation", () => {
     expect(() => assertVerifiedPullUrl("https://media.example.com:8443/video.mp4", ["media.example.com"])).toThrow("pull_url_not_verified");
     expect(() => assertVerifiedPullUrl("not-a-url", ["media.example.com"])).toThrow("pull_url_not_verified");
     expect(assertTikTokUploadUrl("https://open-upload.tiktokapis.com/video?id=1", ["open-upload.tiktokapis.com"])).toContain("open-upload.tiktokapis.com");
+    const signedUrl = "https://upload.sg.tiktokapis.com/video/?upload_id=1&upload_token=a%2Bb";
+    expect(assertTikTokUploadUrl(signedUrl, ["open-upload.tiktokapis.com"])).toBe(signedUrl);
+    expect(assertTikTokUploadUrl("https://open.tiktokapis.com/video/?upload_id=1", ["open-upload.tiktokapis.com"])).toContain("open.tiktokapis.com");
+    expect(() => assertTikTokUploadUrl("https://upload.example.com/video", ["upload.example.com"])).toThrow("upload_url_not_allowed");
+    expect(() => assertTikTokUploadUrl("https://profile.tiktokapis.com/video", ["profile.tiktokapis.com"])).toThrow("upload_url_not_allowed");
+    expect(() => assertTikTokUploadUrl("https://open-upload.tiktokapis.com.evil.example/video", ["open-upload.tiktokapis.com.evil.example"])).toThrow("upload_url_not_allowed");
+    expect(() => assertTikTokUploadUrl("http://open-upload.tiktokapis.com/video", ["open-upload.tiktokapis.com"])).toThrow("upload_url_not_allowed");
+    expect(() => assertTikTokUploadUrl("https://user:pass@open-upload.tiktokapis.com/video", ["open-upload.tiktokapis.com"])).toThrow("upload_url_not_allowed");
+    expect(() => assertTikTokUploadUrl("https://open-upload.tiktokapis.com:8443/video", ["open-upload.tiktokapis.com"])).toThrow("upload_url_not_allowed");
   });
 
   it("uses the official upload-draft endpoint and never marks delivery as published", async () => {
-    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => { void input; void init; return new Response(JSON.stringify({ data: { publish_id: "v_inbox_1", upload_url: "https://upload.example/video" }, error: { code: "ok" } }), { status: 200 }); });
-    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch, ["upload.example"]);
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => { void input; void init; return new Response(JSON.stringify({ data: { publish_id: "v_inbox_1", upload_url: "https://open-upload.tiktokapis.com/video" }, error: { code: "ok" } }), { status: 200 }); });
+    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch);
     await provider.uploadDraft("secret-token", buildChunkSource(4_000_000));
     expect(request.mock.calls[0]?.[0]).toBe("https://open.tiktokapis.com/v2/post/publish/inbox/video/init/");
     expect(statusFromProvider("SEND_TO_USER_INBOX", "DRAFT_UPLOAD")).toBe("DRAFT_DELIVERED");
@@ -35,8 +44,8 @@ describe("Phase 7B publishing foundation", () => {
   });
 
   it("maps AIGC to the official is_aigc direct-post field", async () => {
-    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => { void input; void init; return new Response(JSON.stringify({ data: { publish_id: "v_pub_1", upload_url: "https://upload.example/video" }, error: { code: "ok" } }), { status: 200 }); });
-    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch, ["upload.example"]);
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => { void input; void init; return new Response(JSON.stringify({ data: { publish_id: "v_pub_1", upload_url: "https://open-upload.tiktokapis.com/video" }, error: { code: "ok" } }), { status: 200 }); });
+    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch);
     await provider.directPost("secret-token", { caption: "caption", privacyLevel: "SELF_ONLY", disableComment: true, disableDuet: true, disableStitch: true, isAigc: true, commercialContent: {} }, buildChunkSource(1_000_000));
     const body = JSON.parse(String((request.mock.calls[0]?.[1] as RequestInit).body));
     expect(request.mock.calls[0]?.[0]).toBe("https://open.tiktokapis.com/v2/post/publish/video/init/");
@@ -52,9 +61,9 @@ describe("Phase 7B publishing foundation", () => {
 
   it("uploads binary chunks sequentially with Content-Range", async () => {
     const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => { void input; void init; return new Response(null, { status: 206 }); });
-    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch, ["upload.example"]);
+    const provider = new OfficialTikTokPublishingProvider(request as typeof fetch);
     const size = 70 * 1024 * 1024;
-    await provider.uploadBinary("https://upload.example/video", new Blob([new Uint8Array(size)], { type: "video/mp4" }), buildChunkSource(size));
+    await provider.uploadBinary("https://open-upload.tiktokapis.com/video", new Blob([new Uint8Array(size)], { type: "video/mp4" }), buildChunkSource(size));
     expect(request).toHaveBeenCalledTimes(7);
     expect((request.mock.calls[0]?.[1] as RequestInit).redirect).toBe("error");
     expect((request.mock.calls[0]?.[1] as RequestInit).headers).toMatchObject({ "Content-Range": `bytes 0-${10 * 1024 * 1024 - 1}/${size}` });

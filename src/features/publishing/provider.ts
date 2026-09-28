@@ -81,7 +81,23 @@ export function assertVerifiedPullUrl(value: string, allowedHosts: readonly stri
 }
 
 export function assertTikTokUploadUrl(value: string, allowedHosts: readonly string[]) {
-  return assertAllowedHttpsUrl(value, allowedHosts, "upload_url_not_allowed");
+  let hostname: string;
+  try {
+    hostname = new URL(value).hostname.toLowerCase();
+  } catch {
+    throw new Error("upload_url_not_allowed");
+  }
+  const tikTokUploadHost = hostname === "open.tiktokapis.com"
+    || /^(?:open-)?upload(?:[.-][a-z0-9-]{2,24})?\.tiktokapis\.com$/.test(hostname)
+    || (allowedHosts.includes(hostname)
+      && hostname.endsWith(".tiktokapis.com")
+      && /(?:^|[.-])upload(?:[.-]|$)/.test(hostname));
+  if (!tikTokUploadHost) {
+    console.warn(JSON.stringify({ event: "tiktok_upload_host_rejected", hostname }));
+    throw new Error("upload_url_not_allowed");
+  }
+  assertAllowedHttpsUrl(value, [hostname], "upload_url_not_allowed");
+  return value;
 }
 
 function sourceBody(source: SourceInfo) {
