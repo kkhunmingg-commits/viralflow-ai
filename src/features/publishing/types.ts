@@ -38,6 +38,7 @@ export interface TikTokPublishStatus {
   failReason: string | null;
   postIds: string[];
   uploadedBytes: number;
+  providerError?: { code: string; message: string; logId: string | null };
 }
 
 export interface PublishQueueRow {

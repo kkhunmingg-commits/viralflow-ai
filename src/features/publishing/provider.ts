@@ -14,16 +14,23 @@ const initResponseSchema = z.object({
   data: z.object({ publish_id: z.string().min(1).max(64), upload_url: z.string().url().nullish() }),
   error: z.object({ code: z.literal("ok") }),
 });
-const providerErrorSchema = z.object({ error: z.object({ code: z.string().min(1) }) });
+const providerErrorSchema = z.object({ error: z.object({ code: z.string().min(1), message: z.string().optional(), log_id: z.string().optional() }) });
 const statusResponseSchema = z.object({
   data: z.object({
     status: z.enum(["PROCESSING_UPLOAD", "PROCESSING_DOWNLOAD", "SEND_TO_USER_INBOX", "PUBLISH_COMPLETE", "FAILED"]),
     fail_reason: z.string().nullish(),
     publicaly_available_post_id: z.array(z.union([z.string(), z.number()])).default([]),
+    publicly_available_post_id: z.array(z.union([z.string(), z.number()])).optional(),
     uploaded_bytes: z.number().int().nonnegative().default(0),
   }),
-  error: z.object({ code: z.literal("ok") }),
+  error: z.object({ code: z.literal("ok"), message: z.string().optional(), log_id: z.string().optional() }),
 });
+
+export class TikTokStatusRequestError extends Error {
+  constructor(readonly code: string, readonly providerMessage: string, readonly logId: string | null) {
+    super(code);
+  }
+}
 
 export function buildChunkSource(videoSize: number): SourceInfo {
   if (!Number.isSafeInteger(videoSize) || videoSize <= 0) throw new Error("invalid_video_size");
@@ -187,9 +194,23 @@ export class OfficialTikTokPublishingProvider implements TikTokPublishingProvide
       body: JSON.stringify({ publish_id: publishId }),
     });
     const json: unknown = await response.json();
-    if (!response.ok) throw new Error(`tiktok_status_http_${response.status}`);
-    const data = statusResponseSchema.parse(json).data;
-    return { status: data.status, failReason: data.fail_reason ?? null, postIds: data.publicaly_available_post_id.map(String), uploadedBytes: data.uploaded_bytes };
+    const envelope = providerErrorSchema.safeParse(json);
+    if (!response.ok || (envelope.success && envelope.data.error.code !== "ok")) {
+      throw new TikTokStatusRequestError(
+        envelope.success ? envelope.data.error.code : `tiktok_status_http_${response.status}`,
+        envelope.success ? envelope.data.error.message ?? "" : "",
+        envelope.success ? envelope.data.error.log_id ?? null : null,
+      );
+    }
+    const parsed = statusResponseSchema.parse(json);
+    const { data, error } = parsed;
+    return {
+      status: data.status,
+      failReason: data.fail_reason ?? null,
+      postIds: (data.publicly_available_post_id ?? data.publicaly_available_post_id).map(String),
+      uploadedBytes: data.uploaded_bytes,
+      providerError: { code: error.code, message: error.message ?? "", logId: error.log_id ?? null },
+    };
   }
 }
 

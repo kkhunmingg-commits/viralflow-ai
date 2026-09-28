@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
-import { buildChunkSource, MockTikTokPublishingProvider, OfficialTikTokPublishingProvider, assertTikTokUploadUrl, assertVerifiedPullUrl } from "./provider";
+import { buildChunkSource, MockTikTokPublishingProvider, OfficialTikTokPublishingProvider, TikTokStatusRequestError, assertTikTokUploadUrl, assertVerifiedPullUrl } from "./provider";
 import { deterministicNextDaySlot, remainingPublishSlots, retryDelaySeconds, scheduleCandidates } from "./scheduler";
 import { assertConsentSnapshot, assertPublishingPermission, consentHash, publishAttemptKey, statusFromProvider } from "./state";
 import { parseTikTokPublishWebhook, verifyTikTokWebhookSignature } from "./webhook";
@@ -74,6 +74,28 @@ describe("Phase 7B publishing foundation", () => {
     const request = vi.fn(async () => new Response(JSON.stringify({ data: { publish_id: "v_1", upload_url: "https://127.0.0.1/internal" }, error: { code: "ok" } }), { status: 200 }));
     const provider = new OfficialTikTokPublishingProvider(request as typeof fetch, ["open-upload.tiktokapis.com"]);
     await expect(provider.uploadDraft("secret-token", buildChunkSource(4_000_000))).rejects.toThrow("upload_url_not_allowed");
+  });
+
+  it("fetches an existing Direct Post status without initializing another post", async () => {
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => { void input; void init; return new Response(JSON.stringify({
+      data: { status: "PUBLISH_COMPLETE", fail_reason: null, publicaly_available_post_id: [], uploaded_bytes: 12987 },
+      error: { code: "ok", message: "", log_id: "tiktok-log-1" },
+    }), { status: 200 }); });
+    const result = await new OfficialTikTokPublishingProvider(request as typeof fetch)
+      .fetchPublishStatus("account-token", "v_pub_file~v2-1.123");
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(request.mock.calls[0]?.[0]).toBe("https://open.tiktokapis.com/v2/post/publish/status/fetch/");
+    expect(JSON.parse(String((request.mock.calls[0]?.[1] as RequestInit).body))).toEqual({ publish_id: "v_pub_file~v2-1.123" });
+    expect(result).toMatchObject({ status: "PUBLISH_COMPLETE", postIds: [], uploadedBytes: 12987, providerError: { code: "ok", logId: "tiktok-log-1" } });
+  });
+
+  it("preserves TikTok status error details for diagnosis", async () => {
+    const request = vi.fn(async () => new Response(JSON.stringify({
+      error: { code: "invalid_publish_id", message: "Unknown publish_id", log_id: "tiktok-log-2" },
+    }), { status: 400 }));
+    await expect(new OfficialTikTokPublishingProvider(request as typeof fetch)
+      .fetchPublishStatus("account-token", "v_pub_file~v2-1.123"))
+      .rejects.toMatchObject({ code: "invalid_publish_id", providerMessage: "Unknown publish_id", logId: "tiktok-log-2" } satisfies Partial<TikTokStatusRequestError>);
   });
 
   it("keeps mock publishing deterministic and separates draft from direct post", async () => {

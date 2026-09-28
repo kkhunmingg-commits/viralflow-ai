@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { OfficialTikTokPublishingProvider, buildChunkSource } from "@/features/publishing/provider";
+import { OfficialTikTokPublishingProvider, TikTokStatusRequestError, buildChunkSource } from "@/features/publishing/provider";
 import { createTikTokProvider, TikTokTokenService } from "@/features/tiktok/services";
 import { assertSandboxPrivatePostAccount, sandboxPrivatePostAccountId } from "@/features/tiktok/sandbox-private-post";
 import { serverEnv } from "@/lib/server-env";
@@ -76,6 +76,9 @@ export async function POST(request: Request) {
     if (!initialized.uploadUrl) throw new Error("tiktok_upload_url_missing");
     await publisher.uploadBinary(initialized.uploadUrl, media, source);
     console.info(JSON.stringify({ event: "sandbox_private_post", result: "UPLOAD_COMPLETE", publish_id: publishId }));
+    if (request.headers.get("accept")?.includes("text/html")) {
+      return Response.redirect(new URL(`/accounts/${accountId}?publish_id=${encodeURIComponent(publishId)}`, serverEnv.appUrl), 303);
+    }
     return Response.json({ publish_id: publishId, privacy_level: "SELF_ONLY", upload: "COMPLETE", provider: "OfficialTikTokPublishingProvider" });
   } catch (error) {
     const code = errorCode(error);
@@ -91,8 +94,18 @@ export async function GET(request: Request) {
     if (!publishId || !/^v_pub_[a-zA-Z0-9~._-]{1,58}$/.test(publishId)) throw new Error("publish_id_invalid");
     const token = await new TikTokTokenService(admin).getAccessToken(ownerId, accountId);
     const status = await provider().fetchPublishStatus(token, publishId);
-    return Response.json({ publish_id: publishId, status: status.status, fail_reason: status.failReason });
+    return Response.json({
+      publish_id: publishId,
+      status: status.status,
+      fail_reason: status.failReason,
+      publicaly_available_post_id: status.postIds,
+      uploaded_bytes: status.uploadedBytes,
+      error: { code: status.providerError?.code ?? "ok", message: status.providerError?.message ?? "", log_id: status.providerError?.logId ?? null },
+    }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
+    if (error instanceof TikTokStatusRequestError) {
+      return Response.json({ error: { code: error.code, message: error.providerMessage, log_id: error.logId } }, { status: 400, headers: { "Cache-Control": "no-store" } });
+    }
     return Response.json({ error_code: errorCode(error) }, { status: 400 });
   }
 }
