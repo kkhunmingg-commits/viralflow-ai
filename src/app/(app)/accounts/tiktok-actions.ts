@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { z } from "zod";
 import { TikTokCreatorService, TikTokTokenService } from "@/features/tiktok/services";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 
@@ -27,4 +29,42 @@ export async function disconnectTikTokAccount(accountId: string) {
   revalidatePath("/accounts");
   revalidatePath(`/accounts/${accountId}`);
   redirect("/accounts?disconnected=1");
+}
+
+export async function hideDisconnectedTikTokAccount(
+  accountId: string,
+  _previousState: { error: string | null },
+): Promise<{ error: string | null }> {
+  void _previousState;
+  if (!z.uuid().safeParse(accountId).success) {
+    return { error: "ไม่สามารถนำบัญชีนี้ออกจากรายการได้" };
+  }
+
+  try {
+    const owner = await ownerId();
+    const { data, error } = await createAdminClient()
+      .from("tiktok_accounts")
+      .update({ hidden_at: new Date().toISOString() })
+      .eq("owner_id", owner)
+      .eq("id", accountId)
+      .eq("provider", "tiktok")
+      .eq("is_mock", false)
+      .eq("connection_status", "DISCONNECTED")
+      .in("authorization_status", ["revoked", "disconnected"])
+      .is("hidden_at", null)
+      .select("id")
+      .maybeSingle();
+
+    if (error || !data) {
+      return { error: "นำบัญชีออกไม่ได้ โปรดตรวจสอบว่ายกเลิกการเชื่อมต่อแล้ว" };
+    }
+
+    revalidatePath("/accounts");
+    revalidatePath("/dashboard");
+    revalidatePath("/auto");
+    revalidatePath("/categories");
+    return { error: null };
+  } catch {
+    return { error: "นำบัญชีออกไม่ได้ โปรดลองอีกครั้ง" };
+  }
 }

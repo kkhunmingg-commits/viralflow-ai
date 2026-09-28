@@ -47,6 +47,7 @@ export interface TikTokAccount {
   last_auth_error?: string | null;
   last_sync_error?: string | null;
   disconnected_at?: string | null;
+  hidden_at?: string | null;
   preferred_categories: string[];
   account_notes: string | null;
   last_synced_at: string | null;

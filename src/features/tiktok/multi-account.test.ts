@@ -41,10 +41,12 @@ class MemoryQuery implements PromiseLike<Result> {
   private operation: "select" | "upsert" | "update" | "delete" = "select";
   private values: Row = {};
   private filters: Array<[string, unknown]> = [];
+  private nullFilters: string[] = [];
 
   constructor(private readonly admin: MemoryAdmin, private readonly table: string) {}
   select(columns: string) { void columns; return this; }
   eq(column: string, value: unknown) { this.filters.push([column, value]); return this; }
+  is(column: string, value: null) { void value; this.nullFilters.push(column); return this; }
   order(column: string, options?: { ascending?: boolean }) { void column; void options; return this; }
   upsert(values: Row, options?: { onConflict?: string }) { void options; this.operation = "upsert"; this.values = values; return this; }
   update(values: Row) { this.operation = "update"; this.values = values; return this; }
@@ -58,7 +60,8 @@ class MemoryQuery implements PromiseLike<Result> {
 
   private execute(): Result {
     const rows = this.admin.records(this.table);
-    const matches = (row: Row) => this.filters.every(([key, value]) => row[key] === value);
+    const matches = (row: Row) => this.filters.every(([key, value]) => row[key] === value)
+      && this.nullFilters.every((key) => row[key] == null);
     if (this.operation === "select") return { data: rows.filter(matches), error: null };
     if (this.operation === "delete") {
       const selected = rows.filter(matches);
@@ -151,6 +154,22 @@ describe("TikTok multi-account OAuth persistence", () => {
       .map((row) => row.tiktok_account_id)).toEqual([b.accountId]);
     expect(admin.records("tiktok_accounts").find((row) => row.id === a.accountId)?.connection_status).toBe("DISCONNECTED");
     expect(admin.records("tiktok_accounts").find((row) => row.id === b.accountId)?.authorization_status).toBe("authorized");
+    expect(await tokens.getAccessToken(ownerId, b.accountId)).toBe("access-B-1");
+
+    admin.write("account_daily_stats", [{ id: "history-A", owner_id: ownerId, tiktok_account_id: a.accountId }]);
+    await client.from("tiktok_accounts").update({ hidden_at: new Date().toISOString() })
+      .eq("owner_id", ownerId).eq("id", a.accountId);
+    expect((await getOwnerAccounts(client, ownerId)).map((account) => account.open_id)).toEqual(["B"]);
+
+    const restoredA = await oauth.completeCallback({
+      ownerId, code: "A", state: "hidden-account-qr", requireNewAccount: true, flow: "qr",
+    });
+    expect(restoredA.accountId).toBe(a.accountId);
+    expect(admin.records("tiktok_accounts").find((row) => row.id === a.accountId)?.hidden_at).toBeNull();
+    expect((await getOwnerAccounts(client, ownerId)).map((account) => account.open_id)).toEqual(["A", "B"]);
+    expect(admin.records("account_daily_stats")).toEqual([
+      { id: "history-A", owner_id: ownerId, tiktok_account_id: a.accountId },
+    ]);
     expect(await tokens.getAccessToken(ownerId, b.accountId)).toBe("access-B-1");
   });
 });

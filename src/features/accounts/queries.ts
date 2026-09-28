@@ -13,6 +13,7 @@ export async function getOwnerAccounts(
     .from("tiktok_accounts")
     .select("*")
     .eq("owner_id", ownerId)
+    .is("hidden_at", null)
     .order("created_at", { ascending: true });
 
   if (error) throw error;

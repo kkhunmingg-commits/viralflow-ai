@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createMockAccount, deleteMockAccount, seedDevelopmentAccounts, updateMockAccount } from "./actions";
 import { presentAccount, type AccountBadge, type AccountHealthSnapshot, type ShopSnapshot } from "./account-presentation";
 import { DisconnectTikTokButton } from "./disconnect-tiktok-button";
+import { HideTikTokAccountButton } from "./hide-tiktok-account-button";
 
 export const metadata: Metadata = { title: "บัญชี TikTok" };
 
@@ -34,6 +35,9 @@ function AccountCard({ account, health, shop, canSeed }: {
         : <span className="accounts-avatar accounts-avatar-fallback" aria-hidden="true">{account.display_name.slice(0, 1).toUpperCase()}</span>}
       <div className="accounts-identity"><h2>{account.display_name}</h2><p>{account.username ? `@${account.username}` : "ยังไม่มีชื่อผู้ใช้ TikTok"}</p></div>
       <Badge value={state.connection} />
+      {!account.is_mock && account.connection_status === "DISCONNECTED" && ["revoked", "disconnected"].includes(account.authorization_status)
+        ? <HideTikTokAccountButton accountId={account.id} accountName={account.username ? `@${account.username}` : account.display_name} />
+        : null}
     </div>
     <div className="accounts-mode-row"><span className={`accounts-mode ${account.mode.toLowerCase()}`}>{account.mode}</span>{account.mode === "AUTO" ? <span className="accounts-effective">โหมดปัจจุบัน: {account.effective_mode}</span> : null}</div>
     <dl className="accounts-details">

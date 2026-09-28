@@ -27,7 +27,16 @@
 .accounts-section-head span { color: var(--account-muted); font-size: 12px; }
 .accounts-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .accounts-card { min-width: 0; padding: 22px; border: 1px solid var(--account-line); border-radius: 19px; background: linear-gradient(155deg, #222836, #1a202b 72%); box-shadow: 0 16px 40px rgba(0,0,0,.1); }
-.accounts-card-header { display: flex; align-items: center; gap: 12px; }
+.accounts-card-header { position: relative; display: flex; align-items: center; gap: 12px; padding-right: 44px; }
+.accounts-hide-control { position: absolute; top: 0; right: 0; z-index: 2; }
+.accounts-hide-button { display: grid; width: 44px; height: 44px; place-items: center; border: 1px solid #6b5260; border-radius: 10px; color: #ffd6da; background: #352730; font: inherit; font-size: 25px; line-height: 1; cursor: pointer; }
+.accounts-hide-button:hover, .accounts-hide-button[aria-expanded="true"] { background: #512831; }
+.accounts-hide-confirm { position: absolute; top: 51px; right: 0; width: min(300px, calc(100vw - 56px)); padding: 15px; border: 1px solid #78515e; border-radius: 12px; background: #29212b; box-shadow: 0 18px 35px rgba(0, 0, 0, .35); }
+.accounts-hide-confirm p { margin: 0; color: #f9e2e6; font-size: 13px; font-weight: 800; line-height: 1.45; }
+.accounts-hide-confirm small { display: block; margin-top: 7px; color: #c5b9c1; font-size: 11px; line-height: 1.5; }
+.accounts-hide-confirm .accounts-hide-error { margin-top: 9px; color: #ffadb7; font-weight: 600; }
+.accounts-hide-confirm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.accounts-hide-confirm-actions button { flex: 1; white-space: nowrap; }
 .accounts-avatar { flex: none; width: 54px; height: 54px; object-fit: cover; border: 1px solid #536177; border-radius: 15px; }
 .accounts-avatar-fallback { display: grid; place-items: center; color: #fff; background: linear-gradient(145deg, #8878ff, #30a9c9); font: 800 21px var(--font-manrope), sans-serif; }
 .accounts-identity { flex: 1; }

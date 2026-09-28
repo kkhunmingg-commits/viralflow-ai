@@ -140,10 +140,10 @@ export class TikTokOAuthService {
     if (user.openId !== token.openId) throw new TikTokServiceError("oauth_identity_mismatch");
     if (input.requireNewAccount) {
       const { data: existing, error: existingError } = await this.admin.from("tiktok_accounts")
-        .select("id").eq("owner_id", input.ownerId).eq("provider", "tiktok")
+        .select("id,hidden_at").eq("owner_id", input.ownerId).eq("provider", "tiktok")
         .eq("open_id", token.openId).maybeSingle();
       if (existingError) throw new TikTokServiceError("tiktok_account_lookup_failed");
-      if (existing) throw new TikTokServiceError("tiktok_account_already_added");
+      if (existing && existing.hidden_at === null) throw new TikTokServiceError("tiktok_account_already_added");
     }
 
     let creator: TikTokCreatorInfo | null = null;
@@ -244,6 +244,12 @@ export class TikTokOAuthService {
       authorization_status: authorizationStatus,
       last_creator_info_sync_at: syncedAt,
     }).eq("owner_id", input.ownerId).eq("tiktok_account_id", accountId);
+
+    // Keep a hidden account out of active lists until its credentials and
+    // integration have both been stored successfully.
+    const { error: revealError } = await this.admin.from("tiktok_accounts")
+      .update({ hidden_at: null }).eq("owner_id", input.ownerId).eq("id", accountId);
+    if (revealError) throw new TikTokServiceError("tiktok_account_restore_failed");
 
     return { accountId, returnPath: state.return_path, connectionStatus: readiness.connectionStatus };
   }
