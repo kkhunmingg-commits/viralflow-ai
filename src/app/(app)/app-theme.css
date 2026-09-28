@@ -1,0 +1,197 @@
+/* Shared app theme. Public login and legal pages keep their own styling. */
+.app-frame {
+  --ink: #f3f5fb;
+  --muted: #aab6c9;
+  --line: #343d4e;
+  --paper: #0d1018;
+  --white: #1b202b;
+  --shadow: 0 18px 45px rgba(0, 0, 0, .14);
+  min-width: 0;
+  color: var(--ink);
+  background: #0d1018;
+  color-scheme: dark;
+}
+.app-frame *, .app-frame *::before, .app-frame *::after { min-width: 0; }
+.app-frame h1, .app-frame h2, .app-frame h3, .app-frame p,
+.app-frame dt, .app-frame dd, .app-frame td { overflow-wrap: anywhere; }
+.app-frame .app-main {
+  background: radial-gradient(circle at 52% -14%, rgba(83, 71, 155, .21), transparent 36%), #0d1018;
+}
+.app-frame .sidebar {
+  border-right: 1px solid #252b3b;
+  background: linear-gradient(180deg, #111522, #0c1019);
+}
+.app-frame .nav-link.active {
+  background: linear-gradient(90deg, rgba(113, 100, 245, .24), rgba(66, 142, 232, .06));
+  box-shadow: inset 2px 0 #8373ff;
+}
+.app-frame .nav-link.active .nav-icon { color: #a89dff; border-color: #5b5494; }
+.app-frame .brand-mark {
+  color: #fff;
+  background: linear-gradient(145deg, #8170ff, #30a9c9);
+  box-shadow: 0 0 0 5px rgba(129, 112, 255, .1);
+}
+.app-frame .topbar {
+  color: var(--ink);
+  border-color: #252c3a;
+  background: rgba(17, 22, 32, .94);
+}
+.app-frame .topbar-kicker, .app-frame .eyebrow { color: #aaa0ff; }
+.app-frame .topbar-status, .app-frame .user-copy small { color: #9aa7bc; }
+.app-frame .avatar { color: #e9e7ff; background: #37365d; }
+.app-frame .text-button { color: #acb8ca; }
+.app-frame .text-button:hover { color: #f4f6ff; }
+.app-frame .page-content { min-width: 0; }
+.app-frame .page-heading h1 { color: #f7f8ff; }
+.app-frame .page-heading > div > p:last-child { color: #aab6c9; }
+
+.app-frame .panel, .app-frame .stat-card,
+.app-frame .account-card, .app-frame .video-card-stats div {
+  color: var(--ink);
+  border-color: var(--line);
+  background: linear-gradient(155deg, #222836, #1a202b 75%);
+  box-shadow: var(--shadow);
+}
+.app-frame .panel-heading a, .app-frame .account-detail-link,
+.app-frame .settings-menu a:hover { color: #bdb4ff; }
+.app-frame .panel-heading a:hover, .app-frame .account-detail-link:hover { color: #e0dcff; }
+.app-frame .primary-action {
+  color: #fff;
+  background: linear-gradient(110deg, #7565ec, #487fe9);
+}
+.app-frame .primary-action:hover:not(:disabled) { filter: brightness(1.1); }
+.app-frame .secondary-action {
+  color: #e1e7f5;
+  border-color: #465269;
+  background: #252c3a;
+}
+.app-frame .secondary-action:hover:not(:disabled) { background: #30394d; }
+.app-frame .danger-action {
+  color: #ffbec7;
+  border-color: #89505a;
+  background: #402a34;
+}
+.app-frame .danger-action:hover:not(:disabled) { background: #59303c; }
+.app-frame :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) {
+  color: #f2f5fc;
+  border-color: #465168;
+  background: #151b27;
+}
+.app-frame :is(input, select, textarea)::placeholder { color: #8292a9; }
+.app-frame :is(input, select, textarea):focus-visible { outline: 2px solid #9a8fff; outline-offset: 2px; }
+.app-frame :is(input[type="checkbox"], input[type="radio"]) { accent-color: #8878ff; }
+.app-frame .account-form-grid label, .app-frame .operator-fields label { color: #b9c5d7; }
+
+.app-frame .stat-card p, .app-frame .stat-card small,
+.app-frame .account-info small, .app-frame .account-metric small,
+.app-frame .account-card > p, .app-frame .account-card dt,
+.app-frame .integration-card p, .app-frame .settings-list dt { color: #aab6c9; }
+.app-frame .stat-card strong { color: #f6f7ff; }
+.app-frame .stat-card.blue { border-top-color: #658bff; }
+.app-frame .stat-card.green { border-top-color: #4ed0bd; }
+.app-frame .stat-card.violet { border-top-color: #a492ff; }
+.app-frame .stat-card.amber { border-top-color: #f1b85f; }
+.app-frame .account-row, .app-frame .account-card dl div,
+.app-frame .detail-list div, .app-frame .data-list > div,
+.app-frame .variation-row, .app-frame .settings-list div,
+.app-frame .integration-records > div { border-color: var(--line); }
+.app-frame .detail-list div { gap: 16px; }
+.app-frame .detail-list dt { flex: 0 0 auto; }
+.app-frame .detail-list dd { text-align: right; overflow-wrap: anywhere; }
+.app-frame .account-row:hover, .app-frame .radar-table tbody tr:hover { background: #252d3c; }
+.app-frame .compact-empty, .app-frame .large-empty,
+.app-frame .empty-state, .app-frame .next-step,
+.app-frame .explanation-json {
+  color: var(--ink);
+  border-color: #414c61;
+  background: radial-gradient(circle at 50% 0%, rgba(104, 91, 215, .13), transparent 46%), #1b202b;
+}
+.app-frame .empty-orbit, .app-frame .empty-state > span,
+.app-frame .large-empty button { color: #c6c0ff; border-color: #524c7e; background: #302e4b; }
+.app-frame .next-step > p, .app-frame .next-step > span,
+.app-frame .compact-empty p, .app-frame .large-empty p,
+.app-frame .empty-state p { color: var(--muted); }
+.app-frame .settings-menu a { color: #b0bdd0; }
+.app-frame .settings-menu a:hover { background: #292b45; }
+.app-frame .settings-menu a[aria-current="page"] { color: #ded9ff; background: #302e4b; }
+.app-frame .integration-logo { background: linear-gradient(145deg, #7868e8, #327ba4); }
+.app-frame .supabase-logo { color: #073a2b; background: #6be0ac; }
+
+.app-frame .status-badge.ready, .app-frame .health-badge,
+.app-frame .quality-badge.pass, .app-frame .risk-safe,
+.app-frame .trend-rising, .app-frame .trend-accelerating,
+.app-frame .state-rising, .app-frame .check { color: #8ce6d3; background: #1c3b36; }
+.app-frame .status-badge.blocked, .app-frame .quality-badge.reject,
+.app-frame .risk-reject, .app-frame .trend-falling,
+.app-frame .state-falling { color: #ffb0b9; background: #3b252e; }
+.app-frame .status-badge.disconnected, .app-frame .phase-chip,
+.app-frame .quality-badge, .app-frame .trend-low_data,
+.app-frame .state-low_data, .app-frame .waiting { color: #bec9d9; background: #30394a; }
+.app-frame .quality-badge.retry, .app-frame .risk-review,
+.app-frame .state-hot { color: #ffdc9e; background: #453522; }
+.app-frame .trend-stable, .app-frame .state-stable,
+.app-frame .mode-badge.growth { color: #b7caff; background: #2a3556; }
+.app-frame .state-saturated, .app-frame .mode-badge.auto { color: #d1bdff; background: #38304f; }
+.app-frame .mode-badge.affiliate { color: #92eadb; background: #1e3c3c; }
+.app-frame .opportunity-cell, .app-frame .product-score-large strong,
+.app-frame .creative-score, .app-frame .success-copy { color: #77dfcb; }
+.app-frame .blocker-list { color: #ffb1b9; }
+
+.app-frame .radar-table th, .app-frame .radar-table td { border-color: var(--line); }
+.app-frame .radar-table th { color: #aab6c9; }
+.app-frame .score-breakdown article { background: #202633; }
+.app-frame .creative-card.selected { border-color: #8d7cff; }
+.app-frame .operator-page .panel { background: linear-gradient(155deg, #222836, #1a202b 75%); }
+.app-frame .operator-page .operator-fields input,
+.app-frame .operator-page .operator-fields select { color: #f2f5fc; border-color: #465168; background: #151b27; }
+.app-frame .operator-readiness > div,
+.app-frame .operator-metrics article {
+  color: var(--ink);
+  border-color: var(--line);
+  background: #202633;
+}
+.app-frame .operator-fields input:disabled,
+.app-frame .operator-fields select:disabled { color: #8492a8; background: #252b38; }
+.app-frame .operator-form-footer p,
+.app-frame .operator-live > p:not(.eyebrow),
+.app-frame .operator-live-meta span,
+.app-frame .operator-readiness small,
+.app-frame .operator-metrics span,
+.app-frame .operator-side p:not(.eyebrow),
+.app-frame .operator-timeline small { color: var(--muted); }
+.app-frame .operator-live-meta strong { color: var(--ink); }
+.app-frame .operator-timeline li { border-color: var(--line); }
+.app-frame .operator-timeline li > span { color: #bdc9da; background: #30394a; }
+.app-frame .operator-notice { color: #f7daa1; background: #372e20; }
+.app-frame .operator-side a { color: #bdb4ff; }
+
+.account-detail-page { width: min(100%, 1160px); margin: 0 auto; }
+.account-detail-page .page-heading { align-items: center; margin-bottom: 18px; }
+.account-detail-page .radar-section { margin: 0 0 16px; }
+.account-detail-page .panel > .detail-summary-grid { margin-bottom: 0; }
+.app-frame .account-detail-page .panel > .detail-summary-grid > article {
+  padding: 18px;
+  border: 1px solid #3b4559;
+  border-radius: 13px;
+  background: #202633;
+}
+.account-detail-page .account-card-top { align-items: center; justify-content: flex-start; gap: 14px; }
+.account-detail-page .account-card-top p { margin: 4px 0 0; color: var(--muted); }
+.account-detail-page .account-avatar.large { width: 56px; height: 56px; flex: none; object-fit: cover; }
+.account-detail-page .form-actions { flex-wrap: wrap; margin-top: 18px; }
+.account-detail-page .form-actions > form { display: contents; }
+.account-detail-page .panel-heading { flex-wrap: wrap; }
+.account-detail-page .panel-heading h2 { font-size: clamp(19px, 2vw, 25px); }
+.account-detail-page .badge-group { justify-content: flex-start; }
+
+@media (max-width: 580px) {
+  .app-frame .panel, .app-frame .stat-card { padding: 18px; }
+  .app-frame .panel-heading { flex-wrap: wrap; gap: 12px; }
+  .app-frame .detail-list div { align-items: flex-start; flex-direction: column; gap: 3px; }
+  .app-frame .detail-list dd { text-align: left; }
+  .app-frame .form-actions { flex-wrap: wrap; }
+  .app-frame .radar-table-wrap { overflow-x: auto; }
+  .account-detail-page .page-heading { align-items: flex-start; }
+  .account-detail-page .page-heading .secondary-action { width: 100%; text-align: center; }
+  .app-frame .account-detail-page .panel > .detail-summary-grid > article { padding: 14px; }
+}

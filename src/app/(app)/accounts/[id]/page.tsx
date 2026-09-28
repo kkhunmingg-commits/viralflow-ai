@@ -52,14 +52,14 @@ export default async function AccountDetailPage({ params, searchParams }: { para
   const auto=autoState as AutoAccountState|null;
 
   return (
-    <>
-      <section className="panel radar-section"><h2>Recommended Products Today</h2><RecommendationTable input={recommendations.input} scores={getRecommendationsForAccount(recommendations.plan,id).map(a=>a.score)}/></section>
+    <div className="account-detail-page">
       <PageHeading eyebrow="ACCOUNT DETAIL" title={account.display_name} description={`${account.username ? `@${account.username}` : "ยังไม่มี creator username"} · ข้อมูลจริงจาก Supabase`} action={<Link className="secondary-action" href="/accounts">← กลับหน้าบัญชี</Link>} />
+      <section className="panel radar-section"><h2>Recommended Products Today</h2><RecommendationTable input={recommendations.input} scores={getRecommendationsForAccount(recommendations.plan,id).map(a=>a.score)}/></section>
 
       <section className="panel radar-section">
         <div className="panel-heading">
           <div><p className="eyebrow">TIKTOK CONNECTION</p><h2>{account.connection_status ?? "DISCONNECTED"}</h2></div>
-          <div className="badge-group"><span className="status-badge ready">Direct Post: {account.direct_post_status ?? "UNAVAILABLE"}</span><span className="status-badge ready">Upload: {account.upload_status ?? "UNAVAILABLE"}</span></div>
+          <div className="badge-group"><span className={`status-badge ${account.direct_post_status === "READY" ? "ready" : "disconnected"}`}>Direct Post: {account.direct_post_status ?? "UNAVAILABLE"}</span><span className={`status-badge ${account.upload_status === "READY" ? "ready" : "disconnected"}`}>Upload: {account.upload_status ?? "UNAVAILABLE"}</span></div>
         </div>
         <div className="detail-summary-grid">
           <article className="detail-account-card">
@@ -157,6 +157,6 @@ export default async function AccountDetailPage({ params, searchParams }: { para
         <article className="panel"><div className="panel-heading"><div><p className="eyebrow">CATEGORY AFFINITY</p><h2>หมวดหมู่ที่เหมาะกับบัญชี</h2></div></div>{rankedAffinities.length ? <div className="data-list">{rankedAffinities.map((row) => <div key={row.id}><strong>{row.category_key}</strong><span>คะแนน {Math.round(Number(row.affinity_score ?? row.score) * 100)}%</span><small>ความมั่นใจ {Math.round(Number(row.confidence) * 100)}% · {row.sample_size} ตัวอย่าง</small></div>)}</div> : <p className="muted">ยังไม่มีข้อมูล affinity แบบ manual หรือจาก learning loop</p>}</article>
         <article className="panel"><div className="panel-heading"><div><p className="eyebrow">RECENT DAILY STATS</p><h2>14 วันล่าสุด</h2></div></div>{stats.length ? <div className="data-list">{stats.map((row) => <div key={row.id}><strong>{row.stat_date}</strong><span>+{row.followers_gained} followers</span><small>{row.views.toLocaleString("th-TH")} views · {row.orders} orders</small></div>)}</div> : <p className="muted">ยังไม่มีสถิติรายวันสำหรับบัญชีนี้</p>}</article>
       </section>
-    </>
+    </div>
   );
 }

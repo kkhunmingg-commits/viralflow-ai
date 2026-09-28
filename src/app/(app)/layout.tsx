@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
 import { createClient } from "@/lib/supabase/server";
+import "./app-theme.css";
 
 export default async function AppLayout({
   children,
