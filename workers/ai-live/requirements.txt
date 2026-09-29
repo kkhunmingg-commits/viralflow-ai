@@ -1,0 +1,5 @@
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+
+# Install the official MuseTalk/CUDA environment separately on an NVIDIA host.
+# Model weights and third-party source code are intentionally not vendored here.

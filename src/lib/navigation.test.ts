@@ -4,6 +4,7 @@ import { navigation, settingsNavigation } from "./navigation";
 const requiredRoutes = [
   "/auto",
   "/accounts",
+  "/ai-live",
   "/dashboard",
   "/product-radar",
   "/recommendations",
