@@ -21,7 +21,7 @@ async function handle(request: Request, context: Context) {
 
   const worker = liveWorkerConfig();
   if (!worker) return Response.json(
-    { ready: false, blockers: ["AI_LIVE_WORKER_NOT_CONFIGURED"], error: "WORKER_UNAVAILABLE" },
+    action === "health" ? { ready: false } : { error: "WORKER_UNAVAILABLE" },
     { status: action === "health" ? 200 : 503, headers: { "Cache-Control": "no-store" } },
   );
 
@@ -51,6 +51,11 @@ async function handle(request: Request, context: Context) {
     });
     const headers = new Headers({ "Cache-Control": "no-store, no-transform", "X-Content-Type-Options": "nosniff" });
     headers.set("Content-Type", upstream.headers.get("content-type") ?? "application/json");
+    if (action === "health") {
+      const status = await upstream.json().catch(() => null) as { ready?: unknown } | null;
+      return Response.json({ ready: upstream.ok && status?.ready === true },
+        { status: upstream.ok ? 200 : 502, headers: { "Cache-Control": "no-store" } });
+    }
     return new Response(upstream.body, { status: upstream.status, headers });
   } catch {
     return Response.json({ error: "WORKER_UNREACHABLE" }, { status: 502, headers: { "Cache-Control": "no-store" } });

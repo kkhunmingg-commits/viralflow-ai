@@ -43,7 +43,7 @@ export function OperatorStartForm({ accounts, requestKey, disabled, selectedAcco
       <label>งบต่อวัน (USD)<input name="dailyBudgetUsd" type="number" min="0" max={Math.min(1000, account?.budget ?? 0)} step="0.01" defaultValue={account?.budget ?? 0} key={`${accountId}-budget`} required disabled={disabled}/></label>
     </div>
     <div className="operator-form-footer">
-      <p role="status">{!account ? "เพิ่มบัญชีก่อนเริ่ม" : disabled ? "มีแผนที่ยังทำงานอยู่ หยุดแผนเดิมก่อนเริ่มใหม่" : !ready ? "SETUP REQUIRED · เชื่อมต่อและตรวจสถานะบัญชี" : affiliateBlocked ? "SETUP REQUIRED · บัญชีนี้ยังไม่มีสิทธิ์ Affiliate" : account.budget <= 0 ? "ตั้งงบในหน้าบัญชีและอนุมัติผู้ให้บริการก่อนสร้างวิดีโอจริง" : "ระบบจะตรวจงบ สิทธิ์ และการอนุมัติอีกครั้งก่อนลงมือจริง"}</p>
+      <p role="status">{!account ? "เพิ่มบัญชีก่อนเริ่ม" : disabled ? "มีงานที่กำลังทำอยู่ หยุดงานเดิมก่อนเริ่มใหม่" : !ready ? "บัญชีนี้ต้องเชื่อมต่อใหม่" : affiliateBlocked ? "บัญชีนี้ยังใช้โหมด Affiliate ไม่ได้" : account.budget <= 0 ? "กรุณาตั้งงบรายวันก่อนเริ่ม" : "ระบบจะตรวจความพร้อมก่อนเริ่มงาน"}</p>
       <StartButton disabled={!canStart}/>
     </div>
   </form>;

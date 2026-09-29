@@ -7,6 +7,8 @@ export async function GET() {
   const client = await createClient();
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const role = data.user.app_metadata?.viralflow_role;
+  if (role !== "admin" && role !== "developer") return NextResponse.json({ error: "forbidden" }, { status: 403 });
   try {
     return NextResponse.json(await ownerOperationsHealth(createAdminClient(), data.user.id), { headers: { "Cache-Control": "private, no-store" } });
   } catch {

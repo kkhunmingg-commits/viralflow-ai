@@ -116,6 +116,6 @@ export function TikTokQrConnect() {
     {status === "expired" ? <p>QR หมดอายุแล้ว กรุณาสร้างใหม่</p> : null}
     {status === "error" ? <p role="alert">{errorCode === "tiktok_account_already_added"
       ? "บัญชีนี้อยู่ใน ViralFlow แล้ว กรุณาสแกนด้วย TikTok บัญชีอื่น"
-      : `เชื่อมต่อไม่สำเร็จ (${errorCode ?? "qr_authorization_failed"}) กรุณาสร้าง QR ใหม่`}</p> : null}
+      : "เชื่อมต่อไม่สำเร็จ กรุณาสร้าง QR ใหม่"}</p> : null}
   </div>;
 }

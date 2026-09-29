@@ -1,0 +1,21 @@
+.customer-publishing { width: min(100%, 820px); margin: 0 auto; color: #f4f5fb; }
+.customer-publishing header { margin: 8px 0 28px; }
+.customer-publishing header a, .customer-publishing-pages a { color: #bcb4ff; font-size: 13px; font-weight: 700; }
+.customer-publishing h1 { margin: 18px 0 7px; font-size: clamp(29px, 4vw, 42px); letter-spacing: -.045em; }
+.customer-publishing header p, .customer-publishing-panel > p { color: #afbdd0; }
+.customer-publishing-list, .customer-publishing-panel { padding: clamp(20px, 3vw, 30px); border: 1px solid #343e52; border-radius: 20px; background: linear-gradient(145deg, #22283a, #181e2b); }
+.customer-publishing-list > a { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 75px; padding: 12px 0; color: #f2f4fa; border-bottom: 1px solid #343e52; }
+.customer-publishing-list > a:last-of-type { border-bottom: 0; }
+.customer-publishing-list > a span:first-child { display: grid; gap: 6px; }
+.customer-publishing-list small { color: #a5b4c8; }
+.customer-publishing-status { color: #a9e4dc; font-size: 13px; font-weight: 700; }
+.customer-publishing-pages, .customer-publishing-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 18px; }
+.customer-publishing-form { display: grid; gap: 18px; margin: 20px 0; }
+.customer-publishing-form > label { display: grid; gap: 8px; color: #dce5f3; }
+.customer-publishing-form textarea, .customer-publishing-form select, .customer-publishing-form input[type=datetime-local] { width: 100%; min-height: 48px; padding: 11px 13px; border: 1px solid #4a5671; border-radius: 10px; color: #f7f8ff; background: #121a29; }
+.customer-publishing-form textarea { min-height: 110px; }
+.customer-publishing-options { display: grid; gap: 11px; color: #c9d4e4; font-size: 13px; }
+.customer-publishing-options label { display: flex; align-items: center; gap: 8px; }
+.customer-publishing-panel h2 { margin: 0 0 12px; }
+.customer-publishing-panel button { min-height: 44px; cursor: pointer; }
+@media (max-width: 600px) { .customer-publishing-list > a { align-items: flex-start; flex-direction: column; } .customer-publishing-actions form, .customer-publishing-actions button { width: 100%; } }

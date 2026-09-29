@@ -325,7 +325,7 @@
 .operator-mini-state.blocked,.operator-mini-state.failed { color: #ffafbb; border-color: #784c54; }
 .operator-recent ul { margin: 0; padding: 0; list-style: none; }
 .operator-recent li + li { border-top: 1px solid #343d4d; }
-.operator-recent li a { display: flex; align-items: center; gap: 11px; padding: 11px 0; }
+.operator-recent li a, .operator-recent li .operator-result-link { display: flex; align-items: center; gap: 11px; padding: 11px 0; }
 .operator-result-icon { display: grid; flex: 0 0 36px; height: 36px; place-items: center; border-radius: 11px; color: #d6d0ff; background: linear-gradient(145deg, #534d9b, #2a7790); font-size: 11px; }
 .operator-result-copy { display: grid; flex: 1; gap: 2px; }
 .operator-result-copy strong { color: #eef1f8; font-size: 12px; }
@@ -539,10 +539,11 @@
   font-weight: 800;
 }
 .operator-page .operator-metrics {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   margin: 0;
 }
+.operator-section-heading { margin: 8px 0 -5px !important; font-size: 18px; }
 .app-frame .operator-page .operator-metric {
   min-height: 80px;
   gap: 6px;

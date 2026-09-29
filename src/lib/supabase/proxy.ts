@@ -3,6 +3,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 
 const publicPaths = new Set(["/login", "/terms", "/privacy"]);
+// A hidden menu is not access control. These internal pages need a trusted
+// server-managed role in app_metadata, never user_metadata.
+const diagnosticPages = [
+  "/dashboard", "/product-radar", "/recommendations", "/categories", "/creative-studio",
+  "/video-factory", "/compliance", "/commerce", "/analytics", "/learning", "/growth",
+  "/operations", "/settings/integrations", "/auto/runs", "/auto-mode", "/publisher",
+];
 
 export async function updateSession(request: NextRequest) {
   // Skip cookie auth for this exact route; the handler checks a server-only bearer secret.
@@ -44,6 +51,13 @@ export async function updateSession(request: NextRequest) {
 
   if (data?.claims && pathname === "/login") {
     return NextResponse.redirect(new URL("/auto", request.url));
+  }
+
+  if (data?.claims && diagnosticPages.some((route) => pathname === route || pathname.startsWith(`${route}/`))) {
+    const metadata = (data.claims as { app_metadata?: { viralflow_role?: unknown } }).app_metadata;
+    if (metadata?.viralflow_role !== "admin" && metadata?.viralflow_role !== "developer") {
+      return NextResponse.redirect(new URL("/auto", request.url));
+    }
   }
 
   return response;

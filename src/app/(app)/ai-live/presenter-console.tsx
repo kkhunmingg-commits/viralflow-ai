@@ -18,15 +18,13 @@ type Health = {
 };
 type Metrics = { status: string; fps: number; latency_ms: number | null; queue_depth: number; frames_generated: number };
 
-function statusLabel(value: boolean | undefined) { return value === undefined ? "ยังไม่ทราบ" : value ? "พร้อม" : "ยังไม่พร้อม"; }
-
 export function LivePresenterConsole({ accounts, products }: { accounts: Choice[]; products: ProductChoice[] }) {
   const [health, setHealth] = useState<Health | null>(null);
   const [reference, setReference] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState<string | null>(null);
   const [selectedAccount, setSelectedAccount] = useState("");
   const [selectedProduct, setSelectedProduct] = useState("");
-  const [targetFps, setTargetFps] = useState(20);
+  const targetFps = 20;
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [busy, setBusy] = useState(false);
@@ -110,7 +108,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
             releaseAudio();
             sessionRef.current = null;
             setSessionId(null);
-            setError(next.error ?? next.stop_reason ?? `Presenter ${next.status}`);
+            setError("การแสดงหยุดลง กรุณาลองอีกครั้ง");
           }
         }
       } catch { /* The next poll may recover after a transient worker disconnect. */ }
@@ -150,9 +148,9 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
     try {
       if (id) {
         const response = await fetch(`/api/ai-live/sessions/${id}/stop`, { method: "POST" });
-        if (!response.ok) setError("หยุด presenter ใน worker ไม่สำเร็จ กรุณาตรวจ worker");
+        if (!response.ok) setError("หยุดการแสดงไม่สำเร็จ กรุณาลองอีกครั้ง");
       }
-    } catch { setError("ติดต่อ worker เพื่อหยุด presenter ไม่สำเร็จ"); }
+    } catch { setError("หยุดการแสดงไม่สำเร็จ กรุณาลองอีกครั้ง"); }
     setSessionId(null);
     setMetrics(null);
     setBusy(false);
@@ -183,8 +181,8 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
         void fetch(`/api/ai-live/sessions/${id}/audio`, {
           method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: event.data,
         }).then((response) => {
-          if (!response.ok) setError("ส่งเสียงไปยัง presenter ไม่สำเร็จ กรุณาหยุดและตรวจ worker");
-        }).catch(() => setError("การเชื่อมต่อเสียงกับ worker ขาดหาย")).finally(() => { audioPendingRef.current -= 1; });
+          if (!response.ok) setError("การเชื่อมต่อเสียงขัดข้อง กรุณาหยุดและลองอีกครั้ง");
+        }).catch(() => setError("การเชื่อมต่อเสียงขัดข้อง")).finally(() => { audioPendingRef.current -= 1; });
       };
 
       const uploaded = await fetch("/api/ai-live/references", {
@@ -212,20 +210,21 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
       releaseAudio();
       sessionRef.current = null;
       if (createdSession) void fetch(`/api/ai-live/sessions/${createdSession}/stop`, { method: "POST" });
-      setError(cause instanceof Error ? cause.message : "เริ่ม presenter ไม่สำเร็จ");
+      setError(cause instanceof DOMException && cause.name === "NotAllowedError"
+        ? "กรุณาอนุญาตให้ใช้ไมโครโฟน" : "เริ่มการแสดงไม่สำเร็จ กรุณาลองอีกครั้ง");
     } finally { setBusy(false); }
   }
 
   return <div className="ai-live-page">
     <header className="ai-live-hero">
-      <div><p className="eyebrow">VIRALFLOW / AI LIVE · LIVE-1</p><h1>Presenter Studio</h1><p>เสียงจากไมโครโฟน → lip-sync แบบต่อเนื่อง → preview สด โดยยังไม่เชื่อม TikTok LIVE</p></div>
-      <span className={`ai-live-state ${health?.ready ? "ready" : "blocked"}`}>{health === null ? "กำลังตรวจ" : health.ready ? "WORKER READY" : "SETUP REQUIRED"}</span>
+      <div><p className="eyebrow">VIRALFLOW AI</p><h1>AI LIVE</h1><p>เลือกพรีเซนเตอร์และดูภาพตัวอย่างสด</p></div>
+      <span className={`ai-live-state ${health?.ready ? "ready" : "blocked"}`}>{health === null ? "กำลังตรวจ" : health.ready ? "พร้อมแสดงตัวอย่าง" : "AI LIVE กำลังเตรียมพร้อม"}</span>
     </header>
 
     <div className="ai-live-grid">
-      <section className="ai-live-panel ai-live-setup" aria-label="Presenter controls">
-        <div className="ai-live-panel-title"><div><p className="eyebrow">PRESENTER ENGINE</p><h2>ตั้งค่าพรีเซนเตอร์</h2></div><span className="phase-chip">LIVE-1</span></div>
-        <label className="ai-live-field">Presenter reference
+      <section className="ai-live-panel ai-live-setup" aria-label="ตั้งค่าพรีเซนเตอร์">
+        <div className="ai-live-panel-title"><div><h2>พรีเซนเตอร์</h2></div></div>
+        <label className="ai-live-field">ภาพพรีเซนเตอร์
           <input type="file" accept="image/jpeg,image/png" disabled={busy || !!sessionId} onChange={(event) => chooseReference(event.target.files?.[0] ?? null)} />
           <small>ภาพ JPEG/PNG ที่คุณมีสิทธิใช้งาน ไม่เกิน 4 MB</small>
         </label>
@@ -243,49 +242,27 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
             </select>
           </label>
         </div>
-        <p className="ai-live-context-note">การเลือกบัญชีและสินค้าเป็นบริบทสำหรับ AI LIVE ระยะต่อไป LIVE-1 ไม่ส่งภาพหรือเสียงไป TikTok และไม่ใช้ token บัญชี</p>
-        <label className="ai-live-field ai-live-fps">Target FPS
-          <select value={targetFps} disabled={busy || !!sessionId} onChange={(event) => setTargetFps(Number(event.target.value))}>
-            {[15, 20, 24, 30].map((fps) => <option value={fps} key={fps}>{fps} FPS</option>)}
-          </select>
-        </label>
+        <p className="ai-live-context-note">ขณะนี้ดูภาพตัวอย่างได้เท่านั้น ยังไม่ส่งภาพหรือเสียงไป TikTok LIVE</p>
         <div className="ai-live-actions">
-          <button className="primary-action" type="button" disabled={!reference || !health?.ready || busy || !!sessionId} onClick={() => void startPresenter()}>{busy && !sessionId ? "กำลังเริ่ม..." : "Start Presenter"}</button>
-          <button className="danger-action" type="button" disabled={!sessionId || busy} onClick={() => void stopPresenter()}>Stop Presenter</button>
+          <button className="primary-action" type="button" disabled={!reference || !health?.ready || busy || !!sessionId} onClick={() => void startPresenter()}>{busy && !sessionId ? "กำลังเริ่ม..." : "เริ่มตัวอย่างสด"}</button>
+          <button className="danger-action" type="button" disabled={!sessionId || busy} onClick={() => void stopPresenter()}>หยุดตัวอย่าง</button>
         </div>
         {error && <p className="ai-live-error" role="alert">{error}</p>}
-        {!health?.ready && <p className="ai-live-warning" role="status">Presenter ยังเริ่มไม่ได้: {health?.blockers?.join(", ") || "กำลังตรวจความพร้อมของ worker"}</p>}
+        {!health?.ready && <p className="ai-live-warning" role="status">AI LIVE กำลังเตรียมพร้อม กรุณากลับมาอีกครั้ง</p>}
       </section>
 
       <section className="ai-live-panel ai-live-preview" aria-label="Live presenter preview">
-        <div className="ai-live-panel-title"><div><p className="eyebrow">LIVE PREVIEW</p><h2>ภาพพรีเซนเตอร์</h2></div><span className="phase-chip">{sessionId ? "STREAMING" : "OFFLINE"}</span></div>
+        <div className="ai-live-panel-title"><div><h2>ภาพตัวอย่าง</h2></div><span className="phase-chip">{sessionId ? "กำลังแสดง" : "ยังไม่เริ่ม"}</span></div>
         <div className="ai-live-stage">
-          {sessionId && !previewError ? <img src={`/api/ai-live/sessions/${sessionId}/preview?stream=${previewEpoch}`} alt="ภาพพรีเซนเตอร์จาก worker แบบสด" onError={() => setPreviewError(true)} />
+          {sessionId && !previewError ? <img src={`/api/ai-live/sessions/${sessionId}/preview?stream=${previewEpoch}`} alt="ภาพพรีเซนเตอร์แบบสด" onError={() => setPreviewError(true)} />
             : referencePreview ? <img src={referencePreview} alt="ภาพอ้างอิงที่เลือก ยังไม่ใช่ภาพ live" />
-              : <div className="ai-live-stage-empty"><span>LV</span><strong>ยังไม่มีภาพจาก Presenter</strong><p>เลือกภาพอ้างอิงและเชื่อม worker ที่พร้อมใช้งานเพื่อเริ่ม preview</p></div>}
-          {referencePreview && !sessionId && <span className="ai-live-stage-tag">REFERENCE IMAGE · ไม่ใช่ภาพสด</span>}
-          {previewError && <span className="ai-live-stage-tag error">PREVIEW DISCONNECTED</span>}
+              : <div className="ai-live-stage-empty"><span>LIVE</span><strong>ยังไม่มีภาพตัวอย่าง</strong><p>เลือกภาพพรีเซนเตอร์เพื่อเริ่ม</p></div>}
+          {referencePreview && !sessionId && <span className="ai-live-stage-tag">ภาพที่เลือก · ยังไม่ใช่ภาพสด</span>}
+          {previewError && <span className="ai-live-stage-tag error">ภาพสดขัดข้อง</span>}
         </div>
-        <div className="ai-live-metrics" aria-label="Presenter metrics">
-          <div><span>Actual FPS</span><strong>{metrics?.fps ?? "—"}</strong></div>
-          <div><span>Latency</span><strong>{metrics?.latency_ms == null ? "—" : `${Math.round(metrics.latency_ms)} ms`}</strong></div>
-          <div><span>Audio queue</span><strong>{metrics?.queue_depth ?? "—"}</strong></div>
-          <div><span>Frames</span><strong>{metrics?.frames_generated ?? "—"}</strong></div>
-        </div>
+        <p className="ai-live-context-note" role="status">{sessionId && metrics?.status === "RUNNING" ? "ภาพตัวอย่างกำลังทำงาน" : "ยังไม่มีการแสดงสด"}</p>
       </section>
     </div>
 
-    <section className="ai-live-panel ai-live-readiness"><div className="ai-live-panel-title"><div><p className="eyebrow">RUNTIME READINESS</p><h2>สถานะ Worker จริง</h2></div><button className="secondary-action" onClick={() => void refreshHealth()}>ตรวจอีกครั้ง</button></div>
-      <div className="ai-live-readiness-grid">
-        <div><span>Python</span><strong>{health?.python?.version ?? "—"}</strong></div>
-        <div><span>GPU</span><strong>{health?.gpu ? (health.gpu.cuda_device ?? health.gpu.nvidia_name ?? "ไม่พบ NVIDIA") : "ยังไม่ทราบ"}</strong></div>
-        <div><span>CUDA</span><strong>{statusLabel(health?.gpu?.cuda_available)}</strong></div>
-        <div><span>FFmpeg</span><strong>{statusLabel(health?.ffmpeg?.available)}</strong></div>
-        <div><span>NVENC</span><strong>{statusLabel(health?.ffmpeg?.nvenc_usable)}</strong></div>
-        <div><span>MuseTalk + models</span><strong>{statusLabel(health?.musetalk?.models_available && health?.musetalk?.streaming_backend_available)}</strong></div>
-        <div><span>LivePortrait</span><strong>{health?.liveportrait?.optional_candidate_available ? "ติดตั้งแล้ว (ทางเลือก)" : "ยังไม่ติดตั้ง"}</strong></div>
-      </div>
-      <p className="ai-live-roadmap">ขั้นต่อไป: Chat → AI Brain → TTS → Presenter → Encoder → TikTok LIVE ทั้งหมดนี้ยังไม่เปิดใช้งานใน LIVE-1</p>
-    </section>
   </div>;
 }

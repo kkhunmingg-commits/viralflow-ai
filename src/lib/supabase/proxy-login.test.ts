@@ -33,4 +33,16 @@ describe("login session routing", () => {
     const protectedResponse = await updateSession(new NextRequest("https://viralflow.example/auto"));
     expect(protectedResponse.headers.get("location")).toContain("/login?next=%2Fauto");
   });
+
+  it("requires a server-managed role for internal diagnostics", async () => {
+    getClaims.mockResolvedValue({ data: { claims: { sub: "member" } } });
+    const internal = await updateSession(new NextRequest("https://viralflow.example/operations"));
+    const customer = await updateSession(new NextRequest("https://viralflow.example/accounts"));
+    expect(internal.headers.get("location")).toBe("https://viralflow.example/auto");
+    expect(customer.headers.get("location")).toBeNull();
+
+    getClaims.mockResolvedValue({ data: { claims: { sub: "admin", app_metadata: { viralflow_role: "admin" } } } });
+    const admin = await updateSession(new NextRequest("https://viralflow.example/operations"));
+    expect(admin.headers.get("location")).toBeNull();
+  });
 });

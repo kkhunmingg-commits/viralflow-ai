@@ -29,6 +29,25 @@ export interface ControlCenterActivity {
   occurredAt: string;
 }
 
+/** A compact customer view over the same recorded stages. */
+export function mapCustomerStages(stages: readonly ControlCenterStage[]) {
+  const groups = [
+    { label: "สินค้า", ids: ["PRODUCT"] },
+    { label: "เนื้อหา", ids: ["CREATIVE", "SCRIPT"] },
+    { label: "วิดีโอ", ids: ["VIDEO"] },
+    { label: "ตรวจสอบ", ids: ["QUALITY"] },
+    { label: "โพสต์", ids: ["PUBLISH"] },
+    { label: "เสร็จ", ids: ["ANALYTICS", "LEARNING"] },
+  ] as const;
+  return groups.map((group) => {
+    const members = stages.filter((stage) => (group.ids as readonly string[]).includes(stage.id));
+    const state: ControlCenterStageState = members.some((stage) => stage.state === "failed") ? "failed"
+      : members.every((stage) => stage.state === "completed") ? "completed"
+        : members.some((stage) => stage.state === "active") ? "active" : "waiting";
+    return { id: group.ids[0], label: group.label, state };
+  });
+}
+
 interface StageInput {
   steps: readonly ControlCenterStepEvidence[];
   currentStep?: string | null;
@@ -87,26 +106,26 @@ export function mapControlCenterStages({ steps, currentStep, currentState, check
 
 const completedTitles: Record<string, string> = {
   FIND_OPPORTUNITY: "เลือกสินค้าแล้ว",
-  CREATE_CREATIVE: "ครีเอทีฟพร้อม",
+  CREATE_CREATIVE: "เนื้อหาพร้อม",
   GENERATE_VIDEO: "สร้างวิดีโอเสร็จ",
   QUALITY_CHECK: "ตรวจคุณภาพผ่าน",
   COMPLIANCE_CHECK: "ตรวจความปลอดภัยผ่าน",
   QUEUE_PUBLISH: "เข้าคิวเผยแพร่แล้ว",
   PUBLISH: "ขั้นเผยแพร่เสร็จ",
-  COLLECT_ANALYTICS: "อัปเดตผลวิเคราะห์แล้ว",
-  LEARN: "เรียนรู้จากผลลัพธ์แล้ว",
+  COLLECT_ANALYTICS: "อัปเดตผลลัพธ์แล้ว",
+  LEARN: "ปรับแผนจากผลลัพธ์แล้ว",
 };
 
 const activitySubjects: Record<string, string> = {
   FIND_OPPORTUNITY: "เลือกสินค้า",
-  CREATE_CREATIVE: "สร้างครีเอทีฟ",
+  CREATE_CREATIVE: "เตรียมเนื้อหา",
   GENERATE_VIDEO: "สร้างวิดีโอ",
   QUALITY_CHECK: "ตรวจคุณภาพ",
   COMPLIANCE_CHECK: "ตรวจความปลอดภัย",
   QUEUE_PUBLISH: "เข้าคิวเผยแพร่",
   PUBLISH: "เผยแพร่",
-  COLLECT_ANALYTICS: "เก็บผลวิเคราะห์",
-  LEARN: "เรียนรู้",
+  COLLECT_ANALYTICS: "เก็บผลลัพธ์",
+  LEARN: "ปรับแผน",
 };
 
 function activityTitle(step: ControlCenterStepEvidence): string | null {
@@ -114,7 +133,7 @@ function activityTitle(step: ControlCenterStepEvidence): string | null {
   if (!base) return null;
   if (step.state === "COMPLETED") {
     if (step.step === "CREATE_CREATIVE" && typeof step.output_json?.scriptId === "string" && step.output_json.scriptId) {
-      return "ครีเอทีฟและสคริปต์พร้อม";
+      return "เนื้อหาและสคริปต์พร้อม";
     }
     if (step.step === "PUBLISH" && step.output_json?.publishStatus === "PUBLISHED") return "เผยแพร่สำเร็จ";
     return base;

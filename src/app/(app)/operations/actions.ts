@@ -10,6 +10,7 @@ export async function operatorAction(form: FormData) {
   const client = await createClient();
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) throw new Error("Authentication required");
+  if (!["admin", "developer"].includes(data.user.app_metadata?.viralflow_role)) throw new Error("Not authorized");
   await enforceOwnerMutationRateLimit("operations", data.user.id);
   const input = manualActionSchema.parse({
     incidentId: form.get("incidentId"), action: form.get("action"),

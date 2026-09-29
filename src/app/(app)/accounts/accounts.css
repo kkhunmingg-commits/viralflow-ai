@@ -9,6 +9,14 @@
   padding-bottom: 56px;
   color: var(--account-text);
 }
+.accounts-customer-card { display: flex; flex-direction: column; min-height: 196px; justify-content: space-between; }
+.account-customer-mode { margin: 20px 0 8px; color: var(--account-muted); font-size: 13px; }
+.account-customer-mode strong { color: var(--account-text); }
+.account-customer-detail { max-width: 760px; }
+.account-customer-detail > .accounts-detail-link { margin: 0 0 22px; }
+.account-customer-detail .accounts-card { padding: clamp(22px, 4vw, 36px); }
+.account-connect-choice h2 { margin: 0 0 8px; }
+.account-connect-choice > p { color: var(--account-muted); line-height: 1.6; }
 .accounts-page *, .accounts-page *::before, .accounts-page *::after { box-sizing: border-box; min-width: 0; }
 .accounts-page h1, .accounts-page h2, .accounts-page p { overflow-wrap: anywhere; }
 .accounts-hero { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 36px; }

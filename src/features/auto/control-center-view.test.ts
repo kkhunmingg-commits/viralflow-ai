@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapControlCenterActivity, mapControlCenterStages, type ControlCenterStepEvidence } from "./control-center-view";
+import { mapControlCenterActivity, mapControlCenterStages, mapCustomerStages, type ControlCenterStepEvidence } from "./control-center-view";
 
 const at = (minute: number) => `2026-09-29T03:${String(minute).padStart(2, "0")}:00.000Z`;
 const step = (id: string, name: string, state = "COMPLETED", itemIndex = 1,
@@ -52,10 +52,19 @@ describe("Control Center evidence mapping", () => {
       { ...step("s4", "QUALITY_CHECK"), created_at: null },
     ];
     const feed = mapControlCenterActivity({ steps: rows, itemIndex: 1, limit: 2 });
-    expect(feed.map((item) => item.title)).toEqual(["เผยแพร่สำเร็จ", "ครีเอทีฟและสคริปต์พร้อม"]);
+    expect(feed.map((item) => item.title)).toEqual(["เผยแพร่สำเร็จ", "เนื้อหาและสคริปต์พร้อม"]);
     expect(feed.map((item) => item.id)).toEqual(["s2", "s1"]);
     expect(mapControlCenterActivity({ steps: rows, itemIndex: 1, limit: 0 })).toEqual([]);
     expect(mapControlCenterActivity({ steps: [], itemIndex: 1 })).toEqual([]);
+  });
+
+  it("shows six simple stages without claiming completion from partial evidence", () => {
+    const stages = mapControlCenterStages({ steps: [step("s1", "FIND_OPPORTUNITY"), step("s2", "CREATE_CREATIVE")],
+      currentStep: "GENERATE_VIDEO", currentState: "RUNNING", itemIndex: 1, checkpoint: { itemIndex: 1 } });
+    expect(mapCustomerStages(stages).map(({ label, state }) => [label, state])).toEqual([
+      ["สินค้า", "completed"], ["เนื้อหา", "waiting"], ["วิดีโอ", "active"],
+      ["ตรวจสอบ", "waiting"], ["โพสต์", "waiting"], ["เสร็จ", "waiting"],
+    ]);
   });
 
   it("does not claim publication when a completed step lacks PUBLISHED evidence", () => {

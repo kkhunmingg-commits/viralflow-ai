@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { advancedNavigation, primaryNavigation, settingsNavigation } from "@/lib/navigation";
+import { primaryNavigation } from "@/lib/navigation";
 
 function NavGroup({
   items,
@@ -38,19 +38,6 @@ function NavGroup({
 }
 
 export function SidebarNav() {
-  const pathname = usePathname();
-  const advancedRoute = [...advancedNavigation, ...settingsNavigation].some(
-    (item) => pathname === item.href || pathname.startsWith(item.href + "/"),
-  );
-  return (
-    <>
-      <NavGroup items={primaryNavigation} label="ใช้งานหลัก" />
-      <details className="advanced-nav" key={advancedRoute ? "advanced" : "primary"} open={advancedRoute}>
-        <summary>Advanced <span aria-hidden="true">⌄</span></summary>
-        <NavGroup items={advancedNavigation} label="เครื่องมือขั้นสูง" />
-        <NavGroup items={settingsNavigation} label="การตั้งค่า" />
-      </details>
-    </>
-  );
+  return <NavGroup items={primaryNavigation} label="เมนูหลัก" />;
 }
 
