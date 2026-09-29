@@ -1,34 +1,27 @@
 import { randomUUID } from "node:crypto";
+import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { OperatorRunControls } from "@/components/operator-run-controls";
 import { OperatorStartForm } from "@/components/operator-start-form";
 import { getOwnerAccounts } from "@/features/accounts/queries";
 import { assignmentDate } from "@/features/assignments/planner";
+import { mapControlCenterActivity, mapControlCenterStages, type ControlCenterStepEvidence } from "@/features/auto/control-center-view";
 import { canStartOperatorRun, describeOperatorRun, operatorStepLabel } from "@/features/auto/operator";
 import { getAutoOverview, getAutoRun } from "@/features/auto/services";
 import { falAutoModeAvailability } from "@/features/video/provider-routing";
-import { serverEnv, tiktokOfficialSetupMissing } from "@/lib/server-env";
-import { tiktokRequirementLabel } from "@/lib/tiktok-config";
+import { VIDEO_BUCKET } from "@/features/video/types";
+import { serverEnv } from "@/lib/server-env";
 import { createClient } from "@/lib/supabase/server";
+import { AutoRefresh } from "./auto-refresh";
 import "./operator.css";
 
 export const maxDuration = 300;
 
-const pipeline = [
-  ["FIND_OPPORTUNITY", "Idea"],
-  ["CREATE_CREATIVE", "Creative"],
-  ["GENERATE_VIDEO", "Video"],
-  ["QUALITY_CHECK", "Quality"],
-  ["COMPLIANCE_CHECK", "Safety"],
-  ["QUEUE_PUBLISH", "Queue"],
-  ["PUBLISH", "Publish"],
-  ["COLLECT_ANALYTICS", "Analytics"],
-  ["LEARN", "Learning"],
-] as const;
-
-type QueueResult = { id: string; status: string; created_at: string; video_id: string | null };
+type QueueResult = { id: string; status: string; created_at: string; video_id: string | null; video_kind: string };
 type Reservation = { state: string; reserved_usd: number | string; actual_usd: number | string | null };
+type VideoRow = { id: string; product_id: string | null };
+type AnalyticsRow = { video_id: string; video_kind: string; views: number | null; orders: number | null; source_snapshot_at: string; source: string };
 
 const queueState: Record<string, { label: string; tone: string }> = {
   PUBLISHED: { label: "เผยแพร่แล้ว", tone: "good" },
@@ -39,8 +32,47 @@ const queueState: Record<string, { label: string; tone: string }> = {
   REJECTED: { label: "ไม่ผ่าน", tone: "bad" },
 };
 
-function money(value: number) {
-  return "$" + value.toFixed(2);
+const blockerCopy: Record<string, { text: string; href: string }> = {
+  PROVIDER_UNAVAILABLE: { text: "ผู้ให้บริการสร้างวิดีโอยังไม่พร้อม", href: "/settings/integrations" },
+  ASSIGNMENT_REQUIRED: { text: "ยังไม่มีสินค้าที่เลือกให้บัญชีนี้", href: "/product-radar" },
+  ACCOUNT_HEALTH: { text: "บัญชียังไม่พร้อมเผยแพร่", href: "/accounts" },
+  BUDGET_EXCEEDED: { text: "งบวิดีโอของบัญชีไม่เพียงพอ", href: "/accounts" },
+  CONSENT: { text: "ต้องยืนยันการเผยแพร่ก่อน", href: "/publishing" },
+  COMMERCE: { text: "สิทธิ์ Affiliate ยังไม่พร้อม", href: "/accounts" },
+};
+
+function record(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown> : null;
+}
+function string(value: unknown): string | null {
+  return typeof value === "string" && value.length > 0 ? value : null;
+}
+function positiveInteger(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+function stepEvidence(value: unknown): ControlCenterStepEvidence | null {
+  const row = record(value);
+  if (!row || !string(row.id) || !string(row.step) || !string(row.state)) return null;
+  return {
+    id: String(row.id), step: String(row.step), state: String(row.state),
+    created_at: string(row.created_at), completed_at: string(row.completed_at),
+    input_json: record(row.input_json), output_json: record(row.output_json),
+  };
+}
+function dateTime(value: string | null | undefined): string {
+  if (!value || !Number.isFinite(Date.parse(value))) return "—";
+  return new Intl.DateTimeFormat("th-TH", {
+    dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok",
+  }).format(new Date(value));
+}
+function number(value: number | null | undefined): string {
+  return value == null ? "—" : Number(value).toLocaleString("th-TH");
+}
+function money(value: number): string { return `$${value.toFixed(2)}`; }
+function modeLabel(mode: string | null | undefined): string {
+  return mode === "GROWTH" ? "Growth" : mode === "AFFILIATE" ? "Affiliate" : mode === "AUTO" ? "Auto" : "—";
 }
 
 export default async function AutoPage({ searchParams }: {
@@ -54,20 +86,14 @@ export default async function AutoPage({ searchParams }: {
   const today = assignmentDate(new Date().toISOString());
   const dayStart = new Date(`${today}T00:00:00+07:00`).toISOString();
   const dayEnd = new Date(Date.parse(dayStart) + 86_400_000).toISOString();
-  const [accounts, overview, latestAlert] = await Promise.all([
-    getOwnerAccounts(client, owner),
-    getAutoOverview(client, owner),
-    client.from("operations_alerts").select("rule_code,severity").eq("owner_id", owner)
-      .eq("state", "OPEN").order("last_seen_at", { ascending: false }).limit(1).maybeSingle(),
+  const [accounts, overview] = await Promise.all([
+    getOwnerAccounts(client, owner), getAutoOverview(client, owner),
   ]);
-  if (latestAlert.error) throw new Error("operator_alert_read_failed");
-
   const run = overview.activeRun ?? overview.runs.find((item) => item.run_date === today) ?? null;
   const detail = run ? await getAutoRun(client, owner, run.id) : null;
-  const selectedAccount = accounts.find((item) => item.id === (overview.activeRun
-    ? detail?.states[0]?.tiktok_account_id : accountParam))
-    ?? accounts.find((item) => item.id === accountParam)
-    ?? accounts[0];
+  const activeAccountId = overview.activeRun ? detail?.states[0]?.tiktok_account_id : null;
+  const selectedAccount = accounts.find((item) => item.id === activeAccountId)
+    ?? accounts.find((item) => item.id === accountParam) ?? accounts[0];
   const accountId = selectedAccount?.id;
   const current = detail?.states.find((item) => item.tiktok_account_id === accountId) ?? null;
   const status = describeOperatorRun(run, current ?? undefined);
@@ -77,7 +103,8 @@ export default async function AutoPage({ searchParams }: {
 
   const metrics = accountId ? await Promise.all([
     client.from("master_videos").select("id", { count: "exact", head: true }).eq("owner_id", owner)
-      .eq("tiktok_account_id", accountId).gte("created_at", dayStart).lt("created_at", dayEnd),
+      .eq("tiktok_account_id", accountId).in("status", ["READY", "APPROVED"])
+      .not("storage_path", "is", null).gte("created_at", dayStart).lt("created_at", dayEnd),
     client.from("master_videos").select("id", { count: "exact", head: true }).eq("owner_id", owner)
       .eq("tiktok_account_id", accountId).eq("quality_status", "PASS").gte("created_at", dayStart).lt("created_at", dayEnd),
     client.from("publish_eligibility_checks").select("id", { count: "exact", head: true }).eq("owner_id", owner)
@@ -87,68 +114,115 @@ export default async function AutoPage({ searchParams }: {
       .eq("tiktok_account_id", accountId).in("status", ["QUEUED", "WAITING_FOR_SLOT"])
       .gte("created_at", dayStart).lt("created_at", dayEnd),
     client.from("publishing_queue").select("id", { count: "exact", head: true }).eq("owner_id", owner)
-      .eq("tiktok_account_id", accountId).eq("status", "PUBLISHED")
-      .gte("created_at", dayStart).lt("created_at", dayEnd),
+      .eq("tiktok_account_id", accountId).eq("status", "PUBLISHED").gte("completed_at", dayStart).lt("completed_at", dayEnd),
     client.from("publishing_queue").select("id", { count: "exact", head: true }).eq("owner_id", owner)
-      .eq("tiktok_account_id", accountId).eq("status", "FAILED")
-      .gte("created_at", dayStart).lt("created_at", dayEnd),
+      .eq("tiktok_account_id", accountId).eq("status", "FAILED").gte("created_at", dayStart).lt("created_at", dayEnd),
   ]) : [];
   for (const metric of metrics) if (metric.error) throw new Error("operator_metric_read_failed");
   const stat = (index: number) => accountId ? (metrics[index]?.count ?? 0) : null;
-
-  const [healthResult, budgetResult, recentResult, failedJobsResult] = accountId ? await Promise.all([
-    client.from("account_publish_health").select("health_status,account_status,blockers_json")
-      .eq("owner_id", owner).eq("tiktok_account_id", accountId).maybeSingle(),
-    client.from("generation_budget_reservations").select("state,reserved_usd,actual_usd")
-      .eq("owner_id", owner).eq("tiktok_account_id", accountId).eq("budget_day", today)
-      .in("state", ["RESERVED", "SETTLED"]).limit(1000),
-    client.from("publishing_queue").select("id,status,created_at,video_id").eq("owner_id", owner)
-      .eq("tiktok_account_id", accountId).order("created_at", { ascending: false }).limit(3),
-    client.from("generation_jobs").select("creative_project_id").eq("owner_id", owner)
-      .eq("status", "FAILED").gte("created_at", dayStart).lt("created_at", dayEnd).limit(1000),
-  ]) : [null, null, null, null];
-  for (const result of [healthResult, budgetResult, recentResult, failedJobsResult]) {
-    if (result?.error) throw new Error("operator_overview_read_failed");
+  const [healthResult, budgetResult, recentResult, failedJobsResult, latestCheckpointResult, recentStepsResult] = accountId
+    ? await Promise.all([
+      client.from("account_publish_health").select("health_status,account_status,blockers_json")
+        .eq("owner_id", owner).eq("tiktok_account_id", accountId).maybeSingle(),
+      client.from("generation_budget_reservations").select("state,reserved_usd,actual_usd")
+        .eq("owner_id", owner).eq("tiktok_account_id", accountId).eq("budget_day", today)
+        .in("state", ["RESERVED", "SETTLED"]).limit(1000),
+      client.from("publishing_queue").select("id,status,created_at,video_id,video_kind")
+        .eq("owner_id", owner).eq("tiktok_account_id", accountId)
+        .order("created_at", { ascending: false }).limit(5),
+      client.from("generation_jobs").select("creative_project_id").eq("owner_id", owner)
+        .eq("status", "FAILED").gte("created_at", dayStart).lt("created_at", dayEnd).limit(1000),
+      run ? client.from("auto_checkpoints").select("checkpoint_version,state_json,created_at")
+        .eq("owner_id", owner).eq("auto_run_id", run.id).eq("tiktok_account_id", accountId)
+        .order("checkpoint_version", { ascending: false }).limit(1).maybeSingle() : Promise.resolve(null),
+      run ? client.from("auto_run_steps").select("id,step,state,created_at,completed_at,input_json,output_json")
+        .eq("owner_id", owner).eq("auto_run_id", run.id).eq("tiktok_account_id", accountId)
+        .order("created_at", { ascending: false }).limit(100) : Promise.resolve(null),
+    ]) : [null, null, null, null, null, null];
+  for (const result of [healthResult, budgetResult, recentResult, failedJobsResult, latestCheckpointResult, recentStepsResult]) {
+    if (result?.error) throw new Error("operator_control_center_read_failed");
   }
   const failedJobs = failedJobsResult?.data ?? [];
   if (failedJobs.length === 1000) throw new Error("operator_failed_jobs_limit");
-  const failedProjectIds = [...new Set(failedJobs.map((row) => row.creative_project_id).filter(Boolean))];
+  const failedProjectIds = [...new Set(failedJobs.map((row) => row.creative_project_id).filter((id): id is string => Boolean(id)))];
   const failedProjects = failedProjectIds.length ? await client.from("creative_projects")
     .select("id,tiktok_account_id").eq("owner_id", owner).in("id", failedProjectIds) : null;
   if (failedProjects?.error) throw new Error("operator_failed_projects_read_failed");
   const failedProjectAccount = new Map((failedProjects?.data ?? []).map((row) => [row.id, row.tiktok_account_id]));
   const failedGenerationCount = failedJobs.filter((row) => failedProjectAccount.get(row.creative_project_id) === accountId).length;
+
+  const recentRows = (recentResult?.data ?? []) as QueueResult[];
+  const masterIds = recentRows.filter((row) => row.video_kind === "MASTER" && row.video_id).map((row) => row.video_id as string);
+  const variationIds = recentRows.filter((row) => row.video_kind === "VARIATION" && row.video_id).map((row) => row.video_id as string);
+  const [masters, variations, analyticsResults] = await Promise.all([
+    masterIds.length && accountId ? client.from("master_videos").select("id,product_id").eq("owner_id", owner)
+      .eq("tiktok_account_id", accountId).in("id", masterIds) : Promise.resolve(null),
+    variationIds.length && accountId ? client.from("video_variations").select("id,product_id").eq("owner_id", owner)
+      .eq("tiktok_account_id", accountId).in("id", variationIds) : Promise.resolve(null),
+    accountId ? Promise.all(recentRows.filter((row) => row.video_id).map((row) => client.from("video_analytics_snapshots")
+      .select("video_id,video_kind,views,orders,source_snapshot_at,source").eq("owner_id", owner)
+      .eq("tiktok_account_id", accountId).eq("video_id", row.video_id as string)
+      .eq("video_kind", row.video_kind).order("source_snapshot_at", { ascending: false }).limit(1).maybeSingle())) : [],
+  ]);
+  if (masters?.error || variations?.error || analyticsResults.some((result) => result.error)) throw new Error("operator_recent_results_read_failed");
+  const videoById = new Map<string, VideoRow>([...(masters?.data ?? []), ...(variations?.data ?? [])]
+    .map((row) => [row.id, row] as const));
+  const recentProductIds = [...new Set([...videoById.values()].map((row) => row.product_id).filter((id): id is string => Boolean(id)))];
+  const recentProducts = recentProductIds.length ? await client.from("products")
+    .select("id,title").eq("owner_id", owner).in("id", recentProductIds) : null;
+  if (recentProducts?.error) throw new Error("operator_recent_products_read_failed");
+  const recentProductById = new Map((recentProducts?.data ?? []).map((row) => [row.id, row.title]));
+  const latestAnalytics = new Map((analyticsResults.flatMap((result) => result.data ? [result.data] : []) as AnalyticsRow[])
+    .map((row) => [`${row.video_kind}:${row.video_id}`, row]));
+
+  const accountSteps = (recentStepsResult?.data ?? []).map(stepEvidence)
+    .filter((row): row is ControlCenterStepEvidence => Boolean(row));
+  const rawLatestCheckpoint = record(latestCheckpointResult?.data?.state_json);
+  const latestItemIndex = positiveInteger(rawLatestCheckpoint?.itemIndex) ?? 1;
+  const itemIndex = current?.current_step === "COMPLETE" && latestItemIndex > 1 ? latestItemIndex - 1 : latestItemIndex;
+  const priorItemCheckpoint = (detail?.checkpoints ?? []).filter((row) => record(row)?.tiktok_account_id === accountId)
+    .map((row) => record(row)?.state_json).map(record)
+    .find((state) => positiveInteger(state?.itemIndex) === itemIndex);
+  const checkpoint = itemIndex === latestItemIndex ? rawLatestCheckpoint : priorItemCheckpoint ?? null;
+  const itemSteps = accountSteps.filter((row) => positiveInteger(row.input_json?.itemIndex) === itemIndex);
+  const evidence = (key: string) => string(checkpoint?.[key])
+    ?? itemSteps.map((row) => string(row.output_json?.[key])).find(Boolean) ?? null;
+  const productId = evidence("productId");
+  const projectId = evidence("projectId");
+  const scriptId = evidence("scriptId");
+  const videoId = evidence("videoId");
+  const [productResult, projectResult, videoResult] = await Promise.all([
+    productId ? client.from("products").select("id,title,image_url").eq("owner_id", owner).eq("id", productId).maybeSingle() : Promise.resolve(null),
+    projectId && accountId ? client.from("creative_projects").select("id").eq("owner_id", owner)
+      .eq("tiktok_account_id", accountId).eq("id", projectId).maybeSingle() : Promise.resolve(null),
+    videoId && accountId ? client.from("master_videos").select("id,storage_path").eq("owner_id", owner)
+      .eq("tiktok_account_id", accountId).eq("id", videoId).maybeSingle() : Promise.resolve(null),
+  ]);
+  if (productResult?.error || projectResult?.error || videoResult?.error) throw new Error("operator_current_job_read_failed");
+  const scriptResult = scriptId && projectResult?.data ? await client.from("scripts")
+    .select("id,hook_text,voice_script,caption").eq("owner_id", owner)
+    .eq("creative_project_id", projectResult.data.id).eq("id", scriptId).maybeSingle() : null;
+  if (scriptResult?.error) throw new Error("operator_script_read_failed");
+  const signedVideo = videoResult?.data?.storage_path ? await client.storage.from(VIDEO_BUCKET)
+    .createSignedUrl(videoResult.data.storage_path, 900) : null;
+  const videoUrl = signedVideo?.data?.signedUrl ?? null;
+  const product = productResult?.data;
+  const script = scriptResult?.data;
+  const job = run && current && !["COMPLETED", "STOPPED", "FAILED"].includes(run.state)
+    && !["COMPLETED", "STOPPED", "FAILED"].includes(current.state) ? current : null;
+  const stages = mapControlCenterStages({ steps: accountSteps, currentStep: current?.current_step,
+    currentState: current?.state, checkpoint, itemIndex });
+  const activity = mapControlCenterActivity({ steps: accountSteps, limit: 8 });
+  const completeCount = stages.filter((stage) => stage.state === "completed").length;
+
   const reservations = (budgetResult?.data ?? []) as Reservation[];
-  const spent = reservations.filter((item) => item.state === "SETTLED")
-    .reduce((sum, item) => sum + Number(item.actual_usd ?? 0), 0);
-  const reserved = reservations.filter((item) => item.state === "RESERVED")
-    .reduce((sum, item) => sum + Number(item.reserved_usd), 0);
+  const spent = reservations.filter((row) => row.state === "SETTLED")
+    .reduce((sum, row) => sum + Number(row.actual_usd ?? 0), 0);
+  const reserved = reservations.filter((row) => row.state === "RESERVED")
+    .reduce((sum, row) => sum + Number(row.reserved_usd), 0);
   const accountBudget = Number((selectedAccount as typeof selectedAccount & { daily_video_budget_usd?: number | string } | undefined)?.daily_video_budget_usd ?? 0);
   const dailyBudget = accountId ? Number(current?.max_daily_cost_usd ?? accountBudget) : null;
   const remaining = dailyBudget === null ? null : Math.max(0, dailyBudget - spent - reserved);
-  const recentRows = (recentResult?.data ?? []) as QueueResult[];
-  const videoIds = recentRows.map((row) => row.video_id).filter((id): id is string => Boolean(id));
-  const videos = videoIds.length ? await client.from("master_videos").select("id,product_id")
-    .eq("owner_id", owner).in("id", videoIds) : null;
-  if (videos?.error) throw new Error("operator_recent_video_read_failed");
-  const productIds = (videos?.data ?? []).map((item) => item.product_id).filter((id): id is string => Boolean(id));
-  const products = productIds.length ? await client.from("products").select("id,title")
-    .eq("owner_id", owner).in("id", productIds) : null;
-  if (products?.error) throw new Error("operator_recent_product_read_failed");
-  const productById = new Map((products?.data ?? []).map((item) => [item.id, item.title]));
-  const videoById = new Map((videos?.data ?? []).map((item) => [item.id, item.product_id]));
-
-  const completed = new Set((detail?.steps ?? [])
-    .filter((step) => step.state === "COMPLETED"
-      && (step as typeof step & { tiktok_account_id?: string }).tiktok_account_id === accountId)
-    .map((step) => step.step));
-  const completeCount = pipeline.filter(([code]) => completed.has(code)).length;
-  const activeStage = current?.current_step;
-  const stageBlocked = current && ["WAITING_FOR_DATA", "WAITING_FOR_APPROVAL", "WAITING_FOR_PROVIDER",
-    "WAITING_FOR_SLOT", "WAITING_FOR_RECONCILIATION", "RETRY_PENDING", "BLOCKED", "FAILED"].includes(current.state);
-  const publishedToday = current?.published_today ?? 0;
-  const target = current?.desired_daily_posts ?? 0;
-  const progress = target > 0 ? Math.min(100, (publishedToday / target) * 100) : 0;
   const providerReady = provider.providerAvailable;
   const tiktokReady = Boolean(selectedAccount && !selectedAccount.is_mock
     && selectedAccount.authorization_status === "authorized"
@@ -160,133 +234,178 @@ export default async function AutoPage({ searchParams }: {
     && serverEnv.tiktokVideoPublishApproved
     && serverEnv.tiktokDirectPostAuditStatus === "AUDITED");
   const health = healthResult?.data?.health_status;
-  const runProvider = run && typeof run.metrics_json?.videoProvider === "string" ? run.metrics_json.videoProvider : null;
   const accountHealthy = Boolean(health && ["READY", "GOOD", "HEALTHY"].includes(health));
-  const setupItems = [
-    ...tiktokOfficialSetupMissing.map((key) => ({ text: `${tiktokRequirementLabel(key)} missing`, href: "/accounts/connect/tiktok" })),
-    !selectedAccount ? { text: "เพิ่มบัญชี TikTok เพื่อเริ่มใช้งาน", href: "/accounts" } : null,
-    selectedAccount && !providerReady && !selectedAccount.is_mock
-      ? { text: "fal ยังไม่พร้อมใช้งานจริง", href: "/settings/integrations" } : null,
-    selectedAccount && !tiktokReady && !selectedAccount.is_mock
-      ? { text: "ตรวจการเชื่อมต่อและสิทธิ์เผยแพร่ TikTok", href: "/accounts" } : null,
-    selectedAccount && !accountHealthy
-      ? { text: "ตรวจสุขภาพบัญชีและข้อจำกัดการเผยแพร่", href: `/accounts/${selectedAccount.id}` } : null,
-    current?.state === "WAITING_FOR_APPROVAL"
-      ? { text: "ตรวจวิดีโอและบันทึกความยินยอมก่อนเผยแพร่", href: "/publishing" } : null,
-  ].filter((item): item is { text: string; href: string } => Boolean(item));
+  const runProvider = run && typeof run.metrics_json?.videoProvider === "string" ? run.metrics_json.videoProvider : null;
+  const publishedToday = current?.published_today ?? 0;
+  const target = current?.desired_daily_posts ?? 0;
+  const progress = target > 0 ? Math.min(100, (publishedToday / target) * 100) : 0;
+  const blockers = current?.blockers_json ?? run?.blockers_json ?? [];
+  const knownBlocker = blockers.map((code) => blockerCopy[code]).find(Boolean);
+  const setupCopy = setup === "affiliate" ? "บัญชีนี้ยังไม่พร้อมใช้ Affiliate กรุณาตรวจสิทธิ์ร้านค้า"
+    : setup === "budget" ? "เป้าหมายหรืองบเกินขีดจำกัดของบัญชี กรุณาปรับค่าแล้วลองใหม่"
+      : setup ? "ตรวจข้อมูลบัญชีแล้วลองอีกครั้ง" : null;
+  const actionRequired = !selectedAccount
+    ? { text: "เพิ่มหรือเชื่อมต่อบัญชี TikTok เพื่อเริ่มแผน", href: "/accounts" }
+    : setupCopy ? { text: setupCopy, href: setup === "budget" ? `/accounts/${selectedAccount.id}` : "/accounts" }
+      : current?.state === "WAITING_FOR_APPROVAL" ? { text: "ตรวจวิดีโอและยืนยันการเผยแพร่เพื่อให้งานไปต่อ", href: "/publishing" }
+        : knownBlocker ? knownBlocker
+          : current?.state === "FAILED" || current?.state === "BLOCKED"
+            ? { text: "งานนี้ต้องตรวจเหตุและแก้เงื่อนไขก่อนทำต่อ", href: "/operations" }
+            : !overview.activeRun && (selectedAccount.account_status !== "active" || selectedAccount.authorization_status !== "authorized")
+              ? { text: "บัญชียังไม่พร้อมเริ่มแผน กรุณาตรวจการเชื่อมต่อ", href: `/accounts/${selectedAccount.id}` }
+              : !overview.activeRun && !selectedAccount.is_mock && !selectedAccount.granted_scopes?.includes("video.publish")
+                ? { text: "บัญชียังไม่มีสิทธิ์เผยแพร่วิดีโอ", href: `/accounts/${selectedAccount.id}` }
+                : !overview.activeRun && !selectedAccount.is_mock && !providerReady
+                  ? { text: "ผู้ให้บริการสร้างวิดีโอยังไม่พร้อม", href: "/settings/integrations" }
+                  : !overview.activeRun && !selectedAccount.is_mock && accountBudget <= spent + reserved
+                    ? { text: "งบสร้างวิดีโอวันนี้ไม่เพียงพอ", href: `/accounts/${selectedAccount.id}` }
+                    : !overview.activeRun && !selectedAccount.is_mock && !tiktokReady
+                      ? { text: "สิทธิ์เผยแพร่ TikTok สำหรับใช้งานจริงยังไม่พร้อม", href: `/accounts/${selectedAccount.id}` }
+              : null;
+  const metricCards: Array<{ label: string; value: number | null; tone: string }> = [
+    { label: "สร้างวิดีโอ", value: stat(0), tone: "violet" },
+    { label: "ผ่านคุณภาพ", value: stat(1), tone: "teal" },
+    { label: "รอเผยแพร่", value: stat(3), tone: "blue" },
+    { label: "เผยแพร่แล้ว", value: stat(4), tone: "teal" },
+    { label: "ติดเงื่อนไข", value: stat(2), tone: "amber" },
+    { label: "ไม่สำเร็จ", value: accountId ? (stat(5) ?? 0) + failedGenerationCount : null, tone: "rose" },
+  ];
+  const latestRealPerformance = recentRows.map((row) => latestAnalytics.get(`${row.video_kind}:${row.video_id}`))
+    .find((snapshot) => snapshot && snapshot.source !== "MOCK" && (snapshot.views !== null || snapshot.orders !== null));
+  if (latestRealPerformance?.views != null) {
+    metricCards.push({ label: "ยอดดูคลิปล่าสุด", value: latestRealPerformance.views, tone: "blue" });
+  }
+  if (latestRealPerformance?.orders != null) {
+    metricCards.push({ label: "คำสั่งซื้อคลิปล่าสุด", value: latestRealPerformance.orders, tone: "teal" });
+  }
 
   return <div className="operator-page">
+    <AutoRefresh/>
     <header className="operator-hero">
       <div className="operator-brand-mark" aria-hidden="true">V</div>
-      <div className="operator-hero-copy">
-        <p className="operator-overline">VIRALFLOW AI / CONTROL CENTER</p>
-        <h1>ศูนย์ควบคุม Auto</h1>
-        <p>จัดการแผนสร้างคอนเทนต์ ดูงานจริง และตรวจความพร้อมในหน้าเดียว</p>
-      </div>
+      <div className="operator-hero-copy"><p className="operator-overline">VIRALFLOW AI / CONTROL CENTER</p>
+        <h1>ศูนย์ควบคุม Auto</h1><p>ดูแผนที่กำลังทำ งานล่าสุด และผลลัพธ์จริงในหน้าเดียว</p></div>
       <span className={`operator-state ${status.tone}`}><span aria-hidden="true">●</span>{status.title}</span>
     </header>
-
     <section className="operator-command-card" aria-label="ควบคุมการทำงานอัตโนมัติ">
-      <div className="operator-card-head"><div><p className="operator-overline">TODAY&apos;S PLAN</p><h2>กำหนดแผนประจำวัน</h2></div>
+      <div className="operator-card-head"><div><p className="operator-overline">CONTROL CENTER</p><h2>เลือกบัญชีและเริ่มแผน</h2></div>
         <span className="operator-date">{today}</span></div>
-      {setup && <p className="operator-notice" role="alert">{setup === "affiliate" ? "บัญชีนี้ยังไม่พร้อมใช้ Affiliate กรุณาตรวจสิทธิ์ร้านค้า" : setup === "budget" ? "เป้าหมายหรืองบเกินขีดจำกัดของบัญชี กรุณาปรับค่าแล้วลองใหม่" : "ตรวจข้อมูลบัญชีและลองอีกครั้ง"}</p>}
-      {accounts.length ? <OperatorStartForm requestKey={randomUUID()} disabled={!canStartOperatorRun(overview.activeRun)}
-        selectedAccountId={selectedAccount?.id}
-        accounts={accounts.map((account) => ({
-          id: account.id, name: account.display_name, status: account.account_status,
-          authorization: account.authorization_status, effectiveMode: account.effective_mode,
-          target: account.daily_post_target, hardLimit: account.daily_post_hard_limit,
-          budget: Number((account as typeof account & { daily_video_budget_usd?: number | string }).daily_video_budget_usd ?? 0),
-        }))}/> : <div className="operator-empty"><strong>ยังไม่มีบัญชี TikTok</strong>
-        <p>เพิ่มหรือเชื่อมต่อบัญชีเพื่อเริ่มแผนแรก</p><Link href="/accounts">เพิ่มบัญชี →</Link></div>}
-
-      <div className="operator-live" aria-live="polite">
-        <div className="operator-live-head"><div><p className="operator-overline">CURRENT STATUS</p>
-          <h2>{status.title}</h2><p>{status.detail}</p></div>
-          <span className={`operator-health-chip ${accountHealthy ? "good" : "attention"}`}>
-            <span aria-hidden="true">●</span>{accountHealthy ? "บัญชีพร้อม" : health ? `สุขภาพบัญชี: ${health}` : "ยังไม่มีข้อมูลสุขภาพ"}
-          </span></div>
-        {run && <div className="operator-live-meta"><span>บัญชี <strong>{selectedAccount?.display_name ?? "—"}</strong></span>
-          <span>โหมด <strong>{current?.effective_mode ?? "—"}</strong></span>
-          <span>ขั้นตอน <strong>{current ? operatorStepLabel(current.current_step) : "—"}</strong></span>
-          <OperatorRunControls runId={run.id} state={run.state}/></div>}
-        <div className="operator-daily-progress">
-          <div><span>ความคืบหน้าการเผยแพร่วันนี้</span><strong>{current ? `${publishedToday} / ${target} คลิป` : "ยังไม่มีแผนวันนี้"}</strong></div>
-          <div className="operator-progress-track" role="progressbar" aria-valuenow={Math.min(publishedToday, Math.max(1, target))}
-            aria-valuemin={0} aria-valuemax={Math.max(1, target)}
-            aria-label="จำนวนคลิปที่เผยแพร่ตามเป้าหมายวันนี้"><span style={{ width: `${progress}%` }}/></div>
-        </div>
-        <div className="operator-pipeline-head"><div><p className="operator-overline">PIPELINE PROGRESS</p>
-          <h3>เส้นทางการทำงาน</h3></div><span>{run ? `${completeCount} / ${pipeline.length} ขั้นตอนมีหลักฐานเสร็จ` : "ยังไม่เริ่มแผน"}</span></div>
-        <ol className="operator-pipeline">
-          {pipeline.map(([code, label]) => {
-            const state = completed.has(code) ? "completed"
-              : activeStage === code && stageBlocked ? "blocked"
-              : activeStage === code && current?.state === "RUNNING" ? "active" : "pending";
-            return <li className={state} key={code} aria-label={`${label}: ${state}`}>
-              <span className="operator-stage-symbol" aria-hidden="true">{state === "completed" ? "✓" : state === "active" ? "●" : state === "blocked" ? "!" : "○"}</span>
-              <span>{label}</span>
-            </li>;
-          })}
-        </ol>
+      <div className="operator-control-row">
+        {accounts.length ? <OperatorStartForm requestKey={randomUUID()} disabled={!canStartOperatorRun(overview.activeRun)}
+          selectedAccountId={selectedAccount?.id}
+          accounts={accounts.map((account) => ({
+            id: account.id, name: account.display_name, status: account.account_status,
+            authorization: account.authorization_status, effectiveMode: account.effective_mode,
+            target: account.daily_post_target, hardLimit: account.daily_post_hard_limit,
+            budget: Number((account as typeof account & { daily_video_budget_usd?: number | string }).daily_video_budget_usd ?? 0),
+          }))}/> : <div className="operator-empty"><strong>ยังไม่มีบัญชี TikTok</strong>
+          <p>เพิ่มหรือเชื่อมต่อบัญชีเพื่อเริ่มแผนแรก</p><Link href="/accounts">เพิ่มบัญชี →</Link></div>}
+        {run && <OperatorRunControls runId={run.id} state={run.state}/>}
       </div>
     </section>
-
-    <section className="operator-overview-grid" aria-label="ความพร้อมและงบประมาณ">
-      <article className="operator-surface"><div className="operator-card-head"><h2>System readiness</h2>
-        <Link href="/settings/integrations">ตั้งค่าระบบ ↗</Link></div>
-        <div className="operator-readiness-row"><span>Video provider</span><strong className={providerReady ? "good" : "attention"}>{providerReady ? "พร้อมตามการตั้งค่า" : "ต้องตั้งค่า"}</strong></div>
-        <div className="operator-readiness-row"><span>TikTok publishing</span><strong className={tiktokReady ? "good" : "attention"}>{tiktokReady ? "พร้อมตามการตั้งค่า" : selectedAccount?.is_mock ? "บัญชีจำลอง" : "ยังไม่พร้อม"}</strong></div>
-        <div className="operator-readiness-row"><span>Worker schedule</span><strong className={serverEnv.recoveryEnabled ? "good" : "attention"}>{serverEnv.recoveryEnabled ? "เปิดตามการตั้งค่า" : "ปิดอยู่"}</strong></div>
-        <div className="operator-readiness-row"><span>Account health</span><strong className={accountHealthy ? "good" : "attention"}>{health ?? "ไม่มีข้อมูล"}</strong></div>
-      </article>
-      <article className="operator-surface operator-budget"><div className="operator-card-head"><h2>Budget today</h2>
-        <span>{remaining === null ? "—" : `${money(remaining)} คงเหลือ`}</span></div>
-        <p className="operator-budget-value">{dailyBudget === null ? "—" : money(spent)}
-          <span> / {dailyBudget === null ? "—" : money(dailyBudget)}</span></p>
-        <div className="operator-progress-track"><span style={{ width: `${dailyBudget && dailyBudget > 0 ? Math.min(100, ((spent + reserved) / dailyBudget) * 100) : 0}%` }}/></div>
-        <p>{reserved > 0 ? `กันงบสำหรับงานที่ยังไม่สิ้นสุด ${money(reserved)} · ` : ""}
-          Provider: {runProvider ?? "ยังไม่มีแผน"}</p>
-      </article>
-    </section>
-
-    <section className="operator-metrics" aria-label="ผลลัพธ์ของบัญชีวันนี้">
-      {[
-        ["Generated", stat(0), "violet"], ["Passed", stat(1), "teal"],
-        ["Queued", stat(3), "blue"], ["Published", stat(4), "teal"],
-        ["Blocked", stat(2), "amber"], ["Failed", accountId ? (stat(5) ?? 0) + failedGenerationCount : null, "rose"],
-      ].map(([label, value, tone]) => <article key={label} className={`operator-metric ${tone}`}>
-        <span>{label}</span><strong>{value ?? "—"}</strong></article>)}
-    </section>
-
-    <section className="operator-bottom-grid" aria-label="งานและผลลัพธ์ล่าสุด">
-      <article className="operator-surface operator-current-job"><div className="operator-card-head"><h2>กำลังทำอยู่</h2>
-        {run && <Link href={`/auto/runs/${run.id}`}>ดูรายละเอียด ↗</Link>}</div>
-        <span className={`operator-mini-state ${status.tone}`}>{status.title}</span>
-        <h3>{current ? operatorStepLabel(current.current_step) : "ยังไม่มีงานที่กำลังทำ"}</h3>
-        <p>{current ? `บัญชี ${selectedAccount?.display_name ?? "—"} · โหมด ${current.effective_mode}` : "เมื่อเริ่ม Auto งานปัจจุบันจะแสดงที่นี่"}</p>
-        {current && <p className="operator-job-meta">Checkpoint {current.checkpoint_version} · {current.state}</p>}
-      </article>
-      <article className="operator-surface operator-recent"><div className="operator-card-head"><h2>ผลลัพธ์ล่าสุด</h2>
-        <Link href="/publishing">ดูทั้งหมด ↗</Link></div>
-        {recentRows.length ? <ul>{recentRows.map((row) => {
-          const title = productById.get(videoById.get(row.video_id ?? "") ?? "") ?? `วิดีโอ ${(row.video_id ?? row.id).slice(0, 8)}`;
-          const state = queueState[row.status] ?? { label: row.status, tone: "pending" };
-          return <li key={row.id}><Link href={`/publishing/${row.id}`}>
-            <span className="operator-result-icon" aria-hidden="true">▶</span>
-            <span className="operator-result-copy"><strong>{title}</strong>
-              <small>{new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" }).format(new Date(row.created_at))}</small></span>
-            <span className={`operator-result-status ${state.tone}`}>{state.label}</span>
-          </Link></li>;
-        })}</ul> : <p className="operator-empty-copy">ยังไม่มีผลลัพธ์จากบัญชีนี้</p>}
-      </article>
-    </section>
-
-    {(setupItems.length > 0 || latestAlert.data) && <section className="operator-setup-required" aria-label="สิ่งที่ต้องตั้งค่า">
-      <div><p className="operator-overline">SETUP REQUIRED</p><h2>สิ่งที่ต้องดูแลก่อนทำงานต่อ</h2>
-        {latestAlert.data && <p>การแจ้งเตือน: {latestAlert.data.severity} · {latestAlert.data.rule_code}</p>}
-        {setupItems.map((item) => <p key={item.text}>• {item.text}</p>)}</div>
-      <Link href={setupItems[0]?.href ?? "/operations"}>ตรวจการตั้งค่า ↗</Link>
+    {actionRequired && <section className="operator-action-required" aria-label="ต้องดำเนินการ" role="alert">
+      <div><p className="operator-overline">ACTION REQUIRED</p><h2>ต้องดำเนินการ</h2><p>{actionRequired.text}</p></div>
+      <Link href={actionRequired.href}>ไปตรวจสอบ ↗</Link>
     </section>}
+    <section className="operator-live" aria-label="สถานะปัจจุบัน" aria-live="polite">
+      <div className="operator-live-head"><div><p className="operator-overline">CURRENT STATUS</p>
+        <h2>{status.title}</h2><p className="operator-live-summary">{status.detail}</p></div>
+        <span className={`operator-health-chip ${accountHealthy ? "good" : "attention"}`}>
+          <span aria-hidden="true">●</span>{accountHealthy ? "บัญชีพร้อม" : health ? `สุขภาพบัญชี: ${health}` : "ยังไม่มีข้อมูลสุขภาพ"}
+        </span></div>
+      <dl className="operator-live-facts">
+        <div><dt>บัญชี</dt><dd>{selectedAccount?.display_name ?? "—"}</dd></div>
+        <div><dt>โหมด</dt><dd>{modeLabel(current?.effective_mode ?? selectedAccount?.effective_mode)}</dd></div>
+        <div><dt>สินค้าที่กำลังทำ</dt><dd>{job ? product?.title ?? (job.current_step === "FIND_OPPORTUNITY" ? "กำลังเลือกสินค้า" : "ยังไม่มีข้อมูลสินค้า") : "—"}</dd></div>
+        <div><dt>ขั้นตอน</dt><dd>{current ? current.current_step === "COMPLETE" ? "เสร็จแล้ว" : operatorStepLabel(current.current_step) : "ยังไม่เริ่ม"}</dd></div>
+        <div><dt>เริ่มเมื่อ</dt><dd>{dateTime(run?.started_at)}</dd></div>
+        <div><dt>อัปเดตล่าสุด</dt><dd>{dateTime(run?.updated_at)}</dd></div>
+      </dl>
+      <div className="operator-daily-progress"><div><span>เผยแพร่ตามเป้าหมายวันนี้</span>
+        <strong>{current ? `${publishedToday} / ${target} คลิป` : "ยังไม่มีแผนวันนี้"}</strong></div>
+        <div className="operator-progress-track" role="progressbar" aria-valuenow={Math.min(publishedToday, Math.max(1, target))}
+          aria-valuemin={0} aria-valuemax={Math.max(1, target)} aria-label="จำนวนคลิปที่เผยแพร่ตามเป้าหมายวันนี้">
+          <span style={{ width: `${progress}%` }}/></div></div>
+      <div className="operator-pipeline-head"><div><p className="operator-overline">PIPELINE</p><h3>เส้นทางงานปัจจุบัน</h3></div>
+        <span>{run && current ? `${completeCount} / ${stages.length} ขั้นมีหลักฐานเสร็จ` : "ยังไม่มีงาน"}</span></div>
+      <ol className="operator-pipeline operator-stage-list">
+        {stages.map((stage) => <li className={`operator-stage ${stage.state}`} key={stage.id}
+          aria-label={`${stage.label}: ${stage.state}`}>
+          <span className="operator-stage-symbol" aria-hidden="true">{stage.state === "completed" ? "✓" : stage.state === "active" ? "●" : stage.state === "failed" ? "!" : "○"}</span>
+          <span>{stage.label}</span></li>)}
+      </ol>
+    </section>
+    <section className="operator-metrics" aria-label="ผลลัพธ์ของบัญชีวันนี้">
+      {metricCards.map(({ label, value, tone }) => <article key={label} className={`operator-metric ${tone}`}>
+        <span>{label}</span><strong>{number(value)}</strong></article>)}
+    </section>
+    <section className="operator-bottom-grid" aria-label="งานและกิจกรรมล่าสุด">
+      <article className="operator-surface operator-current-job"><div className="operator-card-head"><h2>งานปัจจุบัน</h2>
+        {run && <Link href={`/auto/runs/${run.id}`}>ดูรายละเอียด ↗</Link>}</div>
+        {job ? <>
+          <div className="operator-job-layout">
+            {product && <Image className="operator-job-image" src={product.image_url ?? "/product-placeholder.svg"}
+              alt={product.image_url ? product.title : "ยังไม่มีภาพสินค้า"} width={96} height={112} unoptimized/>}
+            <div><span className={`operator-mini-state ${status.tone}`}>{status.title}</span>
+              <h3>{product?.title ?? (job.current_step === "FIND_OPPORTUNITY" ? "กำลังเลือกสินค้า" : "ยังไม่มีข้อมูลสินค้า")}</h3>
+              <p>{operatorStepLabel(job.current_step)} · {modeLabel(job.effective_mode)}</p></div>
+          </div>
+          {script && <div className="operator-job-script"><strong>สคริปต์ที่เลือก</strong>
+            <p>{script.hook_text}</p><p>{script.voice_script}</p></div>}
+          {videoUrl && <div className="operator-job-preview"><video controls playsInline preload="metadata" src={videoUrl}
+            aria-label="ตัวอย่างวิดีโอของงานปัจจุบัน"/></div>}
+          {videoResult?.data && !videoUrl && <p className="operator-job-meta">มีรายการวิดีโอแล้ว แต่ยังไม่มีไฟล์ให้แสดงตัวอย่าง</p>}
+        </> : <p className="operator-empty-copy">ไม่มีงานที่กำลังทำในขณะนี้</p>}
+      </article>
+      <article className="operator-surface operator-activity"><div className="operator-card-head"><h2>กิจกรรมล่าสุด</h2>
+        <span>จากบันทึกขั้นตอนจริง</span></div>
+        {activity.length ? <ol className="operator-activity-list">
+          {activity.map((item) => <li className={`operator-activity-item ${item.state}`} key={item.id}>
+            <span>{item.title}</span><time dateTime={item.occurredAt}>{dateTime(item.occurredAt)}</time>
+          </li>)}
+        </ol> : <p className="operator-empty-copy">ยังไม่มีขั้นตอนที่บันทึกไว้</p>}
+      </article>
+    </section>
+    <section className="operator-surface operator-recent" aria-label="ผลลัพธ์ล่าสุด">
+      <div className="operator-card-head"><h2>ผลลัพธ์ล่าสุด</h2><Link href="/publishing">ดูทั้งหมด ↗</Link></div>
+      {recentRows.length ? <ul>{recentRows.map((row) => {
+        const productId = videoById.get(row.video_id ?? "")?.product_id;
+        const title = (productId && recentProductById.get(productId)) || "วิดีโอของบัญชีนี้";
+        const state = queueState[row.status] ?? { label: "กำลังดำเนินการ", tone: "pending" };
+        const analytics = latestAnalytics.get(`${row.video_kind}:${row.video_id}`);
+        return <li key={row.id}><Link href={`/publishing/${row.id}`}>
+          <span className="operator-result-icon" aria-hidden="true">▶</span>
+          <span className="operator-result-copy"><strong>{title}</strong><small>{dateTime(row.created_at)}</small>
+            {analytics && (analytics.views !== null || analytics.orders !== null) && <small className="operator-result-metrics">
+              {analytics.views !== null ? `${number(analytics.views)} views` : ""}
+              {analytics.views !== null && analytics.orders !== null ? " · " : ""}
+              {analytics.orders !== null ? `${number(analytics.orders)} orders` : ""}
+              {` · อัปเดต ${dateTime(analytics.source_snapshot_at)}`}
+              {analytics.source === "MOCK" ? " · ข้อมูลจำลอง" : ""}
+            </small>}</span>
+          <span className={`operator-result-status ${state.tone}`}>{state.label}</span>
+        </Link></li>;
+      })}</ul> : <p className="operator-empty-copy">ยังไม่มีผลลัพธ์จากบัญชีนี้</p>}
+    </section>
+    <details className="operator-technical"><summary>รายละเอียดระบบและงบประมาณ</summary>
+      <div className="operator-overview-grid">
+        <article className="operator-surface"><div className="operator-card-head"><h2>ความพร้อมระบบ</h2>
+          <Link href="/settings/integrations">ตั้งค่าระบบ ↗</Link></div>
+          <div className="operator-readiness-row"><span>Video provider</span><strong className={providerReady ? "good" : "attention"}>{providerReady ? "พร้อมตามการตั้งค่า" : "ยังไม่พร้อม"}</strong></div>
+          <div className="operator-readiness-row"><span>TikTok publishing</span><strong className={tiktokReady ? "good" : "attention"}>{tiktokReady ? "พร้อมตามการตั้งค่า" : selectedAccount?.is_mock ? "บัญชีจำลอง" : "ยังไม่พร้อม"}</strong></div>
+          <div className="operator-readiness-row"><span>Worker schedule</span><strong className={serverEnv.recoveryEnabled ? "good" : "attention"}>{serverEnv.recoveryEnabled ? "เปิดตามการตั้งค่า" : "ปิดอยู่"}</strong></div>
+          <div className="operator-readiness-row"><span>Account health</span><strong className={accountHealthy ? "good" : "attention"}>{health ?? "ไม่มีข้อมูล"}</strong></div>
+        </article>
+        <article className="operator-surface operator-budget"><div className="operator-card-head"><h2>งบวันนี้</h2>
+          <span>{remaining === null ? "—" : `${money(remaining)} คงเหลือ`}</span></div>
+          <p className="operator-budget-value">{dailyBudget === null ? "—" : money(spent)}
+            <span> / {dailyBudget === null ? "—" : money(dailyBudget)}</span></p>
+          <div className="operator-progress-track"><span style={{ width: `${dailyBudget && dailyBudget > 0 ? Math.min(100, ((spent + reserved) / dailyBudget) * 100) : 0}%` }}/></div>
+          <p>{reserved > 0 ? `กันงบสำหรับงานที่ยังไม่สิ้นสุด ${money(reserved)} · ` : ""}
+            Provider: {runProvider ?? "ยังไม่มีแผน"}</p>
+          {current && <p>บันทึกความคืบหน้าแล้ว {current.checkpoint_version} ครั้ง</p>}
+        </article>
+      </div>
+    </details>
   </div>;
 }

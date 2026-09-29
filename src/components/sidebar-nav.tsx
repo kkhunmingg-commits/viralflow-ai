@@ -39,13 +39,13 @@ function NavGroup({
 
 export function SidebarNav() {
   const pathname = usePathname();
-  const primaryRoute = ["/auto", "/accounts", "/ai-live"].some(
-    (path) => pathname === path || pathname.startsWith(path + "/"),
+  const advancedRoute = [...advancedNavigation, ...settingsNavigation].some(
+    (item) => pathname === item.href || pathname.startsWith(item.href + "/"),
   );
   return (
     <>
       <NavGroup items={primaryNavigation} label="ใช้งานหลัก" />
-      <details className="advanced-nav" key={primaryRoute ? "primary" : "advanced"} open={!primaryRoute}>
+      <details className="advanced-nav" key={advancedRoute ? "advanced" : "primary"} open={advancedRoute}>
         <summary>Advanced <span aria-hidden="true">⌄</span></summary>
         <NavGroup items={advancedNavigation} label="เครื่องมือขั้นสูง" />
         <NavGroup items={settingsNavigation} label="การตั้งค่า" />

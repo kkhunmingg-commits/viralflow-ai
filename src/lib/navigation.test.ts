@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { navigation, settingsNavigation } from "./navigation";
+import { advancedNavigation, navigation, primaryNavigation, settingsNavigation } from "./navigation";
 
 const requiredRoutes = [
   "/auto",
-  "/accounts",
   "/ai-live",
+  "/settings",
+  "/accounts",
   "/dashboard",
   "/product-radar",
   "/recommendations",
@@ -18,14 +19,15 @@ const requiredRoutes = [
   "/learning",
   "/growth",
     "/operations",
-  "/settings",
   "/settings/integrations",
 ];
 
 describe("application navigation", () => {
-  it("contains every protected Phase 1 route exactly once", () => {
+  it("keeps daily navigation focused and every existing route reachable exactly once", () => {
     const routes = [...navigation, ...settingsNavigation].map((item) => item.href);
     expect(routes).toEqual(requiredRoutes);
     expect(new Set(routes).size).toBe(routes.length);
+    expect(primaryNavigation.map((item) => item.href)).toEqual(["/auto", "/ai-live", "/settings"]);
+    expect(advancedNavigation[0].href).toBe("/accounts");
   });
 });

@@ -1,7 +1,8 @@
 export const navigation = [
-  { href: "/auto", label: "Control Center", short: "CC" },
-  { href: "/accounts", label: "Accounts", short: "AC" },
+  { href: "/auto", label: "Home / Control Center", short: "CC" },
   { href: "/ai-live", label: "AI LIVE", short: "LV" },
+  { href: "/settings", label: "Settings", short: "ST" },
+  { href: "/accounts", label: "Accounts", short: "AC" },
   { href: "/dashboard", label: "ภาพรวม", short: "OV" },
   { href: "/product-radar", label: "Product Radar", short: "PR" },
   { href: "/recommendations", label: "คำแนะนำวันนี้", short: "RC" },
@@ -21,6 +22,5 @@ export const primaryNavigation = navigation.slice(0, 3);
 export const advancedNavigation = navigation.slice(3);
 
 export const settingsNavigation = [
-  { href: "/settings", label: "ตั้งค่า", short: "ST" },
   { href: "/settings/integrations", label: "การเชื่อมต่อ", short: "IN" },
 ] as const;
