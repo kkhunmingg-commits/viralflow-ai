@@ -1,273 +1,267 @@
 "use client";
 
-/* MJPEG streams and local Blob reference URLs cannot use Next image optimization. */
+/* The selected reference image is a browser Blob URL. */
 /* eslint-disable @next/next/no-img-element */
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { LocalLiveClient, type LocalMachineView } from "@/features/ai-live/local-client";
 
 type Choice = { id: string; label: string };
 type ProductChoice = { id: string; title: string };
-type Health = {
-  ready: boolean;
-};
-type Metrics = { status: string; fps: number; latency_ms: number | null; queue_depth: number; frames_generated: number };
+type Action = "pair" | "check" | "start" | "stop" | null;
+
+function machineLabel(view: LocalMachineView | null): string {
+  if (!view) return "กำลังตรวจสอบ";
+  switch (view.state) {
+    case "NOT_INSTALLED": return "ต้องติดตั้งส่วนเสริม";
+    case "INSTALLING":
+    case "STARTING": return "กำลังเตรียม";
+    case "READY": return view.canStart ? "พร้อมใช้งาน" : "กำลังเตรียม";
+    case "BUSY": return "กำลังใช้งาน";
+    case "PAUSED": return "พักชั่วคราว";
+    case "STOPPING": return "กำลังหยุด";
+    case "OFFLINE": return "เชื่อมต่อเครื่องไม่ได้";
+    case "UPDATE_REQUIRED": return "ต้องอัปเดต";
+    case "GPU_REQUIRED": return "เครื่องไม่รองรับ";
+    case "ERROR": return "ตรวจสอบเครื่องอีกครั้ง";
+  }
+}
+
+function machineDescription(view: LocalMachineView | null): string {
+  if (!view) return "กำลังตรวจหาส่วนเสริม AI LIVE บนเครื่องนี้";
+  switch (view.state) {
+    case "NOT_INSTALLED": return "ยังไม่พบส่วนเสริม AI LIVE บนเครื่องนี้ ขณะนี้ยังไม่มีไฟล์ติดตั้งให้ดาวน์โหลดจากหน้านี้";
+    case "INSTALLING": return "ส่วนเสริมกำลังติดตั้ง กรุณารอสักครู่";
+    case "STARTING": return "ส่วนเสริมเชื่อมต่อแล้ว แต่ AI LIVE ยังอยู่ระหว่างการเตรียมความพร้อม";
+    case "READY": return view.canStart ? "พร้อมสำหรับ AI LIVE" : "เชื่อมต่อเครื่องแล้ว แต่ AI LIVE ยังไม่พร้อมเริ่มถ่ายทอดสด";
+    case "BUSY": return "เครื่องนี้กำลังใช้งาน AI LIVE";
+    case "PAUSED": return "การใช้งานถูกพักไว้ คุณสามารถหยุดไลฟ์ได้";
+    case "STOPPING": return "กำลังหยุดการใช้งานบนเครื่องนี้";
+    case "OFFLINE": return "ติดต่อส่วนเสริมบนเครื่องไม่ได้ กรุณาเปิดส่วนเสริมแล้วลองตรวจสอบอีกครั้ง";
+    case "UPDATE_REQUIRED": return "ส่วนเสริมบนเครื่องต้องอัปเดตก่อนจึงจะใช้งาน AI LIVE ได้";
+    case "GPU_REQUIRED": return "เครื่องนี้ยังไม่รองรับ AI LIVE";
+    case "ERROR": return "ตรวจสอบความพร้อมของเครื่องไม่สำเร็จ กรุณาลองอีกครั้ง";
+  }
+}
 
 export function LivePresenterConsole({ accounts, products }: { accounts: Choice[]; products: ProductChoice[] }) {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [reference, setReference] = useState<File | null>(null);
-  const [referencePreview, setReferencePreview] = useState<string | null>(null);
+  const [machine, setMachine] = useState<LocalMachineView | null>(null);
   const [selectedAccount, setSelectedAccount] = useState("");
   const [selectedProduct, setSelectedProduct] = useState("");
-  const targetFps = 20;
-  const [sessionId, setSessionId] = useState<string | null>(null);
-  const [metrics, setMetrics] = useState<Metrics | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [presenter, setPresenter] = useState<File | null>(null);
+  const [presenterPreview, setPresenterPreview] = useState<string | null>(null);
+  const [microphoneReady, setMicrophoneReady] = useState(false);
+  const [microphoneLabel, setMicrophoneLabel] = useState("");
+  const [pairCode, setPairCode] = useState("");
+  const [action, setAction] = useState<Action>(null);
   const [error, setError] = useState<string | null>(null);
-  const [previewError, setPreviewError] = useState(false);
-  const [previewEpoch, setPreviewEpoch] = useState(0);
-  const audioRef = useRef<{ stream: MediaStream; context?: AudioContext; node?: AudioWorkletNode } | null>(null);
-  const sessionRef = useRef<string | null>(null);
-  const audioPendingRef = useRef(0);
-  const referenceUrlRef = useRef<string | null>(null);
-  const activeRef = useRef(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const refreshHealth = useCallback(async () => {
-    try {
-      const response = await fetch("/api/ai-live/health", { cache: "no-store" });
-      setHealth(await response.json() as Health);
-    } catch { setHealth({ ready: false }); }
-  }, []);
+  const clientRef = useRef<LocalLiveClient | null>(null);
+  const mountedRef = useRef(false);
+  const generationRef = useRef(0);
+  const requestQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const presenterUrlRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
-    void fetch("/api/ai-live/health", { cache: "no-store" })
-      .then((response) => response.json())
-      .then((result: Health) => { if (mounted) setHealth(result); })
-      .catch(() => { if (mounted) setHealth({ ready: false }); });
-    return () => {
-      mounted = false;
-      if (referenceUrlRef.current) URL.revokeObjectURL(referenceUrlRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    activeRef.current = true;
-    const leave = () => {
-      activeRef.current = false;
-      const audio = audioRef.current;
-      audioRef.current = null;
-      if (audio) {
-        if (audio.node) {
-          audio.node.port.onmessage = null;
-          audio.node.disconnect();
-        }
-        audio.stream.getTracks().forEach((track) => track.stop());
-        if (audio.context) void audio.context.close();
-      }
-      const id = sessionRef.current;
-      sessionRef.current = null;
-      if (id) void fetch(`/api/ai-live/sessions/${id}/stop`, { method: "POST", keepalive: true }).catch(() => {});
-    };
-    window.addEventListener("pagehide", leave);
-    return () => {
-      window.removeEventListener("pagehide", leave);
-      leave();
-    };
-  }, []);
-
-  function chooseReference(file: File | null) {
-    if (file && (!(["image/jpeg", "image/png"].includes(file.type)) || file.size > 4 * 1024 * 1024)) {
-      setError("กรุณาเลือกภาพ JPEG/PNG ขนาดไม่เกิน 4 MB");
-      file = null;
-    } else {
-      setError(null);
-    }
-    if (referenceUrlRef.current) URL.revokeObjectURL(referenceUrlRef.current);
-    const url = file ? URL.createObjectURL(file) : null;
-    referenceUrlRef.current = url;
-    setReference(file);
-    setReferencePreview(url);
-  }
-  useEffect(() => {
-    if (!sessionId) return;
-    let mounted = true;
-    const poll = async () => {
+  // Polling and user actions use the same queue, so only one local request runs at a time.
+  const requestMachine = useCallback((operation: (client: LocalLiveClient, signal: AbortSignal) => Promise<LocalMachineView>) => {
+    const generation = generationRef.current;
+    const request = requestQueueRef.current.catch(() => undefined).then(async () => {
+      if (!mountedRef.current || generation !== generationRef.current || !clientRef.current) return null;
+      const controller = new AbortController();
+      requestControllerRef.current = controller;
       try {
-        const response = await fetch(`/api/ai-live/sessions/${sessionId}/metrics`, { cache: "no-store" });
-        if (response.ok && mounted) {
-          const next = await response.json() as Metrics & { error?: string; stop_reason?: string };
-          if (!mounted) return;
-          setMetrics(next);
-          if (next.status === "FAILED" || next.status === "STOPPED") {
-            releaseAudio();
-            sessionRef.current = null;
-            setSessionId(null);
-            setError("การแสดงหยุดลง กรุณาลองอีกครั้ง");
-          }
+        const result = await operation(clientRef.current, controller.signal);
+        if (mountedRef.current && generation === generationRef.current) setMachine(result);
+        return result;
+      } finally {
+        if (requestControllerRef.current === controller) requestControllerRef.current = null;
+      }
+    });
+    requestQueueRef.current = request.catch(() => undefined);
+    return request;
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    generationRef.current += 1;
+    const generation = generationRef.current;
+    clientRef.current = new LocalLiveClient();
+    let timer: number | null = null;
+    const poll = async () => {
+      try { await requestMachine((client, signal) => client.discover(signal)); }
+      catch { /* A later poll may recover after the companion restarts. */ }
+      finally {
+        if (mountedRef.current && generation === generationRef.current) {
+          timer = window.setTimeout(() => { void poll(); }, 4_000);
         }
-      } catch { /* The next poll may recover after a transient worker disconnect. */ }
+      }
     };
     void poll();
-    const timer = window.setInterval(() => { void poll(); }, 1000);
-    return () => { mounted = false; window.clearInterval(timer); };
-  }, [sessionId]);
+    return () => {
+      mountedRef.current = false;
+      generationRef.current += 1;
+      if (timer !== null) window.clearTimeout(timer);
+      requestControllerRef.current?.abort();
+      clientRef.current?.dispose();
+      clientRef.current = null;
+      if (presenterUrlRef.current) URL.revokeObjectURL(presenterUrlRef.current);
+      presenterUrlRef.current = null;
+    };
+  }, [requestMachine]);
 
-  useEffect(() => {
-    if (!sessionId) return;
-    // Rotate the streaming request before a serverless function can hold it indefinitely.
-    const timer = window.setInterval(() => {
-      setPreviewError(false);
-      setPreviewEpoch((value) => value + 1);
-    }, 20_000);
-    return () => window.clearInterval(timer);
-  }, [sessionId]);
-
-  function releaseAudio() {
-    const current = audioRef.current;
-    audioRef.current = null;
-    if (!current) return;
-    if (current.node) {
-      current.node.port.onmessage = null;
-      current.node.disconnect();
-    }
-    current.stream.getTracks().forEach((track) => track.stop());
-    if (current.context) void current.context.close();
+  function choosePresenter(file: File | null) {
+    if (file && (!["image/jpeg", "image/png"].includes(file.type) || file.size > 4 * 1024 * 1024)) {
+      setError("กรุณาเลือกภาพ JPEG หรือ PNG ขนาดไม่เกิน 4 MB");
+      file = null;
+    } else setError(null);
+    if (presenterUrlRef.current) URL.revokeObjectURL(presenterUrlRef.current);
+    const url = file ? URL.createObjectURL(file) : null;
+    presenterUrlRef.current = url;
+    setPresenter(file);
+    setPresenterPreview(url);
   }
 
-  async function stopPresenter() {
-    setBusy(true);
-    const id = sessionRef.current;
-    sessionRef.current = null;
-    releaseAudio();
-    try {
-      if (id) {
-        const response = await fetch(`/api/ai-live/sessions/${id}/stop`, { method: "POST" });
-        if (!response.ok) setError("หยุดการแสดงไม่สำเร็จ กรุณาลองอีกครั้ง");
-      }
-    } catch { setError("หยุดการแสดงไม่สำเร็จ กรุณาลองอีกครั้ง"); }
-    setSessionId(null);
-    setMetrics(null);
-    setBusy(false);
-    void refreshHealth();
-  }
-
-  async function startPresenter() {
-    if (!reference || !health?.ready || busy) return;
-    setBusy(true);
+  async function chooseMicrophone() {
     setError(null);
-    setPreviewError(false);
-    let createdSession: string | null = null;
+    if (!navigator.mediaDevices?.getUserMedia || !navigator.mediaDevices.enumerateDevices) {
+      setError("เบราว์เซอร์นี้ยังไม่สามารถเลือกไมโครโฟนได้");
+      return;
+    }
+    let stream: MediaStream | null = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-      audioRef.current = { stream };
-      if (!activeRef.current) throw new Error("PRESENTER_SESSION_CLOSED");
-      const context = new AudioContext();
-      audioRef.current.context = context;
-      await context.audioWorklet.addModule("/ai-live-audio-worklet.js");
-      if (!activeRef.current || !audioRef.current) throw new Error("PRESENTER_SESSION_CLOSED");
-      const source = context.createMediaStreamSource(stream);
-      const node = new AudioWorkletNode(context, "viralflow-pcm-worklet");
-      audioRef.current.node = node;
-      node.port.onmessage = (event: MessageEvent<ArrayBuffer>) => {
-        const id = sessionRef.current;
-        if (!id || audioPendingRef.current >= 4) return;
-        audioPendingRef.current += 1;
-        void fetch(`/api/ai-live/sessions/${id}/audio`, {
-          method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: event.data,
-        }).then((response) => {
-          if (!response.ok) setError("การเชื่อมต่อเสียงขัดข้อง กรุณาหยุดและลองอีกครั้ง");
-        }).catch(() => setError("การเชื่อมต่อเสียงขัดข้อง")).finally(() => { audioPendingRef.current -= 1; });
-      };
-
-      const uploaded = await fetch("/api/ai-live/references", {
-        method: "POST", headers: { "Content-Type": reference.type }, body: reference,
-      });
-      if (!activeRef.current) throw new Error("PRESENTER_SESSION_CLOSED");
-      const imageResult = await uploaded.json() as { reference_id?: string; error?: string };
-      if (!uploaded.ok || !imageResult.reference_id) throw new Error(imageResult.error ?? "REFERENCE_UPLOAD_FAILED");
-
-      const started = await fetch("/api/ai-live/sessions", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reference_id: imageResult.reference_id, target_fps: targetFps }),
-      });
-      const result = await started.json() as { session_id?: string; error?: string };
-      if (!started.ok || !result.session_id) throw new Error(result.error ?? "PRESENTER_START_FAILED");
-      createdSession = result.session_id;
-      if (!activeRef.current) throw new Error("PRESENTER_SESSION_CLOSED");
-      sessionRef.current = createdSession;
-      source.connect(node);
-      node.connect(context.destination);
-      await context.resume();
-      if (!activeRef.current) throw new Error("PRESENTER_SESSION_CLOSED");
-      setSessionId(createdSession);
-    } catch (cause) {
-      releaseAudio();
-      sessionRef.current = null;
-      if (createdSession) void fetch(`/api/ai-live/sessions/${createdSession}/stop`, { method: "POST" });
-      setError(cause instanceof DOMException && cause.name === "NotAllowedError"
-        ? "กรุณาอนุญาตให้ใช้ไมโครโฟน" : "เริ่มการแสดงไม่สำเร็จ กรุณาลองอีกครั้ง");
-    } finally { setBusy(false); }
+      // The user requests permission here. No audio is retained or uploaded.
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const choices = devices.filter((device) => device.kind === "audioinput" && device.deviceId);
+      const defaultDevice = choices.find((device) => device.deviceId === "default") ?? choices[0];
+      setMicrophoneReady(!!defaultDevice);
+      setMicrophoneLabel(defaultDevice?.label || (defaultDevice ? "ไมโครโฟนเริ่มต้นของเครื่อง" : ""));
+      if (!defaultDevice) setError("ไม่พบไมโครโฟนที่ใช้งานได้");
+    } catch {
+      setMicrophoneReady(false);
+      setMicrophoneLabel("");
+      setError("ไม่สามารถใช้ไมโครโฟนได้ กรุณาอนุญาตในเบราว์เซอร์แล้วลองอีกครั้ง");
+    } finally { stream?.getTracks().forEach((track) => track.stop()); }
   }
 
-  const currentProduct = products.find((product) => product.id === selectedProduct)?.title;
-  const status = health === null ? "กำลังตรวจความพร้อม" : sessionId ? "กำลังแสดงภาพตัวอย่าง" : "AI LIVE กำลังเตรียมพร้อม";
+  async function pairMachine() {
+    const code = pairCode.trim();
+    if (!code || action) return;
+    setAction("pair"); setError(null);
+    try {
+      const result = await requestMachine((client, signal) => client.pair(code, signal));
+      if (result) { setPairCode(""); setNotice("เชื่อมต่อส่วนเสริมบนเครื่องแล้ว"); }
+    } catch { if (mountedRef.current) setError("เชื่อมต่อไม่สำเร็จ กรุณาตรวจสอบรหัสจากส่วนเสริมแล้วลองอีกครั้ง"); }
+    finally { if (mountedRef.current) setAction(null); }
+  }
+
+  async function checkMachine() {
+    if (action) return;
+    setAction("check"); setError(null); setNotice(null);
+    try { await requestMachine((client, signal) => machine?.paired ? client.checkHardware(signal) : client.discover(signal)); }
+    catch { if (mountedRef.current) setError("ตรวจสอบเครื่องไม่สำเร็จ กรุณาลองอีกครั้ง"); }
+    finally { if (mountedRef.current) setAction(null); }
+  }
+
+  async function startLive() {
+    if (action || !machine?.canStart || !selectedAccount || !selectedProduct || !presenter || !microphoneReady) return;
+    setAction("start"); setError(null);
+    try {
+      await requestMachine((client, signal) => client.start({
+        accountId: selectedAccount, productIds: [selectedProduct], presenter, microphoneId: "default",
+      }, signal));
+    } catch { if (mountedRef.current) setError("เริ่ม AI LIVE ไม่สำเร็จ กรุณาตรวจสอบเครื่องแล้วลองอีกครั้ง"); }
+    finally { if (mountedRef.current) setAction(null); }
+  }
+
+  async function stopLive() {
+    if (action || !machine?.sessionActive) return;
+    setAction("stop"); setError(null);
+    try { await requestMachine((client, signal) => client.stop(signal)); }
+    catch { if (mountedRef.current) setError("หยุด AI LIVE ไม่สำเร็จ กรุณาลองอีกครั้ง"); }
+    finally { if (mountedRef.current) setAction(null); }
+  }
+
+  const showPairing = machine && !machine.paired && !["NOT_INSTALLED", "OFFLINE", "INSTALLING", "UPDATE_REQUIRED"].includes(machine.state);
+  const canStart = !!machine?.canStart && !machine.sessionActive && !action && !!selectedAccount && !!selectedProduct && !!presenter && microphoneReady;
 
   return <div className="ai-live-page">
     <header className="ai-live-hero">
-      <div><p className="eyebrow">VIRALFLOW / AI LIVE</p><h1>AI LIVE</h1><p>เตรียมพรีเซนเตอร์ บัญชี และสินค้าสำหรับการไลฟ์ขายสินค้า</p></div>
-      <span className={`ai-live-state ${sessionId ? "ready" : "blocked"}`} role="status">{status}</span>
+      <div><p className="eyebrow">VIRALFLOW / AI LIVE</p><h1>AI LIVE</h1><p>เลือกบัญชี พรีเซนเตอร์ และสินค้า แล้วตรวจสอบความพร้อมของเครื่องก่อนเริ่ม</p></div>
+      <span className={`ai-live-state ${machine?.canStart ? "ready" : "blocked"}`} role="status" aria-live="polite">{machineLabel(machine)}</span>
     </header>
 
     <div className="ai-live-grid">
       <section className="ai-live-panel ai-live-setup" aria-label="เตรียม AI LIVE">
         <div className="ai-live-panel-title"><h2>เตรียมไลฟ์</h2></div>
         <label className="ai-live-field">บัญชี TikTok
-          <select value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}>
+          <select value={selectedAccount} disabled={!!machine?.sessionActive} onChange={(event) => setSelectedAccount(event.target.value)}>
             <option value="">เลือกบัญชี</option>
             {accounts.map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}
           </select>
         </label>
+        {accounts.length === 0 && <p className="ai-live-help">ยังไม่มีบัญชีที่เชื่อมต่อ <Link href="/accounts">ดูบัญชี TikTok</Link></p>}
         <label className="ai-live-field">พรีเซนเตอร์
-          <input type="file" accept="image/jpeg,image/png" disabled={busy || !!sessionId} onChange={(event) => chooseReference(event.target.files?.[0] ?? null)} />
+          <input type="file" accept="image/jpeg,image/png" disabled={!!machine?.sessionActive} onChange={(event) => choosePresenter(event.target.files?.[0] ?? null)} />
           <small>เลือกภาพที่คุณมีสิทธิใช้งาน ขนาดไม่เกิน 4 MB</small>
         </label>
         <label className="ai-live-field">สินค้า
-          <select value={selectedProduct} onChange={(event) => setSelectedProduct(event.target.value)}>
+          <select value={selectedProduct} disabled={!!machine?.sessionActive} onChange={(event) => setSelectedProduct(event.target.value)}>
             <option value="">เลือกสินค้า</option>
             {products.map((product) => <option key={product.id} value={product.id}>{product.title}</option>)}
           </select>
         </label>
-
+        {products.length === 0 && <p className="ai-live-help">ยังไม่มีสินค้าให้เลือก</p>}
+        <div className="ai-live-field"><span>ไมโครโฟน</span>
+          <div className="ai-live-microphone-row">
+            <span className="ai-live-microphone-name">{microphoneReady ? microphoneLabel : "ยังไม่ได้ตรวจสอบไมโครโฟน"}</span>
+            <button type="button" className="ai-live-secondary" disabled={!!machine?.sessionActive} onClick={() => void chooseMicrophone()}>{microphoneReady ? "ตรวจสอบอีกครั้ง" : "ตรวจสอบไมโครโฟน"}</button>
+          </div><small>ระบบจะใช้ไมโครโฟนเริ่มต้นของเครื่อง และขอสิทธิ์เมื่อคุณกดตรวจสอบเท่านั้น</small>
+        </div>
         <div className="ai-live-live-actions">
-          <button className="primary-action" type="button" disabled aria-disabled="true">เริ่มไลฟ์</button>
-          <button className="danger-action" type="button" disabled aria-disabled="true">หยุดไลฟ์</button>
+          <button className="primary-action" type="button" disabled={!canStart} onClick={() => void startLive()}>{action === "start" ? "กำลังเริ่ม..." : "เริ่มไลฟ์"}</button>
+          <button className="danger-action" type="button" disabled={!machine?.sessionActive || !!action} onClick={() => void stopLive()}>{action === "stop" ? "กำลังหยุด..." : "หยุดไลฟ์"}</button>
         </div>
-        <p className="ai-live-context-note">ยังไม่สามารถถ่ายทอดสดได้ ระบบกำลังเตรียมความพร้อม</p>
-        {error && <p className="ai-live-error" role="alert">{error}</p>}
+        {!machine?.canStart && <p className="ai-live-context-note">AI LIVE จะเปิดให้เริ่มได้เมื่อส่วนเสริมและเครื่องผ่านการตรวจสอบครบถ้วน</p>}
       </section>
 
-      <section className="ai-live-panel ai-live-preview" aria-label="ภาพพรีเซนเตอร์">
-        <div className="ai-live-panel-title"><h2>ภาพพรีเซนเตอร์</h2><span className="ai-live-preview-state">{sessionId ? "ตัวอย่างกำลังทำงาน" : "ยังไม่มีภาพสด"}</span></div>
-        <div className="ai-live-stage">
-          {sessionId && !previewError ? <img src={`/api/ai-live/sessions/${sessionId}/preview?stream=${previewEpoch}`} alt="ภาพพรีเซนเตอร์แบบสด" onError={() => setPreviewError(true)} />
-            : referencePreview ? <img src={referencePreview} alt="ภาพพรีเซนเตอร์ที่เลือก ยังไม่ใช่ภาพสด" />
+      <div className="ai-live-side">
+        <section className="ai-live-panel ai-live-machine" aria-label="สถานะเครื่อง">
+          <div className="ai-live-panel-title"><h2>สถานะเครื่อง</h2><span className={`ai-live-machine-dot ${machine?.canStart ? "ready" : ""}`} aria-hidden="true" /></div>
+          <strong className="ai-live-machine-status" aria-live="polite">{machineLabel(machine)}</strong>
+          <p className="ai-live-machine-description">{machineDescription(machine)}</p>
+          {!!machine?.reasons.length && <ul className="ai-live-machine-reasons">{[...new Set(machine.reasons)].map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+          {showPairing && <div className="ai-live-pairing">
+            <label className="ai-live-field">รหัสเชื่อมต่อจากส่วนเสริมบนเครื่อง
+              <input type="text" autoComplete="one-time-code" value={pairCode} disabled={!!action} onChange={(event) => setPairCode(event.target.value)} placeholder="กรอกรหัสที่แสดงในส่วนเสริม" />
+            </label>
+            <button type="button" className="ai-live-secondary" disabled={!pairCode.trim() || !!action} onClick={() => void pairMachine()}>{action === "pair" ? "กำลังเชื่อมต่อ..." : "เชื่อมต่อเครื่อง"}</button>
+            <p className="ai-live-context-note">เปิดส่วนเสริม ViralFlow บนเครื่องนี้เพื่อดูรหัส แล้วเชื่อมต่อก่อนตรวจสอบเครื่อง ไม่ต้องเปิดหน้าคำสั่ง</p>
+          </div>}
+          <div className="ai-live-machine-actions">
+            <button type="button" className="ai-live-secondary" disabled={!!action} onClick={() => void checkMachine()}>{action === "check" ? "กำลังตรวจสอบ..." : "ตรวจสอบเครื่อง"}</button>
+            <p>หากเบราว์เซอร์ถาม ให้ยอมให้หน้านี้เชื่อมต่อส่วนเสริมบนเครื่อง</p>
+          </div>
+          {notice && machine?.paired && <p className="ai-live-notice" role="status">{notice}</p>}
+          {error && <p className="ai-live-error" role="alert">{error}</p>}
+        </section>
+        <section className="ai-live-panel ai-live-preview" aria-label="ภาพพรีเซนเตอร์ที่เลือก">
+          <div className="ai-live-panel-title"><h2>ภาพพรีเซนเตอร์</h2><span className="ai-live-preview-state">ภาพอ้างอิง</span></div>
+          <div className="ai-live-stage">
+            {presenterPreview ? <img src={presenterPreview} alt="ภาพพรีเซนเตอร์ที่เลือก ยังไม่ใช่ภาพสด" />
               : <div className="ai-live-stage-empty"><span>✦</span><strong>เลือกภาพพรีเซนเตอร์</strong><p>ภาพที่เลือกจะแสดงตรงนี้</p></div>}
-          {referencePreview && !sessionId && <span className="ai-live-stage-tag">ภาพที่เลือก · ยังไม่ใช่ภาพสด</span>}
-          {previewError && <span className="ai-live-stage-tag error">ภาพตัวอย่างขัดข้อง</span>}
-        </div>
-        {health?.ready && <div className="ai-live-preview-actions">
-          <button type="button" disabled={!reference || busy || !!sessionId} onClick={() => void startPresenter()}>{busy && !sessionId ? "กำลังเริ่ม..." : "ดูภาพตัวอย่างสด"}</button>
-          {sessionId && <button type="button" disabled={busy} onClick={() => void stopPresenter()}>หยุดภาพตัวอย่าง</button>}
-        </div>}
-        {sessionId && <p className="ai-live-context-note" role="status">{metrics?.status === "RUNNING" ? "ภาพตัวอย่างกำลังทำงาน ไม่มีการส่งไป TikTok" : "กำลังเริ่มภาพตัวอย่าง ไม่มีการส่งไป TikTok"}</p>}
-      </section>
+            {presenterPreview && <span className="ai-live-stage-tag">ภาพที่เลือก · ยังไม่ใช่ภาพสด</span>}
+          </div>
+        </section>
+      </div>
     </div>
-
-    <section className="ai-live-summary" aria-label="สถานะไลฟ์">
-      <div><span>สถานะตอนนี้</span><strong>{status}</strong></div>
-      <div><span>สินค้าที่เลือก</span><strong>{currentProduct ?? "ยังไม่ได้เลือกสินค้า"}</strong></div>
-      <div><span>ความคิดเห็นล่าสุด</span><strong>ยังไม่เริ่มไลฟ์</strong></div>
-      <div><span>การตอบกลับ</span><strong>ยังไม่เริ่มไลฟ์</strong></div>
+    <section className="ai-live-summary" aria-label="สถานะไลฟ์" aria-live="polite">
+      <div><span>สถานะตอนนี้</span><strong>{machine?.state === "ERROR" && machine.sessionActive ? "ต้องตรวจสอบหรือหยุดไลฟ์" : machine?.state === "PAUSED" ? "พักไลฟ์ชั่วคราว" : machine?.sessionActive ? "กำลังใช้งาน AI LIVE" : "ยังไม่เริ่มไลฟ์"}</strong></div>
+      <div><span>บัญชีที่เลือก</span><strong>{accounts.find((account) => account.id === selectedAccount)?.label ?? "ยังไม่ได้เลือกบัญชี"}</strong></div>
+      <div><span>สินค้าที่เลือก</span><strong>{products.find((product) => product.id === selectedProduct)?.title ?? "ยังไม่ได้เลือกสินค้า"}</strong></div>
     </section>
   </div>;
 }

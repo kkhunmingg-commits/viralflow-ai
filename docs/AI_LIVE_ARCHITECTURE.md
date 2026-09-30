@@ -1,65 +1,76 @@
-# AI LIVE architecture and readiness
+# AI LIVE — Local GPU architecture
 
-AI LIVE is a module of the existing ViralFlow AI application, not a separate product. It reuses the authenticated ViralFlow user, that user's connected TikTok account records, and available product records. The existing AUTO Affiliate and TikTok posting paths remain independent. This document describes the non-GPU foundation; **LIVE-1 is not complete** and no customer TikTok LIVE broadcast is possible yet.
+AI LIVE อยู่ใน ViralFlow AI เดิม ใช้ผู้ใช้ บัญชี TikTok และสินค้าเดิม ค่าเริ่มต้นคือ `LOCAL_GPU`: งาน Presenter/เสียง/เข้ารหัสอยู่บน Windows ของลูกค้า ไม่มีการเลือก Cloud GPU หรือ MockPresenter แทนโดยเงียบ ๆ ระบบ Affiliate AUTO และ Content Posting เดิมไม่เปลี่ยนแปลง **LIVE-1 ยังไม่ complete และยังเริ่มไลฟ์จริงไม่ได้**
 
-## Readiness labels
+## สถานะจาก implementation
 
-| Status | What is ready or missing |
-| --- | --- |
-| `READY_WITHOUT_GPU` | The local TypeScript session/domain contracts, deterministic comment and reply policies, product selection, bounded action queue, events, watchdog, Python provider/voice contracts, and internal mock tests can be developed and tested without an NVIDIA GPU. This does **not** mean the customer can start a live broadcast. |
-| `WAITING_FOR_GPU` | The real presenter requires an NVIDIA GPU with CUDA, MuseTalk source and model weights, and an incremental frame backend. `MuseTalkPresenter` reports `GPU_REQUIRED` when CUDA is absent and never silently substitutes `MockPresenter`. FFmpeg/NVENC readiness is checked separately for future encoding. |
-| `GPU_VALIDATION_REQUIRED` | On a CUDA host, integrate and measure real MuseTalk audio-to-frame inference, frame quality, lip synchronization, FPS, latency, audio backpressure, long-session stability, and NVENC encoding. A selected reference image or a mock JPEG does not establish a working presenter. |
+| สถานะ | ส่วนที่มีอยู่จริง | ขอบเขต |
+| --- | --- | --- |
+| `READY_WITHOUT_GPU` | Local API/handshake, hardware checker, compatibility gate, signed start authorization, customer UI, bootstrap manifest validation, session/queue/watchdog contracts และ tests | เป็น foundation ที่ทดสอบโดยไม่ใช้ GPU ได้ ไม่ใช่ Presenter จริง |
+| `WAITING_FOR_GPU_VALIDATION` | MuseTalk incremental backend, audio/frame synchronization, local encoder, hardware performance และ signed installer distribution | ยังไม่เชื่อม/วัดบน NVIDIA จริง |
+| `PRODUCTION_READY` | **false** | `AI_LIVE_REALTIME_VALIDATED=false`; ยังไม่มี real LIVE transport หรือ production installer |
 
-The future TikTok LIVE connection, comment ingestion, LLM provider, speech generation, encoder/RTMP transport, product pinning, and Shop actions are **outside this foundation**. TikTok Production remains in review; no existing TikTok app configuration, OAuth scopes, Content Posting API flow, or Production environment setting is changed by AI LIVE.
+## Cloud control / local media
 
-## Boundaries and data flow
-
-```text
-ViralFlow authenticated user
-  ├─ existing connected TikTok accounts (selection only)
-  ├─ existing available products (selection/context only)
-  └─ AI LIVE page
-       ├─ customer status and setup (no internal diagnostics)
-       └─ authenticated Next.js proxy → local Python presenter worker
-
-Internal non-GPU domain path (mock/dev tests only):
-normalized comment → CommentEngine → LiveBrain → ProductBrain
-  → ActionQueue → VoiceProvider contract → PresenterProvider contract
-  → LiveEventLog / Watchdog / session snapshot
-
-Future production path, not implemented here:
-TikTok LIVE comments → real brain/voice → real MuseTalk frames
-  → encoder → TikTok LIVE transport
+```mermaid
+flowchart TD
+  User[ผู้ใช้ ViralFlow] --> Web[หน้า AI LIVE]
+  Web --> Cloud[Cloud: Login / Membership / Config]
+  Cloud --> Existing[บัญชี TikTok และสินค้าเดิม]
+  Web -->|รหัสจับคู่ + bearer ชั่วคราว| Agent[Local Live Agent บน Windows]
+  Web -->|challenge / ตรวจสิทธิ์| Grant[Server signed start grant]
+  Grant -->|Ed25519 authorization| Agent
+  Agent --> Hardware[ตรวจเครื่องและเวอร์ชัน]
+  Hardware --> Gate{ผ่าน GPU validation แล้ว?}
+  Gate -->|ยังไม่ผ่าน| Block[หยุดอย่างชัดเจน / AUTO เดิมยังใช้ได้]
+  Gate -->|อนาคตหลัง validation| Presenter[MuseTalkLocalPresenter]
+  Mic[ไมโครโฟนบนเครื่อง] --> Presenter
+  Presenter --> Encoder[LocalEncoder / StreamProvider]
+  Encoder --> Future[TikTok LIVE: ขั้นต่อไป ยังไม่เชื่อม]
 ```
 
-The UI selects the existing account and product records. Selection is not a TikTok LIVE connection or product pin. The customer page shows only preparation and truthful empty states for comments and replies. `Start Live`/`Stop Live` remain unavailable. The separate local presenter preview can start only when the Python worker reports genuine readiness; an uploaded reference image is labeled as a selected still, not a live frame.
+Browser ติดต่อ `http://127.0.0.1:8766` โดยตรง เว็บไม่ส่งภาพ Presenter, PCM audio หรือ realtime frames ผ่าน cloud media proxy เดิมอีกแล้ว `/api/ai-live/health` ตอบว่าต้องใช้ local agent; legacy media endpoints ตอบ `410` และไม่ fetch worker แม้มี legacy config การขอ grant เท่านั้นที่ผ่าน cloud โดยไม่มี media
 
-## TypeScript control and domain layer
+หน้า `/ai-live` อนุญาต CSP connect ไป loopback address เดียว และ microphone เฉพาะหน้านี้ สิทธิ์ของหน้าอื่นคงเดิม เบราว์เซอร์อาจขอ Local Network Access permission; ห้ามใช้ browser flags เพื่อข้าม security การเชื่อมจาก HTTPS ต้องทดสอบกับ browser ที่รองรับก่อนเผยแพร่จริง ([Chrome official Local Network Access](https://developer.chrome.com/blog/local-network-access))
 
-- `LiveSessionController` models `STARTING`, `RUNNING`, `PAUSED`, `RECOVERY_REQUIRED`, `BLOCKED`, and `STOPPED`. A snapshot includes the owner, selected TikTok account, selected existing products, presenter reference, runtime status, timestamps, and latest comment/response. Start, pause, resume, stop, context update, and recovery use a `PresenterRuntimePort` and a `LiveSessionSnapshotStore` interface. The store is a contract; a durable production implementation and customer route are **not** supplied in this foundation. Reloading an active snapshot marks it `RECOVERY_REQUIRED`; the controller does not automatically restart a possibly running presenter.
-- `CommentEngine` accepts normalized input through an interface, deduplicates comment IDs/text, applies viewer cooldown and spam checks, detects Thai/English through a replaceable detector, prioritizes questions and purchase intent, and bounds its in-memory queue. Simulated comments in tests are not TikTok comments.
-- `LiveBrainProvider` returns a reply, intent, priority, and suggested actions. `RuleBasedLiveBrain` is a deterministic internal fallback using known product facts; it does not call an LLM, invent a price, or promise a purchase action.
-- `ProductBrain` works from the existing `Product` type. It filters unavailable products, rotates with minimum dwell and recent-history limits, and consumes CTA timing so repeated ticks do not emit the same CTA.
-- `ActionQueue` accepts `SPEAK`, `SWITCH_PRODUCT`, `SHOW_PRODUCT`, `PAUSE`, `RESUME`, and `STOP`. It is bounded, priority ordered, cancellable, and deduplicates by idempotency key. `STOP`/`PAUSE` receive elevated priority. This is an in-memory control primitive, not a durable delivery guarantee.
-- `LivePipeline` composes comment intake, brain decisions, action execution, a chunk-streaming `VoiceProvider` port, and a `PresenterAudioPort`. The same pipeline path accepts internal test doubles or future real adapters. It does not connect to TikTok LIVE; `SHOW_PRODUCT` currently records a local event and does not pin a product. Speech interruption and cancellation have explicit methods, and a voice failure moves the session to `RECOVERY_REQUIRED`.
-- `LiveEventLog` holds a bounded, human-readable activity history for future UI use. `Watchdog` detects stale session/presenter heartbeats, stuck audio/comment queues, and a disconnected stream. Recovery attempts are bounded; detection does not trigger an endless restart loop.
+## ขอบเขตของระบบ
 
-These components are integration contracts and tested local orchestration building blocks. They are **not yet wired to a real TikTok LIVE session** and must not be presented as one.
+- Cloud ใช้ `auth.getUser()` ตรวจผู้ใช้สด อ่าน `app_metadata.ai_live` ที่ server เป็นผู้กำหนด และตรวจ ownership ของ account/product ก่อนลงลายเซ็น ไม่อ่าน `user_metadata` เป็นสิทธิ์
+- Agent จับคู่ด้วยรหัสใช้ครั้งเดียว bearer origin-bound อายุ 15 นาที อยู่ใน memory ต่ออายุ/หมุน token ก่อนหมดอายุ device UUID และ public verification key เป็นข้อมูลติดตั้ง ไม่เก็บ cloud access token/private signing key
+- Start grant อายุไม่เกิน 120 วินาที ผูก owner/device/challenge/account/products/component versions และ grant ID ใช้ครั้งเดียว เป็น authorization สำหรับ **เริ่ม session** ไม่ใช่ heartbeat membership ระหว่าง stream สิทธิ์เปลี่ยนต้องตรวจใหม่เมื่อ Start ครั้งถัดไป ยังไม่มี active membership revocation service
+- หนึ่งเครื่องมี active session ได้หนึ่งรายการ Start initialize worker ครั้งเดียว; Pause/Resume/Stop ตรวจ session owner Stop ไม่ติด gate เรื่องสิทธิ์หมดอายุหรือ hardware เมื่อ worker ขัดข้องมี recovery จำกัดหนึ่งครั้ง ถ้า Start grant ไม่สดแล้วต้อง Stop/release และขอ grant ใหม่ ไม่มี auto restart loop
+- ไม่มี snapshot durable ข้ามการ restart ของ process ในรุ่นนี้ session/token เป็น memory shutdown พยายาม Stop และล้าง reference; การ recovery ผ่าน HTTP มีเฉพาะ session ที่ agent ยังถืออยู่ การจัดการ orphan worker หลัง process kill รอ real worker integration
+- `PresenterProvider` เดิมมี chunk audio / receive frames / Stop / health / metrics; `MuseTalkLocalPresenter` ผูก boundary นี้สำหรับ incremental local backend ส่วน `MockPresenter` ใช้ automated tests เท่านั้น
+- `WorkerBoundary`, `StreamProvider` และ `LocalEncoder` กำหนด lifecycle ที่ต้องต่อ real adapters รุ่นนี้ default เป็น unvalidated worker/encoder จึง fail closed ไม่เรียก cloud provider หรือสร้าง fake preview
 
-## Python presenter and voice boundary
+## Domain foundation ที่ reuse
 
-`workers/ai-live/presenter.py` defines `PresenterProvider`: `load_presenter`, `start_stream`, `push_audio_chunk`, `receive_frames`, `stop`, `health`, and `metrics`. `MockPresenter` requires explicit internal use and a test-supplied frame factory; it is not selected by the HTTP worker API and is forbidden for production sessions. `MuseTalkPresenter` is an adapter to a genuine incremental CUDA backend, not a bundled lip-sync model. Its audio queue is capped at four PCM chunks; its preview frame queue retains at most two JPEG frames. The provider rejects bad chunks and backpressure, and reports a failure instead of silently replaying a completed video.
+`LiveSessionController`, `CommentEngine`, `LiveBrainProvider`, `ProductBrain`, `ActionQueue`, `LivePipeline`, `LiveEventLog`, `Watchdog` และ Python `VoiceProvider` จาก non-GPU foundation คงอยู่ ใช้สินค้า/บัญชีเดิม ไม่สร้างฐานสินค้าใหม่
 
-`workers/ai-live/voice.py` defines a chunk-streaming `VoiceProvider`, interrupt/cancel operations, and a bounded speech queue. `UnconfiguredVoiceProvider` reports `VOICE_PROVIDER_REQUIRED`; it does not call a paid or local TTS engine. The Python watchdog is decision-only and caps recovery claims. The existing worker handles owner-scoped references and ephemeral presenter preview through the authenticated Next.js proxy. The browser never receives the worker token. A full worker endpoint and local-operation description is in [`workers/ai-live/README.md`](../workers/ai-live/README.md).
+Internal test path:
 
-The existing worker's health check is fail-closed: no CUDA or real incremental backend means no presenter start. The app does not fabricate progress, lip sync, FPS, or a customer live stream from mock frames.
+```text
+normalized comment → CommentEngine → LiveBrain → ProductBrain
+  → ActionQueue → VoiceProvider → PresenterProvider
+  → Event / Watchdog / session state
+```
 
-## Remaining integration and acceptance
+30-minute virtual-clock tests ตรวจ queue/event bounds, cancellation และ duplicate actions เป็น mock simulation เท่านั้น ไม่ใช่ 30-minute GPU benchmark หรือ TikTok LIVE broadcast
 
-1. Provide an NVIDIA/CUDA host and install the actual MuseTalk source, model weights, and an incremental audio-to-frame adapter. Validate real frames and measured latency/FPS over sustained use. Validate FFmpeg/NVENC on that host. Optional LivePortrait movement can be evaluated separately.
-2. Supply a real voice source behind `VoiceProvider` and validate interruption, queue pressure, and audio/frame synchronization. A real LLM brain, if added, must preserve verified-product and seller-rule constraints.
-3. Add a durable owner-scoped snapshot store and integrate the controller with authenticated application routes. Implement controlled recovery without duplicate starts or unbounded retries.
-4. After TikTok grants the required separate LIVE permissions, implement and test comment reading, LIVE connection/transport, product pinning, and Shop actions under their own approvals. Existing Content Posting API approval does not imply TikTok LIVE approval.
-5. Keep customer controls disabled until the real path is connected and observed end to end. Internal mock tests and a selected portrait are not sufficient to mark `LIVE-1` complete.
+## Customer UI
 
-Focused verification: TypeScript domain/controller/pipeline tests and `python -m unittest discover -s workers/ai-live/tests`. The 30-minute virtual-clock simulation feeds one comment per second through the same TypeScript pipeline, checks duplicate rejection and bounded comment/action/event queues, and keeps audio on an internal mock boundary. The Python 30-minute virtual-duration worker test checks bounded frame/audio behavior. Neither is a 30-minute GPU or TikTok LIVE benchmark.
+แสดงบัญชี TikTok, ภาพ Presenter, สินค้า, ตรวจไมโครโฟนเริ่มต้น, สถานะเครื่อง, Start/Stop และตรวจสอบเครื่อง สถานะ local auto-update ทุก 4 วินาทีแบบไม่ซ้อนคำขอ
+
+ภาพที่อัปโหลดเป็น **ภาพอ้างอิง ไม่ใช่ภาพสด** การตรวจไมโครโฟนขอ permission เมื่อผู้ใช้กดเท่านั้นและปิด audio tracks ทันที ไม่บันทึกหรือส่งเสียงออกจาก browser การรับเสียงจริงเข้าตัว Presenter ยังรอ NVIDIA integration Start ถูกปิดด้วย validation gate ทั้ง UI/client/agent แม้ hardware fixture ผ่าน
+
+Customer projection เลือกเฉพาะสถานะ/เหตุผลภาษาไทยที่อนุญาต ไม่แสดง provider/model/ports/IDs/diagnostic payload ระบบ hardware raw diagnostics มีเฉพาะ local trusted developer call และไม่มี HTTP endpoint
+
+## งานที่เหลือในขอบเขตถัดไป
+
+1. NVIDIA จริง + incremental MuseTalk implementation ตาม [GPU validation checklist](AI_LIVE_GPU_VALIDATION.md)
+2. Audio capture/encoder implementation และวัด synchronization, FPS/latency/VRAM/long-session stability
+3. สร้าง signed Windows installer พร้อม managed runtime/dependencies, signed artifact hosting และติดตั้ง public key/device registration จริงตาม [Local Agent](AI_LIVE_LOCAL_AGENT.md)
+4. เชื่อม trusted membership/device provisioning กับระบบสมาชิกเมื่อกำหนดนโยบาย device limit แล้ว; foundation นี้รับ interface เท่านั้น ไม่สร้างแพ็กเกจหรือ migration
+5. LIVE transport/comments/RTMP/product pinning ต้องเป็นงานที่ได้รับอนุมัติแยกต่างหาก Content Posting scopes ไม่ได้ให้สิทธิ์ TikTok LIVE
+
+ไม่มีการแตะ TikTok Production ที่ In Review, OAuth/scopes, Production env, AUTO, Product Radar, Creative Brain, Posting, Analytics หรือ Learning และไม่มี merge/deploy Production

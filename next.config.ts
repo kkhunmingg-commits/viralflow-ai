@@ -31,6 +31,16 @@ const nextConfig: NextConfig = {
         { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
         { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
       ],
+    }, {
+      // Only AI LIVE may contact its fixed loopback companion or request audio.
+      source: "/ai-live",
+      headers: [
+        { key: "Content-Security-Policy", value: contentSecurityPolicy.replace(
+          "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+          "connect-src 'self' https://*.supabase.co wss://*.supabase.co http://127.0.0.1:8766",
+        ) },
+        { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(), payment=()" },
+      ],
     }];
   },
   // TypeScript is a separate required quality gate (`pnpm typecheck`). This
