@@ -106,7 +106,10 @@ export default async function AutoPage({ searchParams }: {
   const accountId = selectedAccount?.id;
   const current = detail?.states.find((item) => item.tiktok_account_id === accountId) ?? null;
   const status = describeOperatorRun(run, current ?? undefined);
-  const customerStatus = !selectedAccount ? "รอการเชื่อมบัญชี" : status.state === "IDLE" ? "พร้อมทำงาน"
+  const needsReconnect = selectedAccount?.connection_status === "DISCONNECTED"
+    || ["revoked", "disconnected"].includes(selectedAccount?.authorization_status ?? "");
+  const customerStatus = !selectedAccount ? "รอการเชื่อมบัญชี" : status.state === "IDLE"
+    ? needsReconnect ? "รอการเชื่อมบัญชี" : "พร้อมทำงาน"
     : status.state === "RUNNING" || status.state === "STARTING" ? "กำลังทำงาน"
       : status.state === "COMPLETED" ? "เสร็จแล้ว" : ["BLOCKED", "FAILED"].includes(status.state) ? "ต้องการการดำเนินการ" : status.title;
   const provider = falAutoModeAvailability({
