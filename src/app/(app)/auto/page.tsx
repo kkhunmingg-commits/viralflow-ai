@@ -92,9 +92,12 @@ export default async function AutoPage({ searchParams }: {
   const today = assignmentDate(new Date().toISOString());
   const dayStart = new Date(`${today}T00:00:00+07:00`).toISOString();
   const dayEnd = new Date(Date.parse(dayStart) + 86_400_000).toISOString();
-  const [accounts, overview] = await Promise.all([
+  const [ownerAccounts, overview] = await Promise.all([
     getOwnerAccounts(client, owner), getAutoOverview(client, owner),
   ]);
+  const accounts = process.env.NODE_ENV === "production"
+    ? ownerAccounts.filter((account) => !account.is_mock)
+    : ownerAccounts;
   const run = overview.activeRun ?? overview.runs.find((item) => item.run_date === today) ?? null;
   const detail = run ? await getAutoRun(client, owner, run.id) : null;
   const activeAccountId = overview.activeRun ? detail?.states[0]?.tiktok_account_id : null;
