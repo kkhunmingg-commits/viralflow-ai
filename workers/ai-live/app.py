@@ -78,6 +78,8 @@ def create_app(token: str | None = None, data_dir: Path | None = None) -> FastAP
         reference_id = str(body.reference_id)
         store.get_reference(owner, reference_id)
         capability = inspect_capabilities()
+        if capability.get("presenter_status") == "GPU_REQUIRED":
+            raise LiveError(503, "GPU_REQUIRED", "NVIDIA CUDA runtime is unavailable")
         if not capability["ready"]:
             raise LiveError(503, "PRESENTER_UNAVAILABLE", "; ".join(capability["blockers"]))
         try:

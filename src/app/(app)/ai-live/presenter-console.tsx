@@ -9,12 +9,6 @@ type Choice = { id: string; label: string };
 type ProductChoice = { id: string; title: string };
 type Health = {
   ready: boolean;
-  blockers?: string[];
-  python?: { version?: string };
-  gpu?: { nvidia_name?: string | null; cuda_available?: boolean; cuda_device?: string | null };
-  ffmpeg?: { available?: boolean; nvenc_usable?: boolean };
-  musetalk?: { models_available?: boolean; streaming_backend_available?: boolean };
-  liveportrait?: { optional_candidate_available?: boolean };
 };
 type Metrics = { status: string; fps: number; latency_ms: number | null; queue_depth: number; frames_generated: number };
 
@@ -41,7 +35,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
     try {
       const response = await fetch("/api/ai-live/health", { cache: "no-store" });
       setHealth(await response.json() as Health);
-    } catch { setHealth({ ready: false, blockers: ["HEALTH_CHECK_UNREACHABLE"] }); }
+    } catch { setHealth({ ready: false }); }
   }, []);
 
   useEffect(() => {
@@ -49,7 +43,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
     void fetch("/api/ai-live/health", { cache: "no-store" })
       .then((response) => response.json())
       .then((result: Health) => { if (mounted) setHealth(result); })
-      .catch(() => { if (mounted) setHealth({ ready: false, blockers: ["HEALTH_CHECK_UNREACHABLE"] }); });
+      .catch(() => { if (mounted) setHealth({ ready: false }); });
     return () => {
       mounted = false;
       if (referenceUrlRef.current) URL.revokeObjectURL(referenceUrlRef.current);
@@ -215,54 +209,65 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
     } finally { setBusy(false); }
   }
 
+  const currentProduct = products.find((product) => product.id === selectedProduct)?.title;
+  const status = health === null ? "กำลังตรวจความพร้อม" : sessionId ? "กำลังแสดงภาพตัวอย่าง" : "AI LIVE กำลังเตรียมพร้อม";
+
   return <div className="ai-live-page">
     <header className="ai-live-hero">
-      <div><p className="eyebrow">VIRALFLOW AI</p><h1>AI LIVE</h1><p>เลือกพรีเซนเตอร์และดูภาพตัวอย่างสด</p></div>
-      <span className={`ai-live-state ${health?.ready ? "ready" : "blocked"}`}>{health === null ? "กำลังตรวจ" : health.ready ? "พร้อมแสดงตัวอย่าง" : "AI LIVE กำลังเตรียมพร้อม"}</span>
+      <div><p className="eyebrow">VIRALFLOW / AI LIVE</p><h1>AI LIVE</h1><p>เตรียมพรีเซนเตอร์ บัญชี และสินค้าสำหรับการไลฟ์ขายสินค้า</p></div>
+      <span className={`ai-live-state ${sessionId ? "ready" : "blocked"}`} role="status">{status}</span>
     </header>
 
     <div className="ai-live-grid">
-      <section className="ai-live-panel ai-live-setup" aria-label="ตั้งค่าพรีเซนเตอร์">
-        <div className="ai-live-panel-title"><div><h2>พรีเซนเตอร์</h2></div></div>
-        <label className="ai-live-field">ภาพพรีเซนเตอร์
-          <input type="file" accept="image/jpeg,image/png" disabled={busy || !!sessionId} onChange={(event) => chooseReference(event.target.files?.[0] ?? null)} />
-          <small>ภาพ JPEG/PNG ที่คุณมีสิทธิใช้งาน ไม่เกิน 4 MB</small>
+      <section className="ai-live-panel ai-live-setup" aria-label="เตรียม AI LIVE">
+        <div className="ai-live-panel-title"><h2>เตรียมไลฟ์</h2></div>
+        <label className="ai-live-field">บัญชี TikTok
+          <select value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}>
+            <option value="">เลือกบัญชี</option>
+            {accounts.map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}
+          </select>
         </label>
-        <div className="ai-live-context-grid">
-          <label className="ai-live-field">บัญชี TikTok ใน ViralFlow
-            <select value={selectedAccount} onChange={(event) => setSelectedAccount(event.target.value)}>
-              <option value="">ยังไม่เลือกบัญชี</option>
-              {accounts.map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}
-            </select>
-          </label>
-          <label className="ai-live-field">สินค้าใน ViralFlow
-            <select value={selectedProduct} onChange={(event) => setSelectedProduct(event.target.value)}>
-              <option value="">ยังไม่เลือกสินค้า</option>
-              {products.map((product) => <option key={product.id} value={product.id}>{product.title}</option>)}
-            </select>
-          </label>
+        <label className="ai-live-field">พรีเซนเตอร์
+          <input type="file" accept="image/jpeg,image/png" disabled={busy || !!sessionId} onChange={(event) => chooseReference(event.target.files?.[0] ?? null)} />
+          <small>เลือกภาพที่คุณมีสิทธิใช้งาน ขนาดไม่เกิน 4 MB</small>
+        </label>
+        <label className="ai-live-field">สินค้า
+          <select value={selectedProduct} onChange={(event) => setSelectedProduct(event.target.value)}>
+            <option value="">เลือกสินค้า</option>
+            {products.map((product) => <option key={product.id} value={product.id}>{product.title}</option>)}
+          </select>
+        </label>
+
+        <div className="ai-live-live-actions">
+          <button className="primary-action" type="button" disabled aria-disabled="true">เริ่มไลฟ์</button>
+          <button className="danger-action" type="button" disabled aria-disabled="true">หยุดไลฟ์</button>
         </div>
-        <p className="ai-live-context-note">ขณะนี้ดูภาพตัวอย่างได้เท่านั้น ยังไม่ส่งภาพหรือเสียงไป TikTok LIVE</p>
-        <div className="ai-live-actions">
-          <button className="primary-action" type="button" disabled={!reference || !health?.ready || busy || !!sessionId} onClick={() => void startPresenter()}>{busy && !sessionId ? "กำลังเริ่ม..." : "เริ่มตัวอย่างสด"}</button>
-          <button className="danger-action" type="button" disabled={!sessionId || busy} onClick={() => void stopPresenter()}>หยุดตัวอย่าง</button>
-        </div>
+        <p className="ai-live-context-note">ยังไม่สามารถถ่ายทอดสดได้ ระบบกำลังเตรียมความพร้อม</p>
         {error && <p className="ai-live-error" role="alert">{error}</p>}
-        {!health?.ready && <p className="ai-live-warning" role="status">AI LIVE กำลังเตรียมพร้อม กรุณากลับมาอีกครั้ง</p>}
       </section>
 
-      <section className="ai-live-panel ai-live-preview" aria-label="Live presenter preview">
-        <div className="ai-live-panel-title"><div><h2>ภาพตัวอย่าง</h2></div><span className="phase-chip">{sessionId ? "กำลังแสดง" : "ยังไม่เริ่ม"}</span></div>
+      <section className="ai-live-panel ai-live-preview" aria-label="ภาพพรีเซนเตอร์">
+        <div className="ai-live-panel-title"><h2>ภาพพรีเซนเตอร์</h2><span className="ai-live-preview-state">{sessionId ? "ตัวอย่างกำลังทำงาน" : "ยังไม่มีภาพสด"}</span></div>
         <div className="ai-live-stage">
           {sessionId && !previewError ? <img src={`/api/ai-live/sessions/${sessionId}/preview?stream=${previewEpoch}`} alt="ภาพพรีเซนเตอร์แบบสด" onError={() => setPreviewError(true)} />
-            : referencePreview ? <img src={referencePreview} alt="ภาพอ้างอิงที่เลือก ยังไม่ใช่ภาพ live" />
-              : <div className="ai-live-stage-empty"><span>LIVE</span><strong>ยังไม่มีภาพตัวอย่าง</strong><p>เลือกภาพพรีเซนเตอร์เพื่อเริ่ม</p></div>}
+            : referencePreview ? <img src={referencePreview} alt="ภาพพรีเซนเตอร์ที่เลือก ยังไม่ใช่ภาพสด" />
+              : <div className="ai-live-stage-empty"><span>✦</span><strong>เลือกภาพพรีเซนเตอร์</strong><p>ภาพที่เลือกจะแสดงตรงนี้</p></div>}
           {referencePreview && !sessionId && <span className="ai-live-stage-tag">ภาพที่เลือก · ยังไม่ใช่ภาพสด</span>}
-          {previewError && <span className="ai-live-stage-tag error">ภาพสดขัดข้อง</span>}
+          {previewError && <span className="ai-live-stage-tag error">ภาพตัวอย่างขัดข้อง</span>}
         </div>
-        <p className="ai-live-context-note" role="status">{sessionId && metrics?.status === "RUNNING" ? "ภาพตัวอย่างกำลังทำงาน" : "ยังไม่มีการแสดงสด"}</p>
+        {health?.ready && <div className="ai-live-preview-actions">
+          <button type="button" disabled={!reference || busy || !!sessionId} onClick={() => void startPresenter()}>{busy && !sessionId ? "กำลังเริ่ม..." : "ดูภาพตัวอย่างสด"}</button>
+          {sessionId && <button type="button" disabled={busy} onClick={() => void stopPresenter()}>หยุดภาพตัวอย่าง</button>}
+        </div>}
+        {sessionId && <p className="ai-live-context-note" role="status">{metrics?.status === "RUNNING" ? "ภาพตัวอย่างกำลังทำงาน ไม่มีการส่งไป TikTok" : "กำลังเริ่มภาพตัวอย่าง ไม่มีการส่งไป TikTok"}</p>}
       </section>
     </div>
 
+    <section className="ai-live-summary" aria-label="สถานะไลฟ์">
+      <div><span>สถานะตอนนี้</span><strong>{status}</strong></div>
+      <div><span>สินค้าที่เลือก</span><strong>{currentProduct ?? "ยังไม่ได้เลือกสินค้า"}</strong></div>
+      <div><span>ความคิดเห็นล่าสุด</span><strong>ยังไม่เริ่มไลฟ์</strong></div>
+      <div><span>การตอบกลับ</span><strong>ยังไม่เริ่มไลฟ์</strong></div>
+    </section>
   </div>;
 }

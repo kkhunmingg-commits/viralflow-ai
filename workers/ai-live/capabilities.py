@@ -110,6 +110,11 @@ def inspect_capabilities() -> dict[str, Any]:
 
     return {
         "ready": not blockers,
+        "presenter_status": (
+            "GPU_REQUIRED" if not cuda_available
+            else "PRESENTER_BACKEND_REQUIRED" if blockers
+            else "READY"
+        ),
         "blockers": blockers,
         "encoder_ready": not encoder_blockers,
         "encoder_blockers": encoder_blockers,
