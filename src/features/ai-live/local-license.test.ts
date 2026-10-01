@@ -11,6 +11,7 @@ import {
   parseLocalLeaseSigningKey,
   signLocalLease,
   verifyLocalLease,
+  readLocalEntitlement,
   type LocalLeasePayload,
 } from "./local-license";
 
@@ -31,18 +32,21 @@ function metadata(overrides: Record<string, unknown> = {}) {
 }
 
 describe("local AI LIVE lease", () => {
-  it("requires a current entitlement and registered device within the configured limit", () => {
-    expect(allowedLeaseExpiry(metadata(), deviceId, now)).toBe(now + LOCAL_LEASE_SECONDS);
-    expect(allowedLeaseExpiry(metadata({ expiresAt: new Date((now + 20) * 1000).toISOString() }), deviceId, now)).toBe(now + 20);
-    expect(allowedLeaseExpiry({}, deviceId, now)).toBeNull();
-    expect(allowedLeaseExpiry(metadata({ enabled: false }), deviceId, now)).toBeNull();
-    expect(allowedLeaseExpiry(metadata({ expiresAt: new Date(now * 1000).toISOString() }), deviceId, now)).toBeNull();
-    expect(allowedLeaseExpiry(metadata(), ownerId, now)).toBeNull();
-    expect(allowedLeaseExpiry(metadata({ registeredDeviceIds: [deviceId, ownerId] }), deviceId, now)).toBeNull();
+  it("requires fresh server entitlement; legacy metadata cannot authorize devices", () => {
+    expect(allowedLeaseExpiry(metadata(), now)).toBe(now + LOCAL_LEASE_SECONDS);
+    expect(allowedLeaseExpiry(metadata({ expiresAt: new Date((now + 20) * 1000).toISOString() }), now)).toBe(now + 20);
+    expect(allowedLeaseExpiry({}, now)).toBeNull();
+    expect(allowedLeaseExpiry(metadata({ enabled: false }), now)).toBeNull();
+    expect(allowedLeaseExpiry(metadata({ expiresAt: new Date(now * 1000).toISOString() }), now)).toBeNull();
+    expect(readLocalEntitlement(metadata(), now)).not.toHaveProperty("registeredDeviceIds");
+    expect(allowedLeaseExpiry(metadata({ deviceLimit: 0 }), now)).toBeNull();
   });
 
   it("requires a fresh local challenge and bounded unique selection", () => {
-    const request = { deviceId, challenge: randomBytes(32).toString("base64url"), accountId, productIds: [productId] };
+    const challenge = randomBytes(32).toString("base64url");
+    const request = { deviceId, challenge, accountId, productIds: [productId], deviceProof: { payload: {
+      v: 1, purpose: "AI_LIVE_LEASE_REQUEST", deviceId, challenge, issuedAt: now, expiresAt: now + 120, versions: LOCAL_LEASE_VERSIONS,
+    }, signature: "a".repeat(86) } };
     expect(localGrantRequestSchema.safeParse(request).success).toBe(true);
     expect(localGrantRequestSchema.safeParse({ ...request, challenge: "short" }).success).toBe(false);
     expect(localGrantRequestSchema.safeParse({ ...request, productIds: [productId, productId] }).success).toBe(false);
@@ -62,7 +66,7 @@ describe("local AI LIVE lease", () => {
     };
     const bytes = canonicalLeaseBytes(payload).toString("utf8");
     expect(bytes).toMatch(/^\{"accountId":/);
-    expect(bytes).toContain('"versions":{"agent":"0.1.0","model":"musetalk-unvalidated","web":"0.1.0","worker":"0.1.0"}');
+    expect(bytes).toContain(canonicalLeaseBytes(LOCAL_LEASE_VERSIONS).toString("utf8"));
     expect(bytes).not.toContain(": ");
     const lease = signLocalLease(payload, privateKey);
     expect(verifyLocalLease(lease.payload, lease.signature, publicKey, now + 1)).toBe(true);

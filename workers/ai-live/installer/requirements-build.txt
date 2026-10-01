@@ -1,0 +1,11 @@
+# Build tooling only; all runtime dependencies are bundled into the installer.
+pyinstaller==6.22.3
+cryptography==50.0.2
+altgraph==0.17.5
+cffi==2.1.1
+packaging==26.3
+pefile==2024.8.26
+pycparser==3.0
+pyinstaller-hooks-contrib==2026.8
+pywin32-ctypes==0.2.3
+typing_extensions==4.16.0

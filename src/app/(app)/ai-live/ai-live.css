@@ -50,6 +50,12 @@
 .ai-live-summary > div { display: grid; align-content: start; gap: 9px; min-width: 0; padding: 0 17px; border-right: 1px solid #394256; }
 .ai-live-summary > div:last-child { border: 0; }
 .ai-live-summary span { color: #a7b7cc; font-size: 12px; }
+.ai-live-delivery-status { display: grid; gap: 0; margin: 18px 0; font-size: 12px; }
+.ai-live-delivery-status > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; padding: 10px 0; border-bottom: 1px solid rgba(128, 146, 176, .18); }
+.ai-live-delivery-status dt { color: #a7b7cc; }
+.ai-live-delivery-status dd { margin: 0; max-width: 100%; color: #e8e5ff; overflow-wrap: anywhere; }
+.ai-live-authorization-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 16px 0; }
+.ai-live-authorization-actions a { color: #bcb2ff; font-size: 12px; }
 .ai-live-summary strong { overflow-wrap: anywhere; color: #f0f4fb; font-size: 14px; line-height: 1.5; }
 @media (max-width: 920px) { .ai-live-grid { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .ai-live-hero { flex-direction: column; padding: 23px; } .ai-live-state { align-self: flex-start; } .ai-live-panel { padding: 20px; } .ai-live-microphone-row { flex-direction: column; } .ai-live-summary { grid-template-columns: 1fr; padding: 8px 4px; } .ai-live-summary > div { padding: 12px 14px; border-right: 0; border-bottom: 1px solid #394256; } .ai-live-summary > div:last-child { border: 0; } }

@@ -22,6 +22,7 @@ from local_agent.hardware import (  # noqa: E402
     HardwareSnapshot, HardwareTiers, assess_hardware, inspect_hardware,
 )
 from local_agent.security import Pairing, SecurityError, canonical_json, verify_ed25519  # noqa: E402
+from test_device_identity_fixture import registered_identity_fixture  # noqa: E402
 
 OWNER_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 OWNER_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
@@ -95,12 +96,15 @@ class AgentFixture(unittest.TestCase):
 
     def make_agent(self, *, supported: bool = True, validated: bool = True,
                    worker: object | None = None) -> LocalAgent:
+        self.identity = registered_identity_fixture(
+            Path(self.temp.name) / ("identity-" + str(uuid.uuid4())), DEVICE)
         agent = LocalAgent(
             self.config, worker=worker if worker is not None else self.worker,
             hardware_probe=supported_hardware if supported else missing_gpu_hardware,
             grant_signature_verifier=test_signature,
             now=lambda: self.clock[0],
             test_only_realtime_validated=validated,
+            device_identity=self.identity,
         )
         self.addCleanup(agent.close)
         return agent
@@ -108,6 +112,11 @@ class AgentFixture(unittest.TestCase):
     def pair_and_reference(self, agent: LocalAgent) -> tuple[str, str, str]:
         paired = agent.pair("one-time-code-123", ORIGIN)
         token = str(paired["token"])
+        agent.install_certificate(token, ORIGIN, signed({
+            "v": 1, "purpose": "AI_LIVE_DEVICE_CERTIFICATE", "ownerId": OWNER_A,
+            "deviceId": DEVICE, "publicKeyFingerprint": self.identity.fingerprint,
+            "issuedAt": 1000, "expiresAt": 86400, "versions": VERSIONS.copy(),
+        }))
         challenge = str(agent.challenge(token, ORIGIN)["challenge"])
         presenter = agent.upload_reference(token, ORIGIN, REFERENCE_JPEG,
                                            "image/jpeg")["presenterId"]

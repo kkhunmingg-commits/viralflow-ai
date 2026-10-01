@@ -6,9 +6,9 @@ AI LIVE อยู่ใน ViralFlow AI เดิม ใช้ผู้ใช้
 
 | สถานะ | ส่วนที่มีอยู่จริง | ขอบเขต |
 | --- | --- | --- |
-| `READY_WITHOUT_GPU` | Local API/handshake, hardware checker, compatibility gate, signed start authorization, customer UI, bootstrap manifest validation, session/queue/watchdog contracts และ tests | เป็น foundation ที่ทดสอบโดยไม่ใช้ GPU ได้ ไม่ใช่ Presenter จริง |
-| `WAITING_FOR_GPU_VALIDATION` | MuseTalk incremental backend, audio/frame synchronization, local encoder, hardware performance และ signed installer distribution | ยังไม่เชื่อม/วัดบน NVIDIA จริง |
-| `PRODUCTION_READY` | **false** | `AI_LIVE_REALTIME_VALIDATED=false`; ยังไม่มี real LIVE transport หรือ production installer |
+| `READY_WITHOUT_GPU` | Local API/handshake, compatibility gate, Windows installer พร้อม runtime, signed offline update/rollback, persistent device registration/revoke/limit, signed start authorization, customer UI และ bounded domain tests | installer เป็น engineering artifact ยังไม่เซ็น Authenticode; registry ทดสอบแยกจาก Production |
+| `WAITING_FOR_GPU` / `GPU_VALIDATION_REQUIRED` | MuseTalk incremental backend, audio/frame synchronization, local encoder และ hardware performance | ยังไม่เชื่อม/วัดบน NVIDIA จริง |
+| `PRODUCTION_READY` | **false** | `AI_LIVE_REALTIME_VALIDATED=false`; ยังไม่มี real LIVE transport, signed installer distribution หรือ production device enrollment ที่เปิดใช้งานแล้ว |
 
 ## Cloud control / local media
 
@@ -18,7 +18,9 @@ flowchart TD
   Web --> Cloud[Cloud: Login / Membership / Config]
   Cloud --> Existing[บัญชี TikTok และสินค้าเดิม]
   Web -->|รหัสจับคู่ + bearer ชั่วคราว| Agent[Local Live Agent บน Windows]
-  Web -->|challenge / ตรวจสิทธิ์| Grant[Server signed start grant]
+  Web -->|signed challenge / device proof| Registry[Server: สมาชิก / ทะเบียนเครื่อง / จำกัดเครื่อง]
+  Registry -->|signed certificate| Agent
+  Web -->|fresh membership / proof| Grant[Server signed start grant]
   Grant -->|Ed25519 authorization| Agent
   Agent --> Hardware[ตรวจเครื่องและเวอร์ชัน]
   Hardware --> Gate{ผ่าน GPU validation แล้ว?}
@@ -36,7 +38,8 @@ Browser ติดต่อ `http://127.0.0.1:8766` โดยตรง เว็�
 ## ขอบเขตของระบบ
 
 - Cloud ใช้ `auth.getUser()` ตรวจผู้ใช้สด อ่าน `app_metadata.ai_live` ที่ server เป็นผู้กำหนด และตรวจ ownership ของ account/product ก่อนลงลายเซ็น ไม่อ่าน `user_metadata` เป็นสิทธิ์
-- Agent จับคู่ด้วยรหัสใช้ครั้งเดียว bearer origin-bound อายุ 15 นาที อยู่ใน memory ต่ออายุ/หมุน token ก่อนหมดอายุ device UUID และ public verification key เป็นข้อมูลติดตั้ง ไม่เก็บ cloud access token/private signing key
+- Agent จับคู่ด้วยรหัสใช้ครั้งเดียว bearer origin-bound อายุ 15 นาที อยู่ใน memory ต่ออายุ/หมุน token ก่อนหมดอายุ UUID และ Ed25519 identity ต่อ installation เก็บแบบ Windows current-user DPAPI; ไม่มี plaintext private key/cloud token การลงทะเบียนใช้ proof-of-possession ไม่ใช่ hardware attestation
+- ทะเบียนเครื่องจริงอยู่ใน server-only RLS tables; registration ตรวจสมาชิกสด/เจ้าของ/nonce/จำนวนเครื่องแบบ atomic; revoke บล็อก grant ใหม่ทันที และ signed revoke receipt หยุด session ของเครื่องนั้นเมื่อ local agent ได้รับ ไม่อ้างว่า remote revoke หยุดเครื่อง offline ได้ทันที
 - Start grant อายุไม่เกิน 120 วินาที ผูก owner/device/challenge/account/products/component versions และ grant ID ใช้ครั้งเดียว เป็น authorization สำหรับ **เริ่ม session** ไม่ใช่ heartbeat membership ระหว่าง stream สิทธิ์เปลี่ยนต้องตรวจใหม่เมื่อ Start ครั้งถัดไป ยังไม่มี active membership revocation service
 - หนึ่งเครื่องมี active session ได้หนึ่งรายการ Start initialize worker ครั้งเดียว; Pause/Resume/Stop ตรวจ session owner Stop ไม่ติด gate เรื่องสิทธิ์หมดอายุหรือ hardware เมื่อ worker ขัดข้องมี recovery จำกัดหนึ่งครั้ง ถ้า Start grant ไม่สดแล้วต้อง Stop/release และขอ grant ใหม่ ไม่มี auto restart loop
 - ไม่มี snapshot durable ข้ามการ restart ของ process ในรุ่นนี้ session/token เป็น memory shutdown พยายาม Stop และล้าง reference; การ recovery ผ่าน HTTP มีเฉพาะ session ที่ agent ยังถืออยู่ การจัดการ orphan worker หลัง process kill รอ real worker integration
@@ -59,7 +62,7 @@ normalized comment → CommentEngine → LiveBrain → ProductBrain
 
 ## Customer UI
 
-แสดงบัญชี TikTok, ภาพ Presenter, สินค้า, ตรวจไมโครโฟนเริ่มต้น, สถานะเครื่อง, Start/Stop และตรวจสอบเครื่อง สถานะ local auto-update ทุก 4 วินาทีแบบไม่ซ้อนคำขอ
+แสดงบัญชี TikTok, ภาพ Presenter, สินค้า, ตรวจไมโครโฟนเริ่มต้น, ติดตั้งส่วนเสริมแล้วหรือไม่, สถานะเครื่อง/อัปเดต/สิทธิ์เครื่อง, อนุญาตหรือเพิกถอนเครื่อง, Start/Stop และตรวจสอบเครื่อง ดึงสถานะ local และ server authorization ทุก 4 วินาทีแบบไม่ซ้อนคำขอ เป็นการอัปเดตสถานะ ไม่ใช่การดาวน์โหลดซอฟต์แวร์อัตโนมัติ
 
 ภาพที่อัปโหลดเป็น **ภาพอ้างอิง ไม่ใช่ภาพสด** การตรวจไมโครโฟนขอ permission เมื่อผู้ใช้กดเท่านั้นและปิด audio tracks ทันที ไม่บันทึกหรือส่งเสียงออกจาก browser การรับเสียงจริงเข้าตัว Presenter ยังรอ NVIDIA integration Start ถูกปิดด้วย validation gate ทั้ง UI/client/agent แม้ hardware fixture ผ่าน
 
@@ -69,8 +72,8 @@ Customer projection เลือกเฉพาะสถานะ/เหตุ�
 
 1. NVIDIA จริง + incremental MuseTalk implementation ตาม [GPU validation checklist](AI_LIVE_GPU_VALIDATION.md)
 2. Audio capture/encoder implementation และวัด synchronization, FPS/latency/VRAM/long-session stability
-3. สร้าง signed Windows installer พร้อม managed runtime/dependencies, signed artifact hosting และติดตั้ง public key/device registration จริงตาม [Local Agent](AI_LIVE_LOCAL_AGENT.md)
-4. เชื่อม trusted membership/device provisioning กับระบบสมาชิกเมื่อกำหนดนโยบาย device limit แล้ว; foundation นี้รับ interface เท่านั้น ไม่สร้างแพ็กเกจหรือ migration
+3. เซ็น Authenticode และเผยแพร่ installer/update artifacts ผ่านช่องทางที่เชื่อถือได้; เพิ่ม trusted public verification key ใน release build ตาม [Local Agent](AI_LIVE_LOCAL_AGENT.md)
+4. เมื่อได้รับอนุญาตให้เปิดใช้ server: apply `20261001091106_ai_live_device_registration.sql` ซึ่งยังไม่ apply remote, configure server-only signer และ provision `app_metadata.ai_live` ด้วย trusted membership system ทะเบียนเครื่อง/limit มี implementation จริงแล้ว แต่ไม่สร้างแพ็กเกจขายหรือ billing flow ใหม่
 5. LIVE transport/comments/RTMP/product pinning ต้องเป็นงานที่ได้รับอนุมัติแยกต่างหาก Content Posting scopes ไม่ได้ให้สิทธิ์ TikTok LIVE
 
 ไม่มีการแตะ TikTok Production ที่ In Review, OAuth/scopes, Production env, AUTO, Product Radar, Creative Brain, Posting, Analytics หรือ Learning และไม่มี merge/deploy Production

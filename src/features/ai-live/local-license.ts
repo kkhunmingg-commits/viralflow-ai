@@ -13,6 +13,7 @@ const versionsSchema = z.strictObject({
   worker: z.literal(LOCAL_LEASE_VERSIONS.worker),
   model: z.literal(LOCAL_LEASE_VERSIONS.model),
 });
+export { versionsSchema as localVersionsSchema };
 
 export const localGrantRequestSchema = z.strictObject({
   deviceId: z.uuid(),
@@ -20,19 +21,24 @@ export const localGrantRequestSchema = z.strictObject({
   accountId: z.uuid(),
   productIds: z.array(z.uuid()).min(1).max(10),
   versions: versionsSchema.optional(),
+  deviceProof: z.strictObject({
+    payload: z.strictObject({
+      v: z.literal(1), purpose: z.literal("AI_LIVE_LEASE_REQUEST"), deviceId: z.uuid(),
+      challenge: z.base64url().length(43), issuedAt: z.number().int(), expiresAt: z.number().int(), versions: versionsSchema,
+    }),
+    signature: z.base64url().length(86),
+  }),
 }).refine((value) => new Set(value.productIds).size === value.productIds.length, {
   path: ["productIds"],
 });
 
 export type LocalGrantRequest = z.infer<typeof localGrantRequestSchema>;
 
-// This is an interface for trusted server provisioning, not a browser registration API.
-// Missing metadata or an unregistered device always denies a grant.
-const entitlementSchema = z.strictObject({
+// Membership is trusted Auth app_metadata; device authorization lives in the registry.
+const entitlementSchema = z.object({
   enabled: z.literal(true),
   expiresAt: z.iso.datetime({ offset: true }),
-  deviceLimit: z.number().int().positive(),
-  registeredDeviceIds: z.array(z.uuid()).max(1000),
+  deviceLimit: z.number().int().positive().max(1000),
 });
 
 export type LocalLicenseEntitlement = z.infer<typeof entitlementSchema>;
@@ -65,17 +71,19 @@ const leasePayloadSchema = z.strictObject({
   versions: versionsSchema,
 }).refine((value) => new Set(value.productIds).size === value.productIds.length);
 
-export function allowedLeaseExpiry(appMetadata: unknown, deviceId: string, nowSeconds: number): number | null {
+export function readLocalEntitlement(appMetadata: unknown, nowSeconds: number): LocalLicenseEntitlement | null {
   const metadata = z.object({ ai_live: entitlementSchema }).safeParse(appMetadata);
   if (!metadata.success) return null;
   const entitlement = metadata.data.ai_live;
-  const registered = entitlement.registeredDeviceIds;
-  if (registered.length > entitlement.deviceLimit || new Set(registered).size !== registered.length || !registered.includes(deviceId)) {
-    return null;
-  }
   const entitlementExpiry = Math.floor(Date.parse(entitlement.expiresAt) / 1000);
   if (!Number.isSafeInteger(entitlementExpiry) || entitlementExpiry <= nowSeconds) return null;
-  return Math.min(nowSeconds + LOCAL_LEASE_SECONDS, entitlementExpiry);
+  return entitlement;
+}
+
+export function allowedLeaseExpiry(appMetadata: unknown, nowSeconds: number): number | null {
+  const entitlement = readLocalEntitlement(appMetadata, nowSeconds);
+  if (!entitlement) return null;
+  return Math.min(nowSeconds + LOCAL_LEASE_SECONDS, Math.floor(Date.parse(entitlement.expiresAt) / 1000));
 }
 
 // Cross-language contract: recursively sort object keys, then compact JSON and UTF-8.

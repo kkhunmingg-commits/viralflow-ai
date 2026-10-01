@@ -9,7 +9,7 @@ import { LocalLiveClient, type LocalMachineView } from "@/features/ai-live/local
 
 type Choice = { id: string; label: string };
 type ProductChoice = { id: string; title: string };
-type Action = "pair" | "check" | "start" | "stop" | null;
+type Action = "pair" | "check" | "register" | "revoke" | "start" | "stop" | null;
 
 function machineLabel(view: LocalMachineView | null): string {
   if (!view) return "กำลังตรวจสอบ";
@@ -31,7 +31,7 @@ function machineLabel(view: LocalMachineView | null): string {
 function machineDescription(view: LocalMachineView | null): string {
   if (!view) return "กำลังตรวจหาส่วนเสริม AI LIVE บนเครื่องนี้";
   switch (view.state) {
-    case "NOT_INSTALLED": return "ยังไม่พบส่วนเสริม AI LIVE บนเครื่องนี้ ขณะนี้ยังไม่มีไฟล์ติดตั้งให้ดาวน์โหลดจากหน้านี้";
+    case "NOT_INSTALLED": return "ยังไม่พบส่วนเสริม AI LIVE บนเครื่องนี้ ติดตั้งส่วนเสริมแล้วเปิดเพื่อเชื่อมกับบัญชีของคุณ";
     case "INSTALLING": return "ส่วนเสริมกำลังติดตั้ง กรุณารอสักครู่";
     case "STARTING": return "ส่วนเสริมเชื่อมต่อแล้ว แต่ AI LIVE ยังอยู่ระหว่างการเตรียมความพร้อม";
     case "READY": return view.canStart ? "พร้อมสำหรับ AI LIVE" : "เชื่อมต่อเครื่องแล้ว แต่ AI LIVE ยังไม่พร้อมเริ่มถ่ายทอดสด";
@@ -177,6 +177,27 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
     finally { if (mountedRef.current) setAction(null); }
   }
 
+  async function registerMachine() {
+    if (action || !machine?.paired) return;
+    setAction("register"); setError(null); setNotice(null);
+    try {
+      const result = await requestMachine((client, signal) => client.registerDevice(signal));
+      if (result?.deviceAuthorized) setNotice("อนุญาตให้บัญชีของคุณใช้ส่วนเสริมบนเครื่องนี้แล้ว");
+      else if (result) setError("ยังยืนยันสิทธิ์ใช้งานเครื่องนี้ไม่ได้ กรุณาลองอีกครั้ง");
+    } catch { if (mountedRef.current) setError("ยังอนุญาตเครื่องนี้ไม่ได้ กรุณาตรวจสอบสิทธิ์การใช้งานหรือลองอีกครั้ง"); }
+    finally { if (mountedRef.current) setAction(null); }
+  }
+
+  async function revokeMachine() {
+    if (action || !machine?.paired || !window.confirm("ยกเลิกสิทธิ์ใช้ AI LIVE ของเครื่องนี้หรือไม่?")) return;
+    setAction("revoke"); setError(null); setNotice(null);
+    try {
+      await requestMachine((client, signal) => client.revokeDevice(signal));
+      setNotice("ยกเลิกสิทธิ์เครื่องนี้แล้ว");
+    } catch { if (mountedRef.current) setError("ยังยืนยันการยกเลิกสิทธิ์ไม่ได้ กรุณาตรวจสอบอีกครั้ง"); }
+    finally { if (mountedRef.current) setAction(null); }
+  }
+
   async function stopLive() {
     if (action || !machine?.sessionActive) return;
     setAction("stop"); setError(null);
@@ -186,7 +207,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
   }
 
   const showPairing = machine && !machine.paired && !["NOT_INSTALLED", "OFFLINE", "INSTALLING", "UPDATE_REQUIRED"].includes(machine.state);
-  const canStart = !!machine?.canStart && !machine.sessionActive && !action && !!selectedAccount && !!selectedProduct && !!presenter && microphoneReady;
+  const canStart = !!machine?.canStart && machine.deviceAuthorized && !machine.sessionActive && !action && !!selectedAccount && !!selectedProduct && !!presenter && microphoneReady;
 
   return <div className="ai-live-page">
     <header className="ai-live-hero">
@@ -233,6 +254,17 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
           <div className="ai-live-panel-title"><h2>สถานะเครื่อง</h2><span className={`ai-live-machine-dot ${machine?.canStart ? "ready" : ""}`} aria-hidden="true" /></div>
           <strong className="ai-live-machine-status" aria-live="polite">{machineLabel(machine)}</strong>
           <p className="ai-live-machine-description">{machineDescription(machine)}</p>
+          {machine && <dl className="ai-live-delivery-status">
+            <div><dt>ส่วนเสริม</dt><dd>{["NOT_INSTALLED", "OFFLINE"].includes(machine.state) ? "ยังไม่พบส่วนเสริม" : "ติดตั้งแล้ว"}</dd></div>
+            <div><dt>การอัปเดต</dt><dd>{machine.updateStatus === "UPDATING" ? "กำลังอัปเดต"
+              : machine.updateStatus === "RESTART_REQUIRED" ? "เปิดส่วนเสริมใหม่เพื่อใช้งาน"
+              : machine.updateStatus === "AVAILABLE" ? "มีรุ่นใหม่ให้ติดตั้ง"
+              : machine.updateStatus === "REQUIRED" ? "ต้องอัปเดตก่อนใช้งาน"
+              : "ยังไม่มีการอัปเดตที่พร้อมติดตั้ง"}</dd></div>
+            <div><dt>สิทธิ์เครื่อง</dt><dd>{machine.deviceAuthorized ? "อนุญาตแล้ว"
+              : machine.deviceStatus === "MEMBERSHIP_REQUIRED" ? "ต้องตรวจสอบสิทธิ์สมาชิก"
+              : machine.deviceStatus === "UNAVAILABLE" ? "ยังยืนยันสิทธิ์ไม่ได้" : "ยังไม่ได้อนุญาต"}</dd></div>
+          </dl>}
           {!!machine?.reasons.length && <ul className="ai-live-machine-reasons">{[...new Set(machine.reasons)].map((reason) => <li key={reason}>{reason}</li>)}</ul>}
           {showPairing && <div className="ai-live-pairing">
             <label className="ai-live-field">รหัสเชื่อมต่อจากส่วนเสริมบนเครื่อง
@@ -241,6 +273,12 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
             <button type="button" className="ai-live-secondary" disabled={!pairCode.trim() || !!action} onClick={() => void pairMachine()}>{action === "pair" ? "กำลังเชื่อมต่อ..." : "เชื่อมต่อเครื่อง"}</button>
             <p className="ai-live-context-note">เปิดส่วนเสริม ViralFlow บนเครื่องนี้เพื่อดูรหัส แล้วเชื่อมต่อก่อนตรวจสอบเครื่อง ไม่ต้องเปิดหน้าคำสั่ง</p>
           </div>}
+          {machine?.paired && <div className="ai-live-authorization-actions">
+            {!machine.deviceAuthorized && <button type="button" className="ai-live-secondary" disabled={!!action || ["REQUIRED", "UPDATING"].includes(machine.updateStatus)} onClick={() => void registerMachine()}>{action === "register" ? "กำลังอนุญาต..." : "อนุญาตเครื่องนี้"}</button>}
+            {machine.deviceRegistered && <button type="button" className="ai-live-secondary" disabled={!!action} onClick={() => void revokeMachine()}>{action === "revoke" ? "กำลังยกเลิก..." : "ยกเลิกสิทธิ์เครื่องนี้"}</button>}
+            {machine.deviceStatus === "MEMBERSHIP_REQUIRED" && <Link href="/profile">ตรวจสอบสมาชิก</Link>}
+          </div>}
+          {machine && ["AVAILABLE", "REQUIRED", "RESTART_REQUIRED"].includes(machine.updateStatus) && <p className="ai-live-context-note">เปิดส่วนเสริมบนเครื่องเพื่ออัปเดต หรือเรียกตัวติดตั้งอีกครั้ง ระบบจะเก็บรุ่นเดิมไว้หากติดตั้งไม่สำเร็จ</p>}
           <div className="ai-live-machine-actions">
             <button type="button" className="ai-live-secondary" disabled={!!action} onClick={() => void checkMachine()}>{action === "check" ? "กำลังตรวจสอบ..." : "ตรวจสอบเครื่อง"}</button>
             <p>หากเบราว์เซอร์ถาม ให้ยอมให้หน้านี้เชื่อมต่อส่วนเสริมบนเครื่อง</p>

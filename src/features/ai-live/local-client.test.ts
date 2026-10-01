@@ -13,6 +13,7 @@ const sessionId = "7774a04a-683c-4c85-9c6c-16457d63a369";
 const token = "t".repeat(48);
 const renewedToken = "r".repeat(48);
 const ready = { state: "READY", versions: LIVE_COMPONENT_VERSIONS, reasons: [], sessionActive: false };
+const unregistered = { device: { authorized: false }, entitled: true };
 
 function responseSequence(...items: (Record<string, unknown> | Error)[]) {
   const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
@@ -64,7 +65,7 @@ describe("AI LIVE customer projection", () => {
       diagnostics: { secret: "private-token", command: "launch.exe --unsafe" },
       reasons: ["driver_internal_error:CUDA", "ไม่พบการ์ดจอที่รองรับ"],
     }, true);
-    expect(Object.keys(view).sort()).toEqual(["canStart", "message", "paired", "reasons", "sessionActive", "state"]);
+    expect(Object.keys(view).sort()).toEqual(["canStart", "deviceAuthorized", "deviceRegistered", "deviceStatus", "message", "paired", "reasons", "sessionActive", "state", "updateStatus"]);
     expect(view.reasons).toContain("ไม่พบการ์ดจอที่รองรับ");
     expect(view.reasons).toContain("ต้องตรวจสอบความพร้อมของเครื่องเพิ่มเติม");
     expect(JSON.stringify(view)).not.toMatch(/Python|CUDA|8766|private-token|launch\.exe|driver_internal_error/);
@@ -84,8 +85,8 @@ describe("browser to local companion boundary", () => {
   it("pairs once, authenticates subsequent loopback requests, and drops expired credentials", async () => {
     let clock = nowSeconds * 1000;
     const { mock, fetcher } = responseSequence(
-      { token, expiresAt: nowSeconds + 120, deviceId }, ready,
-      { ...ready, reasons: ["ไม่พบอุปกรณ์เสียง"] }, ready,
+      { token, expiresAt: nowSeconds + 120, deviceId }, ready, unregistered,
+      { ...ready, reasons: ["ไม่พบอุปกรณ์เสียง"] }, unregistered, ready,
     );
     const client = new LocalLiveClient(fetcher, () => clock);
     expect(await client.pair("ABCDEF")).toMatchObject({ paired: true, state: "READY" });
@@ -93,27 +94,27 @@ describe("browser to local companion boundary", () => {
     expect(JSON.parse((mock.mock.calls[0][1]?.body ?? "") as string)).toEqual({ code: "ABCDEF" });
     assertLoopbackCall(mock.mock.calls[1], "/v1/status", true);
     expect((await client.checkHardware()).reasons).toContain("ไม่พบอุปกรณ์เสียง");
-    assertLoopbackCall(mock.mock.calls[2], "/v1/hardware", true);
+    assertLoopbackCall(mock.mock.calls[3], "/v1/hardware", true);
 
     clock += 121_000;
     expect(await client.discover()).toMatchObject({ paired: false, canStart: false });
-    assertLoopbackCall(mock.mock.calls[3], "/v1/discovery", false);
+    assertLoopbackCall(mock.mock.calls[5], "/v1/discovery", false);
     client.dispose();
   });
 
   it("renews a nearly expired pairing before a protected machine request", async () => {
     let clock = nowSeconds * 1000;
     const { mock, fetcher } = responseSequence(
-      { token, expiresAt: nowSeconds + 90, deviceId }, ready,
-      { token: renewedToken, expiresAt: nowSeconds + 300, deviceId }, ready,
+      { token, expiresAt: nowSeconds + 90, deviceId }, ready, unregistered,
+      { token: renewedToken, expiresAt: nowSeconds + 300, deviceId }, ready, unregistered,
     );
     const client = new LocalLiveClient(fetcher, () => clock);
     await client.pair("ABCDEF");
     clock += 40_000;
     expect((await client.checkHardware()).state).toBe("READY");
-    expect(mock).toHaveBeenCalledTimes(4);
-    assertLoopbackCall(mock.mock.calls[2], "/v1/renew", true);
-    assertLoopbackCall(mock.mock.calls[3], "/v1/hardware", true, renewedToken);
+    expect(mock).toHaveBeenCalledTimes(6);
+    assertLoopbackCall(mock.mock.calls[3], "/v1/renew", true);
+    assertLoopbackCall(mock.mock.calls[4], "/v1/hardware", true, renewedToken);
     client.dispose();
   });
 
@@ -121,14 +122,15 @@ describe("browser to local companion boundary", () => {
     const { mock, fetcher } = responseSequence(
       { token, expiresAt: nowSeconds + 120, deviceId },
       { ...ready, state: "PAUSED", sessionActive: true, sessionId },
+      unregistered,
       ready,
     );
     const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
     expect(await client.pair("ABCDEF")).toMatchObject({ state: "PAUSED", sessionActive: true, canStart: false });
     expect(await client.stop()).toMatchObject({ state: "READY", sessionActive: false });
-    expect(mock).toHaveBeenCalledTimes(3);
-    assertLoopbackCall(mock.mock.calls[2], `/v1/sessions/${sessionId}/stop`, true);
-    expect(mock.mock.calls[2][1]?.method).toBe("POST");
+    expect(mock).toHaveBeenCalledTimes(4);
+    assertLoopbackCall(mock.mock.calls[3], `/v1/sessions/${sessionId}/stop`, true);
+    expect(mock.mock.calls[3][1]?.method).toBe("POST");
     client.dispose();
   });
 
@@ -160,5 +162,91 @@ describe("browser to local companion boundary", () => {
     await discovery;
     expect(client.snapshot().canStart).toBe(false);
     expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("registers through signed cloud challenge, local device proof and cloud registry without persisting secrets", async () => {
+    const challenge = { payload: { deviceId, ownerId: accountId }, signature: "server-signature" };
+    const proof = { payload: challenge.payload, publicKey: "public-key", signature: "device-signature" };
+    const certificate = { payload: { deviceId }, signature: "certificate-signature" };
+    const { mock, fetcher } = responseSequence(
+      { token, expiresAt: nowSeconds + 300, deviceId }, ready, unregistered,
+      challenge, proof, { certificate, device: { authorized: true } }, { authorized: true },
+      { ...ready, deviceAuthorized: true }, { device: { authorized: true }, entitled: true },
+    );
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    expect((await client.pair("ABCDEF")).deviceAuthorized).toBe(false);
+    expect(await client.registerDevice()).toMatchObject({ deviceAuthorized: true, deviceStatus: "AUTHORIZED", canStart: false });
+    expect(mock).toHaveBeenCalledTimes(9);
+    expect(mock.mock.calls[3][0]).toBe("/api/ai-live/devices/challenge");
+    expect(mock.mock.calls[3][1]).toMatchObject({ credentials: "same-origin", cache: "no-store", redirect: "error" });
+    expect((mock.mock.calls[3][1]?.headers as Record<string, string>).Authorization).toBeUndefined();
+    expect(JSON.parse(mock.mock.calls[3][1]?.body as string)).toEqual({ deviceId, versions: LIVE_COMPONENT_VERSIONS });
+    assertLoopbackCall(mock.mock.calls[4], "/v1/device/proof", true);
+    expect(JSON.parse(mock.mock.calls[4][1]?.body as string)).toEqual({ challenge });
+    expect(mock.mock.calls[5][0]).toBe("/api/ai-live/devices/register");
+    expect(JSON.parse(mock.mock.calls[5][1]?.body as string)).toEqual(proof);
+    assertLoopbackCall(mock.mock.calls[6], "/v1/device/certificate", true);
+    expect(JSON.parse(mock.mock.calls[6][1]?.body as string)).toEqual({ certificate });
+    expect(JSON.stringify(client.snapshot())).not.toMatch(/signature|public-key|ownerId|deviceId/);
+    client.dispose();
+  });
+
+  it.each([
+    [{ device: { authorized: false }, entitled: true }, "UNREGISTERED"],
+    [{ device: { authorized: true }, entitled: false }, "MEMBERSHIP_REQUIRED"],
+    [new Error("server unavailable; raw diagnostics"), "UNAVAILABLE"],
+  ])("requires current server authorization and membership even when the local certificate is valid", async (cloud, status) => {
+    const { mock, fetcher } = responseSequence(
+      { token, expiresAt: nowSeconds + 300, deviceId }, { ...ready, deviceAuthorized: true }, cloud,
+    );
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    const view = await client.pair("ABCDEF");
+    expect(view).toMatchObject({ deviceAuthorized: false, deviceStatus: status, canStart: false });
+    expect(mock.mock.calls[2][0]).toBe(`/api/ai-live/devices/${deviceId}`);
+    expect(JSON.stringify(view)).not.toContain("raw diagnostics");
+    client.dispose();
+  });
+
+  it("revokes on the server before updating the local identity and keeps revocation effective if the agent disconnects", async () => {
+    const receipt = { payload: { deviceId }, signature: "signed-revocation" };
+    const { mock, fetcher } = responseSequence(
+      { token, expiresAt: nowSeconds + 300, deviceId }, { ...ready, deviceAuthorized: true },
+      { device: { authorized: true }, entitled: true }, { receipt }, new Error("local disconnected"),
+    );
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    await expect(client.revokeDevice()).rejects.toThrow();
+    expect(mock.mock.calls[3][0]).toBe(`/api/ai-live/devices/${deviceId}`);
+    expect(mock.mock.calls[3][1]?.method).toBe("DELETE");
+    assertLoopbackCall(mock.mock.calls[4], "/v1/device/revoke", true);
+    expect(JSON.parse(mock.mock.calls[4][1]?.body as string)).toEqual({ receipt });
+    expect(client.snapshot()).toMatchObject({ deviceAuthorized: false, deviceStatus: "UNREGISTERED" });
+    client.dispose();
+  });
+
+  it("blocks enrollment for incompatible components before any cloud request", async () => {
+    const { mock, fetcher } = responseSequence(
+      { token, expiresAt: nowSeconds + 300, deviceId }, { ...ready, versions: { ...LIVE_COMPONENT_VERSIONS, worker: "0.1.0" } },
+    );
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    expect(await client.pair("ABCDEF")).toMatchObject({ state: "UPDATE_REQUIRED", updateStatus: "REQUIRED" });
+    await expect(client.registerDevice()).rejects.toThrow();
+    expect(mock).toHaveBeenCalledTimes(2);
+    client.dispose();
+  });
+
+  it("keeps a registered device revocable after fresh pairing even when its membership has expired", async () => {
+    const receipt = { payload: { deviceId }, signature: "signed-revocation" };
+    const { mock, fetcher } = responseSequence(
+      { token, expiresAt: nowSeconds + 300, deviceId }, ready,
+      { device: { authorized: true }, entitled: false }, { receipt }, { deviceAuthorized: false },
+      ready, { device: { authorized: false }, entitled: false },
+    );
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    expect(await client.pair("ABCDEF")).toMatchObject({ deviceRegistered: true, deviceAuthorized: false, deviceStatus: "MEMBERSHIP_REQUIRED", canStart: false });
+    expect(await client.revokeDevice()).toMatchObject({ deviceRegistered: false, deviceAuthorized: false });
+    expect(mock.mock.calls[3][1]?.method).toBe("DELETE");
+    assertLoopbackCall(mock.mock.calls[4], "/v1/device/revoke", true);
+    client.dispose();
   });
 });

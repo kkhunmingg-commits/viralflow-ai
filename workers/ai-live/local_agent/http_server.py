@@ -195,6 +195,21 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json(200, agent.status(token, origin), origin)
             elif method == "GET" and self.path == "/v1/hardware":
                 self._send_json(200, agent.hardware(token, origin), origin)
+            elif method == "POST" and self.path == "/v1/device/proof":
+                request = self._json_body()
+                if set(request) != {"challenge"}:
+                    raise AgentError(400, "INVALID_DEVICE_REQUEST", "ข้อมูลไม่ถูกต้อง")
+                self._send_json(200, agent.device_proof(token, origin, request["challenge"]), origin)
+            elif method == "POST" and self.path == "/v1/device/certificate":
+                request = self._json_body()
+                if set(request) != {"certificate"}:
+                    raise AgentError(400, "INVALID_DEVICE_REQUEST", "ข้อมูลไม่ถูกต้อง")
+                self._send_json(200, agent.install_certificate(token, origin, request["certificate"]), origin)
+            elif method == "POST" and self.path == "/v1/device/revoke":
+                request = self._json_body()
+                if set(request) != {"receipt"}:
+                    raise AgentError(400, "INVALID_DEVICE_REQUEST", "ข้อมูลไม่ถูกต้อง")
+                self._send_json(200, agent.revoke_device(token, origin, request["receipt"]), origin)
             elif method == "POST" and self.path == "/v1/references":
                 media_type = self.headers.get("Content-Type", "").split(";")[0].strip().lower()
                 body = self._read_body(MAX_REFERENCE_BYTES)

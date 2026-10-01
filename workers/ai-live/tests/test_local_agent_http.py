@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from local_agent.agent import AgentConfig, LocalAgent, VERSIONS  # noqa: E402
 from local_agent.http_server import AgentHTTPServer, MAX_CONCURRENT_CLIENTS  # noqa: E402
+from test_device_identity_fixture import registered_identity_fixture  # noqa: E402
 from test_local_agent import (  # noqa: E402
     ACCOUNT, DEVICE, ORIGIN, OWNER_A, PRODUCT, REFERENCE_JPEG, TEST_KEY,
     RecordingWorker, signed, supported_hardware, test_signature,
@@ -27,10 +28,11 @@ class LoopbackHTTPTests(unittest.TestCase):
         self.worker = RecordingWorker()
         config = AgentConfig(DEVICE, "one-time-code-123", TEST_KEY,
                              Path(self.temp.name) / "references")
+        self.identity = registered_identity_fixture(Path(self.temp.name) / "identity", DEVICE)
         self.agent = LocalAgent(config, worker=self.worker,
                                 hardware_probe=supported_hardware,
                                 grant_signature_verifier=test_signature,
-                                now=lambda: self.clock[0])
+                                now=lambda: self.clock[0], device_identity=self.identity)
         self.server = AgentHTTPServer(self.agent, port=0)
         self.port = self.server.server_port
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
@@ -72,6 +74,16 @@ class LoopbackHTTPTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(body["deviceId"], DEVICE)
         self.assertGreater(body["expiresAt"], self.clock[0])
+        certificate = signed({"v": 1, "purpose": "AI_LIVE_DEVICE_CERTIFICATE",
+                              "ownerId": OWNER_A, "deviceId": DEVICE,
+                              "publicKeyFingerprint": self.identity.fingerprint,
+                              "issuedAt": 1000, "expiresAt": 86400, "versions": VERSIONS.copy()})
+        installed, _, view = self.request("POST", "/v1/device/certificate",
+                                          self.json_body({"certificate": certificate}),
+                                          token=str(body["token"]),
+                                          headers={"Content-Type": "application/json"})
+        self.assertEqual(installed, 200)
+        self.assertTrue(view["deviceAuthorized"])
         return str(body["token"])
 
     def test_agent_absent_and_server_is_loopback_only(self) -> None:

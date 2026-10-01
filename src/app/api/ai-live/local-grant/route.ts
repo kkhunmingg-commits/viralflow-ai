@@ -3,6 +3,7 @@ import { issueLocalLease } from "@/features/ai-live/local-license-server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { readJsonBodyWithLimit, RequestSecurityError } from "@/lib/security/request";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -26,7 +27,7 @@ export async function POST(request: Request) {
 
     await enforceOwnerMutationRateLimit("ai-live-local-grant", data.user.id);
 
-    const raw = await readJsonBodyWithLimit(request, 2048);
+    const raw = await readJsonBodyWithLimit(request, 4096);
     let body: unknown;
     try {
       body = JSON.parse(raw);
@@ -41,6 +42,7 @@ export async function POST(request: Request) {
 
     const grant = await issueLocalLease({
       client,
+      registry: createAdminClient(),
       ownerId: data.user.id,
       appMetadata: data.user.app_metadata,
       request: parsed.data,

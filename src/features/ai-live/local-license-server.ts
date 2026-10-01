@@ -4,10 +4,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   LOCAL_LEASE_VERSIONS,
   allowedLeaseExpiry,
+  readLocalEntitlement,
   signLocalLease,
   type LocalGrantRequest,
   type LocalLeasePayload,
 } from "./local-license";
+import { authorizeDeviceLease, type DeviceRegistryClient } from "./device-registry";
 
 export async function ownsAvailableLiveSelection(
   client: Pick<SupabaseClient, "from">,
@@ -37,6 +39,7 @@ export async function ownsAvailableLiveSelection(
 
 export async function issueLocalLease(input: {
   client: Pick<SupabaseClient, "from">;
+  registry: DeviceRegistryClient;
   ownerId: string;
   appMetadata: unknown;
   request: LocalGrantRequest;
@@ -45,11 +48,13 @@ export async function issueLocalLease(input: {
   grantId?: string;
 }) {
   const preliminaryNow = input.nowSeconds ?? Math.floor(Date.now() / 1000);
-  if (allowedLeaseExpiry(input.appMetadata, input.request.deviceId, preliminaryNow) === null) return null;
+  const entitlement = readLocalEntitlement(input.appMetadata, preliminaryNow);
+  if (!entitlement) return null;
   if (!await ownsAvailableLiveSelection(input.client, input.ownerId, input.request.accountId, input.request.productIds)) return null;
   const issuedAt = input.nowSeconds ?? Math.floor(Date.now() / 1000);
-  const expiresAt = allowedLeaseExpiry(input.appMetadata, input.request.deviceId, issuedAt);
+  const expiresAt = allowedLeaseExpiry(input.appMetadata, issuedAt);
   if (expiresAt === null) return null;
+  if (!await authorizeDeviceLease({ registry: input.registry, ownerId: input.ownerId, request: input.request, nowSeconds: issuedAt, deviceLimit: entitlement.deviceLimit })) return null;
   const payload: LocalLeasePayload = {
     v: 1,
     ownerId: input.ownerId,

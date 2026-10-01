@@ -66,6 +66,53 @@ def verify_ed25519(payload: bytes, signature: bytes, public_key_pem: bytes) -> N
         raise SecurityError("INVALID_PUBLIC_KEY") from exc
 
 
+def verify_device_message(signed: object, public_key_pem: bytes, *, purpose: str,
+                          now: float, verifier: Callable[[bytes, bytes, bytes], None] = verify_ed25519
+                          ) -> dict[str, Any]:
+    """Validate the narrow, short-lived control-plane signed messages."""
+    if not public_key_pem:
+        raise SecurityError("REGISTRATION_UNAVAILABLE")
+    fields = {
+        "AI_LIVE_DEVICE_REGISTER": {"v", "purpose", "ownerId", "deviceId", "challengeId",
+                                    "nonce", "issuedAt", "expiresAt", "versions"},
+        "AI_LIVE_DEVICE_CERTIFICATE": {"v", "purpose", "ownerId", "deviceId",
+                                       "publicKeyFingerprint", "issuedAt", "expiresAt", "versions"},
+        "AI_LIVE_DEVICE_REVOKED": {"v", "purpose", "ownerId", "deviceId", "issuedAt", "expiresAt"},
+    }
+    if (purpose not in fields or not isinstance(signed, dict)
+            or set(signed) != {"payload", "signature"} or not isinstance(signed["payload"], dict)):
+        raise SecurityError("INVALID_DEVICE_MESSAGE")
+    payload = signed["payload"]
+    if (set(payload) != fields[purpose] or type(payload.get("v")) is not int
+            or payload["v"] != 1 or payload.get("purpose") != purpose):
+        raise SecurityError("INVALID_DEVICE_MESSAGE")
+    signature = _decode_base64url(signed["signature"])
+    if len(signature) != 64:
+        raise SecurityError("INVALID_SIGNATURE")
+    verifier(canonical_json(payload), signature, public_key_pem)
+    _uuid(payload.get("ownerId"))
+    _uuid(payload.get("deviceId"))
+    issued, expires = payload.get("issuedAt"), payload.get("expiresAt")
+    max_ttl = 86400 if purpose == "AI_LIVE_DEVICE_CERTIFICATE" else 120
+    if (type(issued) is not int or type(expires) is not int or expires <= issued
+            or expires - issued > max_ttl or issued > now + 30 or expires <= now):
+        raise SecurityError("DEVICE_MESSAGE_EXPIRED")
+    if purpose == "AI_LIVE_DEVICE_REGISTER":
+        _uuid(payload.get("challengeId"))
+        if not isinstance(payload.get("nonce"), str) or not re.fullmatch(r"[A-Za-z0-9_-]{43}", payload["nonce"]):
+            raise SecurityError("INVALID_DEVICE_MESSAGE")
+    if purpose == "AI_LIVE_DEVICE_CERTIFICATE":
+        if not isinstance(payload.get("publicKeyFingerprint"), str) or not re.fullmatch(
+                r"[0-9a-f]{64}", payload["publicKeyFingerprint"]):
+            raise SecurityError("INVALID_DEVICE_MESSAGE")
+    if purpose != "AI_LIVE_DEVICE_REVOKED":
+        versions = payload.get("versions")
+        if (not isinstance(versions, dict) or set(versions) != {"web", "agent", "worker", "model"}
+                or any(not isinstance(value, str) for value in versions.values())):
+            raise SecurityError("INVALID_DEVICE_MESSAGE")
+    return payload.copy()
+
+
 @dataclass(frozen=True)
 class Grant:
     owner_id: str
@@ -208,3 +255,13 @@ class PairingStore:
         if pairing.owner_id is None:
             raise SecurityError("OWNER_NOT_VERIFIED")
         return pairing.owner_id
+
+    def bind_owner(self, token: str, origin: str, owner_id: str) -> Pairing:
+        """Called only after a trusted certificate/grant was verified."""
+        with self._lock:
+            pairing = self.authenticate(token, origin)
+            _uuid(owner_id)
+            if pairing.owner_id is not None and pairing.owner_id != owner_id:
+                raise SecurityError("OWNER_MISMATCH")
+            pairing.owner_id = owner_id
+            return pairing

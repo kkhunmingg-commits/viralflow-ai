@@ -1,14 +1,17 @@
 import { generateKeyPairSync, randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { verifyLocalLease, type LocalLeasePayload } from "@/features/ai-live/local-license";
+import { LOCAL_LEASE_VERSIONS } from "@/features/ai-live/local-license";
+import { parseDevicePublicKey, signedDeviceMessage } from "@/features/ai-live/device-identity";
 import { RequestSecurityError } from "@/lib/security/request";
 
-const mocks = vi.hoisted(() => ({ getUser: vi.fn(), from: vi.fn(), rateLimit: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getUser: vi.fn(), from: vi.fn(), rateLimit: vi.fn(), rpc: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(async () => ({ auth: { getUser: mocks.getUser }, from: mocks.from })),
 }));
 vi.mock("@/lib/security/rate-limit", () => ({ enforceOwnerMutationRateLimit: mocks.rateLimit }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({ from: mocks.from, rpc: mocks.rpc }) }));
 
 import { POST } from "./route";
 
@@ -19,6 +22,8 @@ const deviceId = "4b531890-5020-4273-b6fb-2cf6e3cb5f7a";
 const accountId = "4d334044-44d6-427b-a44b-872243d58b93";
 const productId = "9820f32b-5ff6-4fdc-a5b3-d4b223471b1e";
 const { privateKey, publicKey } = generateKeyPairSync("ed25519");
+const deviceKeys = generateKeyPairSync("ed25519");
+const devicePublicKey = deviceKeys.publicKey.export({ type: "spki", format: "pem" }).toString();
 
 type Row = Record<string, unknown>;
 let rows: Record<string, Row[]>;
@@ -38,9 +43,12 @@ function selectRows(table: string) {
   return query;
 }
 
-function request(body: unknown = {
-  deviceId, challenge: randomBytes(32).toString("base64url"), accountId, productIds: [productId],
-}, requestOrigin = origin) {
+function request(body?: unknown, requestOrigin = origin) {
+  const challenge = randomBytes(32).toString("base64url");
+  const now = Math.floor(Date.now() / 1000);
+  body ??= { deviceId, challenge, accountId, productIds: [productId], deviceProof: signedDeviceMessage({
+    v: 1, purpose: "AI_LIVE_LEASE_REQUEST", deviceId, challenge, issuedAt: now, expiresAt: now + 120, versions: LOCAL_LEASE_VERSIONS,
+  }, deviceKeys.privateKey) };
   return new Request(`${origin}/api/ai-live/local-grant`, {
     method: "POST", headers: { origin: requestOrigin, "content-type": "application/json" }, body: JSON.stringify(body),
   });
@@ -59,10 +67,12 @@ beforeEach(() => {
   rows = {
     tiktok_accounts: [{ id: accountId, owner_id: ownerId, is_mock: false, authorization_status: "authorized", hidden_at: null }],
     products: [{ id: productId, owner_id: ownerId, status: "available" }],
+    ai_live_devices: [{ device_id: deviceId, owner_id: ownerId, public_key: devicePublicKey, key_fingerprint: parseDevicePublicKey(devicePublicKey)!.fingerprint, revoked_at: null }],
   };
   mocks.getUser.mockImplementation(async () => ({ data: { user }, error: null }));
   mocks.from.mockImplementation(selectRows);
   mocks.rateLimit.mockResolvedValue(undefined);
+  mocks.rpc.mockResolvedValue({ data: true, error: null });
 });
 
 afterEach(() => vi.unstubAllEnvs());
@@ -92,7 +102,7 @@ describe("POST /api/ai-live/local-grant", () => {
     expect(lease.payload.expiresAt - lease.payload.issuedAt).toBeLessThanOrEqual(120);
     expect(verifyLocalLease(lease.payload, lease.signature, publicKey, Math.floor(Date.now() / 1000))).toBe(true);
     expect(mocks.rateLimit).toHaveBeenCalledWith("ai-live-local-grant", ownerId);
-    expect(mocks.from.mock.calls.map(([table]) => table).sort()).toEqual(["products", "tiktok_accounts"]);
+    expect(mocks.from.mock.calls.map(([table]) => table).sort()).toEqual(["ai_live_devices", "products", "tiktok_accounts"]);
   });
 
   it("does not infer entitlement from login or editable user metadata", async () => {
@@ -104,8 +114,12 @@ describe("POST /api/ai-live/local-grant", () => {
   });
 
   it("denies unregistered or expired devices and refuses selections outside the owner or current availability", async () => {
-    user.app_metadata.ai_live = { enabled: true, expiresAt: new Date(Date.now() + 300_000).toISOString(), deviceLimit: 1, registeredDeviceIds: [otherOwnerId] };
+    rows.ai_live_devices[0].owner_id = otherOwnerId;
     expect((await POST(request())).status).toBe(403);
+    rows.ai_live_devices[0].owner_id = ownerId;
+    rows.ai_live_devices[0].revoked_at = new Date().toISOString();
+    expect((await POST(request())).status).toBe(403);
+    rows.ai_live_devices[0].revoked_at = null;
     user.app_metadata.ai_live = { enabled: true, expiresAt: new Date(Date.now() - 1_000).toISOString(), deviceLimit: 1, registeredDeviceIds: [deviceId] };
     expect((await POST(request())).status).toBe(403);
     user.app_metadata.ai_live = { enabled: true, expiresAt: new Date(Date.now() + 300_000).toISOString(), deviceLimit: 1, registeredDeviceIds: [deviceId] };
@@ -129,7 +143,7 @@ describe("POST /api/ai-live/local-grant", () => {
     expect((await POST(request(undefined, "https://other.example"))).status).toBe(403);
     expect((await POST(request(undefined, ""))).status).toBe(403);
     expect(mocks.getUser).not.toHaveBeenCalled();
-    const oversized = { deviceId, challenge: randomBytes(32).toString("base64url"), accountId, productIds: [productId], padding: "x".repeat(3000) };
+    const oversized = { deviceId, challenge: randomBytes(32).toString("base64url"), accountId, productIds: [productId], padding: "x".repeat(5000) };
     expect((await POST(request(oversized))).status).toBe(413);
   });
 

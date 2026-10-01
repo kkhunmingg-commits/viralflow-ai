@@ -2,7 +2,7 @@ export const AI_LIVE_EXECUTION_MODE = "LOCAL_GPU" as const;
 // This release has not passed the NVIDIA acceptance checklist.
 export const AI_LIVE_REALTIME_VALIDATED = false;
 export const LIVE_COMPONENT_VERSIONS = {
-  web: "0.1.0", agent: "0.1.0", worker: "0.1.0", model: "musetalk-unvalidated",
+  web: "0.2.0", agent: "0.2.0", worker: "0.2.0", model: "musetalk-unvalidated",
 } as const;
 
 export type LocalAgentState = "NOT_INSTALLED" | "INSTALLING" | "STARTING" | "READY" | "BUSY"
@@ -14,6 +14,10 @@ export interface LocalMachineView {
   paired: boolean;
   canStart: boolean;
   sessionActive: boolean;
+  deviceAuthorized: boolean;
+  deviceRegistered: boolean;
+  deviceStatus: "UNREGISTERED" | "AUTHORIZED" | "UNAVAILABLE" | "MEMBERSHIP_REQUIRED";
+  updateStatus: "CURRENT" | "AVAILABLE" | "UPDATING" | "RESTART_REQUIRED" | "REQUIRED";
 }
 export function compatibleLiveVersions(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
@@ -35,6 +39,7 @@ const safeReasons = new Set([
 ]);
 export function localMachineView(state: LocalAgentState, paired = false, reasons: string[] = [], sessionActive = false): LocalMachineView {
   return { state, message: stateMessages[state], paired, sessionActive, canStart: false,
+    deviceAuthorized: false, deviceRegistered: false, deviceStatus: "UNREGISTERED", updateStatus: state === "UPDATE_REQUIRED" ? "REQUIRED" : "CURRENT",
     reasons: [...new Set(reasons.map((reason) => safeReasons.has(reason) ? reason : "ต้องตรวจสอบความพร้อมของเครื่องเพิ่มเติม"))].slice(0, 8) };
 }
 export function projectLocalMachine(value: unknown, paired: boolean): LocalMachineView {
@@ -46,5 +51,10 @@ export function projectLocalMachine(value: unknown, paired: boolean): LocalMachi
     ? data.state as LocalAgentState : "ERROR";
   const reasons = Array.isArray(data.reasons) ? data.reasons.filter((item): item is string => typeof item === "string") : [];
   if (!AI_LIVE_REALTIME_VALIDATED && state === "READY") reasons.push("กำลังรอการทดสอบการแสดงสดบนเครื่องที่รองรับ");
-  return localMachineView(state, paired, reasons, data.sessionActive === true);
+  const result = localMachineView(state, paired, reasons, data.sessionActive === true);
+  if (["AVAILABLE", "UPDATING", "RESTART_REQUIRED", "REQUIRED"].includes(String(data.updateStatus))) {
+    result.updateStatus = data.updateStatus as LocalMachineView["updateStatus"];
+  }
+  // Cloud registry confirmation is added by the authenticated browser bridge.
+  return result;
 }

@@ -6,9 +6,9 @@
 
 ## สิ่งที่ทำได้โดยไม่ใช้ NVIDIA
 
-`READY_WITHOUT_GPU`: localhost API, authenticated pairing, signed server start authorization, hardware fixtures/provisional tiers, component compatibility, owner session control, bootstrap artifact verification, customer page, bounded domain/mock simulation
+`READY_WITHOUT_GPU`: localhost API, authenticated pairing, persistent signed device registration/revoke/limit, signed server start authorization, hardware fixtures/provisional tiers, component compatibility, owner session control, Windows installer พร้อม runtime, safe offline update/rollback, customer page, bounded domain/mock simulation
 
-`WAITING_FOR_GPU_VALIDATION`: incremental real model backend, audio capture/frame sync, actual local encoder, packaged dependencies, runtime GPU metrics และ end-to-end Presenter preview
+`WAITING_FOR_GPU` / `GPU_VALIDATION_REQUIRED`: incremental real model backend, audio capture/frame sync, actual local GPU encoder, inference/model dependencies, runtime GPU metrics และ end-to-end Presenter preview ส่วน non-GPU runtime ถูก bundle แล้ว
 
 ## Acceptance checklist บน NVIDIA จริง
 
@@ -32,7 +32,7 @@
 
 1. ทุก checklist ผ่านและมีหลักฐาน; บันทึก limitations ของ hardware configuration
 2. ต่อ `MuseTalkLocalPresenter`/`WorkerBoundary` และ `LocalEncoder` จริงโดยไม่มี mock หรือ prerecorded frame fallback
-3. signed Windows installer/dependency/bootstrap/device enrollment พร้อม และทดสอบ first-run/update/repair/uninstall
+3. Windows installer/dependency/bootstrap/device enrollment ผ่าน tests แล้ว; ยังต้องเซ็นและเผยแพร่ release พร้อม trust configuration และ activate registry migration ก่อนส่งให้ลูกค้าจริง
 4. HTTPS browser → loopback permission, entitlement owner/device, Stop/recovery และ customer redaction ผ่านบน browser ที่รองรับ
 5. Release gate จึงเปลี่ยนผ่าน reviewed code/release evidence พร้อม version bump ไม่ใช่ผ่าน browser parameter/Production env
 
@@ -40,7 +40,7 @@
 
 30-minute mock/virtual-clock tests และ signed-grant integration tests ไม่แทน NVIDIA benchmark ห้ามแสดง FPS/latency/VRAM ที่ยังไม่เคยวัดบน customer UI
 
-## ผลตรวจรอบ Local GPU foundation
+## ผลตรวจรอบ Local GPU foundation (ก่อน delivery 0.2.0)
 
 - Python worker/agent suite: **40/40 ผ่าน** ใน isolated runtime ที่ติดตั้ง signature verifier ตาม requirements รวม real Node Ed25519 → Python verification และ tampering rejection
 - TypeScript AI LIVE/route suite: **45/45 ผ่าน**
@@ -51,3 +51,8 @@
 - Real hardware probe: Windows, ไม่พบ NVIDIA, managed FFmpeg/encoder ยังไม่ได้ packaged → `UNSUPPORTED / GPU_VALIDATION_REQUIRED` ไม่ได้ทดสอบ CUDA/NVENC จริง
 
 ผลนี้ยืนยัน non-GPU foundation เท่านั้น ไม่ให้สถานะ `PRODUCTION_READY` หรือ `LIVE-1 COMPLETE`
+
+ผลรอบ Local Agent Delivery 0.2.0 (2026-10-01): TS 62/62, Python 72/72,
+isolated DB 26/26, typecheck/lint/build ผ่าน รายละเอียดอยู่ใน
+[Local Agent delivery evidence](AI_LIVE_LOCAL_AGENT.md#ผลตรวจ-delivery-020--2026-10-01)
+ไม่มี GPU checklist รายการใดถูกเปลี่ยนเป็นผ่านจากการทดสอบ delivery นี้

@@ -1,4 +1,10 @@
-"""Signed, allowlisted installer/update plan; no network or command execution."""
+"""Optional signed component staging; no network or command execution.
+
+Windows executable delivery is handled by ``installer.delivery.DeliveryManager``
+and ``local_agent.updater.SafeUpdater``. Those activate a complete versioned
+runtime atomically and retain the previous runtime on failed installation. This
+legacy component planner is not the executable auto-update path.
+"""
 
 from __future__ import annotations
 
@@ -103,7 +109,8 @@ class BootstrapManager:
         """Called by the trusted installer after its fixed URL fetch completes.
 
         This is intentionally not exposed through the loopback API. Large model
-        transfer and executable installation are deferred until GPU validation.
+        transfer remains deferred until GPU validation; packaged executable
+        delivery uses the versioned Windows installer instead of this method.
         """
         item = self.artifacts.get(name)
         if item is None:
