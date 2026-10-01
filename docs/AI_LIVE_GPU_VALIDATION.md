@@ -6,7 +6,7 @@
 
 ## สิ่งที่ทำได้โดยไม่ใช้ NVIDIA
 
-`READY_WITHOUT_GPU`: localhost API, authenticated pairing, persistent signed device registration/revoke/limit, signed server start authorization, hardware fixtures/provisional tiers, component compatibility, owner session control, Windows installer พร้อม runtime, safe offline update/rollback, customer page, bounded domain/mock simulation
+`READY_WITHOUT_GPU`: localhost API, authenticated pairing, persistent signed device registration/revoke/limit, signed server start authorization/key rotation, fresh entitlement, hardware fixtures/provisional tiers, component compatibility, owner session control, Windows installer พร้อม runtime, safe update distribution/rollback, customer page, bounded domain/mock simulation ทะเบียนเครื่อง apply แล้ว ผลตรวจรอบล่าสุดอยู่ใน [Server Activation](AI_LIVE_SERVER_ACTIVATION.md)
 
 `WAITING_FOR_GPU` / `GPU_VALIDATION_REQUIRED`: incremental real model backend, audio capture/frame sync, actual local GPU encoder, inference/model dependencies, runtime GPU metrics และ end-to-end Presenter preview ส่วน non-GPU runtime ถูก bundle แล้ว
 

@@ -37,6 +37,8 @@ export type LocalGrantRequest = z.infer<typeof localGrantRequestSchema>;
 // Membership is trusted Auth app_metadata; device authorization lives in the registry.
 const entitlementSchema = z.object({
   enabled: z.literal(true),
+  status: z.enum(["active", "inactive", "revoked"]).optional(),
+  revokedAt: z.iso.datetime({ offset: true }).nullable().optional(),
   expiresAt: z.iso.datetime({ offset: true }),
   deviceLimit: z.number().int().positive().max(1000),
 });
@@ -75,6 +77,7 @@ export function readLocalEntitlement(appMetadata: unknown, nowSeconds: number): 
   const metadata = z.object({ ai_live: entitlementSchema }).safeParse(appMetadata);
   if (!metadata.success) return null;
   const entitlement = metadata.data.ai_live;
+  if ((entitlement.status !== undefined && entitlement.status !== "active") || entitlement.revokedAt) return null;
   const entitlementExpiry = Math.floor(Date.parse(entitlement.expiresAt) / 1000);
   if (!Number.isSafeInteger(entitlementExpiry) || entitlementExpiry <= nowSeconds) return null;
   return entitlement;
@@ -110,20 +113,26 @@ export function parseLocalLeaseSigningKey(pem: string | undefined): KeyObject | 
   }
 }
 
-export function signLocalLease(payload: LocalLeasePayload, key: KeyObject) {
-  if (key.asymmetricKeyType !== "ed25519") throw new Error("local_lease_signing_key_invalid");
-  if (!leasePayloadSchema.safeParse(payload).success) throw new Error("local_lease_payload_invalid");
-  return { payload, signature: sign(null, canonicalLeaseBytes(payload), key).toString("base64url") };
+export const liveSigningKeyIdSchema = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/);
+export function canonicalSignedBytes(payload: unknown, keyId?: string): Buffer {
+  if (keyId !== undefined && !liveSigningKeyIdSchema.safeParse(keyId).success) throw new Error("live_signing_key_id_invalid");
+  return canonicalLeaseBytes(keyId === undefined ? payload : { keyId, payload });
 }
 
-export function verifyLocalLease(payload: LocalLeasePayload, signature: string, publicKey: KeyObject, nowSeconds: number) {
+export function signLocalLease(payload: LocalLeasePayload, key: KeyObject, keyId?: string) {
+  if (key.asymmetricKeyType !== "ed25519") throw new Error("local_lease_signing_key_invalid");
+  if (!leasePayloadSchema.safeParse(payload).success) throw new Error("local_lease_payload_invalid");
+  return { payload, signature: sign(null, canonicalSignedBytes(payload, keyId), key).toString("base64url"), ...(keyId === undefined ? {} : { keyId }) };
+}
+
+export function verifyLocalLease(payload: LocalLeasePayload, signature: string, publicKey: KeyObject, nowSeconds: number, keyId?: string) {
   if (publicKey.asymmetricKeyType !== "ed25519" || !leasePayloadSchema.safeParse(payload).success) return false;
   if (!Number.isSafeInteger(payload.issuedAt) || !Number.isSafeInteger(payload.expiresAt)
     || payload.issuedAt > nowSeconds || payload.expiresAt <= nowSeconds
     || payload.expiresAt - payload.issuedAt > LOCAL_LEASE_SECONDS) return false;
   if (!/^[A-Za-z0-9_-]{86}$/.test(signature)) return false;
   try {
-    return verify(null, canonicalLeaseBytes(payload), publicKey, Buffer.from(signature, "base64url"));
+    return verify(null, canonicalSignedBytes(payload, keyId), publicKey, Buffer.from(signature, "base64url"));
   } catch {
     return false;
   }

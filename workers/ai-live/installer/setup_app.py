@@ -39,7 +39,7 @@ def shortcut_path() -> Path:
     return Path(buffer.value) / SHORTCUT_NAME
 
 
-def integrate(executable: Path | None, root: Path, version: str) -> None:
+def integrate(executable: Path | None, root: Path, version: str, *, update_runtime: bool = False) -> None:
     if executable is None:
         try:
             winreg.DeleteKey(winreg.HKEY_CURRENT_USER, UNINSTALL_REGISTRY)
@@ -57,7 +57,9 @@ def integrate(executable: Path | None, root: Path, version: str) -> None:
     if result.returncode:
         raise DeliveryError("RUNTIME_SELF_TEST_FAILED")
     maintenance = _regular_path(root / "maintenance.exe", root)
-    if Path(sys.executable).resolve() != maintenance.resolve():
+    if update_runtime and not maintenance.is_file():
+        raise DeliveryError("MAINTENANCE_RUNTIME_MISSING")
+    if not update_runtime and Path(sys.executable).resolve() != maintenance.resolve():
         temporary = _regular_path(root / "maintenance.new", root)
         shutil.copyfile(sys.executable, temporary)
         os.replace(temporary, maintenance)
@@ -83,6 +85,11 @@ def integrate(executable: Path | None, root: Path, version: str) -> None:
         }.items():
             winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
         winreg.SetValueEx(key, "NoRepair", 0, winreg.REG_DWORD, 0)
+
+
+def integrate_update(executable: Path | None, root: Path) -> None:
+    """Updater reuses the verified setup; never replaces it with the agent EXE."""
+    integrate(executable, root, "", update_runtime=True)
 
 
 def _relay_uninstall_if_needed(root: Path) -> bool:

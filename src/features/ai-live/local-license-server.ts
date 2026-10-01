@@ -44,6 +44,7 @@ export async function issueLocalLease(input: {
   appMetadata: unknown;
   request: LocalGrantRequest;
   signingKey: KeyObject;
+  keyId?: string;
   nowSeconds?: number;
   grantId?: string;
 }) {
@@ -68,5 +69,5 @@ export async function issueLocalLease(input: {
     entitled: true,
     versions: LOCAL_LEASE_VERSIONS,
   };
-  return signLocalLease(payload, input.signingKey);
+  return signLocalLease(payload, input.signingKey, input.keyId);
 }

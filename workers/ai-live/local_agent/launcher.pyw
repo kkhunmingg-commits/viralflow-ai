@@ -19,10 +19,14 @@ from tkinter import messagebox
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from local_agent import AgentConfig, AgentHTTPServer, LocalAgent  # noqa: E402
+from local_agent.agent import VERSIONS  # noqa: E402
 from local_agent.device_identity import DeviceIdentity  # noqa: E402
 from local_agent.security import SecurityError  # noqa: E402
 from local_agent.hardware import inspect_hardware  # noqa: E402
 from installer.delivery import DeliveryManager  # noqa: E402
+from installer.setup_app import integrate_update  # noqa: E402
+from local_agent.updater import SafeUpdater  # noqa: E402
+from local_agent.update_transport import trusted_origin  # noqa: E402
 
 
 def packaged_config() -> dict[str, object]:
@@ -34,7 +38,7 @@ def packaged_config() -> dict[str, object]:
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 16 * 1024:
         raise SecurityError("INSTALL_CONFIG_INVALID")
     configured = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(configured, dict) or set(configured) - {"grantPublicKeyPem"}:
+    if not isinstance(configured, dict) or set(configured) - {"grantPublicKeyPem", "trustedKeys", "retiredKeyIds", "updateOrigin"}:
         raise SecurityError("INSTALL_CONFIG_INVALID")
     return configured
 
@@ -54,11 +58,24 @@ def main() -> None:
         public_key = configured.get("grantPublicKeyPem", "")
         if not isinstance(public_key, str) or len(public_key) > 4096:
             raise SecurityError("INSTALL_CONFIG_INVALID")
+        keyring = configured.get("trustedKeys", {})
+        retired = configured.get("retiredKeyIds", [])
+        if (not isinstance(keyring, dict) or len(keyring) > 8
+                or any(not isinstance(key, str) or not isinstance(value, str) or len(value) > 4096
+                       for key, value in keyring.items())
+                or not isinstance(retired, list) or len(retired) > 8
+                or any(not isinstance(value, str) for value in retired)):
+            raise SecurityError("INSTALL_CONFIG_INVALID")
+        update_origin = configured.get("updateOrigin")
+        if update_origin is not None:
+            trusted_origin(update_origin)
         config = AgentConfig(
             device_id=identity.device_id,
             pairing_code=secrets.token_hex(12),
             grant_public_key_pem=public_key.encode("ascii"),
             data_dir=managed_root / "references",
+            trusted_keys={key: value.encode("ascii") for key, value in keyring.items()},
+            retired_key_ids=frozenset(retired),
         )
         # The bundled executable directory is trusted package content. This PATH
         # edit is process-local, does not install or modify the user's runtime.
@@ -82,9 +99,14 @@ def main() -> None:
             except (OSError, ValueError):
                 return "REQUIRED"
 
+        updater = SafeUpdater(managed_root, config.grant_public_key_pem,
+                              trusted_keys=config.trusted_keys, retired_key_ids=config.retired_key_ids,
+                              installed_versions={name: VERSIONS[name] for name in ("web", "agent", "worker")},
+                              update_origin=update_origin,
+                              delivery=DeliveryManager(managed_root, integration=lambda exe: integrate_update(exe, managed_root)))
         agent = LocalAgent(config, device_identity=identity,
                            hardware_probe=lambda: inspect_hardware(config.data_dir, which=packaged_binary),
-                           update_status=package_update_status)
+                           update_status=package_update_status, updater=updater)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         messagebox.showerror("ViralFlow AI LIVE", "ต้องติดตั้งส่วนเสริม AI LIVE ให้ครบก่อนใช้งาน")
         root.destroy()

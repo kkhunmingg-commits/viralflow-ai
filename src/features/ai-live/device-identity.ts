@@ -1,7 +1,7 @@
 import "server-only";
 import { createHash, createPublicKey, sign, verify, type KeyObject } from "node:crypto";
 import { z } from "zod";
-import { canonicalLeaseBytes, localVersionsSchema } from "./local-license";
+import { canonicalSignedBytes, localVersionsSchema } from "./local-license";
 
 export const DEVICE_CHALLENGE_SECONDS = 120;
 export const DEVICE_CERTIFICATE_SECONDS = 86400;
@@ -32,14 +32,14 @@ export function parseDevicePublicKey(pem: string): { key: KeyObject; pem: string
   } catch { return null; }
 }
 
-export function signedDeviceMessage<T extends Record<string, unknown>>(payload: T, key: KeyObject) {
+export function signedDeviceMessage<T extends Record<string, unknown>>(payload: T, key: KeyObject, keyId?: string) {
   if (key.asymmetricKeyType !== "ed25519") throw new Error("invalid_device_signer");
-  return { payload, signature: sign(null, canonicalLeaseBytes(payload), key).toString("base64url") };
+  return { payload, signature: sign(null, canonicalSignedBytes(payload, keyId), key).toString("base64url"), ...(keyId === undefined ? {} : { keyId }) };
 }
 
-export function verifyDeviceSignature(payload: unknown, signature: string, key: KeyObject) {
+export function verifyDeviceSignature(payload: unknown, signature: string, key: KeyObject, keyId?: string) {
   if (key.asymmetricKeyType !== "ed25519" || !/^[A-Za-z0-9_-]{86}$/.test(signature)) return false;
-  try { return verify(null, canonicalLeaseBytes(payload), key, Buffer.from(signature, "base64url")); } catch { return false; }
+  try { return verify(null, canonicalSignedBytes(payload, keyId), key, Buffer.from(signature, "base64url")); } catch { return false; }
 }
 
 export function deviceNonceHash(nonce: string) { return createHash("sha256").update(nonce).digest("hex"); }

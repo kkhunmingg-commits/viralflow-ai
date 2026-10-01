@@ -1,4 +1,5 @@
-import { localGrantRequestSchema, parseLocalLeaseSigningKey } from "@/features/ai-live/local-license";
+import { localGrantRequestSchema } from "@/features/ai-live/local-license";
+import { readLiveSigningConfiguration } from "@/features/ai-live/server-config";
 import { issueLocalLease } from "@/features/ai-live/local-license-server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { readJsonBodyWithLimit, RequestSecurityError } from "@/lib/security/request";
@@ -37,8 +38,8 @@ export async function POST(request: Request) {
     const parsed = localGrantRequestSchema.safeParse(body);
     if (!parsed.success) return failure(400, "ข้อมูลไม่ถูกต้อง");
 
-    const signingKey = parseLocalLeaseSigningKey(process.env.AI_LIVE_LEASE_SIGNING_PRIVATE_KEY);
-    if (!signingKey) return failure(503, "AI LIVE ยังไม่พร้อมใช้งาน");
+    const signing = readLiveSigningConfiguration();
+    if (!signing) return failure(503, "AI LIVE ยังไม่พร้อมใช้งาน");
 
     const grant = await issueLocalLease({
       client,
@@ -46,7 +47,8 @@ export async function POST(request: Request) {
       ownerId: data.user.id,
       appMetadata: data.user.app_metadata,
       request: parsed.data,
-      signingKey,
+      signingKey: signing.signingKey,
+      keyId: signing.keyId,
     });
     if (!grant) return failure(403, "AI LIVE ยังไม่พร้อมใช้งานสำหรับบัญชีนี้");
     return Response.json(grant, { headers });

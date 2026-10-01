@@ -11,7 +11,7 @@ import {
 export type DeviceRegistryClient = Pick<SupabaseClient, "from" | "rpc">;
 const storedDeviceSchema = z.object({ device_id: z.uuid(), owner_id: z.uuid(), public_key: z.string(), key_fingerprint: z.string().regex(/^[a-f0-9]{64}$/), revoked_at: z.string().nullable() });
 
-export async function createDeviceChallenge(input: { registry: DeviceRegistryClient; ownerId: string; appMetadata: unknown; deviceId: string; signingKey: KeyObject; nowSeconds?: number }) {
+export async function createDeviceChallenge(input: { registry: DeviceRegistryClient; ownerId: string; appMetadata: unknown; deviceId: string; signingKey: KeyObject; keyId?: string; nowSeconds?: number }) {
   const now = input.nowSeconds ?? Math.floor(Date.now() / 1000);
   const entitlement = readLocalEntitlement(input.appMetadata, now);
   if (!entitlement) return null;
@@ -26,10 +26,10 @@ export async function createDeviceChallenge(input: { registry: DeviceRegistryCli
     issued_at: new Date(payload.issuedAt * 1000).toISOString(), expires_at: new Date(payload.expiresAt * 1000).toISOString(),
   });
   if (error) throw new Error("device_registry_unavailable");
-  return signedDeviceMessage(payload, input.signingKey);
+  return signedDeviceMessage(payload, input.signingKey, input.keyId);
 }
 
-export async function registerLiveDevice(input: { registry: DeviceRegistryClient; ownerId: string; appMetadata: unknown; proof: DeviceRegistration; signingKey: KeyObject; nowSeconds?: number }) {
+export async function registerLiveDevice(input: { registry: DeviceRegistryClient; ownerId: string; appMetadata: unknown; proof: DeviceRegistration; signingKey: KeyObject; keyId?: string; nowSeconds?: number }) {
   const now = input.nowSeconds ?? Math.floor(Date.now() / 1000);
   const entitlement = readLocalEntitlement(input.appMetadata, now);
   const payload = input.proof.payload;
@@ -46,7 +46,7 @@ export async function registerLiveDevice(input: { registry: DeviceRegistryClient
   if (error) throw new Error("device_registry_unavailable");
   if (data !== true) return null;
   const certificate = signedDeviceMessage({ v: 1, purpose: "AI_LIVE_DEVICE_CERTIFICATE", ownerId: input.ownerId, deviceId: payload.deviceId,
-    publicKeyFingerprint: publicKey.fingerprint, issuedAt: now, expiresAt: now + DEVICE_CERTIFICATE_SECONDS, versions: LOCAL_LEASE_VERSIONS }, input.signingKey);
+    publicKeyFingerprint: publicKey.fingerprint, issuedAt: now, expiresAt: now + DEVICE_CERTIFICATE_SECONDS, versions: LOCAL_LEASE_VERSIONS }, input.signingKey, input.keyId);
   return { certificate, device: { authorized: true } };
 }
 
@@ -67,13 +67,13 @@ export async function authorizeDeviceLease(input: { registry: DeviceRegistryClie
   return result.data === true;
 }
 
-export async function revokeLiveDevice(input: { registry: DeviceRegistryClient; ownerId: string; deviceId: string; signingKey: KeyObject; nowSeconds?: number }) {
+export async function revokeLiveDevice(input: { registry: DeviceRegistryClient; ownerId: string; deviceId: string; signingKey: KeyObject; keyId?: string; nowSeconds?: number }) {
   const result = await input.registry.rpc("ai_live_revoke_device", { p_owner_id: input.ownerId, p_device_id: input.deviceId });
   if (result.error) throw new Error("device_registry_unavailable");
   if (result.data !== true) return null;
   const now = input.nowSeconds ?? Math.floor(Date.now() / 1000);
   return { receipt: signedDeviceMessage({ v: 1, purpose: "AI_LIVE_DEVICE_REVOKED", ownerId: input.ownerId, deviceId: input.deviceId,
-    issuedAt: now, expiresAt: now + DEVICE_CHALLENGE_SECONDS }, input.signingKey) };
+    issuedAt: now, expiresAt: now + DEVICE_CHALLENGE_SECONDS }, input.signingKey, input.keyId) };
 }
 
 export async function listLiveDevices(registry: DeviceRegistryClient, ownerId: string) {

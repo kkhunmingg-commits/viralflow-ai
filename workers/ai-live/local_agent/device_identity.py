@@ -87,12 +87,13 @@ class DeviceIdentity:
         self.device_id = ""
         self.certificate: dict[str, object] | None = None
         self.revoked_at = 0
+        self.bound_owner: str | None = None
         self.root.mkdir(parents=True, exist_ok=True, mode=0o700)
         _safe_directory(root)
         self._load_or_create()
 
     def _target(self, name: str) -> Path:
-        if name not in ("device.bin", "certificate.bin", "revocation.bin"):
+        if name not in ("device.bin", "certificate.bin", "revocation.bin", "binding.bin"):
             raise SecurityError("DEVICE_STORAGE_INVALID")
         _safe_directory(self.root)
         target = self.root / name
@@ -182,6 +183,19 @@ class DeviceIdentity:
                     or type(record["revokedAt"]) is not int or record["revokedAt"] < 0):
                 raise SecurityError("DEVICE_STORAGE_INVALID")
             self.revoked_at = record["revokedAt"]
+        if self._target("binding.bin").exists():
+            record = self._read("binding.bin")
+            try:
+                if (not isinstance(record, dict) or set(record) != {"v", "deviceId", "ownerId", "fingerprint"}
+                        or type(record["v"]) is not int or record["v"] != 1
+                        or record["deviceId"] != self.device_id or record["fingerprint"] != self.fingerprint):
+                    raise ValueError
+                owner = str(uuid.UUID(record["ownerId"]))
+                if owner != record["ownerId"]:
+                    raise ValueError
+                self.bound_owner = owner
+            except (ValueError, TypeError, KeyError) as exc:
+                raise SecurityError("DEVICE_STORAGE_INVALID") from exc
 
     @property
     def public_key_pem(self) -> str:
@@ -203,7 +217,24 @@ class DeviceIdentity:
         return base64.urlsafe_b64encode(signature).rstrip(b"=").decode("ascii")
 
     def save_certificate(self, certificate: dict[str, object]) -> None:
+        """Called after the agent verifies the server signature and binding.
+
+        Protected owner continuity is only for re-registration during signing
+        key rotation; it is never a membership or Start authorization signal.
+        """
         with self._lock:
+            payload = certificate.get("payload")
+            owner = payload.get("ownerId") if isinstance(payload, dict) else None
+            if owner is not None:
+                try:
+                    normalized = str(uuid.UUID(owner))
+                    if normalized != owner or self.bound_owner not in (None, owner):
+                        raise ValueError
+                except (ValueError, TypeError, AttributeError) as exc:
+                    raise SecurityError("OWNER_MISMATCH") from exc
+                self._write("binding.bin", {"v": 1, "deviceId": self.device_id,
+                                            "ownerId": owner, "fingerprint": self.fingerprint})
+                self.bound_owner = owner
             self._write("certificate.bin", certificate)
             self.certificate = certificate
 
@@ -217,10 +248,13 @@ class DeviceIdentity:
             self.revoked_at = max(self.revoked_at, issued_at)
             self._write("revocation.bin", {"revokedAt": self.revoked_at})
             self.clear_certificate()
+            self._target("binding.bin").unlink(missing_ok=True)
+            self.bound_owner = None
 
     def cleanup(self) -> None:
         """Installer-only full cleanup of this fixed managed identity directory."""
         with self._lock:
-            for name in ("device.bin", "certificate.bin", "revocation.bin"):
+            for name in ("device.bin", "certificate.bin", "revocation.bin", "binding.bin"):
                 self._target(name).unlink(missing_ok=True)
             self.certificate = None
+            self.bound_owner = None

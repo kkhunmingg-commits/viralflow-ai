@@ -80,5 +80,8 @@ try {
   await db.exec("reset role; set role authenticated");
   await assert.rejects(db.query("select * from public.ai_live_devices")); checks++;
   await assert.rejects(db.query("select public.ai_live_revoke_device($1,$2)", [owner, device])); checks++;
+  await db.exec("reset role");
+  await db.exec(readFileSync("supabase/tests/ai_live_device_registration.sql", "utf8"));
   console.log(`Isolated AI LIVE migration: ${checks} checks passed; no remote database touched`);
+  console.log("Shared rollback-only SQL acceptance: 17 checks passed");
 } finally { await db.close(); }

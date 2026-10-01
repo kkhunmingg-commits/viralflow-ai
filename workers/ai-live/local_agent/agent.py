@@ -17,10 +17,11 @@ from worker_core import LiveError, image_dimensions
 from .hardware import HardwareAssessment, HardwareSnapshot, HardwareTiers, assess_hardware, inspect_hardware
 from .security import Grant, PairingStore, SecurityError, verify_device_message, verify_ed25519, verify_grant
 from .device_identity import DeviceIdentity
+from .updater import SafeUpdater
 
 MAX_REFERENCE_BYTES = 4 * 1024 * 1024
 MAX_REFERENCES = 5
-VERSIONS = {"web": "0.2.0", "agent": "0.2.0", "worker": "0.2.0",
+VERSIONS = {"web": "0.3.0", "agent": "0.3.0", "worker": "0.3.0",
             "model": "musetalk-unvalidated"}
 PROVIDER_MODE = "LOCAL_GPU"
 REALTIME_VALIDATED = False  # Release gate; no environment or browser override.
@@ -101,6 +102,8 @@ class AgentConfig:
         "http://127.0.0.1:3000",
     })
     hardware_tiers: HardwareTiers = field(default_factory=HardwareTiers)
+    trusted_keys: dict[str, bytes] = field(default_factory=dict)
+    retired_key_ids: frozenset[str] = frozenset()
 
     def __post_init__(self) -> None:
         try:
@@ -112,6 +115,11 @@ class AgentConfig:
             raise ValueError("Agent data directory must be absolute and non-symlinked")
         if not isinstance(self.grant_public_key_pem, bytes):
             raise ValueError("Cloud public key must be supplied by the trusted installer")
+        if (not isinstance(self.trusted_keys, dict) or len(self.trusted_keys) > 8
+                or any(not isinstance(key, str) or not isinstance(value, bytes)
+                       for key, value in self.trusted_keys.items())
+                or not isinstance(self.retired_key_ids, frozenset)):
+            raise ValueError("Invalid installed trust configuration")
 
 
 @dataclass
@@ -142,6 +150,7 @@ class LocalAgent:
         test_only_realtime_validated: bool = False,
         device_identity: DeviceIdentity | None = None,
         update_status: Callable[[], str] | None = None,
+        updater: SafeUpdater | None = None,
     ) -> None:
         self.config = config
         self._now = now
@@ -155,6 +164,8 @@ class LocalAgent:
         self._used_grants: set[str] = set()
         self._device_identity = device_identity
         self._update_status = update_status or (lambda: "CURRENT")
+        self._updater = updater
+        self._update_thread: threading.Thread | None = None
         self._used_registration_challenges: dict[str, int] = {}
         if device_identity is not None and device_identity.device_id != config.device_id:
             raise ValueError("Device identity does not match the installed configuration")
@@ -212,7 +223,9 @@ class LocalAgent:
             raise SecurityError("DEVICE_NOT_REGISTERED")
         payload = verify_device_message(identity.certificate, self.config.grant_public_key_pem,
                                         purpose="AI_LIVE_DEVICE_CERTIFICATE", now=self._now(),
-                                        verifier=self._grant_signature_verifier)
+                                        verifier=self._grant_signature_verifier,
+                                        trusted_keys=self.config.trusted_keys,
+                                        retired_key_ids=self.config.retired_key_ids)
         if (payload["deviceId"] != identity.device_id
                 or payload["publicKeyFingerprint"] != identity.fingerprint
                 or payload["issuedAt"] <= identity.revoked_at):
@@ -231,7 +244,11 @@ class LocalAgent:
     def _stored_certificate_owner(self) -> str | None:
         """An expired certificate may refresh only its original signed owner."""
         identity = self._device_identity
-        if identity is None or identity.certificate is None:
+        if identity is None:
+            return None
+        if identity.bound_owner is not None:
+            return identity.bound_owner
+        if identity.certificate is None:
             return None
         stored = identity.certificate.get("payload", {})
         issued = stored.get("issuedAt") if isinstance(stored, dict) else None
@@ -239,7 +256,9 @@ class LocalAgent:
             raise SecurityError("INVALID_DEVICE_MESSAGE")
         payload = verify_device_message(identity.certificate, self.config.grant_public_key_pem,
                                         purpose="AI_LIVE_DEVICE_CERTIFICATE", now=issued,
-                                        verifier=self._grant_signature_verifier)
+                                        verifier=self._grant_signature_verifier,
+                                        trusted_keys=self.config.trusted_keys,
+                                        retired_key_ids=self.config.retired_key_ids)
         if (payload["deviceId"] != identity.device_id
                 or payload["publicKeyFingerprint"] != identity.fingerprint):
             raise SecurityError("DEVICE_NOT_REGISTERED")
@@ -250,7 +269,9 @@ class LocalAgent:
         try:
             payload = verify_device_message(challenge, self.config.grant_public_key_pem,
                                             purpose="AI_LIVE_DEVICE_REGISTER", now=self._now(),
-                                            verifier=self._grant_signature_verifier)
+                                            verifier=self._grant_signature_verifier,
+                                        trusted_keys=self.config.trusted_keys,
+                                        retired_key_ids=self.config.retired_key_ids)
             identity = self._device_identity
             if identity is None or payload["deviceId"] != identity.device_id:
                 raise SecurityError("DEVICE_NOT_REGISTERED")
@@ -280,7 +301,9 @@ class LocalAgent:
         try:
             payload = verify_device_message(certificate, self.config.grant_public_key_pem,
                                             purpose="AI_LIVE_DEVICE_CERTIFICATE", now=self._now(),
-                                            verifier=self._grant_signature_verifier)
+                                            verifier=self._grant_signature_verifier,
+                                        trusted_keys=self.config.trusted_keys,
+                                        retired_key_ids=self.config.retired_key_ids)
             identity = self._device_identity
             if (identity is None or payload["deviceId"] != identity.device_id
                     or payload["publicKeyFingerprint"] != identity.fingerprint
@@ -301,7 +324,9 @@ class LocalAgent:
         try:
             payload = verify_device_message(receipt, self.config.grant_public_key_pem,
                                             purpose="AI_LIVE_DEVICE_REVOKED", now=self._now(),
-                                            verifier=self._grant_signature_verifier)
+                                            verifier=self._grant_signature_verifier,
+                                        trusted_keys=self.config.trusted_keys,
+                                        retired_key_ids=self.config.retired_key_ids)
             if payload["deviceId"] != self.config.device_id:
                 raise SecurityError("OWNER_MISMATCH")
             if self._device_identity is None:
@@ -342,7 +367,53 @@ class LocalAgent:
 
     def discovery(self) -> dict[str, object]:
         return {"state": "READY", "versions": VERSIONS.copy(), "paired": False,
-                "deviceAuthorized": False, "updateStatus": self._current_update_status()}
+                "deviceAuthorized": False, **self._update_view()}
+
+    def _update_view(self) -> dict[str, object]:
+        state = self._current_update_status()
+        status = self._updater.status() if self._updater is not None else {}
+        return {"updateStatus": state,
+                "updateCanApply": state not in ("UPDATING", "RESTART_REQUIRED") and status.get("applyReady") is True,
+                "updateCanRepair": state not in ("UPDATING", "RESTART_REQUIRED") and status.get("repairReady") is True}
+
+    def check_update(self, token: str, origin: str, manifest: object) -> dict[str, object]:
+        self.authenticate(token, origin)
+        with self._lock:
+            if self._updater is None:
+                raise AgentError(503, "UPDATE_NOT_CONFIGURED", "ส่วนเสริมยังไม่พร้อมสำหรับการอัปเดต")
+            if self._current_update_status() in ("UPDATING", "RESTART_REQUIRED"):
+                raise AgentError(409, "UPDATE_BUSY", "กรุณารอให้อัปเดตเสร็จและเปิดส่วนเสริมใหม่")
+            try:
+                self._updater.discover(manifest)
+            except (SecurityError, ValueError, OSError) as exc:
+                raise AgentError(403, "UPDATE_PLAN_INVALID", "ไม่สามารถตรวจสอบการอัปเดตได้") from exc
+            return self._update_view()
+
+    def apply_update(self, token: str, origin: str, *, confirmed: bool, repair: bool = False) -> dict[str, object]:
+        self.authenticate(token, origin)
+        with self._lock:
+            if self._updater is None or self._updater.transport is None:
+                raise AgentError(503, "UPDATE_NOT_CONFIGURED", "ส่วนเสริมยังไม่พร้อมสำหรับการอัปเดต")
+            active = any(session.state != "STOPPED" for session in self._sessions.values())
+            try:
+                self._updater.validate_operation(confirmed=confirmed, session_active=active, repair=repair)
+            except SecurityError as exc:
+                if exc.code == "STOP_LIVE_BEFORE_UPDATE":
+                    raise AgentError(409, exc.code, "กรุณาหยุด AI LIVE ก่อนอัปเดต") from exc
+                raise AgentError(409, "UPDATE_NOT_READY", "กรุณาตรวจสอบและยืนยันการอัปเดตอีกครั้ง") from exc
+            self._updater.state = "UPDATING"
+
+            def execute() -> None:
+                try:
+                    self._updater.deliver(confirmed=True, repair=repair, prevalidated=True)
+                except Exception:
+                    # No network URL, TLS details or filesystem path goes to UI.
+                    self._updater.state = "ROLLED_BACK"
+
+            self._update_thread = threading.Thread(target=execute, name="ai-live-update", daemon=False)
+            result = self._update_view()
+            self._update_thread.start()
+            return result
 
     def _assessment(self) -> HardwareAssessment:
         try:
@@ -358,7 +429,14 @@ class LocalAgent:
             update = self._update_status()
         except Exception:
             return "REQUIRED"
-        return update if update in ("AVAILABLE", "UPDATING", "RESTART_REQUIRED", "REQUIRED", "CURRENT") else "REQUIRED"
+        if update in ("REQUIRED", "RESTART_REQUIRED"):
+            return update
+        if self._updater is not None:
+            update = self._updater.state
+            if update == "ROLLED_BACK" and self._updater.requires_update():
+                return "UPDATE_REQUIRED"
+        return update if update in ("AVAILABLE", "UPDATING", "RESTART_REQUIRED", "REQUIRED", "CURRENT",
+                                   "UPDATE_REQUIRED", "NOT_CONFIGURED", "ROLLED_BACK") else "REQUIRED"
 
     def _view(self, token: str, origin: str) -> dict[str, object]:
         self.authenticate(token, origin)
@@ -382,7 +460,7 @@ class LocalAgent:
             state, message, reasons = active.state, "AI LIVE กำลังทำงาน" if active.state == "BUSY" else "AI LIVE หยุดชั่วคราว", []
         elif failed:
             state, message, reasons = "ERROR", "AI LIVE ขัดข้อง", ["ลองกู้คืนหรือหยุดรายการ"]
-        elif update in ("UPDATING", "RESTART_REQUIRED", "REQUIRED"):
+        elif update in ("UPDATING", "RESTART_REQUIRED", "REQUIRED", "UPDATE_REQUIRED"):
             state, message, reasons = "UPDATE_REQUIRED", "ต้องอัปเดตส่วนเสริม AI LIVE", []
         elif not authorized:
             state, message, reasons = "READY", "กรุณาอนุญาตให้เครื่องนี้ใช้งาน", []
@@ -399,7 +477,7 @@ class LocalAgent:
             "sessionActive": active is not None or failed is not None,
             "versions": VERSIONS.copy(),
             "deviceAuthorized": authorized,
-            "updateStatus": update,
+            **self._update_view(),
             "machineReady": hardware.compatible,
         }
         visible_session = active or failed
@@ -471,7 +549,9 @@ class LocalAgent:
         try:
             certificate = self._authorized_device(token, origin)
             grant = verify_grant(body.get("grant"), self.config.grant_public_key_pem,
-                                 now=self._now(), verifier=self._grant_signature_verifier)
+                                 now=self._now(), verifier=self._grant_signature_verifier,
+                                        trusted_keys=self.config.trusted_keys,
+                                        retired_key_ids=self.config.retired_key_ids)
             self._pairings.consume_grant(token, origin, grant, self.config.device_id)
             if certificate["ownerId"] != grant.owner_id:
                 raise SecurityError("OWNER_MISMATCH")
@@ -479,7 +559,7 @@ class LocalAgent:
             raise self._safe_error(exc) from exc
         if grant.versions != VERSIONS:
             raise AgentError(426, "UPDATE_REQUIRED", "ต้องอัปเดต AI LIVE")
-        if self._current_update_status() in ("UPDATING", "RESTART_REQUIRED", "REQUIRED"):
+        if self._current_update_status() in ("UPDATING", "RESTART_REQUIRED", "REQUIRED", "UPDATE_REQUIRED"):
             raise AgentError(426, "UPDATE_REQUIRED", "ต้องอัปเดต AI LIVE")
         try:
             selected_account = str(uuid.UUID(body["accountId"]))  # type: ignore[arg-type]
@@ -495,6 +575,8 @@ class LocalAgent:
         if not isinstance(presenter_id, str):
             raise AgentError(422, "PRESENTER_REQUIRED", "กรุณาเลือกรูปผู้นำเสนอ")
         with self._lock:
+            if self._current_update_status() in ("UPDATING", "RESTART_REQUIRED", "REQUIRED", "UPDATE_REQUIRED"):
+                raise AgentError(426, "UPDATE_REQUIRED", "ต้องอัปเดต AI LIVE")
             if grant.grant_id in self._used_grants:
                 raise AgentError(403, "GRANT_REPLAY", "ไม่สามารถตรวจสอบสิทธิ์ AI LIVE")
             self._used_grants.add(grant.grant_id)

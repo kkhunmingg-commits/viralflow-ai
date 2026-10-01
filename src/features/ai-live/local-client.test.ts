@@ -65,10 +65,91 @@ describe("AI LIVE customer projection", () => {
       diagnostics: { secret: "private-token", command: "launch.exe --unsafe" },
       reasons: ["driver_internal_error:CUDA", "ไม่พบการ์ดจอที่รองรับ"],
     }, true);
-    expect(Object.keys(view).sort()).toEqual(["canStart", "deviceAuthorized", "deviceRegistered", "deviceStatus", "message", "paired", "reasons", "sessionActive", "state", "updateStatus"]);
+    expect(Object.keys(view).sort()).toEqual(["canStart", "deviceAuthorized", "deviceRegistered", "deviceStatus", "membershipStatus", "message", "paired", "reasons", "sessionActive", "state", "updateCanApply", "updateCanRepair", "updateStatus"]);
     expect(view.reasons).toContain("ไม่พบการ์ดจอที่รองรับ");
     expect(view.reasons).toContain("ต้องตรวจสอบความพร้อมของเครื่องเพิ่มเติม");
     expect(JSON.stringify(view)).not.toMatch(/Python|CUDA|8766|private-token|launch\.exe|driver_internal_error/);
+  });
+});
+
+describe("customer release and membership bridge", () => {
+  it("checks membership without treating an absent agent as installed or ready", async () => {
+    const { mock, fetcher } = responseSequence(new Error("not installed"), { supported: true });
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    expect(await client.refresh()).toMatchObject({ state: "NOT_INSTALLED", membershipStatus: "SUPPORTED", canStart: false });
+    expect(mock.mock.calls[1][0]).toBe("/api/ai-live/entitlement");
+    expect(mock.mock.calls[1][1]).toMatchObject({ credentials: "same-origin", cache: "no-store", redirect: "error" });
+    client.dispose();
+  });
+
+  it("blocks an authorized device when fresh server membership is inactive", async () => {
+    const { fetcher } = responseSequence(
+      { token, expiresAt: nowSeconds + 300, deviceId }, { ...ready, deviceAuthorized: true },
+      { device: { authorized: true }, entitled: true },
+      { ...ready, deviceAuthorized: true }, { device: { authorized: true }, entitled: true }, { supported: false },
+    );
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    expect(await client.refresh()).toMatchObject({ membershipStatus: "UNSUPPORTED", deviceAuthorized: false, canStart: false });
+    client.dispose();
+  });
+
+  it("does not trust client entitlement when the fresh server check is unavailable", async () => {
+    const { fetcher } = responseSequence(ready, { supported: "true", signingSecret: "not-for-customers" });
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    expect(await client.refresh()).toMatchObject({ membershipStatus: "UNAVAILABLE", deviceAuthorized: false });
+    expect(JSON.stringify(client.snapshot())).not.toContain("not-for-customers");
+    client.dispose();
+  });
+
+  it("passes signed manifest through fixed boundaries then starts one confirmed local install", async () => {
+    const manifest = { payload: { v: 2, package: { url: "https://downloads.example/viralflow/ai-live/releases/0.3.0/package.zip", sha256: "a".repeat(64) } }, signature: "signed-release", keyId: "release-1" };
+    const available = { ...ready, updateStatus: "AVAILABLE", updateCanApply: true, updateCanRepair: false };
+    const { mock, fetcher } = responseSequence(
+      { token, expiresAt: nowSeconds + 300, deviceId }, ready, unregistered,
+      manifest, { updateStatus: "AVAILABLE" }, available, unregistered, { supported: true },
+      { updateStatus: "UPDATING" }, { ...ready, updateStatus: "UPDATING" }, unregistered, { supported: true },
+    );
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    expect(await client.checkUpdates()).toMatchObject({ updateCanApply: true, updateStatus: "AVAILABLE" });
+    expect(mock.mock.calls[3][0]).toBe("/api/ai-live/updates/manifest");
+    expect(mock.mock.calls[3][1]?.credentials).toBe("same-origin");
+    assertLoopbackCall(mock.mock.calls[4], "/v1/updates/check", true);
+    expect(JSON.parse(mock.mock.calls[4][1]?.body as string)).toEqual({ manifest });
+    expect(await client.installUpdate()).toMatchObject({ updateCanApply: false, updateStatus: "UPDATING" });
+    assertLoopbackCall(mock.mock.calls[8], "/v1/updates/apply", true);
+    expect(JSON.parse(mock.mock.calls[8][1]?.body as string)).toEqual({ confirmed: true });
+    await expect(client.installUpdate()).rejects.toThrow();
+    expect(mock).toHaveBeenCalledTimes(12);
+    expect(JSON.stringify(client.snapshot())).not.toMatch(/downloads.example|signed-release|release-1|sha256/);
+    client.dispose();
+  });
+
+  it("keeps confirmed repair on the same fixed installer boundary", async () => {
+    const { mock, fetcher } = responseSequence(
+      { token, expiresAt: nowSeconds + 300, deviceId }, { ...ready, updateCanRepair: true }, unregistered,
+      { updateStatus: "UPDATING" }, { ...ready, updateStatus: "UPDATING" }, unregistered, { supported: true },
+    );
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    await client.installUpdate(true);
+    assertLoopbackCall(mock.mock.calls[3], "/v1/updates/repair", true);
+    expect(JSON.parse(mock.mock.calls[3][1]?.body as string)).toEqual({ confirmed: true });
+    client.dispose();
+  });
+
+  it("blocks update actions without pairing or while a session is active", async () => {
+    const { mock, fetcher } = responseSequence(
+      { token, expiresAt: nowSeconds + 300, deviceId }, { ...ready, sessionActive: true, updateCanApply: true, updateCanRepair: true }, unregistered,
+    );
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await expect(client.checkUpdates()).rejects.toThrow();
+    await client.pair("ABCDEF");
+    await expect(client.installUpdate()).rejects.toThrow();
+    await expect(client.installUpdate(true)).rejects.toThrow();
+    expect(mock).toHaveBeenCalledTimes(3);
+    client.dispose();
   });
 });
 

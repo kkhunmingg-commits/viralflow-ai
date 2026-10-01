@@ -10,6 +10,7 @@ import { POST as register } from "../../app/api/ai-live/devices/register/route";
 import { GET as status, DELETE as revoke } from "../../app/api/ai-live/devices/[id]/route";
 import { LOCAL_LEASE_VERSIONS } from "./local-license";
 import { signedDeviceMessage } from "./device-identity";
+import { readLiveSigningConfiguration, verifyLiveEnvelope } from "./server-config";
 
 const ownerId = "e26ed687-b36b-44d9-a8df-38e9545d760c";
 const deviceId = "4b531890-5020-4273-b6fb-2cf6e3cb5f7a";
@@ -78,5 +79,25 @@ describe("authenticated AI LIVE registration routes", () => {
     const response = await status(new Request(url + "/" + deviceId), routeContext);
     expect(response.status).toBe(503);
     expect(await response.text()).not.toContain("postgres");
+  });
+
+  it("wires configured rotation key through challenge, certificate and revoke without returning signing secrets", async () => {
+    const id = "live-activation-current";
+    vi.stubEnv("AI_LIVE_SIGNING_KEY_ID", id);
+    vi.stubEnv("AI_LIVE_SIGNING_PUBLIC_KEYS_JSON", JSON.stringify({ [id]: serverKeys.publicKey.export({ type: "spki", format: "pem" }).toString() }));
+    const config = readLiveSigningConfiguration()!;
+    const challengeResponse = await challenge(request("/challenge", { deviceId, versions: LOCAL_LEASE_VERSIONS }));
+    const message = await challengeResponse.json();
+    expect(message.keyId).toBe(id);
+    expect(verifyLiveEnvelope(message, config)).toBe(true);
+    const proof = { ...signedDeviceMessage(message.payload, deviceKeys.privateKey), publicKey: deviceKeys.publicKey.export({ type: "spki", format: "pem" }).toString() };
+    const certificateResponse = await register(request("/register", proof));
+    const certificate = await certificateResponse.json();
+    expect(certificate.certificate.keyId).toBe(id);
+    expect(verifyLiveEnvelope(certificate.certificate, config)).toBe(true);
+    const revoked = await (await revoke(request("/" + deviceId, null, "https://app.test", "DELETE"), routeContext)).json();
+    expect(revoked.receipt.keyId).toBe(id);
+    expect(verifyLiveEnvelope(revoked.receipt, config)).toBe(true);
+    expect(JSON.stringify([message, certificate, revoked])).not.toContain("PRIVATE KEY");
   });
 });

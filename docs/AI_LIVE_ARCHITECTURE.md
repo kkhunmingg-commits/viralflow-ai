@@ -6,7 +6,7 @@ AI LIVE อยู่ใน ViralFlow AI เดิม ใช้ผู้ใช้
 
 | สถานะ | ส่วนที่มีอยู่จริง | ขอบเขต |
 | --- | --- | --- |
-| `READY_WITHOUT_GPU` | Local API/handshake, compatibility gate, Windows installer พร้อม runtime, signed offline update/rollback, persistent device registration/revoke/limit, signed start authorization, customer UI และ bounded domain tests | installer เป็น engineering artifact ยังไม่เซ็น Authenticode; registry ทดสอบแยกจาก Production |
+| `READY_WITHOUT_GPU` | Local API/handshake, compatibility gate, Windows installer พร้อม runtime, signed update distribution/rollback, persistent device registration/revoke/limit, key rotation/entitlement, customer UI และ bounded domain tests | registry apply แล้วบน project เดิม; installer ยังไม่เซ็น Authenticode และยังไม่เปิด production enrollment/update channel |
 | `WAITING_FOR_GPU` / `GPU_VALIDATION_REQUIRED` | MuseTalk incremental backend, audio/frame synchronization, local encoder และ hardware performance | ยังไม่เชื่อม/วัดบน NVIDIA จริง |
 | `PRODUCTION_READY` | **false** | `AI_LIVE_REALTIME_VALIDATED=false`; ยังไม่มี real LIVE transport, signed installer distribution หรือ production device enrollment ที่เปิดใช้งานแล้ว |
 
@@ -62,7 +62,7 @@ normalized comment → CommentEngine → LiveBrain → ProductBrain
 
 ## Customer UI
 
-แสดงบัญชี TikTok, ภาพ Presenter, สินค้า, ตรวจไมโครโฟนเริ่มต้น, ติดตั้งส่วนเสริมแล้วหรือไม่, สถานะเครื่อง/อัปเดต/สิทธิ์เครื่อง, อนุญาตหรือเพิกถอนเครื่อง, Start/Stop และตรวจสอบเครื่อง ดึงสถานะ local และ server authorization ทุก 4 วินาทีแบบไม่ซ้อนคำขอ เป็นการอัปเดตสถานะ ไม่ใช่การดาวน์โหลดซอฟต์แวร์อัตโนมัติ
+แสดงบัญชี TikTok, ภาพ Presenter, สินค้า, ตรวจไมโครโฟนเริ่มต้น, ส่วนเสริม/เครื่อง/สมาชิกพร้อมหรือไม่, ลงทะเบียนหรือยกเลิกเครื่อง, ตรวจอัปเดต/อัปเดต/ซ่อมแซม และ Start/Stop ดึงสถานะ local กับสิทธิ์สมาชิกจาก server ทุก 4 วินาทีแบบไม่ซ้อนคำขอ การติดตั้งต้องยืนยัน หยุด session และผ่าน signature/hash/trusted-download checks ไม่ใช้สถานะ browser เป็นสิทธิ์สมาชิก
 
 ภาพที่อัปโหลดเป็น **ภาพอ้างอิง ไม่ใช่ภาพสด** การตรวจไมโครโฟนขอ permission เมื่อผู้ใช้กดเท่านั้นและปิด audio tracks ทันที ไม่บันทึกหรือส่งเสียงออกจาก browser การรับเสียงจริงเข้าตัว Presenter ยังรอ NVIDIA integration Start ถูกปิดด้วย validation gate ทั้ง UI/client/agent แม้ hardware fixture ผ่าน
 
@@ -73,7 +73,7 @@ Customer projection เลือกเฉพาะสถานะ/เหตุ�
 1. NVIDIA จริง + incremental MuseTalk implementation ตาม [GPU validation checklist](AI_LIVE_GPU_VALIDATION.md)
 2. Audio capture/encoder implementation และวัด synchronization, FPS/latency/VRAM/long-session stability
 3. เซ็น Authenticode และเผยแพร่ installer/update artifacts ผ่านช่องทางที่เชื่อถือได้; เพิ่ม trusted public verification key ใน release build ตาม [Local Agent](AI_LIVE_LOCAL_AGENT.md)
-4. เมื่อได้รับอนุญาตให้เปิดใช้ server: apply `20261001091106_ai_live_device_registration.sql` ซึ่งยังไม่ apply remote, configure server-only signer และ provision `app_metadata.ai_live` ด้วย trusted membership system ทะเบียนเครื่อง/limit มี implementation จริงแล้ว แต่ไม่สร้างแพ็กเกจขายหรือ billing flow ใหม่
+4. Registry migration `20261001091106_ai_live_device_registration.sql` apply แล้วครั้งเดียว แต่ยังต้อง configure server-only signer และ provision `app_metadata.ai_live` ด้วย trusted membership system ไม่มีการสร้างสิทธิ์สมาชิกปลอมหรือ billing flow ใหม่ ดู [Server Activation](AI_LIVE_SERVER_ACTIVATION.md)
 5. LIVE transport/comments/RTMP/product pinning ต้องเป็นงานที่ได้รับอนุมัติแยกต่างหาก Content Posting scopes ไม่ได้ให้สิทธิ์ TikTok LIVE
 
 ไม่มีการแตะ TikTok Production ที่ In Review, OAuth/scopes, Production env, AUTO, Product Radar, Creative Brain, Posting, Analytics หรือ Learning และไม่มี merge/deploy Production

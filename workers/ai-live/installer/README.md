@@ -14,7 +14,7 @@ workers/ai-live/installer/.venv/Scripts/python.exe -m pip install -r workers/ai-
 workers/ai-live/installer/.venv/Scripts/python.exe workers/ai-live/installer/build_windows.py
 ```
 
-Output: `installer/.dist/ViralFlow-Live-Agent-Setup-0.2.0.exe`. Build artifacts,
+Output: `installer/.dist/ViralFlow-Live-Agent-Setup-0.3.0.exe`. Build artifacts,
 the isolated build environment, and extracted test installations are ignored by
 Git. This engineering setup is **unsigned**, not published, not an approved
 production installer, and not proof that live presentation works.
@@ -54,13 +54,41 @@ the temporary uninstaller file is left for OS temp cleanup.
 
 ## Update foundation
 
-`SafeUpdater` verifies an Ed25519 signature using a pinned publisher key,
-expiry, exact web/agent/worker versions, approved HTTPS host/path, package size,
-SHA-256, and embedded version. States: `NOT_CONFIGURED`, `CURRENT`, `AVAILABLE`,
-`UPDATING`, `RESTART_REQUIRED`, `ROLLED_BACK`. Applying requires explicit
-confirmation and no active live session. No arbitrary URLs, shell commands, or
-browser-supplied file paths are accepted. There is no production update server
-or signing key configured; the offline signed-package path is tested only.
+`SafeUpdater` verifies a v2 Ed25519 envelope `{payload,signature,keyId}` using
+installed active public keys. The signature covers both `keyId` and `payload`.
+The release plan includes issuance/expiry, lockstep web/agent/worker versions,
+minimum versions, mandatory status, previous fallback version, and the immutable
+package URL/size/SHA-256. Retired or unknown keys fail closed. Legacy v1 envelopes
+remain offline-only and cannot bypass a configured key retirement policy.
+
+The authenticated web app obtains `/api/ai-live/updates/manifest` after a fresh
+server entitlement check, then sends that signed public plan through the paired
+`POST /v1/updates/check` endpoint. It never supplies cookies, cloud credentials,
+public trust roots, arbitrary commands, or local paths to the agent. The package
+must match the installed `updateOrigin` and exact path
+`/viralflow/ai-live/releases/<version>/package.zip` with no query/fragment/port
+overrides. Delivery resolves only public IPs, pins the validated address, checks
+TLS certificates/hostname, ignores proxy configuration, denies redirects,
+enforces timeouts and bounded bytes, and verifies SHA-256 before staging.
+
+Confirmed `POST /v1/updates/apply` and `/v1/updates/repair` run the real download,
+runtime self-test, fixed OS integration, and atomic activation transaction in a
+bounded background operation. Status polling reports `UPDATING`,
+`RESTART_REQUIRED`, or `ROLLED_BACK`; duplicate activation and active sessions
+are blocked. Repair requires a signature-verified package for the installed
+version. Cached public plans are reverified under the current installed key ring
+and expiry before use. A failed install retains the old pointer and restores
+its integration. `rollbackVersion` describes the previous fallback; it does not
+authorize downloading or installing an older version. Downgrades remain denied.
+States also include `NOT_CONFIGURED`, `CURRENT`, `AVAILABLE`, `UPDATE_REQUIRED`.
+Minimum-version/mandatory updates block Start until installation/restart.
+
+This pipeline is tested through the real local HTTP/transport/installer path,
+isolating the network and OS boundaries only. No production release storage,
+update origin, signing private key or Authenticode certificate is configured
+by this work. The engineering package remains unconfigured and fail-closed for
+registration/start. Public release signatures authorize software integrity,
+never membership or permission to run LIVE.
 
 Customer registration/start remains blocked until the package has a trusted
 server verification public key and the server entitlement/device registration
@@ -68,6 +96,12 @@ is configured. Developers can pass `--grant-public-key-file <public.pem>` when
 building to bundle the trusted Ed25519 verification key at the fixed config
 location. The build validates the key type and refuses private keys. A build
 without this input remains unconfigured and registration/start fail closed.
+The current release also supports `--public-config <public.json>` with only
+`trustedKeys` (key ID to Ed25519 public PEM), `retiredKeyIds`, optional legacy
+`grantPublicKeyPem`, and optional fixed HTTPS `updateOrigin`. The build validates
+every key and rejects private keys or extra fields. Never populate trust roots
+from a browser request. Version 0.2.0 predates these distribution endpoints;
+users of that version require the new offline setup before web-driven updates.
 Secrets must never be packaged. Large models, CUDA drivers, GPU inference dependencies, and actual
 presenter benchmarking remain excluded.
 
@@ -79,10 +113,15 @@ unsigned arbitrary package can be activated automatically.
 
 Official packaging reference: https://pyinstaller.org/en/stable/usage.html
 
-## Local delivery evidence — 2026-10-01
+## Local delivery evidence — 2026-10-02
 
-Generated setup: `ViralFlow-Live-Agent-Setup-0.2.0.exe`, 54,003,280 bytes.
-SHA-256: `4cedf8615fa6eb9805b52448155746ee17b92b3b9566cad765917c6567bd2681`.
+Generated setup: `ViralFlow-Live-Agent-Setup-0.3.0.exe`, 54,019,573 bytes.
+SHA-256: `a35de9e1893a7335760f3185af70389e45de8443a1655275ea2b8ec443d34da0`.
+Immutable package input: `installer/.build/payload.zip`, 44,627,324 bytes.
+SHA-256: `72d3f24fe70e89cae229f611be633e426426d1849a90519ef1f5d21516c2e1d7`.
+This package ZIP, rather than the GUI setup EXE, is the update manifest's target
+when a publisher prepares a real signed release channel. It is not uploaded or
+published by this work, and both artifacts remain ignored by Git.
 Authenticode status: `NotSigned`. This is the local engineering artifact, not a
 published customer release. A rebuild may produce a different binary hash.
 
@@ -91,5 +130,6 @@ Tk resource self-test. Fresh install, corrupted-file repair and uninstall ran
 against the real bundle in isolated workspace directories. A hidden launch
 with isolated `LOCALAPPDATA` executed the production launcher, created its
 DPAPI identity, and returned unpaired, unauthorized discovery with version
-`0.2.0`. Only that created process was stopped. No real desktop shortcut,
+`0.3.0`, update channel unconfigured, and update/repair unavailable. Only that
+created process was stopped. No real desktop shortcut,
 customer profile, cloud device, GPU inference or production setting was changed.

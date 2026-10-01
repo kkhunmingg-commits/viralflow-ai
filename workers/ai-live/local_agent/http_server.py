@@ -195,6 +195,17 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json(200, agent.status(token, origin), origin)
             elif method == "GET" and self.path == "/v1/hardware":
                 self._send_json(200, agent.hardware(token, origin), origin)
+            elif method == "POST" and self.path == "/v1/updates/check":
+                request = self._json_body()
+                if set(request) != {"manifest"}:
+                    raise AgentError(400, "INVALID_UPDATE_REQUEST", "ข้อมูลไม่ถูกต้อง")
+                self._send_json(200, agent.check_update(token, origin, request["manifest"]), origin)
+            elif method == "POST" and self.path in ("/v1/updates/apply", "/v1/updates/repair"):
+                request = self._json_body()
+                if set(request) != {"confirmed"} or request["confirmed"] is not True:
+                    raise AgentError(400, "UPDATE_CONFIRMATION_REQUIRED", "กรุณายืนยันการอัปเดต")
+                self._send_json(202, agent.apply_update(token, origin, confirmed=True,
+                                                      repair=self.path == "/v1/updates/repair"), origin)
             elif method == "POST" and self.path == "/v1/device/proof":
                 request = self._json_body()
                 if set(request) != {"challenge"}:

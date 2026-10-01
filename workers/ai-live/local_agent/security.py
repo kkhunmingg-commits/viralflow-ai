@@ -11,7 +11,9 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
+
+SIGNING_KEY_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
 
 
 class SecurityError(ValueError):
@@ -66,11 +68,64 @@ def verify_ed25519(payload: bytes, signature: bytes, public_key_pem: bytes) -> N
         raise SecurityError("INVALID_PUBLIC_KEY") from exc
 
 
+def verify_signed_envelope(
+    signed: object,
+    public_key_pem: bytes = b"",
+    *,
+    trusted_keys: Mapping[str, bytes] | None = None,
+    retired_key_ids: frozenset[str] = frozenset(),
+    verifier: Callable[[bytes, bytes, bytes], None] = verify_ed25519,
+) -> dict[str, Any]:
+    """Verify only installed trust anchors. A key ID is authenticated metadata.
+
+    Retired IDs fail closed. Legacy single-key envelopes remain available during
+    migration only when no retirement policy is set; they never fall back from
+    an unknown modern key ID and cannot bypass retirement by omitting an ID.
+    """
+    if (not isinstance(signed, dict) or set(signed) not in
+            ({"payload", "signature"}, {"payload", "signature", "keyId"})
+            or not isinstance(signed.get("payload"), dict)):
+        raise SecurityError("INVALID_SIGNED_ENVELOPE")
+    signature = _decode_base64url(signed["signature"])
+    if len(signature) != 64:
+        raise SecurityError("INVALID_SIGNATURE")
+    keys = trusted_keys or {}
+    if (not isinstance(keys, Mapping) or len(keys) > 8
+            or not isinstance(retired_key_ids, (set, frozenset))
+            or any(not isinstance(key_id, str) or not SIGNING_KEY_ID.fullmatch(key_id)
+                   or not isinstance(key, bytes) or not key
+                   for key_id, key in keys.items())
+            or any(not isinstance(key_id, str) or not SIGNING_KEY_ID.fullmatch(key_id)
+                   for key_id in retired_key_ids)):
+        raise SecurityError("INVALID_TRUST_CONFIGURATION")
+    if "keyId" in signed:
+        key_id = signed["keyId"]
+        if not isinstance(key_id, str) or not SIGNING_KEY_ID.fullmatch(key_id):
+            raise SecurityError("INVALID_SIGNING_KEY_ID")
+        if key_id in retired_key_ids:
+            raise SecurityError("SIGNING_KEY_RETIRED")
+        public_key = keys.get(key_id)
+        if public_key is None:
+            raise SecurityError("UNKNOWN_SIGNING_KEY")
+        signed_bytes = canonical_json({"keyId": key_id, "payload": signed["payload"]})
+    else:
+        if retired_key_ids:
+            raise SecurityError("LEGACY_SIGNING_KEY_RETIRED")
+        if not public_key_pem:
+            raise SecurityError("REGISTRATION_UNAVAILABLE")
+        public_key = public_key_pem
+        signed_bytes = canonical_json(signed["payload"])
+    verifier(signed_bytes, signature, public_key)
+    return signed["payload"].copy()
+
+
 def verify_device_message(signed: object, public_key_pem: bytes, *, purpose: str,
-                          now: float, verifier: Callable[[bytes, bytes, bytes], None] = verify_ed25519
+                          now: float, verifier: Callable[[bytes, bytes, bytes], None] = verify_ed25519,
+                          trusted_keys: Mapping[str, bytes] | None = None,
+                          retired_key_ids: frozenset[str] = frozenset(),
                           ) -> dict[str, Any]:
     """Validate the narrow, short-lived control-plane signed messages."""
-    if not public_key_pem:
+    if not public_key_pem and not trusted_keys:
         raise SecurityError("REGISTRATION_UNAVAILABLE")
     fields = {
         "AI_LIVE_DEVICE_REGISTER": {"v", "purpose", "ownerId", "deviceId", "challengeId",
@@ -80,16 +135,15 @@ def verify_device_message(signed: object, public_key_pem: bytes, *, purpose: str
         "AI_LIVE_DEVICE_REVOKED": {"v", "purpose", "ownerId", "deviceId", "issuedAt", "expiresAt"},
     }
     if (purpose not in fields or not isinstance(signed, dict)
-            or set(signed) != {"payload", "signature"} or not isinstance(signed["payload"], dict)):
+            or set(signed) not in ({"payload", "signature"}, {"payload", "signature", "keyId"})
+            or not isinstance(signed["payload"], dict)):
         raise SecurityError("INVALID_DEVICE_MESSAGE")
     payload = signed["payload"]
     if (set(payload) != fields[purpose] or type(payload.get("v")) is not int
             or payload["v"] != 1 or payload.get("purpose") != purpose):
         raise SecurityError("INVALID_DEVICE_MESSAGE")
-    signature = _decode_base64url(signed["signature"])
-    if len(signature) != 64:
-        raise SecurityError("INVALID_SIGNATURE")
-    verifier(canonical_json(payload), signature, public_key_pem)
+    verify_signed_envelope(signed, public_key_pem, trusted_keys=trusted_keys,
+                           retired_key_ids=retired_key_ids, verifier=verifier)
     _uuid(payload.get("ownerId"))
     _uuid(payload.get("deviceId"))
     issued, expires = payload.get("issuedAt"), payload.get("expiresAt")
@@ -132,18 +186,19 @@ def verify_grant(
     *,
     now: float | None = None,
     verifier: Callable[[bytes, bytes, bytes], None] = verify_ed25519,
+    trusted_keys: Mapping[str, bytes] | None = None,
+    retired_key_ids: frozenset[str] = frozenset(),
 ) -> Grant:
-    if (not isinstance(signed, dict) or set(signed) != {"payload", "signature"}
+    if (not isinstance(signed, dict) or set(signed) not in
+            ({"payload", "signature"}, {"payload", "signature", "keyId"})
             or not isinstance(signed.get("payload"), dict)):
         raise SecurityError("INVALID_GRANT")
     payload = signed["payload"]
     if set(payload) != {"v", "ownerId", "deviceId", "challenge", "accountId", "productIds",
                         "grantId", "issuedAt", "expiresAt", "entitled", "versions"}:
         raise SecurityError("INVALID_GRANT")
-    signature = _decode_base64url(signed.get("signature"))
-    if len(signature) != 64:
-        raise SecurityError("INVALID_SIGNATURE")
-    verifier(canonical_json(payload), signature, public_key_pem)
+    verify_signed_envelope(signed, public_key_pem, trusted_keys=trusted_keys,
+                           retired_key_ids=retired_key_ids, verifier=verifier)
     try:
         if type(payload.get("v")) is not int or payload["v"] != 1 or payload.get("entitled") is not True:
             raise SecurityError("ENTITLEMENT_REQUIRED")

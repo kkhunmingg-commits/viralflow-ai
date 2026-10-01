@@ -37,6 +37,10 @@ describe("local AI LIVE lease", () => {
     expect(allowedLeaseExpiry(metadata({ expiresAt: new Date((now + 20) * 1000).toISOString() }), now)).toBe(now + 20);
     expect(allowedLeaseExpiry({}, now)).toBeNull();
     expect(allowedLeaseExpiry(metadata({ enabled: false }), now)).toBeNull();
+    expect(allowedLeaseExpiry(metadata({ status: "inactive" }), now)).toBeNull();
+    expect(allowedLeaseExpiry(metadata({ status: "revoked" }), now)).toBeNull();
+    expect(allowedLeaseExpiry(metadata({ revokedAt: new Date(now * 1000).toISOString() }), now)).toBeNull();
+    expect(allowedLeaseExpiry(metadata({ status: "active", revokedAt: null }), now)).toBe(now + LOCAL_LEASE_SECONDS);
     expect(allowedLeaseExpiry(metadata({ expiresAt: new Date(now * 1000).toISOString() }), now)).toBeNull();
     expect(readLocalEntitlement(metadata(), now)).not.toHaveProperty("registeredDeviceIds");
     expect(allowedLeaseExpiry(metadata({ deviceLimit: 0 }), now)).toBeNull();

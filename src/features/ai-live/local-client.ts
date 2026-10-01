@@ -21,7 +21,7 @@ export class LocalLiveClient {
   snapshot(): LocalMachineView { return { ...this.current, reasons: [...this.current.reasons] }; }
 
   private async request(path: string, options: RequestInit = {}, signal?: AbortSignal, authenticated = true): Promise<Json> {
-    if (!/^\/v1\/(discovery|pair|renew|status|hardware|challenge|references|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/stop)$/.test(path)) {
+    if (!/^\/v1\/(discovery|pair|renew|status|hardware|challenge|references|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/stop)$/.test(path)) {
       throw new Error("ไม่สามารถทำรายการนี้ได้");
     }
     if (authenticated && (!this.token || this.tokenExpiresAt <= this.now() / 1000)) {
@@ -74,7 +74,7 @@ export class LocalLiveClient {
   }
 
   private async cloudRequest(path: string, options: RequestInit = {}, signal?: AbortSignal): Promise<Json> {
-    if (!/^\/api\/ai-live\/(local-grant|devices\/(challenge|register|[0-9a-f-]{36}))$/.test(path)) throw new Error("ไม่สามารถทำรายการนี้ได้");
+    if (!/^\/api\/ai-live\/(entitlement|updates\/manifest|local-grant|devices\/(challenge|register|[0-9a-f-]{36}))$/.test(path)) throw new Error("ไม่สามารถทำรายการนี้ได้");
     const controller = new AbortController();
     this.requests.add(controller);
     const timer = setTimeout(() => controller.abort(), 8_000);
@@ -97,6 +97,7 @@ export class LocalLiveClient {
       const device = data.device as { authorized?: unknown } | undefined;
       this.current.deviceRegistered = device?.authorized === true;
       this.current.deviceAuthorized = this.localDeviceAuthorized && this.current.deviceRegistered && data.entitled === true;
+      this.current.membershipStatus = data.entitled === true ? "SUPPORTED" : "UNSUPPORTED";
       this.current.deviceStatus = data.entitled !== true ? "MEMBERSHIP_REQUIRED" : this.current.deviceAuthorized ? "AUTHORIZED" : "UNREGISTERED";
     } catch {
       this.current.deviceAuthorized = false;
@@ -115,6 +116,45 @@ export class LocalLiveClient {
       if (!signal?.aborted) this.current = localMachineView(this.token ? "OFFLINE" : "NOT_INSTALLED");
     }
     return this.snapshot();
+  }
+
+  /** Membership stays authoritative even before a companion has been installed. */
+  async refresh(signal?: AbortSignal): Promise<LocalMachineView> {
+    await this.discover(signal);
+    if (signal?.aborted) return this.snapshot();
+    try {
+      const data = await this.cloudRequest("/api/ai-live/entitlement", {}, signal);
+      if (typeof data.supported !== "boolean") throw new Error("ข้อมูลสิทธิ์ไม่ถูกต้อง");
+      this.current.membershipStatus = data.supported ? "SUPPORTED" : "UNSUPPORTED";
+      if (!data.supported) {
+        this.current.deviceAuthorized = false;
+        this.current.deviceStatus = "MEMBERSHIP_REQUIRED";
+      }
+    } catch {
+      this.current.membershipStatus = "UNAVAILABLE";
+      this.current.deviceAuthorized = false;
+    }
+    return this.snapshot();
+  }
+
+  async checkUpdates(signal?: AbortSignal): Promise<LocalMachineView> {
+    if (!this.token) throw new Error("กรุณาเชื่อมส่วนเสริมก่อนตรวจอัปเดต");
+    // Only authenticated same-origin metadata crosses the bridge. The companion
+    // independently verifies the signature and chooses its own trusted downloader.
+    const manifest = await this.cloudRequest("/api/ai-live/updates/manifest", {}, signal);
+    await this.request("/v1/updates/check", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ manifest }),
+    }, signal);
+    return this.refresh(signal);
+  }
+
+  async installUpdate(repair = false, signal?: AbortSignal): Promise<LocalMachineView> {
+    const allowed = repair ? this.current.updateCanRepair : this.current.updateCanApply;
+    if (!this.token || !allowed || this.current.sessionActive) throw new Error("กรุณาหยุดการใช้งานและตรวจอัปเดตก่อน");
+    await this.request(`/v1/updates/${repair ? "repair" : "apply"}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmed: true }),
+    }, signal);
+    return this.refresh(signal);
   }
 
   async pair(code: string, signal?: AbortSignal): Promise<LocalMachineView> {

@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { verifyLocalLease, type LocalLeasePayload } from "@/features/ai-live/local-license";
 import { LOCAL_LEASE_VERSIONS } from "@/features/ai-live/local-license";
 import { parseDevicePublicKey, signedDeviceMessage } from "@/features/ai-live/device-identity";
+import { readLiveSigningConfiguration, verifyLiveEnvelope } from "@/features/ai-live/server-config";
 import { RequestSecurityError } from "@/lib/security/request";
 
 const mocks = vi.hoisted(() => ({ getUser: vi.fn(), from: vi.fn(), rateLimit: vi.fn(), rpc: vi.fn() }));
@@ -155,5 +156,18 @@ describe("POST /api/ai-live/local-grant", () => {
     expect(limited.status).toBe(429);
     expect(limited.headers.get("retry-after")).toBe("60");
     expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("uses the configured active signing key ID on real grant handlers and denies inactive membership", async () => {
+    vi.stubEnv("AI_LIVE_SIGNING_KEY_ID", "live-current");
+    vi.stubEnv("AI_LIVE_SIGNING_PUBLIC_KEYS_JSON", JSON.stringify({ "live-current": publicKey.export({ type: "spki", format: "pem" }).toString() }));
+    const response = await POST(request());
+    expect(response.status).toBe(200);
+    const grant = await response.json();
+    expect(grant.keyId).toBe("live-current");
+    expect(verifyLiveEnvelope(grant, readLiveSigningConfiguration()!)).toBe(true);
+    expect(JSON.stringify(grant)).not.toContain("PRIVATE KEY");
+    user.app_metadata.ai_live = { ...(user.app_metadata.ai_live as Record<string, unknown>), status: "inactive" };
+    expect((await POST(request())).status).toBe(403);
   });
 });

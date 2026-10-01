@@ -1,6 +1,6 @@
 # AI LIVE Local Agent — foundation
 
-สถานะ `READY_WITHOUT_GPU` สำหรับ delivery/control/security: สร้าง Windows GUI installer พร้อม runtime แล้ว มี registration server และ offline signed update/rollback ที่ทดสอบจริง `WAITING_FOR_GPU` / `GPU_VALIDATION_REQUIRED` สำหรับ Presenter/audio/encoder; `PRODUCTION_READY=false` installer ยังไม่เซ็นและยังไม่เปิด registry/update channel บน Production ไม่มี live broadcast จริง
+สถานะ `READY_WITHOUT_GPU` สำหรับ delivery/control/security: สร้าง Windows GUI installer พร้อม runtime แล้ว มีทะเบียนเครื่องบน Supabase จริง และ signed update distribution/rollback foundation `WAITING_FOR_GPU` / `GPU_VALIDATION_REQUIRED` สำหรับ Presenter/audio/encoder; `PRODUCTION_READY=false` ยังไม่ตั้ง signer/membership/release hosting บน Production ไม่มี live broadcast จริง
 
 ## โครงสร้าง
 
@@ -11,7 +11,7 @@ src/features/ai-live/local-license*.ts       # server entitlement / Ed25519 star
 src/features/ai-live/device-*.ts            # signed proof / durable owner device registry
 src/app/api/ai-live/local-grant/route.ts     # authenticated cloud control only
 src/app/api/ai-live/devices/**              # challenge/register/status/list/revoke
-supabase/migrations/20261001091106_ai_live_device_registration.sql # local only
+supabase/migrations/20261001091106_ai_live_device_registration.sql # applied once; server-only
 workers/ai-live/local_agent/
   agent.py                                 # session / worker / encoder boundary
   security.py                              # pairing / challenge / signature verification
@@ -19,7 +19,7 @@ workers/ai-live/local_agent/
   hardware.py                              # Windows probe / provisional tiers
   bootstrap.py                             # signed artifact install/update/repair planner
   device_identity.py                       # DPAPI-protected per-install Ed25519 identity
-  updater.py                               # signed offline update / explicit confirm / rollback
+  updater.py                               # signed update / trusted download / confirm / rollback
   launcher.pyw                             # no-terminal GUI launcher foundation
   requirements.txt                         # pinned signature verifier dependency
 workers/ai-live/installer/                  # self-contained windowed setup/build/delivery
@@ -39,6 +39,8 @@ Agent bind เฉพาะ `127.0.0.1:8766`; ตรวจ Host ตรงตั�
 | `POST /v1/device/proof` | token/origin; ตรวจ server-signed registration challenge แล้วลงลายเซ็นด้วย device private key |
 | `POST /v1/device/certificate` | token/origin; รับ certificate ที่ server ลงลายเซ็น ตรวจ owner/device/key/version/expiry เก็บด้วย DPAPI |
 | `POST /v1/device/revoke` | token/origin; ตรวจ signed receipt, บันทึก revocation และหยุด session ที่เป็นเจ้าของ |
+| `POST /v1/updates/check` | token/origin; ตรวจ signed manifest จาก authenticated web bridge ไม่รับ URL หรือ trust key จากลูกค้า |
+| `POST /v1/updates/apply,repair` | token/origin; ยืนยันก่อนติดตั้ง ห้ามมี session ค้าง ใช้ package ที่ตรวจลายเซ็น/hash แล้วเท่านั้น |
 | `GET /v1/challenge` | token/origin + certificate; one-use challenge ≤120 วินาที และ device-signed proof |
 | `POST /v1/references` | token/origin; JPEG/PNG ≤4MB; local UUID path ไม่รับ customer filesystem path |
 | `POST /v1/sessions/start` | signed grant + matched selection/reference; version/hardware/release gate |
@@ -57,6 +59,8 @@ Trusted `app_metadata.ai_live` provisioning interface:
 ```json
 {
   "enabled": true,
+  "status": "active",
+  "revokedAt": null,
   "expiresAt": "2027-01-01T00:00:00Z",
   "deviceLimit": 1
 }
@@ -66,7 +70,7 @@ Trusted `app_metadata.ai_live` provisioning interface:
 
 Registration: cloud signed challenge → local Ed25519 proof → server membership/owner check → atomic nonce consumption/device limit → signed certificate → DPAPI storage → browser rechecks cloud authorization. `GET /api/ai-live/devices` และ `GET/DELETE /api/ai-live/devices/[id]` scoped ด้วย authenticated owner ไม่รับ ownerId ที่ browser อ้าง; revoke ใช้ได้แม้สมาชิกหมดอายุแล้ว
 
-Migration เพิ่ม `ai_live_devices`, `ai_live_device_challenges`, `ai_live_device_lease_nonces` เปิด RLS ทุกตาราง ไม่มี table/function grants ให้ anon/authenticated; server-only SECURITY INVOKER RPCs ใช้ owner/device transaction advisory locks กัน takeover และ limit overbooking ข้อมูลเดิมไม่ถูกแก้ **migration ยังไม่ apply remote** ทดสอบใน isolated PostgreSQL engine เท่านั้น
+Migration เพิ่ม `ai_live_devices`, `ai_live_device_challenges`, `ai_live_device_lease_nonces` เปิด RLS ทุกตาราง ไม่มี table/function grants ให้ anon/authenticated; server-only SECURITY INVOKER RPCs ใช้ owner/device transaction advisory locks กัน takeover และ limit overbooking **apply สำเร็จครั้งเดียว** บน project `viralflow-ai` เมื่อ 2026-10-02 ประวัติ remote ใช้ version `20261001172630` / name `ai_live_device_registration` ส่วนไฟล์ local เดิมคงอยู่ ไม่สร้าง migration ซ้ำ และไม่แก้ผู้ใช้เดิม
 
 Grant ใช้ Ed25519 ลงลายเซ็นด้วย server-only `AI_LIVE_LEASE_SIGNING_PRIVATE_KEY` ที่ **ยังไม่ได้ตั้งค่าหรือสร้างในงานนี้** Installer pin public key ที่ตรงกัน private key ไม่ไป browser/agent ไม่มีการแตะ .env.local หรือ Production env
 
@@ -91,7 +95,7 @@ RAM 16GB / disk 20GB / compute capability 6.0 เป็น provisional config �
 
 ## Installer/bootstrap/update
 
-`workers/ai-live/installer/.dist/ViralFlow-Live-Agent-Setup-0.2.0.exe` เป็นไฟล์ติดตั้งจริงแบบ windowed/offline ต่อ Windows user มี Python/Tk/cryptography และ FFmpeg พร้อม license notices ลูกค้าดับเบิลคลิก Install/Update, Repair หรือ Uninstall ได้ ไม่ต้องเปิด terminal หรือจัดการ Python เอง First run สร้าง DPAPI identity และ pairing code; ไม่มีโมเดลใหญ่/CUDA/inference packages
+`workers/ai-live/installer/.dist/ViralFlow-Live-Agent-Setup-0.3.0.exe` เป็นไฟล์ติดตั้งจริงแบบ windowed/offline ต่อ Windows user มี Python/Tk/cryptography และ FFmpeg พร้อม license notices ลูกค้าดับเบิลคลิก Install/Update, Repair หรือ Uninstall ได้ ไม่ต้องเปิด terminal หรือจัดการ Python เอง First run สร้าง DPAPI identity และ pairing code; ไม่มีโมเดลใหญ่/CUDA/inference packages
 
 ตัวติดตั้งตรวจรุ่นเดิมและ package/file hashes, extract เฉพาะ managed release directory, self-test executable, ตั้ง shortcut/Windows installed-app entry แล้ว activate pointer แบบ atomic เมื่อ upgrade ล้มยังเก็บรุ่นเดิมและ restore integration; repair ลง release ใหม่แทนการ overwrite runtime เดิม Uninstall ลบเฉพาะ managed files/registry/shortcut ไม่แตะบัญชี TikTok/analytics/subscription บน cloud unknown files ไม่ถูกลบ
 
@@ -99,9 +103,9 @@ RAM 16GB / disk 20GB / compute capability 6.0 เป็น provisional config �
 
 `BootstrapManager` รับ signed manifest จาก trusted installer: fixed artifact names (`agent`, `worker`, `ffmpeg`, `model`), HTTPS host allowlist, fixed release path, SHA-256/size/version checks ก่อน stage atomic copy แยก status first-run/dependencies/model/update/repair ลบเฉพาะ managed artifact names ใน uninstall ไม่มี arbitrary download/execution API
 
-`SafeUpdater` foundation ตรวจ Ed25519-signed manifest, expiry, web/agent/worker lockstep versions, HTTPS allowlist path, byte size/hash และ embedded package version ก่อนใช้ offline archive ต้องยืนยันและหยุด session ก่อน apply และต้องส่ง delivery integration callback สำหรับ runtime self-test/OS integration; ถ้าไม่มี callback จะไม่ activate มี `AVAILABLE`, `UPDATING`, `RESTART_REQUIRED`, rollback states ไม่มี production update server/downloader/scheduled update configured และไม่ทำ silent overwrite Update distribution ต้องตั้ง trusted channel/release signing public key ก่อนเปิดใช้จริง
+`SafeUpdater` ตรวจ pinned Ed25519 signature/keyId, expiry, web/agent/worker lockstep versions, minimum compatibility, mandatory/optional update, rollback metadata, trusted HTTPS download, byte size/hash และ embedded package version ต้องยืนยันและหยุด session ก่อนติดตั้ง มี callback สำหรับ runtime self-test/OS integration; ถ้าไม่มี callback จะไม่ activate มี `AVAILABLE`, `UPDATE_REQUIRED`, `UPDATING`, `RESTART_REQUIRED`, rollback states จริง ไม่มี production release hosting ที่เปิดใช้หรือ scheduled update และไม่ทำ silent overwrite ดู [distribution protocol](AI_LIVE_SERVER_ACTIVATION.md)
 
-Version tuple: web/agent/worker `0.2.0`, model `musetalk-unvalidated`; equality ทุก component ก่อน Start เวอร์ชันต่าง → `UPDATE_REQUIRED` Tests ตรวจ parity TypeScript/Python ก่อน release ไม่มี customer/env override สำหรับ GPU validation
+Version tuple: web/agent/worker `0.3.0`, model `musetalk-unvalidated`; equality ทุก component ก่อน Start เวอร์ชันต่าง → `UPDATE_REQUIRED` Tests ตรวจ parity TypeScript/Python ก่อน release ไม่มี customer/env override สำหรับ GPU validation รุ่นเก่า `0.2.0` ต้อง bootstrap ด้วย installer ใหม่เพราะยังไม่มี distribution endpoints/keyring
 
 ## Security และ recovery limitations
 
@@ -124,13 +128,13 @@ node scripts/validate-ai-live-devices.mjs <absolute-path-to-isolated-pglite/dist
 
 หลัง uninstall identity บนเครื่องถูกลบ แต่ไม่มีการใช้ secret เพื่อแก้ subscription หรือบัญชี cloud อัตโนมัติ ทะเบียนเก่าต้อง revoke ผ่าน owner-authenticated device endpoint เพื่อคืน slot ก่อน enroll installation ใหม่
 
-Operational activation ที่ยังไม่ทำ: apply registry migration บน environment ที่อนุมัติ, configure server-only signer/trusted membership, build package พร้อม matching public key, Authenticode และ release/update hosting ไม่มีการสร้าง secret หรือเปิด Production ในรอบนี้
+Operational activation ที่ยังไม่ทำ: configure server-only signer/trusted membership, build package พร้อม matching public keys, Authenticode และ release/update hosting ไม่มีการสร้าง production secret หรือ deploy เว็บ Production ในรอบนี้ ส่วน registry migration apply แล้ว ดูรายละเอียดและผลตรวจรอบล่าสุดใน [Server Activation](AI_LIVE_SERVER_ACTIVATION.md)
 
 ## ผลตรวจ delivery 0.2.0 — 2026-10-01
 
 - TypeScript AI LIVE/routes: **62/62 ผ่าน** (11 test files); ไม่อ้างว่ารันทั้ง repository ในรอบนี้
 - Python ทั้ง worker/local agent/delivery: **72/72 ผ่าน** รวม native Windows DPAPI และสอง tests ของ artifact จริง
-- Isolated PostgreSQL migration: **26/26 ผ่าน**; remote migration **UNAPPLIED**
+- Isolated PostgreSQL migration: **26/26 ผ่าน**; สถานะ UNAPPLIED เป็นผลของรอบ 0.2.0 เท่านั้น รอบ Server Activation ได้ apply แล้ว
 - `pnpm typecheck`: ผ่าน
 - `pnpm lint`: exit 0 / ไม่มี error; 8 warning เดิมใน video benchmark/tests นอกขอบเขต ไม่แก้ส่วนเหล่านั้น
 - `pnpm build`: ผ่าน ใช้ public Supabase placeholders เฉพาะ build process; ไม่ใช่ acceptance กับ live database และไม่แก้ `.env.local`/Production env
