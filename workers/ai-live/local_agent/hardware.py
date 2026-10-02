@@ -13,12 +13,30 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Sequence
 
+NVIDIA_DRIVER_URL = "https://www.nvidia.com/Download/index.aspx"
+
+
+def driver_version_tuple(version: str) -> tuple[int, ...]:
+    if not isinstance(version, str) or not re.fullmatch(r"[0-9]{1,5}(?:\.[0-9]{1,5}){1,3}", version):
+        raise ValueError("Invalid NVIDIA driver version")
+    values = tuple(map(int, version.split(".")))
+    return values + (0,) * (4 - len(values))
+
+
+def driver_meets_minimum(actual: str | None, minimum: str | None) -> bool:
+    try:
+        parsed = driver_version_tuple(actual)
+        return minimum is None or parsed >= driver_version_tuple(minimum)
+    except (TypeError, ValueError):
+        return False
+
 
 def _command(args: Sequence[str]) -> str | None:
     # All callers below pass fixed commands and arguments. Never use a shell.
     try:
         result = subprocess.run(list(args), capture_output=True, text=True,
-                                timeout=4, check=False, shell=False)
+                                timeout=4, check=False, shell=False,
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except (OSError, subprocess.TimeoutExpired):
         return None
     return result.stdout if result.returncode == 0 else None
@@ -47,6 +65,7 @@ class HardwareTiers:
     minimum_ram_gb: float = 16
     minimum_free_disk_gb: float = 20
     minimum_compute_capability: float = 6.0
+    minimum_driver_version: str | None = None
 
     def __post_init__(self) -> None:
         if not (0 < self.minimum_vram_gb <= self.recommended_vram_gb
@@ -55,6 +74,8 @@ class HardwareTiers:
         if min(self.minimum_ram_gb, self.minimum_free_disk_gb,
                self.minimum_compute_capability) <= 0:
             raise ValueError("Hardware thresholds must be positive")
+        if self.minimum_driver_version is not None:
+            driver_version_tuple(self.minimum_driver_version)
 
 
 @dataclass(frozen=True)
@@ -80,12 +101,16 @@ class HardwareAssessment:
     validation_required: bool
     customer_reasons: tuple[str, ...]
     diagnostics: dict[str, object]
+    driver_action: dict[str, str] | None = None
+    customer_advice: tuple[str, ...] = ()
 
     def customer(self) -> dict[str, object]:
         return {
             "state": "กำลังเตรียม" if self.compatible else "เครื่องไม่รองรับ",
             "message": "รอการทดสอบ AI LIVE บนเครื่องจริง" if self.compatible else "เครื่องนี้ยังไม่รองรับ AI LIVE",
             "reasons": list(self.customer_reasons),
+            "advice": list(self.customer_advice),
+            "driverAction": self.driver_action,
         }
 
 
@@ -140,6 +165,17 @@ def inspect_hardware(
                     continue
             if devices:
                 vram, compute, gpu_name, driver = max(devices)
+        if gpu_name is None:
+            # A missing vendor utility must not hide a physically installed GPU
+            # or imply that no driver action is possible. Do not reinterpret
+            # Windows' different DriverVersion format as an NVIDIA version.
+            powershell = Path("C:/Windows/System32/WindowsPowerShell/v1.0/powershell.exe")
+            if powershell.is_file():
+                names = command((str(powershell), "-NoProfile", "-NonInteractive", "-Command",
+                                 "(Get-CimInstance Win32_VideoController).Name"))
+                if names:
+                    gpu_name = next((name.strip()[:200] for name in names.splitlines()
+                                     if "nvidia" in name.casefold()), None)
     ffmpeg = which("ffmpeg") if which is not None else _bundled_ffmpeg_path(install_dir)
     encoders = command((ffmpeg, "-hide_banner", "-encoders")) if ffmpeg else None
     try:
@@ -166,6 +202,8 @@ def assess_hardware(snapshot: HardwareSnapshot,
                     tiers: HardwareTiers = HardwareTiers()) -> HardwareAssessment:
     reasons: list[str] = []
     diagnostic_codes: list[str] = []
+    advice: list[str] = []
+    driver_action = None
     if snapshot.os_name != "Windows":
         reasons.append("ระบบปฏิบัติการยังไม่รองรับ")
         diagnostic_codes.append("WINDOWS_REQUIRED")
@@ -175,13 +213,20 @@ def assess_hardware(snapshot: HardwareSnapshot,
     if snapshot.gpu_name is None or snapshot.vram_gb is None:
         reasons.append("ไม่พบการ์ดจอที่รองรับ")
         diagnostic_codes.append("NVIDIA_GPU_REQUIRED")
+        advice.append("ใช้เครื่องที่มีการ์ดจอ NVIDIA และหน่วยความจำการ์ดจอตามข้อกำหนด")
     elif snapshot.vram_gb < tiers.minimum_vram_gb:
         reasons.append("หน่วยความจำการ์ดจอไม่เพียงพอ")
         diagnostic_codes.append("GPU_VRAM_REQUIRED")
-    if snapshot.gpu_name and (not snapshot.driver_version or snapshot.compute_capability is None
-                              or snapshot.compute_capability < tiers.minimum_compute_capability):
+    if snapshot.gpu_name and not driver_meets_minimum(snapshot.driver_version, tiers.minimum_driver_version):
         reasons.append("ต้องอัปเดตไดรเวอร์")
-        diagnostic_codes.append("CUDA_COMPATIBILITY_REQUIRED")
+        diagnostic_codes.append("NVIDIA_DRIVER_REQUIRED")
+        advice.append("อัปเดตไดรเวอร์การ์ดจอจากผู้ผลิต แล้วเปิด ViralFlow อีกครั้ง")
+        driver_action = {"label": "ดาวน์โหลดไดรเวอร์จาก NVIDIA", "url": NVIDIA_DRIVER_URL}
+    if snapshot.gpu_name and (snapshot.compute_capability is None
+                              or snapshot.compute_capability < tiers.minimum_compute_capability):
+        reasons.append("ต้องตรวจสอบรุ่นการ์ดจอ")
+        diagnostic_codes.append("GPU_MODEL_REQUIRED")
+        advice.append("ตรวจสอบว่ารุ่นการ์ดจอรองรับการแสดงสด ไม่ใช่เพียงมีหน่วยความจำเพียงพอ")
     if not snapshot.ffmpeg_available or not snapshot.encoder_listed:
         reasons.append("ต้องตรวจสอบความพร้อมของเครื่องเพิ่มเติม")
         diagnostic_codes.append("ENCODER_REQUIRED")
@@ -202,6 +247,8 @@ def assess_hardware(snapshot: HardwareSnapshot,
         tier=tier,
         validation_required=True,
         customer_reasons=tuple(reasons),
+        customer_advice=tuple(advice),
+        driver_action=driver_action,
         diagnostics={
             "marker": "GPU_VALIDATION_REQUIRED",
             "tier": tier,

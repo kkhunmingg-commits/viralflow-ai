@@ -1,4 +1,4 @@
-# Local Live Agent component notices
+# ViralFlow AI component notices
 
 This offline Windows test package includes the Python runtime and Tcl/Tk, the
 PyInstaller bootloader (GPL with its bundling exception), cryptography
@@ -20,5 +20,12 @@ the corresponding source for FFmpeg and its enabled external libraries under
 their applicable licenses; this local engineering package is not a production
 distribution release or source offer.
 
-No lip-sync models, CUDA toolkit, NVIDIA drivers, GPU inference libraries, or
-live-streaming performance validation are included.
+The small engineering setup has no model weights, GPU inference dependencies or
+NVIDIA driver installer. First-run presenter runtime/model archives must carry
+their own upstream license notices and immutable source/hash provenance before a
+publisher signs a release. CPU engineering assets use MuseTalk 1.5 (MIT),
+sd-vae-ft-mse (model card MIT), and Whisper (Apache-2.0); dependency wheels retain
+their distribution license metadata. Publication still requires review of all
+transitive dependencies, model redistribution rights, and FFmpeg corresponding
+source obligations. No managed archive or signing private key is published by
+this work, and packaging does not establish live-streaming performance validation.

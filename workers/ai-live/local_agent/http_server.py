@@ -196,6 +196,13 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json(200, agent.status(token, origin), origin)
             elif method == "GET" and self.path == "/v1/hardware":
                 self._send_json(200, agent.hardware(token, origin), origin)
+            elif method == "GET" and self.path == "/v1/components/status":
+                self._send_json(200, agent.components_status(token, origin)["components"], origin)
+            elif method == "POST" and self.path == "/v1/components/prepare":
+                request = self._json_body()
+                if set(request) != {"grant", "repair"} or type(request["repair"]) is not bool:
+                    raise AgentError(400, "INVALID_PREPARATION_REQUEST", "ข้อมูลไม่ถูกต้อง")
+                self._send_json(202, agent.prepare_components(token, origin, request["grant"], repair=request["repair"])["components"], origin)
             elif method == "GET" and (match := FRAME_ROUTE.fullmatch(self.path)):
                 frame = agent.preview_frame(token, origin, match.group(1))
                 self.send_response(200 if frame else 204)

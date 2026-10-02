@@ -4,6 +4,8 @@ AI LIVE อยู่ใน ViralFlow AI เดิม ใช้ผู้ใช้
 
 ## สถานะจาก implementation
 
+การส่งมอบรุ่น `0.4.0` ใช้ **ViralFlow AI โปรแกรมเดียว**: installer รวม local runtime/encoder และเตรียม presenter dependencies/models ด้วย signed managed downloads ไม่มี manual Python/CUDA/PATH/OBS ขั้นตอน first-run, download resume, repair, rollback และ release gates อยู่ใน [One App Installation](AI_LIVE_INSTALLATION.md) ยังไม่มี signed customer release channel และยังไม่ผ่าน NVIDIA validation
+
 | สถานะ | ส่วนที่มีอยู่จริง | ขอบเขต |
 | --- | --- | --- |
 | `READY_WITHOUT_GPU` | Local API/handshake, compatibility gate, Windows installer พร้อม runtime, signed update distribution/rollback, persistent device registration/revoke/limit, key rotation/entitlement, customer UI และ bounded domain tests | registry apply แล้วบน project เดิม; installer ยังไม่เซ็น Authenticode และยังไม่เปิด production enrollment/update channel |
@@ -44,7 +46,7 @@ Browser ติดต่อ `http://127.0.0.1:8766` โดยตรง เว็�
 - ทะเบียนเครื่องจริงอยู่ใน server-only RLS tables; registration ตรวจสมาชิกสด/เจ้าของ/nonce/จำนวนเครื่องแบบ atomic; revoke บล็อก grant ใหม่ทันที และ signed revoke receipt หยุด session ของเครื่องนั้นเมื่อ local agent ได้รับ ไม่อ้างว่า remote revoke หยุดเครื่อง offline ได้ทันที
 - Signed grant อายุไม่เกิน 120 วินาที ผูก owner/device/challenge/account/products/component versions และ grant ID ใช้ครั้งเดียว ใช้ตรวจสิทธิ์ตอนเริ่ม session หรือเปิด native transport settings ไม่ใช่ heartbeat membership ระหว่าง stream สิทธิ์เปลี่ยนต้องตรวจใหม่เมื่อ Start ครั้งถัดไป ยังไม่มี active membership revocation service
 - หนึ่งเครื่องมี active session ได้หนึ่งรายการ Start initialize worker ครั้งเดียว; Pause/Resume/Stop ตรวจ session owner Stop ไม่ติด gate เรื่องสิทธิ์หมดอายุหรือ hardware เมื่อ worker ขัดข้องมี recovery จำกัดหนึ่งครั้ง ถ้า Start grant ไม่สดแล้วต้อง Stop/release และขอ grant ใหม่ ไม่มี auto restart loop
-- ไม่มี snapshot durable ข้ามการ restart ของ process ในรุ่นนี้ session/token เป็น memory shutdown พยายาม Stop และล้าง reference; การ recovery ผ่าน HTTP มีเฉพาะ session ที่ agent ยังถืออยู่ การจัดการ orphan worker หลัง process kill รอ real worker integration
+- ไม่มี snapshot durable ข้ามการ restart ของ process ในรุ่นนี้ session/token เป็น memory shutdown พยายาม Stop และล้าง reference; การ recovery ผ่าน HTTP มีเฉพาะ session ที่ agent ยังถืออยู่ Managed worker process ใช้ Windows job object ปิดเฉพาะ worker/descendants ของตนเมื่อ parent ปิดหรือ timeout มี native ownership test แต่ยังไม่แทน long-session GPU validation
 - `PresenterProvider` เดิมมี chunk audio / receive frames / Stop / health / metrics; `MuseTalkLocalPresenter` ผูก boundary นี้สำหรับ incremental local backend ส่วน `MockPresenter` ใช้ automated tests เท่านั้น
 - `LocalWorkerBoundary` เชื่อม real presenter/audio, shared-clock encoder และ direct provider แล้ว; software H.264/AAC กับ Generic RTMP ผ่าน DEV receiver proof ส่วน GPU/NVENC และ production release ยังไม่ผ่าน acceptance จึง fail closed ไม่เรียก cloud provider หรือสร้าง fake preview
 
@@ -101,14 +103,14 @@ flowchart LR
 
 [หลักฐานที่เก็บไว้](AI_LIVE_DIRECT_STREAMING_PROOF.json) วัด 600.026 วินาที: real frames 240, held frames 14,785, presenter 0.397 FPS, latency median/p95 9.531/15.969 วินาที, encoder 25.001 FPS และ bitrate 308.450 kbps Mux drift final/max 8/64 ms และ input-clock drift 0 ms เป็น packet synchronization เท่านั้น ไม่ใช่ realtime phoneme/lip sync Audio buffer สูงสุด 6,815 ms; inference branch ทิ้ง 173 chunks แต่ encoded playback PCM ไม่ทิ้ง sample ส่วน transport ทิ้ง 15 tags รวม 5 audio tags ระหว่าง startup/reconnect
 
-คิวสูงสุด comment/action/presenter/encoder/transport เท่ากับ 1/2/4/0/0 และ RAM หลัง warmup อยู่ 4,341.2–4,347.5 MiB ไม่พบการโตต่อเนื่อง Receiver ก่อนและหลัง reconnect decode H.264/AAC และ PCM ที่ไม่เป็นศูนย์ได้จริง มี injected reconnect หนึ่งครั้งโดยใช้ producer session เดิม Stop รายงานคืน resource และปิด worker/receiver; short CLI helper อีกการทดสอบมี torch interpreter-finalization hang หลังคืน media resource แล้ว การแก้ bounded process exit ยังไม่ถือว่าตรวจเสร็จ
+คิวสูงสุด comment/action/presenter/encoder/transport เท่ากับ 1/2/4/0/0 และ RAM หลัง warmup อยู่ 4,341.2–4,347.5 MiB ไม่พบการโตต่อเนื่อง Receiver ก่อนและหลัง reconnect decode H.264/AAC และ PCM ที่ไม่เป็นศูนย์ได้จริง มี injected reconnect หนึ่งครั้งโดยใช้ producer session เดิม Stop รายงานคืน resource และปิด worker/receiver; isolated short CLI helper 12.048 วินาทีตรวจคืน media resources ก่อนปิด process ของตนและ exit 0 แล้ว ดู [หลักฐานเดิม](AI_LIVE_DIRECT_STREAMING_PROOF.json) ไม่ได้ใช้ helper นี้เป็น release gate หรือ customer worker
 
 คอมเมนต์และสินค้าใน proof เป็น existing TEST fixtures; Voice และ Presenter เป็นของจริง การสลับ `PRESENTER_PROVIDER=musetalk` และ encoder ไป NVENC ใช้ contract เดิม แต่ต้องผ่าน NVIDIA validation ค่า config อย่างเดียวไม่รับรอง CUDA/FPS/lip sync RTMP local ผ่านแล้ว ส่วน TikTok LIVE ไม่ได้ทดสอบและยังไม่มี transport credentials
 
 ## งานที่เหลือในขอบเขตถัดไป
 
 1. NVIDIA จริง + incremental MuseTalk implementation ตาม [GPU validation checklist](AI_LIVE_GPU_VALIDATION.md)
-2. ตรวจ audio capture, lip sync, FPS/latency/VRAM และ long-session stability บน NVIDIA; software H.264/AAC clock และ local RTMP proof สิบนาทีมีหลักฐานแล้ว แต่ bounded CLI helper shutdown ยังรอ final verification
+2. ตรวจ audio capture, lip sync, FPS/latency/VRAM และ long-session stability บน NVIDIA; software H.264/AAC clock, local RTMP proof สิบนาที และ bounded isolated CLI helper shutdown มีหลักฐานแล้ว
 3. เซ็น Authenticode และเผยแพร่ installer/update artifacts ผ่านช่องทางที่เชื่อถือได้; เพิ่ม trusted public verification key ใน release build ตาม [Local Agent](AI_LIVE_LOCAL_AGENT.md)
 4. Registry migration `20261001091106_ai_live_device_registration.sql` apply แล้วครั้งเดียว แต่ยังต้อง configure server-only signer และ provision `app_metadata.ai_live` ด้วย trusted membership system ไม่มีการสร้างสิทธิ์สมาชิกปลอมหรือ billing flow ใหม่ ดู [Server Activation](AI_LIVE_SERVER_ACTIVATION.md)
 5. สิทธิ์และ transport credentials ของ TikTok LIVE, real platform comments และ product pinning ยังต้องต่ออย่างได้รับอนุญาต; Generic RTMP/RTMPS เป็น internal provider แล้ว Content Posting scopes ไม่ได้ให้สิทธิ์ TikTok LIVE

@@ -221,8 +221,12 @@ class DeliveryManager:
             self.state = "NOT_INSTALLED"
             return
         self.integration(None)
+        # The signed component catalog identifies runtime/model files exactly;
+        # foreign files in its cache or release trees survive uninstall.
+        from local_agent.components import remove_managed_components
+        remove_managed_components(_regular_path(self.root / "components", self.root))
         # Remove only this application's known managed children; unknown files stay.
-        for name in ("releases", "references", "identity", "updates"):
+        for name in ("releases", "references", "identity", "updates", "worker", "live-credentials"):
             target = _regular_path(self.root / name, self.root)
             if target.exists():
                 for child in target.rglob("*"):

@@ -9,26 +9,30 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import shutil
 import secrets
 import sys
 import threading
 import tkinter as tk
+import webbrowser
 from pathlib import Path
 from tkinter import messagebox
+from tkinter import ttk
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from local_agent import AgentConfig, AgentHTTPServer, LocalAgent  # noqa: E402
 from local_agent.agent import VERSIONS  # noqa: E402
 from local_agent.device_identity import DeviceIdentity  # noqa: E402
 from local_agent.security import SecurityError  # noqa: E402
-from local_agent.hardware import inspect_hardware  # noqa: E402
+from local_agent.hardware import HardwareTiers, NVIDIA_DRIVER_URL, driver_version_tuple, inspect_hardware  # noqa: E402
 from installer.delivery import DeliveryManager  # noqa: E402
 from installer.setup_app import integrate_update  # noqa: E402
 from local_agent.updater import SafeUpdater  # noqa: E402
 from local_agent.update_transport import trusted_origin  # noqa: E402
 from local_agent.stream_credentials import StreamCredentialStore  # noqa: E402
-from local_agent.live_worker import LocalWorkerBoundary  # noqa: E402
+from local_agent.components import BootstrapManager  # noqa: E402
+from local_agent.managed_runtime import ManagedRuntimeWorker  # noqa: E402
 
 
 def packaged_config() -> dict[str, object]:
@@ -40,15 +44,36 @@ def packaged_config() -> dict[str, object]:
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 16 * 1024:
         raise SecurityError("INSTALL_CONFIG_INVALID")
     configured = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(configured, dict) or set(configured) - {"grantPublicKeyPem", "trustedKeys", "retiredKeyIds", "updateOrigin"}:
+    if not isinstance(configured, dict) or set(configured) - {"grantPublicKeyPem", "trustedKeys", "retiredKeyIds", "updateOrigin", "componentBootstrap"}:
         raise SecurityError("INSTALL_CONFIG_INVALID")
     return configured
 
 
+def component_configuration(configured: dict[str, object]) -> tuple[str | None, str | None, str, str | None]:
+    """Package-owned release coordinates only; never a browser URL or command."""
+    import re
+    bootstrap = configured.get("componentBootstrap")
+    if bootstrap is None:
+        return None, None, "nvidia", None
+    if (not configured.get("trustedKeys") or not isinstance(bootstrap, dict)
+            or set(bootstrap) - {"origin", "releaseVersion", "profile", "minimumNvidiaDriver"}
+            or not {"origin", "releaseVersion", "profile"} <= set(bootstrap)
+            or bootstrap["profile"] not in ("cpu-dev", "nvidia")
+            or not isinstance(bootstrap["releaseVersion"], str)
+            or len(bootstrap["releaseVersion"]) > 32
+            or not re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", bootstrap["releaseVersion"])):
+        raise SecurityError("INSTALL_CONFIG_INVALID")
+    origin = trusted_origin(bootstrap["origin"])[0]
+    minimum = bootstrap.get("minimumNvidiaDriver")
+    if minimum is not None:
+        driver_version_tuple(minimum)
+    return origin, origin + "/viralflow/ai-live/components/" + bootstrap["releaseVersion"] + "/manifest.json", bootstrap["profile"], minimum
+
+
 def main() -> None:
     root = tk.Tk()
-    root.title("ViralFlow AI LIVE")
-    root.geometry("390x190")
+    root.title("ViralFlow AI")
+    root.geometry("440x340")
     root.resizable(False, False)
     try:
         configured = packaged_config()
@@ -71,6 +96,7 @@ def main() -> None:
         update_origin = configured.get("updateOrigin")
         if update_origin is not None:
             trusted_origin(update_origin)
+        component_origin, component_url, profile, minimum_driver = component_configuration(configured)
         config = AgentConfig(
             device_id=identity.device_id,
             pairing_code=secrets.token_hex(12),
@@ -78,6 +104,7 @@ def main() -> None:
             data_dir=managed_root / "references",
             trusted_keys={key: value.encode("ascii") for key, value in keyring.items()},
             retired_key_ids=frozenset(retired),
+            hardware_tiers=HardwareTiers(minimum_driver_version=minimum_driver),
         )
         # The bundled executable directory is trusted package content. This PATH
         # edit is process-local, does not install or modify the user's runtime.
@@ -107,7 +134,10 @@ def main() -> None:
                               update_origin=update_origin,
                               delivery=DeliveryManager(managed_root, integration=lambda exe: integrate_update(exe, managed_root)))
         credentials = StreamCredentialStore(managed_root / "live-credentials")
-        worker = LocalWorkerBoundary(managed_root / "worker", credentials)
+        components = BootstrapManager(managed_root / "components", config.grant_public_key_pem,
+            trusted_keys=config.trusted_keys, retired_key_ids=config.retired_key_ids,
+            release_origin=component_origin, profile=profile)
+        worker = ManagedRuntimeWorker(managed_root, components)
 
         def open_stream_setup(owner_id: str, account_id: str) -> None:
             # HTTP handles grants only. Entered secrets stay in this native
@@ -154,9 +184,10 @@ def main() -> None:
         agent = LocalAgent(config, device_identity=identity, worker=worker,
                            stream_credentials=credentials, stream_setup_callback=open_stream_setup,
                            hardware_probe=lambda: inspect_hardware(config.data_dir, which=packaged_binary),
-                           update_status=package_update_status, updater=updater)
+                           update_status=package_update_status, updater=updater,
+                           components=components, component_manifest_url=component_url)
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        messagebox.showerror("ViralFlow AI LIVE", "ต้องติดตั้งส่วนเสริม AI LIVE ให้ครบก่อนใช้งาน")
+        messagebox.showerror("ViralFlow AI", "ยังเปิดใช้งานไม่ได้ กรุณาซ่อมแซมการติดตั้ง ViralFlow")
         root.destroy()
         return
 
@@ -170,7 +201,9 @@ def main() -> None:
     thread = threading.Thread(target=server.serve_forever,
                               kwargs={"poll_interval": 0.2}, daemon=True)
     thread.start()
-    tk.Label(root, text="รหัสเชื่อมต่อเครื่องนี้", font=("Segoe UI", 12)).pack(pady=(18, 6))
+    tk.Label(root, text="ยินดีต้อนรับสู่ ViralFlow AI", font=("Segoe UI", 15, "bold")).pack(pady=(16, 8))
+    tk.Button(root, text="เข้าสู่ระบบ", command=lambda: webbrowser.open("https://viralflow-ai-blond.vercel.app/ai-live"), width=28).pack()
+    tk.Label(root, text="เชื่อมเครื่องกับบัญชีของคุณ", font=("Segoe UI", 11)).pack(pady=(12, 6))
     code = tk.StringVar(value=config.pairing_code)
     tk.Entry(root, textvariable=code, justify="center", state="readonly",
              font=("Consolas", 14), width=28).pack()
@@ -182,6 +215,36 @@ def main() -> None:
         root.clipboard_append(config.pairing_code)
 
     tk.Button(root, text="คัดลอกรหัส", command=copy_code).pack()
+    feedback = tk.StringVar(value="เข้าสู่ระบบเพื่อเริ่มตรวจและเตรียมเครื่องอัตโนมัติ")
+    tk.Label(root, textvariable=feedback, wraplength=405, font=("Segoe UI", 10)).pack(pady=(14, 6))
+    progress = ttk.Progressbar(root, mode="determinate", maximum=100, length=350)
+    progress.pack()
+    driver_button = tk.Button(root, text="กรุณาอัปเดตไดรเวอร์การ์ดจอ", command=lambda: webbrowser.open(NVIDIA_DRIVER_URL))
+    # OS/driver checks must not block first-run progress or the window buttons.
+    driver_results = queue.Queue(maxsize=1)
+    driver_required = False
+    threading.Thread(target=lambda: driver_results.put(agent._assessment().driver_action is not None),
+                     daemon=True, name="viralflow-machine-check").start()
+    labels = {"CHECKING": "กำลังตรวจเครื่อง", "DOWNLOADING": "กำลังดาวน์โหลดส่วนประกอบ",
+              "VERIFYING": "กำลังตรวจความสมบูรณ์", "INSTALLING": "กำลังเตรียมเครื่อง",
+              "READY": "เตรียมส่วนประกอบครบแล้ว · AI LIVE กำลังเตรียมพร้อม",
+              "REPAIR_REQUIRED": "กรุณากดซ่อมแซมในหน้า AI LIVE", "ERROR": "กรุณาลองเตรียมเครื่องอีกครั้งในหน้า AI LIVE"}
+    def refresh() -> None:
+        nonlocal driver_required
+        view = agent._components_view()
+        state, received, total = view["state"], view["bytesReceived"], view["totalBytes"]
+        feedback.set(labels.get(state, "เข้าสู่ระบบเพื่อเริ่มตรวจและเตรียมเครื่องอัตโนมัติ"))
+        progress["value"] = 100 * received / total if total else 0
+        try:
+            driver_required = driver_results.get_nowait()
+        except queue.Empty:
+            pass
+        if driver_required:
+            driver_button.pack(pady=(6, 0))
+        else:
+            driver_button.pack_forget()
+        root.after(1500, refresh)
+    root.after(500, refresh)
 
     def close() -> None:
         server.shutdown()

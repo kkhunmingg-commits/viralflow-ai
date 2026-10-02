@@ -48,12 +48,15 @@ def _self_test() -> None:
         record("RUNNING")
         import tkinter  # noqa: F401
         from tkinter import messagebox  # noqa: F401
+        from tkinter import ttk  # noqa: F401
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
         from local_agent.security import canonical_json
         from local_agent import AgentConfig, AgentHTTPServer, LocalAgent  # noqa: F401
         from local_agent.agent import REALTIME_VALIDATED
         from local_agent.live_worker import LocalWorkerBoundary  # noqa: F401
         from local_agent.stream_credentials import StreamCredentialStore  # noqa: F401
+        from local_agent.components import BootstrapManager  # noqa: F401
+        from local_agent.managed_runtime import ManagedRuntimeWorker  # noqa: F401
         from av_encoder import EncoderConfig, InternalAVEncoder  # noqa: F401
         from av_pipeline import AVSessionStream  # noqa: F401
         from direct_stream import GenericRTMPProvider, GenericRTMPSProvider, TikTokLiveProvider  # noqa: F401

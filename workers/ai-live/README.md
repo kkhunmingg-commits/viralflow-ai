@@ -127,8 +127,9 @@ counts/RMS, so this claim does not depend on a socket-connected flag.
 
 Stop reported released resources and closed worker/receiver, with RAM reduced
 to 750.6 MiB. A separate short CLI helper encountered torch interpreter
-finalization hanging after media resources closed. Bounded helper-process exit
-is being fixed/retested and is not yet claimed as fully verified. An unrelated
+finalization hanging after media resources closed. The bounded isolated CLI
+helper was repaired and its 12.048-second real short proof exited 0 after
+resource verification; this helper is not the customer worker. An unrelated
 TypeScript scheduler test also fails against the intentionally empty Hobby
 `vercel.json`; this proof does not claim the whole TypeScript suite passes.
 

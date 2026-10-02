@@ -12,7 +12,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-VERSION = "0.3.0"
+VERSION = "0.4.0"
 HERE = Path(__file__).resolve().parent
 WORKER = HERE.parent
 REPO = WORKER.parents[1]
@@ -20,9 +20,10 @@ BUILD = HERE / ".build"
 DIST = HERE / ".dist"
 RUNTIME_HIDDEN_IMPORTS = (
     "local_agent", "local_agent.updater", "local_agent.live_worker",
-    "local_agent.stream_credentials", "av_encoder", "av_pipeline", "direct_stream",
+    "local_agent.stream_credentials", "local_agent.components", "local_agent.managed_runtime",
+    "av_encoder", "av_pipeline", "direct_stream",
     "sounddevice", "_sounddevice", "_sounddevice_data", "cffi", "_cffi_backend",
-    "tkinter.messagebox", "installer.setup_app",
+    "tkinter.messagebox", "tkinter.ttk", "installer.setup_app",
 )
 
 
@@ -76,7 +77,7 @@ def public_configuration(path: Path) -> dict[str, object]:
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 32 * 1024:
         raise RuntimeError("Invalid public release configuration")
     config = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(config, dict) or set(config) - {"grantPublicKeyPem", "trustedKeys", "retiredKeyIds", "updateOrigin"}:
+    if not isinstance(config, dict) or set(config) - {"grantPublicKeyPem", "trustedKeys", "retiredKeyIds", "updateOrigin", "componentBootstrap"}:
         raise RuntimeError("Only public trust configuration can be packaged")
     keys, retired = config.get("trustedKeys", {}), config.get("retiredKeyIds", [])
     key_id = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
@@ -91,6 +92,22 @@ def public_configuration(path: Path) -> dict[str, object]:
         if not keys:
             raise RuntimeError("Update delivery requires an installed public signing key ring")
         validated["updateOrigin"] = trusted_origin(config["updateOrigin"])[0]
+    if "componentBootstrap" in config:
+        bootstrap = config["componentBootstrap"]
+        if (not keys or not isinstance(bootstrap, dict)
+                or set(bootstrap) - {"origin", "releaseVersion", "profile", "minimumNvidiaDriver"}
+                or not {"origin", "releaseVersion", "profile"} <= set(bootstrap)
+                or bootstrap["profile"] not in {"cpu-dev", "nvidia"}
+                or not isinstance(bootstrap["releaseVersion"], str)
+                or len(bootstrap["releaseVersion"]) > 32
+                or not re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", bootstrap["releaseVersion"])):
+            raise RuntimeError("Invalid managed component public configuration")
+        component_config = dict(bootstrap)
+        component_config["origin"] = trusted_origin(bootstrap["origin"])[0]
+        if "minimumNvidiaDriver" in bootstrap:
+            from local_agent.hardware import driver_version_tuple
+            driver_version_tuple(bootstrap["minimumNvidiaDriver"])
+        validated["componentBootstrap"] = component_config
     return validated
 
 
@@ -139,10 +156,12 @@ def main() -> None:
     metadata = {"version": VERSION, "sha256": hashlib.sha256(archive.read_bytes()).hexdigest()}
     info = BUILD / "payload-info.json"
     info.write_text(json.dumps(metadata), encoding="utf-8")
-    invoke(["--onefile", "--windowed", "--name", f"ViralFlow-Live-Agent-Setup-{VERSION}",
+    invoke(["--onefile", "--windowed", "--name", f"ViralFlow-AI-Setup-{VERSION}",
+            "--exclude-module", "torch", "--exclude-module", "numpy",
+            "--exclude-module", "dev_fallback_engine", "--exclude-module", "imageio_ffmpeg",
             "--paths", str(WORKER), "--add-data", f"{archive};.", "--add-data", f"{info};.",
             str(HERE / "setup_app.py")])
-    setup = DIST / f"ViralFlow-Live-Agent-Setup-{VERSION}.exe"
+    setup = DIST / f"ViralFlow-AI-Setup-{VERSION}.exe"
     print(json.dumps({"installer": str(setup), "sha256": hashlib.sha256(setup.read_bytes()).hexdigest(),
                       "sizeBytes": setup.stat().st_size, "version": VERSION, "signed": False}))
 

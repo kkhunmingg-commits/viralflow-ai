@@ -22,7 +22,7 @@ from .stream_credentials import StreamCredentialStore
 
 MAX_REFERENCE_BYTES = 4 * 1024 * 1024
 MAX_REFERENCES = 5
-VERSIONS = {"web": "0.3.0", "agent": "0.3.0", "worker": "0.3.0",
+VERSIONS = {"web": "0.4.0", "agent": "0.4.0", "worker": "0.4.0",
             "model": "musetalk-unvalidated"}
 PROVIDER_MODE = "LOCAL_GPU"
 REALTIME_VALIDATED = False  # Release gate; no environment or browser override.
@@ -154,6 +154,8 @@ class LocalAgent:
         updater: SafeUpdater | None = None,
         stream_credentials: StreamCredentialStore | None = None,
         stream_setup_callback: Callable[[str, str], None] | None = None,
+        components=None,
+        component_manifest_url: str | None = None,
     ) -> None:
         self.config = config
         self._now = now
@@ -172,6 +174,10 @@ class LocalAgent:
         self._stream_setup_callback = stream_setup_callback
         self._stream_authorizations: dict[tuple[str, str], float] = {}
         self._update_thread: threading.Thread | None = None
+        self._components = components
+        self._component_manifest_url = component_manifest_url
+        self._component_thread: threading.Thread | None = None
+        self._component_cancel = threading.Event()
         self._used_registration_challenges: dict[str, int] = {}
         if device_identity is not None and device_identity.device_id != config.device_id:
             raise ValueError("Device identity does not match the installed configuration")
@@ -401,6 +407,8 @@ class LocalAgent:
     def apply_update(self, token: str, origin: str, *, confirmed: bool, repair: bool = False) -> dict[str, object]:
         self.authenticate(token, origin)
         with self._lock:
+            if self._component_thread is not None and self._component_thread.is_alive():
+                raise AgentError(409, "COMPONENTS_BUSY", "กรุณารอให้เตรียมเครื่องเสร็จ")
             if self._updater is None or self._updater.transport is None:
                 raise AgentError(503, "UPDATE_NOT_CONFIGURED", "ส่วนเสริมยังไม่พร้อมสำหรับการอัปเดต")
             active = any(session.state != "STOPPED" for session in self._sessions.values())
@@ -433,6 +441,91 @@ class LocalAgent:
                                       ("ไม่สามารถตรวจสอบเครื่องนี้ได้",),
                                       {"marker": "GPU_VALIDATION_REQUIRED", "codes": ["HARDWARE_CHECK_FAILED"]})
 
+    def _components_view(self, *, authorized: bool = False) -> dict[str, object]:
+        """Only progress and customer-safe states cross the loopback boundary."""
+        if self._components is None:
+            return {"state": "NOT_CONFIGURED", "bytesReceived": 0, "totalBytes": 0, "canPrepare": False}
+        try:
+            raw = self._components.status()
+            state = raw.get("state")
+            mapped = {"REQUIRED": "NOT_CONFIGURED", "UPDATE_REQUIRED": "NOT_CONFIGURED",
+                      "VERIFY_REQUIRED": "NOT_CONFIGURED", "FAILED": "ERROR", "INTERRUPTED": "ERROR",
+                      "PROFILE_UNAVAILABLE": "ERROR"}.get(state, state)
+            if mapped not in {"NOT_CONFIGURED", "CHECKING", "DOWNLOADING", "VERIFYING", "INSTALLING", "READY", "REPAIR_REQUIRED", "ERROR"}:
+                mapped = "ERROR"
+            total = raw.get("totalBytes", 0)
+            received = raw.get("bytesReceived", 0)
+            if type(total) is not int or not 0 <= total <= 128 * 1024**3:
+                total = 0
+            if type(received) is not int:
+                received = 0
+            codes = self._assessment().diagnostics.get("codes", []) if authorized else ["AUTHORIZATION_REQUIRED"]
+            # A missing bundled encoder can be restored by this preparation.
+            # Physical driver/hardware restrictions still block GPU downloads.
+            compatible = not codes or all(code == "ENCODER_REQUIRED" for code in codes)
+            if self._components.profile == "cpu-dev":
+                from provider_config import dev_fallback_enabled
+                compatible = dev_fallback_enabled() and all(code in {
+                    "ENCODER_REQUIRED", "NVIDIA_GPU_REQUIRED", "NVIDIA_DRIVER_REQUIRED", "GPU_MODEL_REQUIRED", "GPU_VRAM_REQUIRED"
+                } for code in codes)
+            can_prepare = bool(authorized and compatible and self._component_manifest_url
+                               and self._components.transport
+                               and (self.config.grant_public_key_pem or self.config.trusted_keys)
+                               and mapped not in {"CHECKING", "DOWNLOADING", "VERIFYING", "INSTALLING", "READY"}
+                               and not self._component_cancel.is_set())
+            return {"state": mapped, "bytesReceived": max(0, min(received, total)),
+                    "totalBytes": total, "canPrepare": can_prepare}
+        except Exception:
+            return {"state": "ERROR", "bytesReceived": 0, "totalBytes": 0, "canPrepare": False}
+
+    def components_status(self, token: str, origin: str) -> dict[str, object]:
+        self.authenticate(token, origin)
+        try:
+            self._authorized_device(token, origin)
+            authorized = True
+        except SecurityError:
+            authorized = False
+        return {"components": self._components_view(authorized=authorized)}
+
+    def prepare_components(self, token: str, origin: str, signed: object, *, repair: bool = False) -> dict[str, object]:
+        """Entitled account/device lease, installed catalog URL; no browser commands."""
+        self.authenticate(token, origin)
+        if type(repair) is not bool:
+            raise AgentError(400, "INVALID_PREPARATION_REQUEST", "ข้อมูลไม่ถูกต้อง")
+        try:
+            certificate = self._authorized_device(token, origin)
+            grant = verify_grant(signed, self.config.grant_public_key_pem, now=self._now(),
+                verifier=self._grant_signature_verifier, trusted_keys=self.config.trusted_keys,
+                retired_key_ids=self.config.retired_key_ids)
+            if grant.versions != VERSIONS or certificate["ownerId"] != grant.owner_id:
+                raise SecurityError("OWNER_MISMATCH")
+            self._pairings.consume_grant(token, origin, grant, self.config.device_id)
+        except SecurityError as exc:
+            raise self._safe_error(exc) from exc
+        with self._lock:
+            if grant.grant_id in self._used_grants:
+                raise AgentError(403, "GRANT_REPLAY", "กรุณาตรวจสอบสิทธิ์อีกครั้ง")
+            if ((self._component_thread and self._component_thread.is_alive())
+                    or any(session.state != "STOPPED" for session in self._sessions.values())
+                    or self._current_update_status() in ("UPDATING", "RESTART_REQUIRED", "REQUIRED", "UPDATE_REQUIRED")):
+                raise AgentError(409, "COMPONENTS_BUSY", "กรุณาหยุด LIVE หรือรอการเตรียมเครื่องให้เสร็จ")
+            if not self._components_view(authorized=True)["canPrepare"]:
+                raise AgentError(503, "COMPONENTS_NOT_READY", "ยังไม่สามารถเตรียมเครื่องนี้ได้")
+            self._used_grants.add(grant.grant_id)
+            self._components.state = "CHECKING"
+            def execute() -> None:
+                try:
+                    self._components.fetch_manifest(self._component_manifest_url)
+                    if self._component_cancel.is_set():
+                        return
+                    self._components.install(repair=repair, cancel=self._component_cancel)
+                except Exception:
+                    # Paths, model/provider names and native/network errors stay local.
+                    self._components.state = "ERROR"
+            self._component_thread = threading.Thread(target=execute, name="viralflow-prepare", daemon=False)
+            self._component_thread.start()
+            return {"components": self._components_view(authorized=True)}
+
     def _current_update_status(self) -> str:
         try:
             update = self._update_status()
@@ -458,12 +551,12 @@ class LocalAgent:
             failed = next((session for session in reversed(tuple(self._sessions.values()))
                            if owner_id is not None and session.owner_id == owner_id
                            and session.state == "ERROR"), None)
-        worker_ready = self._worker.health().get("ready") is True
         try:
             self._authorized_device(token, origin)
             authorized = True
         except SecurityError:
             authorized = False
+        worker_ready = authorized and self._worker.health().get("ready") is True
         update = self._current_update_status()
         if active:
             state, message, reasons = active.state, "AI LIVE กำลังทำงาน" if active.state == "BUSY" else "AI LIVE หยุดชั่วคราว", []
@@ -489,6 +582,12 @@ class LocalAgent:
             **self._update_view(),
             "machineReady": hardware.compatible,
         }
+        if self._components is not None:
+            result["components"] = self._components_view(authorized=authorized)
+            if result["components"]["state"] != "READY":
+                result["canStart"] = False
+        if "NVIDIA_DRIVER_REQUIRED" in hardware.diagnostics.get("codes", []):
+            result["hardwareAdvice"] = "DRIVER_UPDATE_REQUIRED"
         visible_session = active or failed
         if visible_session:
             result["sessionId"] = visible_session.session_id
@@ -663,6 +762,8 @@ class LocalAgent:
                 raise AgentError(404, "PRESENTER_NOT_FOUND", "ไม่พบรูปผู้นำเสนอ")
             if any(session.state in ("BUSY", "PAUSED", "STOPPING") for session in self._sessions.values()):
                 raise AgentError(409, "SESSION_BUSY", "AI LIVE กำลังทำงาน")
+            if self._components is not None and self._components_view(authorized=True)["state"] != "READY":
+                raise AgentError(503, "COMPONENTS_REQUIRED", "กรุณารอให้เตรียมเครื่องเสร็จ")
             hardware = self._assessment()
             if not hardware.compatible:
                 raise AgentError(503, "GPU_REQUIRED", "เครื่องนี้ยังไม่รองรับ AI LIVE")
@@ -747,6 +848,11 @@ class LocalAgent:
                 session.state = "ERROR"
 
     def close(self) -> None:
+        self._component_cancel.set()
+        if self._components is not None:
+            self._components.cancel()
+        if self._component_thread is not None and self._component_thread is not threading.current_thread():
+            self._component_thread.join(timeout=35)
         with self._lock:
             for session in self._sessions.values():
                 if session.state in ("BUSY", "PAUSED", "STOPPING", "ERROR"):

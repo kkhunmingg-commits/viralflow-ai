@@ -1,5 +1,5 @@
 import "client-only";
-import { AI_LIVE_REALTIME_VALIDATED, LIVE_COMPONENT_VERSIONS, localMachineView, projectLocalMachine, type LocalMachineView } from "./local-contract";
+import { AI_LIVE_REALTIME_VALIDATED, LIVE_COMPONENT_VERSIONS, localMachineView, projectLocalMachine, projectLocalComponents, type LocalMachineView } from "./local-contract";
 export type { LocalMachineView } from "./local-contract";
 
 const AGENT_ORIGIN = "http://127.0.0.1:8766";
@@ -18,10 +18,11 @@ export class LocalLiveClient {
 
   constructor(private readonly fetcher: typeof fetch = fetch, private readonly now: () => number = Date.now) {}
 
-  snapshot(): LocalMachineView { return { ...this.current, reasons: [...this.current.reasons] }; }
+  snapshot(): LocalMachineView { return { ...this.current, reasons: [...this.current.reasons],
+    ...(this.current.components ? { components: { ...this.current.components } } : {}) }; }
 
   private async request(path: string, options: RequestInit = {}, signal?: AbortSignal, authenticated = true): Promise<Json> {
-    if (!/^\/v1\/(discovery|pair|renew|status|hardware|challenge|references|stream\/setup|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/stop)$/.test(path)) {
+    if (!/^\/v1\/(discovery|pair|renew|status|hardware|challenge|references|stream\/setup|components\/(prepare|status)|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/stop)$/.test(path)) {
       throw new Error("ไม่สามารถทำรายการนี้ได้");
     }
     if (authenticated && (!this.token || this.tokenExpiresAt <= this.now() / 1000)) {
@@ -223,6 +224,38 @@ export class LocalLiveClient {
     }, signal);
     if (typeof result.configured !== "boolean") throw new Error("ยังเปิดหน้าตั้งค่าการ LIVE ไม่สำเร็จ");
     return { configured: result.configured };
+  }
+
+  /** Observed managed installation status is independent of production LIVE readiness. */
+  async checkComponents(signal?: AbortSignal): Promise<LocalMachineView> {
+    if (!this.current.paired || !this.current.deviceAuthorized || this.current.membershipStatus !== "SUPPORTED"
+      || this.current.state === "UPDATE_REQUIRED") return this.snapshot();
+    try {
+      this.current.components = projectLocalComponents(await this.request("/v1/components/status", {}, signal));
+    } catch {
+      if (!signal?.aborted) this.current.components = projectLocalComponents(null);
+    }
+    return this.snapshot();
+  }
+
+  async prepareComponents(input: { accountId: string; productIds: string[] }, repair = false, signal?: AbortSignal): Promise<LocalMachineView> {
+    if (!this.current.paired || !this.current.deviceAuthorized || this.current.membershipStatus !== "SUPPORTED"
+      || this.current.sessionActive || !this.current.components?.canPrepare || !this.token || !this.deviceId
+      || this.current.state === "UPDATE_REQUIRED" || typeof repair !== "boolean") throw new Error("กรุณาเชื่อมต่อและอนุญาตเครื่องก่อนเตรียมเครื่อง");
+    if (!uuid.test(input.accountId) || !input.productIds.length || input.productIds.some((id) => !uuid.test(id))) {
+      throw new Error("กรุณาเลือกบัญชีและสินค้า");
+    }
+    const challenge = await this.request("/v1/challenge", {}, signal);
+    if (typeof challenge.challenge !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(challenge.challenge)) throw new Error("กรุณาเชื่อมส่วนเสริมใหม่");
+    const grant = await this.cloudRequest("/api/ai-live/local-grant", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: this.deviceId, challenge: challenge.challenge, deviceProof: challenge.deviceProof,
+        accountId: input.accountId, productIds: input.productIds }),
+    }, signal);
+    await this.request("/v1/components/prepare", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ grant, repair }),
+    }, signal);
+    return this.checkComponents(signal);
   }
 
   async start(input: { accountId: string; productIds: string[]; presenter: File; microphoneId: string }, signal?: AbortSignal): Promise<LocalMachineView> {

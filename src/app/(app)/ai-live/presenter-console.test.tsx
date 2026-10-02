@@ -16,6 +16,12 @@ describe("customer AI LIVE screen", () => {
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>START LIVE<\/button>/);
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>STOP LIVE<\/button>/);
     expect(html).toContain("ยังไม่มีข้อมูล");
+    expect(html).toContain("เข้าสู่ระบบแล้ว");
+    expect(html).toContain("ตรวจสอบเครื่อง");
+    expect(html).toContain("เตรียมส่วนประกอบ");
+    expect(html).toContain("รอความพร้อม");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>เตรียมเครื่อง<\/button>/);
+    expect(html).not.toContain("https://www.nvidia.com/Download/index.aspx");
     expect(html).not.toContain("กำลัง LIVE");
     expect(html).not.toMatch(/OBS|TikTok Studio|Virtual Camera|Virtual Audio|RTMPS?|FFmpeg|MuseTalk|CUDA|NVENC|8766/);
   });

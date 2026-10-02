@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import socket
 import subprocess
@@ -45,7 +46,23 @@ class PackagedRuntimeTests(unittest.TestCase):
             root = Path(isolated) / "LiveAgent"
             self.assertTrue(root.absolute().is_relative_to(BUILD.absolute()))
             manager = DeliveryManager(root, integration=self_test)
+            previous = BUILD / "previous-0.3.0.zip"
+            old = None
+            if info["version"] == "0.4.0" and previous.is_file():
+                old = manager.install(previous, hashlib.sha256(previous.read_bytes()).hexdigest(), expected_version="0.3.0")
+                identity = root / "identity"
+                identity.mkdir()
+                (identity / "upgrade-fixture.bin").write_bytes(b"preserve owned identity during upgrade")
+                # Unconfigured first-run components must never be fabricated or
+                # destroyed by an agent-only update/repair transaction.
+                components = root / "components"
+                components.mkdir()
+                (components / "customer-notes.txt").write_text("preserve unrelated component data")
             manager.install(BUILD / "payload.zip", info["sha256"], expected_version=info["version"])
+            if old:
+                self.assertEqual(manager.current()["version"], "0.4.0")
+                self.assertTrue((root / old["release"]).is_dir())
+                self.assertEqual((identity / "upgrade-fixture.bin").read_bytes(), b"preserve owned identity during upgrade")
             self.assertTrue(manager.verify_current())
             self.assertTrue((manager.executable().parent / "ffmpeg.exe").is_file())
             internal = manager.executable().parent / "_internal"
@@ -58,10 +75,12 @@ class PackagedRuntimeTests(unittest.TestCase):
             self.assertFalse(manager.verify_current())
             manager.install(BUILD / "payload.zip", info["sha256"], repair=True)
             self.assertTrue(manager.verify_current())
-            self.assertEqual(len(verified), 2)
+            self.assertEqual(len(verified), 3 if old else 2)
             manager.uninstall()
             self.assertFalse((root / "releases").exists())
             self.assertFalse((root / "current.json").exists())
+            if old:
+                self.assertEqual((components / "customer-notes.txt").read_text(), "preserve unrelated component data")
 
     def test_packaged_hidden_launcher_first_run_local_discovery_and_encrypted_identity(self) -> None:
         with socket.socket() as connection:

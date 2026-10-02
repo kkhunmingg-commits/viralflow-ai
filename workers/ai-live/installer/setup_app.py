@@ -19,7 +19,8 @@ from tkinter import messagebox
 from installer.delivery import DeliveryError, DeliveryManager, _regular_path
 
 UNINSTALL_REGISTRY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\ViralFlowLiveAgent"
-SHORTCUT_NAME = "ViralFlow AI LIVE.lnk"
+SHORTCUT_NAME = "ViralFlow AI.lnk"
+LEGACY_SHORTCUT_NAME = "ViralFlow AI LIVE.lnk"
 CREATE_NO_WINDOW = 0x08000000
 
 
@@ -46,6 +47,7 @@ def integrate(executable: Path | None, root: Path, version: str, *, update_runti
         except FileNotFoundError:
             pass
         shortcut_path().unlink(missing_ok=True)
+        shortcut_path().with_name(LEGACY_SHORTCUT_NAME).unlink(missing_ok=True)
         return
     _regular_path(executable, root)
     # A rollback points to the retained previous release and must show its version.
@@ -73,9 +75,10 @@ def integrate(executable: Path | None, root: Path, version: str, *, update_runti
     script = "$s=(New-Object -ComObject WScript.Shell).CreateShortcut($env:VIRALFLOW_LINK_PATH);$s.TargetPath=$env:VIRALFLOW_TARGET_PATH;$s.WorkingDirectory=[System.IO.Path]::GetDirectoryName($env:VIRALFLOW_TARGET_PATH);$s.Save()"
     subprocess.run([str(powershell), "-NoLogo", "-NoProfile", "-NonInteractive", "-Command", script],
                    env=environment, shell=False, creationflags=CREATE_NO_WINDOW, timeout=20, check=True)
+    shortcut_path().with_name(LEGACY_SHORTCUT_NAME).unlink(missing_ok=True)
     with winreg.CreateKey(winreg.HKEY_CURRENT_USER, UNINSTALL_REGISTRY) as key:
         for name, value in {
-            "DisplayName": "ViralFlow AI LIVE",
+            "DisplayName": "ViralFlow AI",
             "DisplayVersion": version,
             "Publisher": "ViralFlow AI",
             "InstallLocation": str(root),
@@ -120,11 +123,11 @@ def main() -> None:
     metadata = json.loads((resources / "payload-info.json").read_text(encoding="utf-8"))
     version, digest = metadata["version"], metadata["sha256"]
     app = tk.Tk()
-    app.title("ติดตั้ง ViralFlow AI LIVE")
+    app.title("ติดตั้ง ViralFlow AI")
     app.geometry("490x320")
     app.resizable(False, False)
-    status = tk.StringVar(value="ส่วนเสริมสำหรับใช้ AI LIVE บนเครื่องนี้")
-    tk.Label(app, text="ViralFlow AI LIVE", font=("Segoe UI", 20, "bold")).pack(pady=(24, 8))
+    status = tk.StringVar(value="ติดตั้งแอปและเตรียมความพร้อมสำหรับ AI LIVE บนเครื่องนี้")
+    tk.Label(app, text="ViralFlow AI", font=("Segoe UI", 20, "bold")).pack(pady=(24, 8))
     tk.Label(app, textvariable=status, wraplength=440, font=("Segoe UI", 11)).pack(pady=8)
     manager = DeliveryManager(root_path, integration=lambda exe: integrate(exe, root_path, version))
     current = manager.current()
@@ -137,15 +140,15 @@ def main() -> None:
 
     def run_operation(operation: str) -> None:
         if agent_is_open():
-            messagebox.showinfo("ViralFlow AI LIVE", "กรุณาหยุดการใช้งานและปิดส่วนเสริม AI LIVE ก่อนทำรายการนี้")
+            messagebox.showinfo("ViralFlow AI", "กรุณาหยุดการใช้งานและปิด ViralFlow ก่อนทำรายการนี้")
             return
         if operation == "uninstall":
-            if not messagebox.askyesno("ViralFlow AI LIVE", "ถอนการติดตั้งและลบข้อมูลส่วนเสริมบนเครื่องนี้หรือไม่?"):
+            if not messagebox.askyesno("ViralFlow AI", "ถอนการติดตั้งและลบข้อมูลแอปบนเครื่องนี้หรือไม่?"):
                 return
             if _relay_uninstall_if_needed(root_path):
                 app.destroy()
                 return
-        elif current and not messagebox.askyesno("ViralFlow AI LIVE", "ติดตั้งหรือซ่อมแซมส่วนเสริมบนเครื่องนี้หรือไม่?"):
+        elif current and not messagebox.askyesno("ViralFlow AI", "ติดตั้งหรือซ่อมแซม ViralFlow บนเครื่องนี้หรือไม่?"):
             return
         for widget in buttons.winfo_children():
             widget.configure(state="disabled")
@@ -160,9 +163,9 @@ def main() -> None:
                     text = "ถอนการติดตั้งเรียบร้อยแล้ว"
                 else:
                     manager.install(package, digest, repair=operation == "repair", expected_version=version)
-                    text = "ติดตั้งเรียบร้อยแล้ว • เปิด ViralFlow AI LIVE จากไอคอนบนหน้าจอได้เลย"
+                    text = "ติดตั้งเรียบร้อยแล้ว • เปิด ViralFlow AI จากไอคอนบนหน้าจอได้เลย"
                 app.after(0, lambda: status.set(text))
-                app.after(0, lambda: messagebox.showinfo("ViralFlow AI LIVE", text))
+                app.after(0, lambda: messagebox.showinfo("ViralFlow AI", text))
             except Exception:
                 app.after(0, lambda: status.set("ทำรายการไม่สำเร็จ • ระบบคงรุ่นเดิมไว้ กรุณาลองซ่อมแซมอีกครั้ง"))
             finally:
@@ -191,7 +194,7 @@ if __name__ == "__main__":
         try:
             dialog = tk.Tk()
             dialog.withdraw()
-            messagebox.showerror("ViralFlow AI LIVE", "ไม่สามารถเตรียมส่วนเสริมได้ กรุณาปิดส่วนเสริมแล้วลองติดตั้งใหม่")
+            messagebox.showerror("ViralFlow AI", "ไม่สามารถเตรียมแอปได้ กรุณาปิด ViralFlow แล้วลองติดตั้งใหม่")
             dialog.destroy()
         except Exception:
             pass

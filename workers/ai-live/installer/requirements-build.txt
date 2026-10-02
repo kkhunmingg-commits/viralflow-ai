@@ -1,6 +1,6 @@
 # Build tooling only; all runtime dependencies are bundled into the installer.
 pyinstaller==6.22.3
-cryptography==50.0.2
+-r ../local_agent/requirements.txt
 altgraph==0.17.5
 cffi==2.1.1
 packaging==26.3

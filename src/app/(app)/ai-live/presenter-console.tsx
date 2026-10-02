@@ -11,7 +11,7 @@ import { AI_LIVE_REALTIME_VALIDATED } from "@/features/ai-live/local-contract";
 
 type Choice = { id: string; label: string };
 type ProductChoice = { id: string; title: string };
-type Action = "pair" | "check" | "register" | "revoke" | "update-check" | "update" | "repair" | "configure" | "start" | "stop" | null;
+type Action = "pair" | "check" | "register" | "revoke" | "update-check" | "update" | "repair" | "configure" | "prepare" | "start" | "stop" | null;
 
 function machineLabel(view: LocalMachineView | null): string {
   if (!view) return "กำลังตรวจสอบ";
@@ -71,6 +71,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
   const requestControllerRef = useRef<AbortController | null>(null);
   const presenterUrlRef = useRef<string | null>(null);
   const systemPreviewUrlRef = useRef<string | null>(null);
+  const automaticPreparationAttemptedRef = useRef(false);
   const previewEnabled = AI_LIVE_REALTIME_VALIDATED && !!machine?.paired && !!machine.sessionActive
     && machine.deviceAuthorized && action !== "stop" && !["STOPPING", "OFFLINE", "ERROR"].includes(machine.state);
 
@@ -100,7 +101,10 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
     clientRef.current = new LocalLiveClient();
     let timer: number | null = null;
     const poll = async () => {
-      try { await requestMachine((client, signal) => client.refresh(signal)); }
+      try { await requestMachine(async (client, signal) => {
+        await client.refresh(signal);
+        return client.checkComponents(signal);
+      }); }
       catch { /* A later poll may recover after the companion restarts. */ }
       finally {
         if (mountedRef.current && generation === generationRef.current) {
@@ -120,6 +124,27 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
       presenterUrlRef.current = null;
     };
   }, [requestMachine]);
+
+  const prepareMachine = useCallback(async (repair = false) => {
+    if (action || !machine?.paired || !machine.deviceAuthorized || machine.membershipStatus !== "SUPPORTED"
+      || machine.sessionActive || !machine.components?.canPrepare
+      || !selectedAccount || !selectedProduct) return;
+    automaticPreparationAttemptedRef.current = true;
+    setAction("prepare"); setError(null); setNotice(null);
+    try {
+      await requestMachine((client, signal) => client.prepareComponents({ accountId: selectedAccount, productIds: [selectedProduct] }, repair, signal));
+    } catch {
+      if (mountedRef.current) setError("ยังเตรียมเครื่องไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อแล้วกดเตรียมเครื่องอีกครั้ง");
+    } finally { if (mountedRef.current) setAction(null); }
+  }, [action, machine, requestMachine, selectedAccount, selectedProduct]);
+
+  useEffect(() => {
+    if (automaticPreparationAttemptedRef.current || action || !machine?.paired || !machine.deviceAuthorized
+      || machine.membershipStatus !== "SUPPORTED" || machine.sessionActive
+      || machine.components?.state !== "NOT_CONFIGURED" || !machine.components.canPrepare || !selectedAccount || !selectedProduct) return;
+    const timer = window.setTimeout(() => { void prepareMachine(false); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [action, machine, prepareMachine, selectedAccount, selectedProduct]);
 
   useEffect(() => {
     if (!previewEnabled) return;
@@ -293,7 +318,13 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
 
   const showPairing = machine && !machine.paired && !["NOT_INSTALLED", "OFFLINE", "INSTALLING"].includes(machine.state);
   const canStart = !!machine?.canStart && machine.deviceAuthorized && !machine.sessionActive && !action && !!selectedAccount && !!selectedProduct && !!presenter && microphoneReady;
-  const liveStatus = customerLiveStatus(machine, action === "start" || action === "stop" ? action : null);
+  const components = machine?.components;
+  const liveStatus = components?.state === "READY" && !machine?.canStart && !machine?.sessionActive
+    ? "กำลังเตรียมพร้อม" : customerLiveStatus(machine, action === "start" || action === "stop" ? action : null);
+  const componentBusy = !!components && ["CHECKING", "DOWNLOADING", "VERIFYING", "INSTALLING"].includes(components.state);
+  const componentProgress = components?.totalBytes ? Math.min(100, Math.floor(100 * components.bytesReceived / components.totalBytes)) : null;
+  const preparationAllowed = !!machine?.paired && machine.deviceAuthorized && machine.membershipStatus === "SUPPORTED"
+    && !machine.sessionActive && !!components?.canPrepare && !!selectedAccount && !!selectedProduct && !action;
   const previewImage = previewEnabled && systemPreview ? systemPreview : presenterPreview;
   const previewIsGenerated = previewEnabled && !!systemPreview;
 
@@ -304,6 +335,30 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
     </header>
     {notice && <p className="ai-live-notice" role="status">{notice}</p>}
     {error && <p className="ai-live-error" role="alert">{error}</p>}
+
+    <section className="ai-live-first-run" aria-label="เตรียมเครื่องสำหรับ AI LIVE">
+      <ol className="ai-live-first-run-steps">
+        <li className="done"><span aria-hidden="true">✓</span>เข้าสู่ระบบแล้ว</li>
+        <li className={machine?.machineReady === true ? "done" : "current"}><span aria-hidden="true">2</span>ตรวจสอบเครื่อง</li>
+        <li className={components?.state === "READY" ? "done" : componentBusy ? "current" : ""}><span aria-hidden="true">3</span>เตรียมส่วนประกอบ</li>
+        <li className={machine?.canStart && machine.deviceAuthorized ? "done" : ""}><span aria-hidden="true">4</span>{machine?.canStart && machine.deviceAuthorized ? "พร้อมใช้งาน" : "รอความพร้อม"}</li>
+      </ol>
+      <div className="ai-live-first-run-status" role="status" aria-live="polite">
+        <strong>{components?.message ?? (!machine ? "กำลังตรวจสอบเครื่อง" : machine.machineReady === true ? "กำลังเตรียมส่วนประกอบ" : "ต้องตรวจสอบความพร้อมของเครื่อง")}</strong>
+        {components?.state === "NOT_CONFIGURED" && !components.canPrepare && <p>ยังไม่พร้อมให้ดาวน์โหลด</p>}
+        {componentBusy && <div className="ai-live-download-progress">
+          <progress max={100} value={components.state === "DOWNLOADING" && componentProgress !== null ? componentProgress : undefined} aria-label="ความคืบหน้าการเตรียมส่วนประกอบ" />
+          {components.state === "DOWNLOADING" && <span>{componentProgress === null ? "กำลังรับข้อมูล" : `${componentProgress}%`}
+            {components.bytesReceived > 0 ? ` · ${(components.bytesReceived / 1048576).toFixed(1)} MB${components.totalBytes > 0 ? ` / ${(components.totalBytes / 1048576).toFixed(1)} MB` : ""}` : ""}</span>}
+        </div>}
+        {components?.state === "READY" && !machine?.canStart && <p>ส่วนประกอบพร้อมแล้ว AI LIVE ยังอยู่ระหว่างการเตรียมความพร้อม</p>}
+        {(!components || components.state !== "READY") && !componentBusy && <button type="button" className="ai-live-secondary" disabled={!preparationAllowed}
+          onClick={() => void prepareMachine(components?.state === "REPAIR_REQUIRED" || components?.state === "ERROR")}>{action === "prepare" ? "กำลังเตรียมเครื่อง..." : "เตรียมเครื่อง"}</button>}
+        {machine?.paired && !machine.deviceAuthorized && <p>เชื่อมต่อและอนุญาตเครื่องใน “ตั้งค่าการ LIVE” ก่อนเตรียมเครื่อง</p>}
+        {machine?.deviceAuthorized && (!selectedAccount || !selectedProduct) && components?.state !== "READY" && <p>เลือกบัญชีและสินค้าเพื่อเตรียมเครื่อง</p>}
+        {machine?.hardwareAdvice === "DRIVER_UPDATE_REQUIRED" && <a href="https://www.nvidia.com/Download/index.aspx" target="_blank" rel="noopener noreferrer">อัปเดตไดรเวอร์จากผู้ผลิต</a>}
+      </div>
+    </section>
 
     <div className="ai-live-grid">
       <section className="ai-live-panel ai-live-setup" aria-label="เตรียม AI LIVE">

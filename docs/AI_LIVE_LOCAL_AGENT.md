@@ -95,17 +95,17 @@ RAM 16GB / disk 20GB / compute capability 6.0 เป็น provisional config �
 
 ## Installer/bootstrap/update
 
-`workers/ai-live/installer/.dist/ViralFlow-Live-Agent-Setup-0.3.0.exe` เป็นไฟล์ติดตั้งจริงแบบ windowed/offline ต่อ Windows user มี Python/Tk/cryptography และ FFmpeg พร้อม license notices ลูกค้าดับเบิลคลิก Install/Update, Repair หรือ Uninstall ได้ ไม่ต้องเปิด terminal หรือจัดการ Python เอง First run สร้าง DPAPI identity และ pairing code; ไม่มีโมเดลใหญ่/CUDA/inference packages
+`workers/ai-live/installer/.dist/ViralFlow-AI-Setup-0.4.0.exe` เป็นตัวติดตั้ง ViralFlow AI แบบ windowed ต่อ Windows user รวม Python/Tk/cryptography, audio และ FFmpeg พร้อม notices First run สร้าง DPAPI identity และ pairing code จากนั้นเตรียม private presenter runtime/models ผ่าน trusted signed release channel ไม่ใช้ system Python/pip/manual CUDA ลูกค้าดับเบิลคลิก Install/Update, Repair หรือ Uninstall ได้ รายละเอียดและสิ่งที่ยังไม่เปิดใช้จริงอยู่ใน [One App Installation](AI_LIVE_INSTALLATION.md)
 
 ตัวติดตั้งตรวจรุ่นเดิมและ package/file hashes, extract เฉพาะ managed release directory, self-test executable, ตั้ง shortcut/Windows installed-app entry แล้ว activate pointer แบบ atomic เมื่อ upgrade ล้มยังเก็บรุ่นเดิมและ restore integration; repair ลง release ใหม่แทนการ overwrite runtime เดิม Uninstall ลบเฉพาะ managed files/registry/shortcut ไม่แตะบัญชี TikTok/analytics/subscription บน cloud unknown files ไม่ถูกลบ
 
 ไฟล์นี้ยัง **unsigned / engineering distribution** ต้องจัดการ Authenticode/release hosting และ pinned public key ก่อนเผยแพร่ลูกค้าจริง UI ไม่สร้าง download link ไปยังไฟล์ที่ไม่มีบน public hosting รายละเอียด build และ lifecycle อยู่ใน [installer README](../workers/ai-live/installer/README.md)
 
-`BootstrapManager` รับ signed manifest จาก trusted installer: fixed artifact names (`agent`, `worker`, `ffmpeg`, `model`), HTTPS host allowlist, fixed release path, SHA-256/size/version checks ก่อน stage atomic copy แยก status first-run/dependencies/model/update/repair ลบเฉพาะ managed artifact names ใน uninstall ไม่มี arbitrary download/execution API
+`local_agent/components.py::BootstrapManager` เป็น managed delivery path ที่ launcher ใช้จริง: signed `runtime` + `models` archives ของ `cpu-dev` หรือ `nvidia` profile จาก fixed trusted origin ดาวน์โหลดต่อด้วย verified chunks/ETag/Range, ตรวจ archive และ expanded file hashes ก่อน atomic activation ทั้งคู่ Browser ส่ง fresh server grant ผ่าน `/v1/components/prepare` ไม่ส่ง URL/command/config มี `/v1/components/status` ที่คืนเฉพาะสถานะ/ไบต์/สิทธิ์เตรียม Legacy `bootstrap.py` เป็น low-level fixture เดิม ไม่ใช่ launcher production delivery path
 
 `SafeUpdater` ตรวจ pinned Ed25519 signature/keyId, expiry, web/agent/worker lockstep versions, minimum compatibility, mandatory/optional update, rollback metadata, trusted HTTPS download, byte size/hash และ embedded package version ต้องยืนยันและหยุด session ก่อนติดตั้ง มี callback สำหรับ runtime self-test/OS integration; ถ้าไม่มี callback จะไม่ activate มี `AVAILABLE`, `UPDATE_REQUIRED`, `UPDATING`, `RESTART_REQUIRED`, rollback states จริง ไม่มี production release hosting ที่เปิดใช้หรือ scheduled update และไม่ทำ silent overwrite ดู [distribution protocol](AI_LIVE_SERVER_ACTIVATION.md)
 
-Version tuple: web/agent/worker `0.3.0`, model `musetalk-unvalidated`; equality ทุก component ก่อน Start เวอร์ชันต่าง → `UPDATE_REQUIRED` Tests ตรวจ parity TypeScript/Python ก่อน release ไม่มี customer/env override สำหรับ GPU validation รุ่นเก่า `0.2.0` ต้อง bootstrap ด้วย installer ใหม่เพราะยังไม่มี distribution endpoints/keyring
+Version tuple: web/agent/worker `0.4.0`, model `musetalk-unvalidated`; equality ทุก component ก่อน Start เวอร์ชันต่าง → `UPDATE_REQUIRED` Tests ตรวจ parity TypeScript/Python ก่อน release ไม่มี customer/env override สำหรับ GPU validation ตัวติดตั้งรองรับอัปเกรดจาก `0.3.0` โดยเก็บ device identity; รุ่นเก่า `0.2.0` ต้อง bootstrap ด้วย installer ใหม่เพราะยังไม่มี distribution endpoints/keyring
 
 ## Security และ recovery limitations
 
