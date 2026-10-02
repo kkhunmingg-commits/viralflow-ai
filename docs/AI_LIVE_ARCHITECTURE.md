@@ -9,6 +9,7 @@ AI LIVE อยู่ใน ViralFlow AI เดิม ใช้ผู้ใช้
 | `READY_WITHOUT_GPU` | Local API/handshake, compatibility gate, Windows installer พร้อม runtime, signed update distribution/rollback, persistent device registration/revoke/limit, key rotation/entitlement, customer UI และ bounded domain tests | registry apply แล้วบน project เดิม; installer ยังไม่เซ็น Authenticode และยังไม่เปิด production enrollment/update channel |
 | `WAITING_FOR_GPU` / `GPU_VALIDATION_REQUIRED` | MuseTalk incremental backend, audio/frame synchronization, local encoder และ hardware performance | ยังไม่เชื่อม/วัดบน NVIDIA จริง |
 | `PRODUCTION_READY` | **false** | `AI_LIVE_REALTIME_VALIDATED=false`; ยังไม่มี real LIVE transport, signed installer distribution หรือ production device enrollment ที่เปิดใช้งานแล้ว |
+| `DEV_PROOF_OF_FLOW` | MuseTalk CPU float32, เสียงภาษาไทยออฟไลน์, microphone PCM, generated JPEG preview และ software local encoder | เปิดแยกเฉพาะ local development; ไม่ใช่ GPU validation หรือสิทธิ์เริ่มไลฟ์จริง ดู [ผลการพิสูจน์บน CPU](AI_LIVE_NO_GPU_PROOF.md) |
 
 ## Cloud control / local media
 
@@ -67,6 +68,33 @@ normalized comment → CommentEngine → LiveBrain → ProductBrain
 ภาพที่อัปโหลดเป็น **ภาพอ้างอิง ไม่ใช่ภาพสด** การตรวจไมโครโฟนขอ permission เมื่อผู้ใช้กดเท่านั้นและปิด audio tracks ทันที ไม่บันทึกหรือส่งเสียงออกจาก browser การรับเสียงจริงเข้าตัว Presenter ยังรอ NVIDIA integration Start ถูกปิดด้วย validation gate ทั้ง UI/client/agent แม้ hardware fixture ผ่าน
 
 Customer projection เลือกเฉพาะสถานะ/เหตุผลภาษาไทยที่อนุญาต ไม่แสดง provider/model/ports/IDs/diagnostic payload ระบบ hardware raw diagnostics มีเฉพาะ local trusted developer call และไม่มี HTTP endpoint
+
+## DEV proof ที่ไม่มี NVIDIA
+
+เมื่อ `AI_LIVE_DEV_FALLBACK=true` และ `PRESENTER_PROVIDER=dev_fallback` บน local development เท่านั้น หน้า `/ai-live` เพิ่มเครื่องมือทดลองแยกจาก customer console เดิม มี reference, local audio, microphone, Start/Stop, generated frames และค่าที่วัดจริง `/api/ai-live/dev/*` ตรวจ flag ก่อนตอบ, ตรวจ `auth.getUser()` และกำหนด owner จาก session ฝั่ง server แล้วจึงส่งไป worker ที่ loopback; ไม่มี worker bearer ใน browser หรือ URL ของ client
+
+`NODE_ENV`, `APP_ENV`, `AI_LIVE_ENV` หรือ `VERCEL_ENV` เป็น production หรือมี `VERCEL` จะปิดโหมดนี้ แม้เปิด flag ไว้ การปิด flag คง `GPU_REQUIRED` เดิม ไม่สลับเป็น mock เมื่อ dependency/model/hardware ไม่พร้อม Worker ทุก media request ยังตรวจ bearer และ session owner โหมดนี้ไม่ได้เปิด membership enrollment, start grant หรือ production LIVE gate
+
+```mermaid
+flowchart LR
+  Reference[ภาพอ้างอิงที่มีสิทธิ์ใช้] --> CPU[MuseTalk CPU float32]
+  File[ไฟล์เสียง PCM จริง] --> CPU
+  Mic[ไมโครโฟน: PCM chunks] --> Queue[คิวจำกัดขนาด / backpressure]
+  Queue --> CPU
+  Comment[คอมเมนต์จำลอง] --> Domain[CommentEngine / LiveBrain / ProductBrain เดิม]
+  Domain --> Action[ActionQueue เดิม]
+  Action --> Voice[VoiceProvider: Windows offline speech]
+  Voice --> Queue
+  CPU --> JPEG[เฟรมที่ inference ได้จริง]
+  JPEG --> Preview[DEV preview / counters จริง]
+  JPEG --> Encoder[StreamProvider / software libx264]
+  Encoder --> Local[ไฟล์ MP4 บนเครื่อง: วิดีโออย่างเดียว]
+  Stop[Stop / interrupt] --> Release[ล้างคิว / ปิดเสียง / คืน models และ encoder]
+```
+
+ภาพไม่ได้มาจาก prerecorded loop; inference ส่งแต่ละ JPEG ก่อนมีไฟล์วิดีโอสำเร็จ เสียงออฟไลน์สร้าง WAV ชั่วคราวแล้วส่ง PCM chunks ผ่าน contract เดิม จึงไม่ได้อ้างว่า TTS เป็น streaming synthesis หรือเสียง preview ตรงภาพแบบ realtime CPU ช้ากว่าเสียงจริง: input buffer และคิว bounded พร้อมนับ audio drops แยกจาก frame drops
+
+การสลับกลับ `PRESENTER_PROVIDER=musetalk` ใช้ audio/frame/health/metrics/interrupt/release contract เดิม แต่ยังต้องติดตั้ง backend และผ่าน NVIDIA validation; ค่า config อย่างเดียวไม่รับรอง CUDA, FPS หรือ AV sync ไม่มี TikTok LIVE/RTMP ใน proof นี้
 
 ## งานที่เหลือในขอบเขตถัดไป
 

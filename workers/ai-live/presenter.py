@@ -16,6 +16,7 @@ from typing import Callable, Iterator, Protocol, runtime_checkable
 
 from capabilities import inspect_capabilities
 from engine import FrameEngine, make_engine
+from provider_config import dev_fallback_enabled
 
 MAX_AUDIO_CHUNK_BYTES = 32_000
 MAX_PENDING_AUDIO_CHUNKS = 4
@@ -242,6 +243,12 @@ class MuseTalkPresenter:
                 self._engine.close()
             except Exception:
                 pass
+            for pending in (self._audio, self._frames):
+                while not pending.empty():
+                    try:
+                        pending.get_nowait()
+                    except queue.Empty:
+                        break
             with self._lock:
                 if self._status != "FAILED":
                     self._status = "STOPPED"
@@ -271,6 +278,9 @@ class MuseTalkPresenter:
             return
         if self._thread is None:
             return
+        interrupt = getattr(self._engine, "interrupt", None)
+        if callable(interrupt):
+            interrupt()
         try:
             self._audio.put_nowait(None)
         except queue.Full:
@@ -294,3 +304,26 @@ class MuseTalkPresenter:
                 "audio_chunks": self._audio_chunks,
                 "frames_generated": self._frames_generated,
             }
+
+
+class DevFallbackPresenter(MuseTalkPresenter):
+    """Explicit CPU provider sharing the incremental contract and bounded queues.
+
+    The HTTP worker uses the same FrameEngine and LiveStore session processing
+    path. No CPU selection can bypass a disabled gate or select MockPresenter.
+    """
+
+    def health(self) -> dict[str, object]:
+        if not dev_fallback_enabled():
+            return {"ready": False, "status": "DEV_FALLBACK_DISABLED"}
+        if self._status in ("FAILED", "STOPPING", "STOPPED"):
+            return {"ready": False, "status": self._error or self._status}
+        capability = self._capability_probe()
+        return {
+            "ready": capability.get("ready") is True and capability.get("dev_fallback") is True,
+            "status": capability.get("presenter_status", "DEV_BACKEND_REQUIRED"),
+        }
+
+
+# Keep the production provider name explicit for callers switching configuration.
+MuseTalkLocalPresenter = MuseTalkPresenter

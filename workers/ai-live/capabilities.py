@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from provider_config import dev_fallback_enabled
+
 MUSETALK_REQUIRED_ASSETS = (
     "scripts/realtime_inference.py",
     "models/musetalkV15/musetalk.json",
@@ -108,7 +110,7 @@ def inspect_capabilities() -> dict[str, Any]:
     if not nvenc_usable:
         encoder_blockers.append("usable NVIDIA NVENC is unavailable")
 
-    return {
+    result = {
         "ready": not blockers,
         "presenter_status": (
             "GPU_REQUIRED" if not cuda_available
@@ -138,6 +140,26 @@ def inspect_capabilities() -> dict[str, Any]:
         },
         "liveportrait": {"optional_candidate_available": liveportrait_available},
     }
+    if dev_fallback_enabled():
+        try:
+            probe = importlib.import_module("dev_fallback_engine").probe_readiness()
+            dev_ready = isinstance(probe, dict) and probe.get("ready") is True
+        except Exception:
+            probe = {"ready": False, "status": "DEV_BACKEND_REQUIRED"}
+            dev_ready = False
+        software_ready = bool(encoders and "libx264" in encoders)
+        result.update({
+            "ready": dev_ready,
+            "presenter_status": "READY" if dev_ready else str(probe.get("status", "DEV_BACKEND_REQUIRED")),
+            "blockers": [] if dev_ready else ["Real CPU presenter dependencies/model weights are unavailable"],
+            "dev_fallback": True,
+            "backend": str(probe.get("backend", "MuseTalkCPUFloat32")),
+            "encoder_ready": software_ready,
+            "encoder_blockers": [] if software_ready else ["FFmpeg software H.264 encoder is unavailable"],
+            "dev_presenter": probe,
+        })
+        result["ffmpeg"]["software_encoder_available"] = software_ready
+    return result
 
 
 if __name__ == "__main__":

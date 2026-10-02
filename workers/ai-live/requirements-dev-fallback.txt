@@ -1,0 +1,12 @@
+# Install torch CPU first: python -m pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
+torch==2.6.0
+diffusers==0.32.2
+transformers==4.49.0
+numpy==1.26.4
+opencv-python-headless==4.11.0.86
+safetensors==0.5.3
+accelerate==1.4.0
+psutil==7.0.0
+imageio-ffmpeg==0.6.0
+sounddevice==0.5.1
+-r requirements.txt

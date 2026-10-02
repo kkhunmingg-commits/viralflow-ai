@@ -7,6 +7,8 @@ import os
 from pathlib import Path
 from typing import Iterator, Protocol
 
+from provider_config import selected_provider
+
 
 class FrameEngine(Protocol):
     def prepare(self, reference: Path, fps: int) -> None:
@@ -27,7 +29,11 @@ def make_engine() -> FrameEngine:
     yield genuine inference frames while each audio chunk is processed.
     """
 
-    module_name = os.getenv("AI_LIVE_MUSETALK_STREAM_MODULE", "").strip()
+    provider = selected_provider()
+    module_name = (
+        "dev_fallback_engine" if provider == "dev_fallback"
+        else os.getenv("AI_LIVE_MUSETALK_STREAM_MODULE", "").strip()
+    )
     if not module_name:
         raise RuntimeError("incremental MuseTalk frame backend is not configured")
     module = importlib.import_module(module_name)

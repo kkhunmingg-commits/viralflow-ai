@@ -1,9 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { LiveEventLog } from "./event-log";
 import { inspectWatchdog, recoveryDisposition, type WatchdogProbe } from "./watchdog";
+import { devFallbackEnabled } from "./dev-mode";
 
 export type LiveSessionState = "STARTING" | "RUNNING" | "PAUSED" | "RECOVERY_REQUIRED" | "BLOCKED" | "STOPPED";
-export type PresenterKind = "mock" | "musetalk";
+export type PresenterKind = "mock" | "musetalk" | "dev_fallback";
 export type PresenterHealthCode = "READY" | "GPU_REQUIRED" | "MODEL_UNAVAILABLE" | "WORKER_UNAVAILABLE";
 
 export interface PresenterRuntimePort {
@@ -79,6 +80,9 @@ export class LiveSessionController {
       || new Set(input.productIds).size !== input.productIds.length) throw new Error("invalid_session_selection");
     if (this.runtime.kind === "mock" && (!this.options.allowMock || process.env.NODE_ENV === "production")) {
       throw new Error("mock_presenter_forbidden");
+    }
+    if (this.runtime.kind === "dev_fallback" && !devFallbackEnabled()) {
+      throw new Error("dev_presenter_forbidden");
     }
     const now = this.now();
     this.snapshot = {

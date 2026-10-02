@@ -13,4 +13,6 @@ supabase/.temp/
 .video-cache/
 .video-benchmark/
 benchmark-assets/
+.ai-live-dev/
+.venv-dev/
 

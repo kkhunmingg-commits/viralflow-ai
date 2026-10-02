@@ -1,4 +1,12 @@
 .ai-live-page { width: min(100%, 1280px); margin: 0 auto; padding-bottom: 54px; }
+.ai-live-dev { width: min(100%, 1280px); margin: 0 auto 36px; }
+.ai-live-dev-reference { display: block; width: 100px; height: 100px; object-fit: contain; margin-bottom: 16px; border-radius: 10px; }
+.ai-live-dev-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 16px 0; }
+.ai-live-dev audio { width: 100%; }
+.ai-live-dev-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 22px 0 0; }
+.ai-live-dev-metrics > div { padding: 12px; border: 1px solid #455066; border-radius: 10px; min-width: 0; }
+.ai-live-dev-metrics dt { color: #a7b7cc; font-size: 12px; }
+.ai-live-dev-metrics dd { margin: 8px 0 0; color: #e8e5ff; font-size: 13px; overflow-wrap: anywhere; }
 .ai-live-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; margin-bottom: 18px; padding: 30px; border: 1px solid rgba(137, 127, 210, .22); border-radius: 24px; background: radial-gradient(circle at 82% 0%, rgba(103, 85, 222, .25), transparent 45%), linear-gradient(135deg, #222438, #131b29 80%); }
 .ai-live-hero h1 { margin: 0 0 8px; font-size: clamp(29px, 3vw, 42px); letter-spacing: -.04em; }
 .ai-live-hero p:last-child { max-width: 620px; margin: 0; color: #b6c2d4; font-size: 14px; line-height: 1.65; }

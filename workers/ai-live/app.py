@@ -7,13 +7,15 @@ import os
 import tempfile
 import uuid
 from pathlib import Path
+from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 from pydantic import BaseModel, Field
 
 from capabilities import inspect_capabilities
 from engine import make_engine
+from provider_config import dev_fallback_enabled, selected_provider
 from worker_core import LiveError, LiveStore, MAX_AUDIO_BYTES, MAX_REFERENCE_BYTES
 
 
@@ -27,7 +29,15 @@ def create_app(token: str | None = None, data_dir: Path | None = None) -> FastAP
     if not secret or len(secret) < 32:
         raise RuntimeError("AI_LIVE_WORKER_TOKEN must contain at least 32 characters")
     store = LiveStore(data_dir or Path(tempfile.gettempdir()) / "viralflow-ai-live")
-    api = FastAPI(title="ViralFlow AI LIVE local worker", docs_url=None, redoc_url=None)
+    @asynccontextmanager
+    async def lifespan(_api: FastAPI):
+        try:
+            yield
+        finally:
+            store.close()
+
+    api = FastAPI(title="ViralFlow AI LIVE local worker", docs_url=None, redoc_url=None, lifespan=lifespan)
+    api.state.store = store
 
     @api.exception_handler(LiveError)
     async def live_error(_request: Request, exc: LiveError) -> JSONResponse:
@@ -78,6 +88,10 @@ def create_app(token: str | None = None, data_dir: Path | None = None) -> FastAP
         reference_id = str(body.reference_id)
         store.get_reference(owner, reference_id)
         capability = inspect_capabilities()
+        try:
+            selected_provider()
+        except RuntimeError as exc:
+            raise LiveError(503, str(exc), "Requested presenter provider is disabled") from exc
         if capability.get("presenter_status") == "GPU_REQUIRED":
             raise LiveError(503, "GPU_REQUIRED", "NVIDIA CUDA runtime is unavailable")
         if not capability["ready"]:
@@ -85,8 +99,11 @@ def create_app(token: str | None = None, data_dir: Path | None = None) -> FastAP
         try:
             engine = make_engine()
         except (ImportError, RuntimeError, AttributeError) as exc:
-            raise LiveError(503, "PRESENTER_UNAVAILABLE", "MuseTalk streaming backend unavailable") from exc
-        session_id, session = store.start_session(owner, reference_id, body.target_fps, engine)
+            raise LiveError(503, "PRESENTER_UNAVAILABLE", "Presenter streaming backend unavailable") from exc
+        target_fps = body.target_fps
+        if dev_fallback_enabled():
+            target_fps = min(body.target_fps, 5) if "target_fps" in body.model_fields_set else 2
+        session_id, session = store.start_session(owner, reference_id, target_fps, engine)
         return {"session_id": session_id, "status": session.status}
 
     @api.post("/sessions/{session_id}/audio")
@@ -111,6 +128,17 @@ def create_app(token: str | None = None, data_dir: Path | None = None) -> FastAP
             media_type="multipart/x-mixed-replace; boundary=frame",
             headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
         )
+
+    @api.get("/sessions/{session_id}/frame")
+    def latest_frame(session_id: uuid.UUID, owner: str = Depends(authenticate)) -> Response:
+        if not dev_fallback_enabled():
+            raise HTTPException(status_code=404, detail="Not found")
+        session = store.get_session(owner, str(session_id))
+        with session.lock:
+            frame = session.latest_frame
+            count = session.frames_generated
+        headers = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff", "X-Frame-Count": str(count)}
+        return Response(frame, status_code=200 if frame else 204, media_type="image/jpeg", headers=headers)
 
     @api.post("/sessions/{session_id}/stop")
     def stop_presenter(session_id: uuid.UUID, owner: str = Depends(authenticate)) -> dict:
