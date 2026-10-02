@@ -10,6 +10,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from av_encoder import EncoderConfig, InternalAVEncoder, resolve_ffmpeg_path
@@ -49,6 +50,77 @@ def track_end_ms(path: Path, stream: str) -> float:
     return max((int(fields[2]) + int(fields[3])) * numerator / denominator * 1000 for fields in packets)
 
 
+class AVEncoderPolicyTests(unittest.TestCase):
+    def encoder(self, **limits):
+        with patch("av_encoder.resolve_ffmpeg_path", return_value="unit-ffmpeg"):
+            return InternalAVEncoder(EncoderConfig(**limits), Path("unit-unused.mp4"))
+
+    def test_rejected_first_frame_does_not_start_shared_media_epoch(self):
+        encoder = self.encoder()
+        with patch("av_encoder.time.monotonic", return_value=100):
+            with self.assertRaises(ValueError):
+                encoder.push_frame(b"\xff\xd8real unit fixture\xff\xd9", float("nan"))
+        self.assertIsNone(encoder._epoch)
+        self.assertFalse(encoder._first_frame.is_set())
+        with patch("av_encoder.time.monotonic", return_value=200):
+            self.assertTrue(encoder.push_frame(b"\xff\xd8real unit fixture\xff\xd9"))
+        self.assertEqual(encoder._epoch, 200)
+        self.assertEqual(encoder._last_frame_timestamp, 0)
+        encoder.dispose()
+
+    def test_input_queue_overflow_fails_without_skipping_timeline_positions(self):
+        encoder = self.encoder(input_queue_size=1, fps=60)
+        frame = b"\xff\xd8real unit fixture\xff\xd9"
+        encoder.push_frame(frame)
+        encoder._schedule()
+        metrics = encoder.metrics()
+        self.assertEqual(metrics["error"], "ENCODER_INPUT_BACKPRESSURE")
+        self.assertEqual(metrics["video_queue_depth"], 1)
+        self.assertEqual(metrics["audio_queue_depth"], 1)
+        self.assertEqual(encoder._video_queue.get_nowait(), frame)
+        self.assertEqual(len(encoder._audio_queue.get_nowait()), round(16000 / 60) * 2)
+        encoder.dispose()
+
+    def test_video_output_cannot_conceal_missing_or_stale_audio_media(self):
+        encoder = self.encoder()
+        encoder._started = True
+        with patch("av_encoder.time.monotonic", return_value=0):
+            encoder.push_frame(b"\xff\xd8real unit fixture\xff\xd9")
+
+        def read_tags(*tags):
+            flv = bytearray(b"FLV\x01\x05\x00\x00\x00\x09\x00\x00\x00\x00")
+            for kind, payload in tags:
+                flv.extend(bytes([kind]) + len(payload).to_bytes(3, "big") + b"\x00" * 7)
+                flv.extend(payload + (len(payload) + 11).to_bytes(4, "big"))
+            encoder._process = Mock(stdout=io.BytesIO(flv))
+            encoder._read_output()
+
+        with patch("av_encoder.time.monotonic", return_value=6):
+            # AAC sequence headers are configuration, not audio progress.
+            read_tags((8, b"\xaf\x00\x12\x08"), (9, b"\x17\x01\x00\x00\x00"))
+            health = encoder.health()
+        self.assertFalse(health["encoder_stalled"])
+        self.assertTrue(health["audio_stalled"])
+        with patch("av_encoder.time.monotonic", return_value=6):
+            read_tags((8, b"\xaf\x01unit AAC fixture"))
+        with patch("av_encoder.time.monotonic", return_value=7):
+            self.assertFalse(encoder.health()["audio_stalled"])
+        with patch("av_encoder.time.monotonic", return_value=12):
+            read_tags((9, b"\x17\x01\x00\x00\x00"))
+            self.assertTrue(encoder.health()["audio_stalled"])
+        encoder._process = None
+        encoder.dispose()
+
+    def test_scheduler_stall_before_output_uses_elapsed_time(self):
+        encoder = self.encoder()
+        encoder._started = True
+        with patch("av_encoder.time.monotonic", return_value=0):
+            encoder.push_frame(b"\xff\xd8real unit fixture\xff\xd9")
+        with patch("av_encoder.time.monotonic", return_value=6):
+            self.assertTrue(encoder.health()["encoder_stalled"])
+        encoder.dispose()
+
+
 @unittest.skipUnless(FFMPEG, "Actual FFmpeg/Pillow dependencies required")
 class AVEncoderTests(unittest.TestCase):
     def test_continuous_flv_and_live_mp4_have_decodable_h264_aac(self):
@@ -70,6 +142,7 @@ class AVEncoderTests(unittest.TestCase):
                 self.assertGreater(running["encoded_bytes"], 1000)
                 self.assertGreater(sum(map(len, captured)), 1000, "Sink must receive before stop")
                 self.assertGreater(output.stat().st_size, 1000, "MP4 fragments must exist before stop")
+                self.assertFalse(encoder.health()["audio_stalled"])
                 # Decode a snapshot while the encoder is still running.
                 snapshot = Path(directory) / "while-running.mp4"
                 snapshot.write_bytes(output.read_bytes())

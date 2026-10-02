@@ -1,7 +1,9 @@
 """Continuous real RTMP tests use explicitly synthetic A/V, never TikTok."""
 from __future__ import annotations
 
+import io
 import os
+import queue
 import select
 import socket
 import ssl
@@ -12,7 +14,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from direct_stream import (GenericRTMPProvider, GenericRTMPSProvider, LocalRTMPReceiver,
@@ -60,6 +62,28 @@ class DirectStreamTests(unittest.TestCase):
         with self.assertRaisesRegex(StreamError, "STREAM_TLS_VERIFICATION_REQUIRED"):
             stream._command()
         stream.dispose()
+
+    def test_publish_credentials_are_literal_arguments_and_never_health_output(self):
+        server = "rtmp://publish.example/live"
+        key = 'key;$(echo-leak)&"quoted"'
+        stream = GenericRTMPProvider(server, key, ffmpeg_path=sys.executable)
+        process = Mock()
+        process.stdin = io.BytesIO()
+        process.stdout = io.BytesIO()
+        process.poll.return_value = 0
+        try:
+            with patch("direct_stream.subprocess.Popen", return_value=process) as spawn:
+                stream._open()
+            command = spawn.call_args.args[0]
+            self.assertIsInstance(command, list)
+            self.assertFalse(spawn.call_args.kwargs.get("shell", False))
+            self.assertEqual(command[command.index("-rtmp_playpath") + 1], key)
+            self.assertEqual(command[-1], server + "/" + key)
+            self.assertEqual(spawn.call_args.kwargs["stderr"], subprocess.DEVNULL)
+            self.assertNotIn(key, str(stream.metrics()))
+            self.assertNotIn("publish.example", str(stream.health()))
+        finally:
+            stream.dispose()
 
     def test_actual_tls_relay_validates_ca_and_hostname_before_publishing(self):
         from datetime import datetime, timedelta, timezone
@@ -172,13 +196,110 @@ class DirectStreamTests(unittest.TestCase):
             self.assertTrue(stream._restart.is_set())
             stream.dispose()
 
+    def test_concurrent_start_creates_one_publisher(self):
+        class SlowStart(LocalTestStream):
+            def __init__(self, output):
+                super().__init__(output)
+                self.opens = 0
+                self.open_entered = threading.Event()
+                self.allow_open = threading.Event()
+                self.writers = []
+
+            def _open(self):
+                self.opens += 1
+                self.open_entered.set()
+                self.allow_open.wait(timeout=2)
+                super()._open()
+
+            def _run(self):
+                self.writers.append(threading.current_thread())
+                super()._run()
+
+        with tempfile.TemporaryDirectory() as directory:
+            stream = SlowStart(Path(directory) / "single.flv")
+            second_started = threading.Event()
+            second_finished = threading.Event()
+            def start_again():
+                second_started.set()
+                stream.start()
+                second_finished.set()
+            first = threading.Thread(target=stream.start)
+            second = threading.Thread(target=start_again)
+            try:
+                first.start()
+                self.assertTrue(stream.open_entered.wait(timeout=1))
+                second.start()
+                self.assertTrue(second_started.wait(timeout=1))
+                second_finished.wait(timeout=0.1)
+                stream.allow_open.set()
+                first.join(timeout=2)
+                second.join(timeout=2)
+                self.assertFalse(first.is_alive())
+                self.assertFalse(second.is_alive())
+                self.assertEqual(stream.opens, 1)
+                self.assertTrue(wait_until(lambda: len(stream.writers) == 1, timeout=1))
+            finally:
+                stream.allow_open.set()
+                first.join(timeout=2)
+                if second.ident is not None:
+                    second.join(timeout=2)
+                stream.dispose()
+                for writer in stream.writers:
+                    writer.join(timeout=1)
+
+    def test_queue_accounting_survives_concurrent_clear_and_dequeue(self):
+        class PausedWriter(LocalTestStream):
+            def __init__(self, output):
+                super().__init__(output)
+                self.dequeued = threading.Event()
+                self.refilled = threading.Event()
+                self.writing = threading.Event()
+                self.allow_write = threading.Event()
+
+            def _write(self, data):
+                self.writing.set()
+                self.allow_write.wait(timeout=2)
+                super()._write(data)
+
+        with tempfile.TemporaryDirectory() as directory:
+            stream = PausedWriter(Path(directory) / "accounting.flv")
+            class PausedQueue(queue.Queue):
+                def get(self, *args, **kwargs):
+                    data = super().get(*args, **kwargs)
+                    if not stream.dequeued.is_set():
+                        stream.dequeued.set()
+                        stream.refilled.wait(timeout=0.1)
+                    return data
+            stream._queue = PausedQueue(stream.MAX_QUEUE_TAGS)
+            stream.push_encoded(HEADER + AVC + AAC + tag(9, b"\x17\x01initial", 0))
+            def replace_queue():
+                stream.dequeued.wait(timeout=1)
+                with stream._lock:
+                    stream._clear_queue()
+                    stream.push_encoded(tag(9, b"\x17\x01fresh", 1000))
+                stream.refilled.set()
+            producer = threading.Thread(target=replace_queue)
+            try:
+                producer.start()
+                stream.start()
+                self.assertTrue(stream.writing.wait(timeout=1))
+                self.assertTrue(stream.refilled.wait(timeout=1))
+                with stream._lock:
+                    self.assertEqual(stream.metrics()["queue_bytes"], sum(map(len, stream._queue.queue)))
+            finally:
+                stream.allow_write.set()
+                producer.join(timeout=2)
+                stream.dispose()
+
     def test_reconnect_budget_is_session_wide(self):
         with tempfile.TemporaryDirectory() as directory:
-            stream = LocalTestStream(Path(directory) / "budget.flv", backoff_seconds=0)
+            stream = LocalTestStream(Path(directory) / "budget.flv", backoff_seconds=0.25)
             session = stream.session_id
-            for _ in range(3):
-                self.assertTrue(stream._recover())
-            self.assertFalse(stream._recover())
+            with patch.object(stream._stop, "wait", return_value=False) as backoff:
+                for _ in range(3):
+                    self.assertTrue(stream._recover())
+                self.assertFalse(stream._recover())
+                self.assertEqual([invocation.args[0] for invocation in backoff.call_args_list], [0.25, 0.5, 1.0])
             self.assertEqual(stream.metrics()["error"], "STREAM_RECONNECT_EXHAUSTED")
             self.assertEqual(stream.session_id, session)
             stream.dispose()

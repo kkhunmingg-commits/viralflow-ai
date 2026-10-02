@@ -6,6 +6,7 @@ The receiver is live before generation; it receives bytes while inference runs.
 from __future__ import annotations
 
 import argparse
+from contextlib import ExitStack
 import json
 import os
 import secrets
@@ -16,10 +17,88 @@ import time
 from pathlib import Path
 
 from av_pipeline import AVSessionStream
-from av_encoder import EncoderConfig
-from direct_stream import GenericRTMPProvider, LocalRTMPReceiver
+from direct_stream import GenericRTMPProvider
 from provider_config import dev_fallback_enabled
-from worker_core import LiveStore
+from receiver_player import PlayingRTMPReceiver, ReceiverPlayer
+
+
+class LocalBoundaryProofStore:
+    """DEV HTTP test facade over the SAME media worker used by Local Agent.
+
+    Authentication stays at the existing loopback API; the facade delegates
+    Start/audio/Stop to LocalWorkerBoundary, not a second media implementation.
+    """
+    def __init__(self, worker, context):
+        self.worker = worker
+        self.context = context
+
+    def __getattr__(self, name):
+        return getattr(self.worker.store, name)
+
+    def _call(self, method, *args):
+        from local_agent.agent import AgentError
+        from worker_core import LiveError
+        try:
+            return method(*args)
+        except AgentError as exc:
+            raise LiveError(exc.status, exc.code, exc.message) from None
+
+    def start_session(self, owner, reference, _fps, unused_engine):
+        unused_engine.close()  # HTTP creates an unprepared engine; worker owns its actual engine.
+        if owner != self.context["ownerId"]:
+            from worker_core import LiveError
+            raise LiveError(404, "SESSION_NOT_FOUND", "Not found")
+        path = self.worker.store.get_reference(owner, reference).path
+        session = self._call(self.worker.start_session, owner, self.context["accountId"],
+            tuple(product["id"] for product in self.context["products"]), path, None)
+        return session, self.worker.store.get_session(owner, session)
+
+    def send_audio(self, owner, session, pcm):
+        return self._call(self.worker.push_audio, owner, session, pcm)
+
+    def stop_session(self, owner, session):
+        self._call(self.worker.stop_session, owner, session)
+        return self.worker.store.get_session(owner, session).status
+
+    def close(self):
+        self.worker.close()
+
+
+def stop_child(process):
+    if process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
+
+def stop_server(server, thread):
+    server.should_exit = True
+    if thread.ident is not None:
+        thread.join(timeout=30)
+    if thread.is_alive():
+        raise RuntimeError("PROOF_WORKER_STOP_FAILED")
+
+
+class ProofCleanup(ExitStack):
+    """Try every owned cleanup even if an earlier release fails.
+
+    Retain the original startup/runtime failure; report cleanup failure on an
+    otherwise successful run. Diagnostics cannot contain keys or native errors.
+    """
+    def __init__(self):
+        super().__init__()
+        self.failed = False
+
+    def release(self, callback, *args):
+        def attempt():
+            try:
+                callback(*args)
+            except Exception:
+                self.failed = True
+        self.callback(attempt)
 
 
 def main() -> None:
@@ -33,6 +112,7 @@ def main() -> None:
     parser.add_argument("--worker-port", type=int, default=18765)
     parser.add_argument("--rtmp-port", type=int, default=19350)
     parser.add_argument("--reconnect-at", type=int, default=90)
+    parser.add_argument("--player-port", type=int, default=18866)
     args = parser.parse_args()
     if not 12 <= args.seconds <= 3600:
         raise ValueError("INVALID_PROOF_DURATION")
@@ -42,48 +122,62 @@ def main() -> None:
     context = json.loads(args.context.read_text(encoding="utf-8"))
     token = secrets.token_urlsafe(48)
     key = secrets.token_hex(16)  # Local-only key, never emitted to logs.
-    receiver = LocalRTMPReceiver(output / "received.flv", port=args.rtmp_port, stream_key=key)
-    receiver.start()
-    time.sleep(.4)
-    providers: list[GenericRTMPProvider] = []
+    cleanup = ProofCleanup()
+    with cleanup:
+        player = ReceiverPlayer(args.player_port)
+        cleanup.release(player.stop)
+        player.start()
+        receiver = PlayingRTMPReceiver(output / "received.flv", port=args.rtmp_port, stream_key=key, player=player)
+        cleanup.release(receiver.stop)
+        receiver.start()
+        time.sleep(.4)
+        providers: list[GenericRTMPProvider] = []
 
-    def stream_factory(_owner: str, session_id: str, path: Path) -> AVSessionStream:
-        provider = GenericRTMPProvider(receiver.server_url, receiver.stream_key, session_id=session_id)
-        providers.append(provider)
-        return AVSessionStream(output / (session_id + ".mp4"), provider, EncoderConfig())
+        def provider_factory(server_url: str, stream_key: str):
+            provider = GenericRTMPProvider(server_url, stream_key)
+            providers.append(provider)
+            return provider
 
-    store = LiveStore(output / "references", stream_factory=stream_factory,
-                      direct_audio=True, audio_idle_timeout_seconds=60)
-    reference = store.save_reference(context["ownerId"], args.reference.read_bytes(), "image/png")
-    from app import create_app
-    import uvicorn
-    server = uvicorn.Server(uvicorn.Config(create_app(token, store=store), host="127.0.0.1",
-                                          port=args.worker_port, log_level="error", access_log=False))
-    server_thread = threading.Thread(target=server.run, name="local-proof-worker", daemon=True)
-    server_thread.start()
-    deadline = time.monotonic() + 15
-    while not server.started and time.monotonic() < deadline:
-        time.sleep(.1)
-    if not server.started:
-        store.close()
-        receiver.stop()
-        raise RuntimeError("PROOF_WORKER_START_FAILED")
-    child_env = os.environ.copy()
-    child_env.update({"AI_LIVE_WORKER_TOKEN": token, "AI_LIVE_PROOF_REFERENCE_ID": reference,
-                      "AI_LIVE_PROOF_WORKER_ORIGIN": f"http://127.0.0.1:{args.worker_port}",
-                      "AI_LIVE_PROOF_PYTHON": sys.executable,
-                      "AI_LIVE_DIRECT_STREAM_DURATION_SECONDS": str(args.seconds)})
-    tsx = root / "node_modules/tsx/dist/cli.mjs"
-    command = ["node", str(tsx), str(root / "scripts/ai-live-direct-stream-proof.ts"),
-               str(args.context.resolve()), str(output / "pipeline.json")]
-    receiver_samples = []
-    started_stream_at = None
-    reconnect_done = False
-    recovered_receiver = None
-    try:
+        from local_agent.live_worker import LocalWorkerBoundary
+        from local_agent.stream_credentials import StreamCredentialStore
+        credentials = StreamCredentialStore(output / "local-test-credentials")
+        cleanup.release(credentials.delete, context["ownerId"], context["accountId"])
+        credentials.put(context["ownerId"], context["accountId"], receiver.server_url, key)
+        def stream_factory(path, *, provider, config):
+            return AVSessionStream(output / path.name, provider, config)
+        worker = LocalWorkerBoundary(output / "local-worker", credentials,
+            provider_factory=provider_factory, stream_factory=stream_factory)
+        cleanup.release(worker.close)
+        store = LocalBoundaryProofStore(worker, context)
+        reference = store.save_reference(context["ownerId"], args.reference.read_bytes(), "image/png")
+        from app import create_app
+        import uvicorn
+        server = uvicorn.Server(uvicorn.Config(create_app(token, store=store), host="127.0.0.1",
+                                              port=args.worker_port, log_level="error", access_log=False))
+        server_thread = threading.Thread(target=server.run, name="local-proof-worker", daemon=True)
+        cleanup.release(stop_server, server, server_thread)
+        server_thread.start()
+        deadline = time.monotonic() + 15
+        while not server.started and time.monotonic() < deadline:
+            time.sleep(.1)
+        if not server.started:
+            raise RuntimeError("PROOF_WORKER_START_FAILED")
+        child_env = os.environ.copy()
+        child_env.update({"AI_LIVE_WORKER_TOKEN": token, "AI_LIVE_PROOF_REFERENCE_ID": reference,
+                          "AI_LIVE_PROOF_WORKER_ORIGIN": f"http://127.0.0.1:{args.worker_port}",
+                          "AI_LIVE_PROOF_PYTHON": sys.executable,
+                          "AI_LIVE_DIRECT_STREAM_DURATION_SECONDS": str(args.seconds)})
+        tsx = root / "node_modules/tsx/dist/cli.mjs"
+        command = ["node", str(tsx), str(root / "scripts/ai-live-direct-stream-proof.ts"),
+                   str(args.context.resolve()), str(output / "pipeline.json")]
+        receiver_samples = []
+        started_stream_at = None
+        reconnect_done = False
+        recovered_receiver = None
         with (output / "domain.log").open("wb") as log:
             process = subprocess.Popen(command, cwd=root, env=child_env, stdout=log, stderr=log,
                                        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            cleanup.release(stop_child, process)
             started = time.monotonic()
             while process.poll() is None:
                 now = time.monotonic()
@@ -94,8 +188,9 @@ def main() -> None:
                 if args.reconnect_at > 0 and elapsed >= args.reconnect_at and not reconnect_done:
                     receiver.stop()
                     time.sleep(.5)
-                    recovered_receiver = LocalRTMPReceiver(output / "received-reconnected.flv",
-                        port=args.rtmp_port, stream_key=key)
+                    recovered_receiver = PlayingRTMPReceiver(output / "received-reconnected.flv",
+                        port=args.rtmp_port, stream_key=key, player=player)
+                    cleanup.release(recovered_receiver.stop)
                     recovered_receiver.start()
                     reconnect_done = True
                 current_receiver = recovered_receiver or receiver
@@ -108,29 +203,20 @@ def main() -> None:
                 time.sleep(1)
             if process.returncode:
                 raise RuntimeError("REAL_DOMAIN_STREAM_PROOF_FAILED")
-            print(json.dumps({"event": "DIRECT_STREAM_PROOF_COMPLETE", "seconds": args.seconds,
-                              "report": str(output / "pipeline.json")}), flush=True)
-    finally:
-        if 'process' in locals() and process.poll() is None:
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait(timeout=5)
-        server.should_exit = True
-        server_thread.join(timeout=30)
-        store.close()
-        receiver.stop()
-        if recovered_receiver:
-            recovered_receiver.stop()
-        (output / "receiver.json").write_text(json.dumps({"samples": receiver_samples,
-            "reconnect_injected": reconnect_done, "receiver_closed": True,
-            "worker_closed": not server_thread.is_alive()}, indent=2), encoding="utf-8")
-        token = key = ""
-        child_env.pop("AI_LIVE_WORKER_TOKEN", None)
-    if server_thread.is_alive() or any(not session.metrics().get("resources_released") for session in store.sessions.values()):
+            report_path = output / "pipeline.json"
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+            report["proofBoundary"] = "LocalWorkerBoundary"
+            report["producerSessionCount"] = len(worker._sessions)
+            report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    if cleanup.failed or any(not session.metrics().get("resources_released") for session in store.sessions.values()):
         raise RuntimeError("PROOF_RESOURCES_NOT_RELEASED")
+    (output / "receiver.json").write_text(json.dumps({"samples": receiver_samples,
+        "reconnect_injected": reconnect_done, "receiver_closed": True,
+        "worker_closed": not server_thread.is_alive(), "live_player": player.evidence()}, indent=2), encoding="utf-8")
+    token = key = ""
+    child_env.pop("AI_LIVE_WORKER_TOKEN", None)
+    print(json.dumps({"event": "DIRECT_STREAM_PROOF_COMPLETE", "seconds": args.seconds,
+                      "report": str(output / "pipeline.json")}), flush=True)
 
 
 if __name__ == "__main__":

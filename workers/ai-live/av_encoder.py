@@ -114,6 +114,7 @@ class InternalAVEncoder:
         self._audio_pts_ms: float | None = None
         self._max_pts_drift_ms = 0.0
         self._last_output_at: float | None = None
+        self._last_audio_output_at: float | None = None
         self._max_scheduler_lag_ms = 0.0
         self._finished_at: float | None = None
 
@@ -186,14 +187,15 @@ class InternalAVEncoder:
             if self._stop.is_set() or self._error:
                 return False
             now = time.monotonic()
-            if self._epoch is None:
-                self._epoch = now
-            timestamp = (now - self._epoch) * 1000 if timestamp_ms is None else float(timestamp_ms)
+            epoch = self._epoch if self._epoch is not None else now
+            timestamp = (now - epoch) * 1000 if timestamp_ms is None else float(timestamp_ms)
             if not math.isfinite(timestamp) or timestamp < 0:
                 raise ValueError("Frame timestamp must be finite nonnegative milliseconds")
             if timestamp < self._last_frame_timestamp:
                 self._frame_drops += 1
                 return False
+            if self._epoch is None:
+                self._epoch = now
             # Latest-wins input slot is bounded, even if inference outpaces encoding.
             if self._frame_version > self._consumed_frame_version:
                 self._frame_drops += 1
@@ -389,6 +391,7 @@ class InternalAVEncoder:
                             self._max_pts_drift_ms = max(self._max_pts_drift_ms, abs(timestamp - self._audio_pts_ms))
                     elif kind == 8 and media:
                         self._audio_pts_ms = timestamp
+                        self._last_audio_output_at = self._last_output_at
                 if self._sink:
                     if waiting_keyframe and not keyframe:
                         self._sink_drops += 1
@@ -464,14 +467,21 @@ class InternalAVEncoder:
                     "sink_queue_depth": self._sink_queue.qsize(), "sink_dropped_tags": self._sink_drops, "sink_errors": self._sink_errors,
                     "encoded_bytes": self._encoded_bytes, "bitrate_kbps": self._encoded_bytes * 8 / duration / 1000 if duration else 0,
                     "output_age_ms": (now - self._last_output_at) * 1000 if self._last_output_at else None,
+                    "audio_output_age_ms": (now - self._last_audio_output_at) * 1000 if self._last_audio_output_at is not None else None,
                     "output_file": self.output_path.name, "output_bytes": self.output_path.stat().st_size if self.output_path.exists() else 0,
                     "error": self._error, "diagnostic_tail": list(self._stderr)}
 
     def health(self) -> dict[str, object]:
         metrics = self.metrics()
         age = metrics["output_age_ms"]
+        audio_age = metrics["audio_output_age_ms"]
+        elapsed_ms = max(0, (time.monotonic() - self._epoch) * 1000) if self._epoch is not None else 0
         metrics["encoder_stalled"] = bool(metrics["status"] == "RUNNING" and
-                                           ((age is not None and age > 5000) or (age is None and metrics["timeline_ms"] > 5000)))
+                                           ((age is not None and age > 5000) or (age is None and elapsed_ms > 5000)))
+        # Silence is encoded continuously too. Video/metadata output cannot
+        # conceal a missing or stalled AAC media track.
+        metrics["audio_stalled"] = bool(metrics["status"] == "RUNNING" and
+                                         ((audio_age is not None and audio_age > 5000) or (audio_age is None and elapsed_ms > 5000)))
         return metrics
 
     def stop(self) -> None:

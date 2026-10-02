@@ -1,7 +1,11 @@
 {
   "mode": "DEV_PROOF_ONLY",
   "completed": true,
-  "duration_seconds": 600.026,
+  "duration_seconds": 600.086,
+  "minimum_duration_seconds": 600,
+  "ten_minute_acceptance": true,
+  "proof_boundary": "LocalWorkerBoundary",
+  "producer_session_count": 1,
   "comment_source": "SIMULATED_THAI_FIXTURE",
   "product_source": "EXISTING_TEST_FIXTURE",
   "voice": "Windows offline Thai SAPI",
@@ -10,92 +14,246 @@
   "duplicates_rejected": 51,
   "speech_calls": 51,
   "audio_delivered_bytes": 8417760,
-  "presenter_real_frames": 240,
-  "presenter_average_fps": 0.397,
-  "presenter_latency_p50_ms": 9531,
-  "presenter_latency_p95_ms": 15969,
-  "encoder_fps": 25.001,
-  "encoder_frames": 15025,
-  "held_real_frames": 14785,
-  "inference_audio_drops": 173,
+  "presenter_real_frames": 233,
+  "presenter_average_fps": 0.385,
+  "presenter_latency_p50_ms": 9766,
+  "presenter_latency_p95_ms": 15907,
+  "encoder_fps": 25.0,
+  "encoder_frames": 15028,
+  "held_real_frames": 14795,
+  "inference_audio_drops": 177,
   "encoded_audio_dropped_samples": 0,
-  "transport_dropped_tags": 15,
-  "transport_dropped_audio_tags": 5,
-  "audio_buffer_max_ms": 6815,
-  "av_mux_packet_drift_final_ms": 8,
+  "transport_dropped_tags": 12,
+  "transport_dropped_audio_tags": 4,
+  "audio_buffer_max_ms": 6855,
+  "av_mux_packet_drift_final_ms": 16,
   "av_mux_packet_drift_max_ms": 64,
   "av_input_clock_drift_ms": 0,
-  "encoder_bitrate_kbps": 308.45,
-  "transport_bitrate_kbps": 306.198,
+  "encoder_bitrate_kbps": 304.859,
+  "transport_bitrate_kbps": 302.6,
   "queues_max": {
     "comment": 1,
     "action": 2,
     "presenter": 4,
     "encoder": 0,
-    "transport": 0
+    "transport": 6
   },
-  "ram_after_warmup_min_mb": 4341.2,
-  "ram_after_warmup_max_mb": 4347.5,
-  "ram_first_warm_mb": 4346.2,
-  "ram_last_running_mb": 4343.7,
-  "ram_after_stop_mb": 750.6,
+  "ram_after_warmup_min_mb": 4345.1,
+  "ram_after_warmup_max_mb": 4352.6,
+  "ram_first_warm_mb": 4348.8,
+  "ram_last_running_mb": 4345.9,
+  "ram_after_stop_mb": 752.7,
   "reconnect_count": 1,
   "received_while_producer_active": true,
+  "receiver_progress": {
+    "sample_count": 608,
+    "observed_duration_seconds": 601.719,
+    "max_progress_gap_seconds": 2.547,
+    "observed_reconnects": 1,
+    "segment_max_received_bytes": [
+      3549797,
+      19405477
+    ]
+  },
+  "receiver_decoded_av_span_seconds": 602.888,
+  "receiver_av_packet_drift_max_ms": 48.0,
+  "live_player": {
+    "source": "RECEIVER_LIVE_FRAGMENTED_MP4",
+    "fragments_received": 1206,
+    "max_cache_bytes": 706935,
+    "observation_count": 588,
+    "connections": [
+      {
+        "generation": 1,
+        "observations": 77,
+        "video_frames_decoded": 1900,
+        "audio_bytes_decoded": 297591,
+        "video_frames_progress": 1887,
+        "audio_bytes_progress": 290637,
+        "playback_time_progress_seconds": 75.469,
+        "sound_enabled": true,
+        "audio_rms_max": 0.09010304177748331,
+        "player_errors": 0,
+        "max_nonprogress_observations": 0
+      },
+      {
+        "generation": 2,
+        "observations": 511,
+        "video_frames_decoded": 12763,
+        "audio_bytes_decoded": 1715138,
+        "video_frames_progress": 12749,
+        "audio_bytes_progress": 1715028,
+        "playback_time_progress_seconds": 510.009,
+        "sound_enabled": true,
+        "audio_rms_max": 0.27075700466078684,
+        "player_errors": 0,
+        "max_nonprogress_observations": 0
+      }
+    ],
+    "before_and_after_reconnect_verified": true
+  },
   "reconnect_injected": true,
   "resources_released": true,
   "worker_closed": true,
   "receiver_closed": true,
   "recordings": [
     {
-      "filename": "7f428ab8-7be2-4378-92ec-8c8176c5fe70.mp4",
-      "sha256": "0ea3ca85a1b0df922b81167f6ca702f1a7b10cd03bcb9a7ecd9a01b3baa38251",
-      "bytes": 22865518,
-      "duration_seconds": 601.904063,
+      "filename": "received.flv",
+      "sha256": "ace62021661cfccb0ef6775f0736ff1e727cc7b7f77aaab9f33e0420744c71c8",
+      "bytes": 3560855,
+      "duration_seconds": 91.584,
       "codecs": [
         "h264",
         "aac"
       ],
       "audio_decoded_samples": 160000,
-      "audio_rms_pcm16": 2161.0,
-      "jpeg_decoded_bytes": 7147
+      "audio_rms_pcm16": 2047.4,
+      "jpeg_decoded_bytes": 7145,
+      "full_av_decode_verified": true,
+      "decode_windows": [
+        {
+          "position": "first",
+          "offset_seconds": 0.25,
+          "requested_audio_seconds": 10,
+          "audio_decoded_samples": 160000,
+          "audio_rms_pcm16": 2047.4,
+          "jpeg_decoded_bytes": 7145
+        },
+        {
+          "position": "middle",
+          "offset_seconds": 44.792,
+          "requested_audio_seconds": 2,
+          "audio_decoded_samples": 32000,
+          "audio_rms_pcm16": 0.0,
+          "jpeg_decoded_bytes": 7137
+        },
+        {
+          "position": "last",
+          "offset_seconds": 89.584,
+          "requested_audio_seconds": 2,
+          "audio_decoded_samples": 32000,
+          "audio_rms_pcm16": 2462.0,
+          "jpeg_decoded_bytes": 7071
+        }
+      ],
+      "receiver_packets": {
+        "video_packets": 2290,
+        "audio_packets": 1432,
+        "av_span_seconds": 91.6,
+        "first_av_pts_seconds": 0.0,
+        "last_av_pts_seconds": 91.6,
+        "timestamps_monotonic": true,
+        "av_drift_method": "NEAREST_PRESENTATION_TIMESTAMP_WITH_TRACK_BOUNDARIES",
+        "max_packet_gap_seconds": 0.064,
+        "av_packet_drift_max_ms": 48.0,
+        "av_packet_drift_final_ms": 24.0
+      }
     },
     {
       "filename": "received-reconnected.flv",
-      "sha256": "c5c0743e99c3393910015d8976b294b5bc683b57a9c23063d1b9317b0ddffa29",
-      "bytes": 19499748,
-      "duration_seconds": 509.84,
-      "codecs": [
-        "h264",
-        "aac"
-      ],
-      "audio_decoded_samples": 159744,
-      "audio_rms_pcm16": 1477.9,
-      "jpeg_decoded_bytes": 6954
-    },
-    {
-      "filename": "received.flv",
-      "sha256": "059c1f5ab7c1a41c9fc780208308e7688ff6bbbc796c2a87c6c584e4ff789764",
-      "bytes": 3668206,
-      "duration_seconds": 91.52,
+      "sha256": "eb4bb59d36870214676344770625beaf9257bd1432bfd1cdea091e59238e6743",
+      "bytes": 19407089,
+      "duration_seconds": 511.32,
       "codecs": [
         "h264",
         "aac"
       ],
       "audio_decoded_samples": 160000,
-      "audio_rms_pcm16": 2161.0,
-      "jpeg_decoded_bytes": 7150
+      "audio_rms_pcm16": 1497.2,
+      "jpeg_decoded_bytes": 7130,
+      "full_av_decode_verified": true,
+      "decode_windows": [
+        {
+          "position": "first",
+          "offset_seconds": 0.25,
+          "requested_audio_seconds": 10,
+          "audio_decoded_samples": 160000,
+          "audio_rms_pcm16": 1497.2,
+          "jpeg_decoded_bytes": 7130
+        },
+        {
+          "position": "middle",
+          "offset_seconds": 254.66,
+          "requested_audio_seconds": 2,
+          "audio_decoded_samples": 32000,
+          "audio_rms_pcm16": 0.0,
+          "jpeg_decoded_bytes": 7137
+        },
+        {
+          "position": "last",
+          "offset_seconds": 509.32,
+          "requested_audio_seconds": 2,
+          "audio_decoded_samples": 32000,
+          "audio_rms_pcm16": 0.0,
+          "jpeg_decoded_bytes": 7168
+        }
+      ],
+      "receiver_packets": {
+        "video_packets": 12783,
+        "audio_packets": 7989,
+        "av_span_seconds": 511.288,
+        "first_av_pts_seconds": 0.032,
+        "last_av_pts_seconds": 511.32,
+        "timestamps_monotonic": true,
+        "av_drift_method": "NEAREST_PRESENTATION_TIMESTAMP_WITH_TRACK_BOUNDARIES",
+        "max_packet_gap_seconds": 0.064,
+        "av_packet_drift_max_ms": 32.0,
+        "av_packet_drift_final_ms": 16.0
+      }
+    },
+    {
+      "filename": "5cdfe850-d842-42d1-9fc9-7035a1d2df6f.mp4",
+      "sha256": "e00a0854e5f2f2ae35878853cc952573f84279ddb05435ec48ee4a771bcb7671",
+      "bytes": 22659125,
+      "duration_seconds": 603.384063,
+      "codecs": [
+        "h264",
+        "aac"
+      ],
+      "audio_decoded_samples": 160000,
+      "audio_rms_pcm16": 2078.8,
+      "jpeg_decoded_bytes": 7135,
+      "full_av_decode_verified": true,
+      "decode_windows": [
+        {
+          "position": "first",
+          "offset_seconds": 0.25,
+          "requested_audio_seconds": 10,
+          "audio_decoded_samples": 160000,
+          "audio_rms_pcm16": 2078.8,
+          "jpeg_decoded_bytes": 7135
+        },
+        {
+          "position": "middle",
+          "offset_seconds": 300.692,
+          "requested_audio_seconds": 2,
+          "audio_decoded_samples": 32000,
+          "audio_rms_pcm16": 0.0,
+          "jpeg_decoded_bytes": 7129
+        },
+        {
+          "position": "last",
+          "offset_seconds": 601.384,
+          "requested_audio_seconds": 2,
+          "audio_decoded_samples": 32000,
+          "audio_rms_pcm16": 0.0,
+          "jpeg_decoded_bytes": 7168
+        }
+      ],
+      "receiver_packets": {
+        "video_packets": 15083,
+        "audio_packets": 9428,
+        "av_span_seconds": 603.384063,
+        "first_av_pts_seconds": 0.0,
+        "last_av_pts_seconds": 603.384063,
+        "timestamps_monotonic": true,
+        "av_drift_method": "NEAREST_PRESENTATION_TIMESTAMP_WITH_TRACK_BOUNDARIES",
+        "max_packet_gap_seconds": 0.104063,
+        "av_packet_drift_max_ms": 40.063,
+        "av_packet_drift_final_ms": 16.063
+      }
     }
   ],
   "production_realtime_validated": false,
-  "interpretation": "Packet timestamps are synchronized; slow held CPU frames do not prove realtime phoneme/lip synchronization.",
-  "helper_shutdown_check": {
-    "completed": true,
-    "duration_seconds": 12.048,
-    "worker_closed": true,
-    "receiver_closed": true,
-    "resources_released": true,
-    "process_exit_code": 0,
-    "owned_helpers_remaining": 0,
-    "windows_native_runtime_exit": "OWN_PROCESS_TERMINATION_AFTER_VERIFIED_CLEANUP"
-  }
+  "interpretation": "Packet timestamps are synchronized; slow held CPU frames do not prove realtime phoneme/lip synchronization."
 }

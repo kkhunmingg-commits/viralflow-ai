@@ -101,43 +101,55 @@ must be available to the executing process; an input error is a blocker, not a
 signal to substitute a recording or virtual input.
 
 The latest [continuous direct-stream proof](../../docs/AI_LIVE_DIRECT_STREAMING_PROOF.json)
-ran for **600.026 seconds**, beginning only after a real generated frame reached
-the encoder and transport reported LIVE. Thai comments and products were
-existing TEST fixtures; Windows Thai SAPI voice and MuseTalkCPUFloat32 were
-real. All 51 comments were accepted, all 51 duplicates rejected, and 51 speech
-calls delivered 8,417,760 audio bytes through the existing domain pipeline.
+ran for **600.086 seconds** through `LocalWorkerBoundary`, the same media boundary
+used by the customer Local Live Agent, with one producer session. Measurement
+began only after a real generated frame reached the encoder and transport
+reported LIVE. Thai comments and products were existing TEST fixtures; Windows
+Thai SAPI voice and MuseTalkCPUFloat32 were real. All 51 comments were accepted,
+all 51 duplicates rejected, and 51 speech calls delivered 8,417,760 audio bytes
+through the existing domain pipeline.
 
-The presenter generated **240 real frames at 0.397 FPS**; latency was 9.531 s
-median and 15.969 s p95. The encoder produced 15,025 frames at 25.001 FPS,
-including **14,785 holds of real generated frames**. Encoder bitrate was
-308.450 kbps and transport bitrate 306.198 kbps. Mux packet drift was 8 ms
+The presenter generated **233 real frames at 0.385 FPS**; latency was 9.766 s
+median and 15.907 s p95. The encoder produced 15,028 frames at 25.000 FPS,
+including **14,795 holds of real generated frames**. Encoder bitrate was
+304.859 kbps and transport bitrate 302.600 kbps. Mux packet drift was 16 ms
 final / 64 ms maximum, with input-clock drift 0 ms. These are synchronized
 packet timestamps, not realtime phoneme/lip synchronization: held mouth poses
 cannot track the continuous speech at this CPU throughput.
 
-The inference branch dropped 173 audio chunks; the encoded playback PCM branch
-dropped 0 samples. Transport dropped 15 tags, including 5 audio tags, across
-startup/reconnect. The audio buffer peaked at 6,815 ms. Maximum queues were
-comment 1, action 2, presenter 4, encoder 0, and transport 0. RAM after warmup
-stayed within 4,341.2–4,347.5 MiB. One injected reconnect recovered in the same
-producer session. The receiver received bytes while the producer was active;
-both pre- and post-reconnect recordings decoded H.264/AAC, actual JPEG frames,
-and nonzero PCM audio. The retained summary includes hashes and decoded sample
-counts/RMS, so this claim does not depend on a socket-connected flag.
+The inference branch dropped 177 audio chunks; the encoded playback PCM branch
+dropped 0 samples. Transport dropped 12 tags, including 4 audio tags, across
+startup/reconnect. The audio buffer peaked at 6,855 ms. Maximum queues were
+comment 1, action 2, presenter 4, encoder 0, and transport 6. RAM after warmup
+stayed within 4,345.1–4,352.6 MiB; first warm/last running samples were
+4,348.8/4,345.9 MiB. One injected reconnect recovered in the same producer
+session. The receiver recorded 608 progress samples over 601.719 seconds with
+a maximum progress gap of 2.547 seconds. Both pre- and post-reconnect recordings
+decoded H.264/AAC through their full files, with monotonic timestamps, a combined
+602.888-second A/V span and maximum receiver packet drift of 48 ms. Their first
+audio probes decoded 160,000 PCM16 samples each with RMS 2,047.4/1,497.2. The
+retained summary includes recording hashes, full decode results and first,
+middle and last decode windows.
+
+The browser player consumed live fragmented MP4 from the RTMP receiver while
+the producer was active. It received 1,206 fragments with a maximum cache of
+706,935 bytes and retained 588 browser observations. Before/after reconnect it
+decoded 1,900/12,763 video frames and 297,591/1,715,138 audio bytes; playback time
+advanced 75.469/510.009 seconds. Both generations had sound enabled, nonzero
+audio RMS and zero player errors. This verifies receiver playback before and
+after reconnect using incoming media rather than replaying a completed MP4.
 
 Stop reported released resources and closed worker/receiver, with RAM reduced
-to 750.6 MiB. A separate short CLI helper encountered torch interpreter
-finalization hanging after media resources closed. The bounded isolated CLI
-helper was repaired and its 12.048-second real short proof exited 0 after
-resource verification; this helper is not the customer worker. An unrelated
-TypeScript scheduler test also fails against the intentionally empty Hobby
-`vercel.json`; this proof does not claim the whole TypeScript suite passes.
+to 752.7 MiB. An unrelated TypeScript scheduler test still fails against the
+intentionally empty Hobby `vercel.json`; this proof does not claim the whole
+TypeScript suite passes.
 
 `scripts/ai-live-direct-stream-proof.ts` requires
 `AI_LIVE_DIRECT_STREAM_PROOF=1`, the existing development flags, a running
 authenticated loopback worker configured for direct streaming, a real uploaded
-reference ID, and an existing account/product context. Its default measured
-window is 600 seconds; it paces distinct Thai fixture comments every 12 seconds,
+reference ID, and an existing account/product context. The current proof's DEV
+HTTP facade delegates Start/audio/Stop to `LocalWorkerBoundary`. Its default
+measured window is 600 seconds; it paces distinct Thai fixture comments every 12 seconds,
 uses the existing Controller/CommentEngine/ProductBrain/Voice boundaries,
 retains at most 121 metric samples, and stops through the real session path.
 Worker tokens and diagnostic session IDs stay in local development processes.

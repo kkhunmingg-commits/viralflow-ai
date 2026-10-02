@@ -46,7 +46,8 @@ class AVSessionStream:
             encoded = self.encoder.health()
             transport = self.provider.health()
             running = encoded["status"] == "RUNNING"
-            progress_at = self._presenter_last_progress or self._inference_started_at
+            progress_at = (self._presenter_last_progress if self._presenter_last_progress is not None
+                           else self._inference_started_at)
             stalled_presenter = (self._inference_active and progress_at is not None
                 and time.monotonic() - progress_at > self.presenter_timeout_seconds)
             self._issues = self._watchdog.inspect(LiveObservation(
@@ -59,18 +60,28 @@ class AVSessionStream:
             ))
             # Transport owns bounded reconnect. Never restart the encoder clock,
             # presenter session, or speech to reconnect the destination.
-            if (encoded["status"] == "FAILED" or encoded.get("encoder_stalled")
+            if (encoded["status"] == "FAILED" or encoded.get("encoder_stalled") or encoded.get("audio_stalled")
                     or transport.get("status") == "FAILED" or stalled_presenter):
-                self._fatal_error = "PRESENTER_STALLED" if stalled_presenter else "STREAM_PIPELINE_FAILED"
-                if callable(self.on_failure):
-                    self.on_failure()
-                self.encoder.stop()
-                self.provider.stop()
-                self._stop.set()
+                self._fatal_error = ("PRESENTER_STALLED" if stalled_presenter else
+                                     "AUDIO_STALLED" if encoded.get("audio_stalled") else "STREAM_PIPELINE_FAILED")
+                try:
+                    if callable(self.on_failure):
+                        self.on_failure()
+                except Exception:
+                    # Failure notification must not prevent media release.
+                    pass
+                finally:
+                    self._stop.set()
+                    try:
+                        self.encoder.stop()
+                    finally:
+                        self.provider.stop()
 
     def push_frame(self, jpeg: bytes) -> bool:
-        self._presenter_last_progress = time.monotonic()
-        return self.encoder.push_frame(jpeg)
+        accepted = self.encoder.push_frame(jpeg)
+        if accepted:
+            self._presenter_last_progress = time.monotonic()
+        return accepted
 
     def push_audio(self, pcm: bytes) -> bool:
         # Reserve the entire chunk under the encoder lock, including concurrent

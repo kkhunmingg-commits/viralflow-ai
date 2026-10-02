@@ -192,6 +192,7 @@ class _FLVTransport:
         self.session_id = session_id or str(uuid.uuid4())
         self._backoff = backoff_seconds
         self._queue: queue.Queue[bytes] = queue.Queue(self.MAX_QUEUE_TAGS)
+        self._queue_ready = threading.Event()
         self._lock = threading.RLock()
         self._stop = threading.Event()
         self._restart = threading.Event()
@@ -218,16 +219,17 @@ class _FLVTransport:
             self._status = "CONNECTED"
 
     def start(self) -> None:
-        self.connect()
-        if self._thread is not None:
-            return
-        self._started_at = time.monotonic()
-        self._open()
-        self._status = "CONNECTING"
-        self._thread = threading.Thread(target=self._run, name="direct-stream", daemon=True)
-        self._thread.start()
-        self._watchdog_thread = threading.Thread(target=self._watch_output, name="stream-output-watchdog", daemon=True)
-        self._watchdog_thread.start()
+        with self._lock:
+            self.connect()
+            if self._thread is not None:
+                return
+            self._started_at = time.monotonic()
+            self._open()
+            self._status = "CONNECTING"
+            self._thread = threading.Thread(target=self._run, name="direct-stream", daemon=True)
+            self._thread.start()
+            self._watchdog_thread = threading.Thread(target=self._watch_output, name="stream-output-watchdog", daemon=True)
+            self._watchdog_thread.start()
 
     def _clear_queue(self) -> None:
         while True:
@@ -239,11 +241,13 @@ class _FLVTransport:
             except queue.Empty:
                 break
         self._queue_bytes = 0
+        self._queue_ready.clear()
         self._epoch = None
 
     def _enqueue(self, data: bytes) -> None:
         self._queue.put_nowait(data)
         self._queue_bytes += len(data)
+        self._queue_ready.set()
 
     def push_encoded(self, data: bytes) -> None:
         if not isinstance(data, bytes):
@@ -373,12 +377,20 @@ class _FLVTransport:
                 if self._restart.is_set() or not self._alive():
                     if self._stop.is_set() or not self._recover():
                         break
-                try:
-                    data = self._queue.get(timeout=0.05)
-                except queue.Empty:
-                    continue
                 with self._lock:
-                    self._queue_bytes = max(0, self._queue_bytes - len(data))
+                    # Clearing for a reconnect and dequeuing must update bytes
+                    # atomically, otherwise an old dequeue subtracts from the
+                    # replacement queue and weakens its memory bound.
+                    try:
+                        data = self._queue.get_nowait()
+                    except queue.Empty:
+                        self._queue_ready.clear()
+                        data = None
+                    else:
+                        self._queue_bytes = max(0, self._queue_bytes - len(data))
+                if data is None:
+                    self._queue_ready.wait(timeout=0.05)
+                    continue
                 try:
                     if not self._attempt_input_at:
                         self._attempt_input_at = time.monotonic()

@@ -79,6 +79,49 @@ class AVPipelineTests(unittest.TestCase):
         encoder.stop.assert_not_called()
         provider.stop.assert_not_called()
 
+    def test_rejected_frame_does_not_reset_presenter_stall_deadline(self):
+        stream, encoder, provider = self.media()
+        encoder.push_frame.return_value = False
+        with patch("av_pipeline.time.monotonic", return_value=100):
+            stream.presenter_activity(True)
+        with patch("av_pipeline.time.monotonic", return_value=130):
+            self.assertFalse(stream.push_frame(b"rejected frame fixture"))
+        with patch("av_pipeline.time.monotonic", return_value=131):
+            stream._observe()
+        self.assertEqual(stream._fatal_error, "PRESENTER_STALLED")
+        encoder.stop.assert_called_once_with()
+        provider.stop.assert_called_once_with()
+
+    def test_stalled_audio_track_stops_the_original_session(self):
+        stream, encoder, provider = self.media()
+        encoder.health.return_value["audio_stalled"] = True
+        stream._observe()
+        self.assertEqual(stream._fatal_error, "AUDIO_STALLED")
+        stream.on_failure.assert_called_once_with()
+        encoder.stop.assert_called_once_with()
+        provider.stop.assert_called_once_with()
+        provider.start.assert_not_called()
+
+    def test_failure_callback_error_still_releases_media_and_preserves_fatal_code(self):
+        stream, encoder, provider = self.media()
+        encoder.health.return_value["audio_stalled"] = True
+        stream.on_failure.side_effect = RuntimeError("unit presenter interrupt failure")
+        stream._observe()
+        self.assertEqual(stream._fatal_error, "AUDIO_STALLED")
+        self.assertTrue(stream._stop.is_set())
+        encoder.stop.assert_called_once_with()
+        provider.stop.assert_called_once_with()
+
+    def test_long_queued_pcm_does_not_fail_while_audio_track_advances(self):
+        stream, encoder, provider = self.media()
+        encoder.health.return_value.update({"audio_buffer_samples": 16000,
+            "audio_input_age_ms": 11000, "audio_stalled": False})
+        stream._observe()
+        self.assertIn("AUDIO_QUEUE_STUCK", stream._issues)
+        stream.on_failure.assert_not_called()
+        encoder.stop.assert_not_called()
+        provider.stop.assert_not_called()
+
     def test_audio_reservation_is_whole_chunk_at_shared_encoder_boundary(self):
         stream, encoder, _provider = self.media()
         encoder.push_audio.return_value = False
