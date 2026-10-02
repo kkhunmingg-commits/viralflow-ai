@@ -52,6 +52,12 @@ class ExplicitTestStream:
         self.closed = False
         self.frames = []
 
+    def start(self):
+        pass
+
+    def push_audio(self, _pcm):
+        return True
+
     def push_frame(self, frame):
         self.frames.append(frame)
 
@@ -134,8 +140,8 @@ class DevGateTests(unittest.TestCase):
 
 class DevStoreTests(unittest.TestCase):
     def test_actual_received_frame_boundary_stop_cleanup_and_restart(self):
-        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, DEV_ENV), patch("worker_core.SoftwareLocalStream", ExplicitTestStream):
-            store = LiveStore(Path(directory))
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, DEV_ENV), patch("worker_core.AVSessionStream", ExplicitTestStream):
+            store = LiveStore(Path(directory), direct_audio=False)
             try:
                 reference = store.save_reference(OWNER, REFERENCE, "image/jpeg")
                 for _ in range(2):
@@ -166,8 +172,8 @@ class DevStoreTests(unittest.TestCase):
                 self.interrupted.wait(2)
                 if not self.interrupted.is_set():
                     yield FRAME
-        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, DEV_ENV), patch("worker_core.SoftwareLocalStream", ExplicitTestStream):
-            store = LiveStore(Path(directory))
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, DEV_ENV), patch("worker_core.AVSessionStream", ExplicitTestStream):
+            store = LiveStore(Path(directory), direct_audio=False)
             try:
                 reference = store.save_reference(OWNER, REFERENCE, "image/jpeg")
                 engine = BlockedEngine()
@@ -195,7 +201,7 @@ class DevHttpTests(unittest.TestCase):
         from fastapi.testclient import TestClient
         secret = "test-token-" + "x" * 32
         headers = {"Authorization": "Bearer " + secret, "X-ViralFlow-Owner-Id": OWNER}
-        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, DEV_ENV), patch("app.inspect_capabilities", return_value={"ready": True, "presenter_status": "READY"}), patch("app.make_engine", side_effect=ExplicitTestEngine), patch("worker_core.SoftwareLocalStream", ExplicitTestStream):
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, DEV_ENV), patch("app.inspect_capabilities", return_value={"ready": True, "presenter_status": "READY"}), patch("app.make_engine", side_effect=ExplicitTestEngine), patch("worker_core.AVSessionStream", ExplicitTestStream):
             api = create_app(secret, Path(directory))
             with TestClient(api) as client:
                 self.assertEqual(client.get("/health").status_code, 401)

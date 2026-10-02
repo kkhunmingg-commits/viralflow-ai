@@ -27,6 +27,8 @@ from installer.delivery import DeliveryManager  # noqa: E402
 from installer.setup_app import integrate_update  # noqa: E402
 from local_agent.updater import SafeUpdater  # noqa: E402
 from local_agent.update_transport import trusted_origin  # noqa: E402
+from local_agent.stream_credentials import StreamCredentialStore  # noqa: E402
+from local_agent.live_worker import LocalWorkerBoundary  # noqa: E402
 
 
 def packaged_config() -> dict[str, object]:
@@ -104,7 +106,53 @@ def main() -> None:
                               installed_versions={name: VERSIONS[name] for name in ("web", "agent", "worker")},
                               update_origin=update_origin,
                               delivery=DeliveryManager(managed_root, integration=lambda exe: integrate_update(exe, managed_root)))
-        agent = LocalAgent(config, device_identity=identity,
+        credentials = StreamCredentialStore(managed_root / "live-credentials")
+        worker = LocalWorkerBoundary(managed_root / "worker", credentials)
+
+        def open_stream_setup(owner_id: str, account_id: str) -> None:
+            # HTTP handles grants only. Entered secrets stay in this native
+            # window and are protected with current-user Windows DPAPI.
+            def show() -> None:
+                dialog = tk.Toplevel(root)
+                dialog.title("ตั้งค่าการ LIVE")
+                dialog.geometry("440x320")
+                dialog.transient(root)
+                dialog.grab_set()
+                tk.Label(dialog, text="ใช้ข้อมูล LIVE ที่คุณได้รับอย่างถูกต้อง", font=("Segoe UI", 11)).pack(pady=(18, 8))
+                tk.Label(dialog, text="ที่อยู่สำหรับส่ง LIVE", font=("Segoe UI", 10)).pack(anchor="w", padx=22)
+                url_input = tk.Entry(dialog, width=48)
+                url_input.pack(padx=22, pady=(4, 12))
+                tk.Label(dialog, text="รหัสสำหรับส่ง LIVE", font=("Segoe UI", 10)).pack(anchor="w", padx=22)
+                key_input = tk.Entry(dialog, width=48, show="●")
+                key_input.pack(padx=22, pady=(4, 12))
+                acknowledged = tk.BooleanVar(value=False)
+                tk.Checkbutton(dialog, text="ฉันมีสิทธิ์ใช้ข้อมูล LIVE ของบัญชีที่เลือก", variable=acknowledged).pack()
+                feedback = tk.StringVar(value="")
+                tk.Label(dialog, textvariable=feedback, wraplength=390).pack(pady=8)
+
+                def clear_and_close() -> None:
+                    url_input.delete(0, tk.END)
+                    key_input.delete(0, tk.END)
+                    dialog.destroy()
+
+                def save() -> None:
+                    if not acknowledged.get():
+                        feedback.set("กรุณายืนยันว่าคุณมีสิทธิ์ใช้ข้อมูลนี้")
+                        return
+                    try:
+                        agent.save_stream_setup(owner_id, account_id, url_input.get().strip(), key_input.get().strip())
+                    except Exception:
+                        feedback.set("บันทึกไม่ได้ กรุณาตรวจข้อมูลหรือเปิดตั้งค่าใหม่จาก ViralFlow")
+                        return
+                    clear_and_close()
+                    messagebox.showinfo("ViralFlow AI LIVE", "บันทึกข้อมูลการ LIVE บนเครื่องแล้ว")
+
+                tk.Button(dialog, text="บันทึก", command=save, width=20).pack()
+                dialog.protocol("WM_DELETE_WINDOW", clear_and_close)
+            root.after(0, show)
+
+        agent = LocalAgent(config, device_identity=identity, worker=worker,
+                           stream_credentials=credentials, stream_setup_callback=open_stream_setup,
                            hardware_probe=lambda: inspect_hardware(config.data_dir, which=packaged_binary),
                            update_status=package_update_status, updater=updater)
     except (OSError, ValueError, KeyError, TypeError) as exc:

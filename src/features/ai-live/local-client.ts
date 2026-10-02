@@ -1,5 +1,5 @@
 import "client-only";
-import { LIVE_COMPONENT_VERSIONS, localMachineView, projectLocalMachine, type LocalMachineView } from "./local-contract";
+import { AI_LIVE_REALTIME_VALIDATED, LIVE_COMPONENT_VERSIONS, localMachineView, projectLocalMachine, type LocalMachineView } from "./local-contract";
 export type { LocalMachineView } from "./local-contract";
 
 const AGENT_ORIGIN = "http://127.0.0.1:8766";
@@ -21,7 +21,7 @@ export class LocalLiveClient {
   snapshot(): LocalMachineView { return { ...this.current, reasons: [...this.current.reasons] }; }
 
   private async request(path: string, options: RequestInit = {}, signal?: AbortSignal, authenticated = true): Promise<Json> {
-    if (!/^\/v1\/(discovery|pair|renew|status|hardware|challenge|references|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/stop)$/.test(path)) {
+    if (!/^\/v1\/(discovery|pair|renew|status|hardware|challenge|references|stream\/setup|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/stop)$/.test(path)) {
       throw new Error("ไม่สามารถทำรายการนี้ได้");
     }
     if (authenticated && (!this.token || this.tokenExpiresAt <= this.now() / 1000)) {
@@ -204,6 +204,27 @@ export class LocalLiveClient {
     return this.discover(signal);
   }
 
+  /** Opens the native agent dialog. Streaming credentials never enter the browser. */
+  async configureStream(input: { accountId: string; productIds: string[] }, signal?: AbortSignal): Promise<{ configured: boolean }> {
+    if (!this.current.paired || !this.current.deviceAuthorized || this.current.membershipStatus !== "SUPPORTED"
+      || this.current.sessionActive || !this.token || !this.deviceId) throw new Error("กรุณาเชื่อมต่อและอนุญาตเครื่องก่อนตั้งค่าการ LIVE");
+    if (!uuid.test(input.accountId) || !input.productIds.length || input.productIds.some((id) => !uuid.test(id))) {
+      throw new Error("กรุณาเลือกบัญชีและสินค้า");
+    }
+    const challenge = await this.request("/v1/challenge", {}, signal);
+    if (typeof challenge.challenge !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(challenge.challenge)) throw new Error("กรุณาเชื่อมส่วนเสริมใหม่");
+    const grant = await this.cloudRequest("/api/ai-live/local-grant", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: this.deviceId, challenge: challenge.challenge, deviceProof: challenge.deviceProof,
+        accountId: input.accountId, productIds: input.productIds }),
+    }, signal);
+    const result = await this.request("/v1/stream/setup", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ grant }),
+    }, signal);
+    if (typeof result.configured !== "boolean") throw new Error("ยังเปิดหน้าตั้งค่าการ LIVE ไม่สำเร็จ");
+    return { configured: result.configured };
+  }
+
   async start(input: { accountId: string; productIds: string[]; presenter: File; microphoneId: string }, signal?: AbortSignal): Promise<LocalMachineView> {
     if (!this.current.canStart || !this.current.deviceAuthorized || !this.token || !this.deviceId) throw new Error("AI LIVE ยังไม่พร้อมสำหรับการเริ่มไลฟ์");
     if (!uuid.test(input.accountId) || !input.productIds.length || input.productIds.some((id) => !uuid.test(id))) throw new Error("กรุณาเลือกบัญชีและสินค้า");
@@ -234,6 +255,52 @@ export class LocalLiveClient {
     this.sessionId = null;
     this.current = projectLocalMachine(result, !!this.token);
     return this.snapshot();
+  }
+
+  /** The owned session path is internal. No credentials are placed in an image URL. */
+  async previewFrame(signal?: AbortSignal): Promise<Blob | null> {
+    if (!AI_LIVE_REALTIME_VALIDATED || !this.token || this.tokenExpiresAt <= this.now() / 1000
+      || !this.current.paired || !this.current.sessionActive || !this.current.deviceAuthorized
+      || !this.sessionId || !uuid.test(this.sessionId) || signal?.aborted) return null;
+    const sessionId = this.sessionId;
+    const controller = new AbortController();
+    this.requests.add(controller);
+    const timer = setTimeout(() => controller.abort(), 5_000);
+    try {
+      const response = await this.fetcher(`${AGENT_ORIGIN}/v1/sessions/${sessionId}/frame`, {
+        method: "GET", headers: { Authorization: `Bearer ${this.token}`, Accept: "image/jpeg" },
+        credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer",
+        signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
+      });
+      if (response.status === 204) return null;
+      if (!response.ok || response.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "image/jpeg") {
+        await response.body?.cancel();
+        throw new Error("ยังไม่สามารถแสดงภาพจากระบบได้");
+      }
+      const maximumBytes = 4 * 1024 * 1024;
+      const declaredSize = response.headers.get("content-length");
+      if (declaredSize !== null && (!/^\d+$/.test(declaredSize) || Number(declaredSize) > maximumBytes)) {
+        await response.body?.cancel();
+        throw new Error("ภาพจากระบบมีขนาดไม่ถูกต้อง");
+      }
+      const reader = response.body?.getReader();
+      if (!reader) return null;
+      const chunks: Uint8Array<ArrayBuffer>[] = [];
+      let size = 0;
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          size += value.byteLength;
+          if (size > maximumBytes) { await reader.cancel(); throw new Error("ภาพจากระบบมีขนาดไม่ถูกต้อง"); }
+          chunks.push(new Uint8Array(value));
+        }
+      } finally { reader.releaseLock(); }
+      // A response that finishes after Stop, revocation, disposal, or session replacement is stale.
+      if (controller.signal.aborted || signal?.aborted || this.sessionId !== sessionId || !this.token
+        || this.tokenExpiresAt <= this.now() / 1000 || !this.current.sessionActive || !this.current.deviceAuthorized || !size) return null;
+      return new Blob(chunks, { type: "image/jpeg" });
+    } finally { clearTimeout(timer); this.requests.delete(controller); }
   }
 
   dispose(): void {

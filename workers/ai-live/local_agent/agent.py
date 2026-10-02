@@ -18,6 +18,7 @@ from .hardware import HardwareAssessment, HardwareSnapshot, HardwareTiers, asses
 from .security import Grant, PairingStore, SecurityError, verify_device_message, verify_ed25519, verify_grant
 from .device_identity import DeviceIdentity
 from .updater import SafeUpdater
+from .stream_credentials import StreamCredentialStore
 
 MAX_REFERENCE_BYTES = 4 * 1024 * 1024
 MAX_REFERENCES = 5
@@ -151,6 +152,8 @@ class LocalAgent:
         device_identity: DeviceIdentity | None = None,
         update_status: Callable[[], str] | None = None,
         updater: SafeUpdater | None = None,
+        stream_credentials: StreamCredentialStore | None = None,
+        stream_setup_callback: Callable[[str, str], None] | None = None,
     ) -> None:
         self.config = config
         self._now = now
@@ -165,6 +168,9 @@ class LocalAgent:
         self._device_identity = device_identity
         self._update_status = update_status or (lambda: "CURRENT")
         self._updater = updater
+        self._stream_credentials = stream_credentials
+        self._stream_setup_callback = stream_setup_callback
+        self._stream_authorizations: dict[tuple[str, str], float] = {}
         self._update_thread: threading.Thread | None = None
         self._used_registration_challenges: dict[str, int] = {}
         if device_identity is not None and device_identity.device_id != config.device_id:
@@ -345,6 +351,9 @@ class LocalAgent:
                 raise SecurityError("OWNER_MISMATCH")
             with self._lock:
                 self._device_identity.mark_revoked(payload["issuedAt"])
+                if self._stream_credentials:
+                    self._stream_credentials.revoke_owner(owner_id)
+                self._stream_authorizations = {key: expiry for key, expiry in self._stream_authorizations.items() if key[0] != owner_id}
                 for session in self._sessions.values():
                     if session.owner_id == owner_id and session.state != "STOPPED":
                         self._worker.stop_session(owner_id, session.session_id)
@@ -483,6 +492,19 @@ class LocalAgent:
         visible_session = active or failed
         if visible_session:
             result["sessionId"] = visible_session.session_id
+            observed = getattr(self._worker, "customer_stream", None)
+            if callable(observed):
+                stream_view = observed(visible_session.owner_id, visible_session.session_id)
+                result["customerStream"] = stream_view
+                if stream_view.get("phase") == "ERROR":
+                    with self._lock:
+                        visible_session.state = "ERROR"
+                    result.update({"state": "ERROR", "message": "ต้องตรวจสอบการ LIVE", "canStart": False})
+                elif stream_view.get("phase") == "STOPPING":
+                    result.update({"state": "STOPPING", "message": "กำลังหยุด", "canStart": False})
+        elif owner_id:
+            stopped = any(session.owner_id == owner_id and session.state == "STOPPED" for session in self._sessions.values())
+            result["customerStream"] = {"phase": "STOPPED" if stopped else "SETUP_REQUIRED", "connectionQuality": "UNAVAILABLE"}
         return result
 
     def status(self, token: str, origin: str) -> dict[str, object]:
@@ -543,6 +565,62 @@ class LocalAgent:
             if session is None or session.owner_id != owner:
                 raise AgentError(404, "SESSION_NOT_FOUND", "ไม่พบรายการถ่ายทอดสด")
             return session
+
+    def preview_frame(self, token: str, origin: str, session_id: str) -> bytes | None:
+        self.authenticate(token, origin)
+        session = self._owned_session(token, origin, session_id)
+        # Preview does not grant a membership or production-validation bypass.
+        try:
+            self._authorized_device(token, origin)
+        except SecurityError as exc:
+            raise self._safe_error(exc) from exc
+        if not self._validated or session.state not in ("BUSY", "PAUSED"):
+            return None
+        read_frame = getattr(self._worker, "preview_frame", None)
+        frame = read_frame(session.owner_id, session_id) if callable(read_frame) else None
+        if frame is not None and (not isinstance(frame, bytes) or len(frame) > MAX_REFERENCE_BYTES
+                                 or not frame.startswith(b"\xff\xd8") or not frame.endswith(b"\xff\xd9")):
+            raise AgentError(503, "PREVIEW_UNAVAILABLE", "ยังไม่มีภาพจากระบบ")
+        return frame
+
+    def request_stream_setup(self, token: str, origin: str, signed: object) -> dict[str, object]:
+        """A server lease opens the native dialog; no browser receives the key."""
+        self.authenticate(token, origin)
+        try:
+            certificate = self._authorized_device(token, origin)
+            grant = verify_grant(signed, self.config.grant_public_key_pem, now=self._now(),
+                verifier=self._grant_signature_verifier, trusted_keys=self.config.trusted_keys,
+                retired_key_ids=self.config.retired_key_ids)
+            if grant.versions != VERSIONS or certificate["ownerId"] != grant.owner_id:
+                raise SecurityError("OWNER_MISMATCH")
+            self._pairings.consume_grant(token, origin, grant, self.config.device_id)
+        except SecurityError as exc:
+            raise self._safe_error(exc) from exc
+        if not self._stream_credentials or not self._stream_setup_callback:
+            raise AgentError(503, "STREAM_SETUP_UNAVAILABLE", "ต้องเตรียมส่วนเสริมให้พร้อมก่อน")
+        with self._lock:
+            if grant.grant_id in self._used_grants:
+                raise AgentError(403, "GRANT_REPLAY", "กรุณาตรวจสอบสิทธิ์อีกครั้ง")
+            if any(session.state in ("BUSY", "PAUSED", "STOPPING") for session in self._sessions.values()):
+                raise AgentError(409, "SESSION_BUSY", "กรุณาหยุด LIVE ก่อนตั้งค่า")
+            self._used_grants.add(grant.grant_id)
+            self._stream_authorizations = {key: expiry for key, expiry in self._stream_authorizations.items() if expiry > self._now()}
+            self._stream_authorizations[(grant.owner_id, grant.account_id)] = grant.expires_at
+            configured = self._stream_credentials.metadata(grant.owner_id, grant.account_id)["configured"]
+        self._stream_setup_callback(grant.owner_id, grant.account_id)
+        return {"configured": configured}
+
+    def save_stream_setup(self, owner_id: str, account_id: str, server_url: str, stream_key: str) -> None:
+        """Native UI only. A short-lived server-approved account grant is required."""
+        with self._lock:
+            expiry = self._stream_authorizations.get((owner_id, account_id), 0)
+            if not self._stream_credentials or expiry <= self._now():
+                raise AgentError(403, "STREAM_SETUP_EXPIRED", "กรุณาเปิดตั้งค่าการ LIVE ใหม่จาก ViralFlow")
+            try:
+                self._stream_credentials.put(owner_id, account_id, server_url, stream_key)
+            except SecurityError as exc:
+                raise AgentError(422, "STREAM_SETUP_INVALID", "ข้อมูลการ LIVE ไม่ถูกต้อง") from exc
+            self._stream_authorizations.pop((owner_id, account_id), None)
 
     def start(self, token: str, origin: str, body: dict[str, object]) -> dict[str, object]:
         self.authenticate(token, origin)
@@ -632,10 +710,13 @@ class LocalAgent:
         # Deliberately no entitlement, version, hardware, or grant-expiry check.
         session = self._owned_session(token, origin, session_id)
         with self._lock:
-            if session.state not in ("STOPPED", "STOPPING"):
+            if session.state != "STOPPED":
                 session.state = "STOPPING"
                 try:
                     self._worker.stop_session(session.owner_id, session_id)
+                except AgentError as exc:
+                    session.state = "STOPPING" if exc.code == "WORKER_STOP_PENDING" else "ERROR"
+                    raise
                 except Exception as exc:
                     session.state = "ERROR"
                     raise AgentError(503, "WORKER_STOP_FAILED", "ไม่สามารถหยุด AI LIVE") from exc
@@ -677,3 +758,7 @@ class LocalAgent:
             for reference in self._references.values():
                 reference.path.unlink(missing_ok=True)
             self._references.clear()
+            close_worker = getattr(self._worker, "close", None)
+            if callable(close_worker):
+                close_worker()
+            self._stream_authorizations.clear()

@@ -31,9 +31,14 @@ class PackagedRuntimeTests(unittest.TestCase):
             if executable is None:
                 return
             self.assertTrue(executable.absolute().is_relative_to(BUILD.absolute()))
-            completed = subprocess.run([str(executable), "--self-test"],
+            report = root.parent / "self-test-report.json"
+            environment = os.environ.copy()
+            environment["VIRALFLOW_SELF_TEST_REPORT"] = str(report)
+            completed = subprocess.run([str(executable), "--self-test"], env=environment,
                                        creationflags=0x08000000, timeout=30, check=False)
-            self.assertEqual(completed.returncode, 0)
+            diagnostic = json.loads(report.read_text(encoding="utf-8")) if report.exists() else {}
+            self.assertEqual(completed.returncode, 0, diagnostic)
+            self.assertEqual(diagnostic.get("status"), "PASSED")
             verified.append(executable)
 
         with tempfile.TemporaryDirectory(prefix="isolated-install-", dir=BUILD) as isolated:
@@ -43,6 +48,10 @@ class PackagedRuntimeTests(unittest.TestCase):
             manager.install(BUILD / "payload.zip", info["sha256"], expected_version=info["version"])
             self.assertTrue(manager.verify_current())
             self.assertTrue((manager.executable().parent / "ffmpeg.exe").is_file())
+            internal = manager.executable().parent / "_internal"
+            self.assertTrue((internal / "_sounddevice_data" / "portaudio-binaries" / "libportaudio64bit.dll").is_file())
+            self.assertTrue((internal / "_sounddevice_data" / "portaudio-binaries" / "README.md").is_file())
+            self.assertTrue((internal / "sounddevice-0.5.1.dist-info" / "LICENSE").is_file())
             # This is the bundled native runtime, not the system Python interpreter.
             self.assertTrue((manager.executable().parent / "_internal" / "python310.dll").is_file())
             (manager.executable().parent / "THIRD_PARTY_NOTICES.md").write_text("damaged")

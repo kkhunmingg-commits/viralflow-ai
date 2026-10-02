@@ -1,3 +1,5 @@
+import { projectCustomerStreamStatus, type CustomerStreamStatus } from "./customer-stream-status";
+
 export const AI_LIVE_EXECUTION_MODE = "LOCAL_GPU" as const;
 // This release has not passed the NVIDIA acceptance checklist.
 export const AI_LIVE_REALTIME_VALIDATED = false;
@@ -8,6 +10,7 @@ export const LIVE_COMPONENT_VERSIONS = {
 export type LocalAgentState = "NOT_INSTALLED" | "INSTALLING" | "STARTING" | "READY" | "BUSY"
   | "PAUSED" | "STOPPING" | "OFFLINE" | "ERROR" | "UPDATE_REQUIRED" | "GPU_REQUIRED";
 export interface LocalMachineView {
+  customerStream?: CustomerStreamStatus;
   state: LocalAgentState;
   message: string;
   reasons: string[];
@@ -65,6 +68,7 @@ export function projectLocalMachine(value: unknown, paired: boolean): LocalMachi
   }
   result.updateCanApply = paired && data.updateCanApply === true && !result.sessionActive;
   result.updateCanRepair = paired && data.updateCanRepair === true && !result.sessionActive;
+  if (paired) result.customerStream = projectCustomerStreamStatus(data.customerStream);
   // Cloud registry confirmation is added by the authenticated browser bridge.
   return result;
 }

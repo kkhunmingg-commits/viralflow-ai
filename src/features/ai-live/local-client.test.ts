@@ -65,7 +65,7 @@ describe("AI LIVE customer projection", () => {
       diagnostics: { secret: "private-token", command: "launch.exe --unsafe" },
       reasons: ["driver_internal_error:CUDA", "ไม่พบการ์ดจอที่รองรับ"],
     }, true);
-    expect(Object.keys(view).sort()).toEqual(["canStart", "deviceAuthorized", "deviceRegistered", "deviceStatus", "membershipStatus", "message", "paired", "reasons", "sessionActive", "state", "updateCanApply", "updateCanRepair", "updateStatus"]);
+    expect(Object.keys(view).sort()).toEqual(["canStart", "customerStream", "deviceAuthorized", "deviceRegistered", "deviceStatus", "membershipStatus", "message", "paired", "reasons", "sessionActive", "state", "updateCanApply", "updateCanRepair", "updateStatus"]);
     expect(view.reasons).toContain("ไม่พบการ์ดจอที่รองรับ");
     expect(view.reasons).toContain("ต้องตรวจสอบความพร้อมของเครื่องเพิ่มเติม");
     expect(JSON.stringify(view)).not.toMatch(/Python|CUDA|8766|private-token|launch\.exe|driver_internal_error/);

@@ -24,11 +24,12 @@ class StartRequest(BaseModel):
     target_fps: int = Field(default=25, ge=1, le=30)
 
 
-def create_app(token: str | None = None, data_dir: Path | None = None) -> FastAPI:
+def create_app(token: str | None = None, data_dir: Path | None = None,
+               *, store: LiveStore | None = None) -> FastAPI:
     secret = token if token is not None else os.getenv("AI_LIVE_WORKER_TOKEN", "")
     if not secret or len(secret) < 32:
         raise RuntimeError("AI_LIVE_WORKER_TOKEN must contain at least 32 characters")
-    store = LiveStore(data_dir or Path(tempfile.gettempdir()) / "viralflow-ai-live")
+    store = store or LiveStore(data_dir or Path(tempfile.gettempdir()) / "viralflow-ai-live")
     @asynccontextmanager
     async def lifespan(_api: FastAPI):
         try:

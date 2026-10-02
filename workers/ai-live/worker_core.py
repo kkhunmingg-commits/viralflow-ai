@@ -11,11 +11,11 @@ import logging
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Callable
 
 from engine import FrameEngine
 from provider_config import dev_fallback_enabled
-from software_stream import SoftwareLocalStream, StreamProvider
+from av_pipeline import AVSessionStream
 
 MAX_REFERENCE_BYTES = 4 * 1024 * 1024
 MAX_REFERENCE_STORAGE_BYTES = 64 * 1024 * 1024
@@ -102,7 +102,10 @@ class Session:
     stop_reason: str | None = None
     error: str | None = None
     dev_fallback: bool = False
-    stream: StreamProvider | None = None
+    stream: AVSessionStream | None = None
+    stream_factory: Callable[[Path], AVSessionStream] | None = None
+    direct_audio: bool = False
+    inference_audio_drops: int = 0
     output_path: Path | None = None
     started_at: float | None = None
     ended_at: float | None = None
@@ -132,7 +135,10 @@ class Session:
                 "frames_generated": self.frames_generated,
                 "stop_reason": self.stop_reason,
                 "error": self.error,
+                "inference_audio_drops": self.inference_audio_drops,
             }
+            if self.stream is not None:
+                result["encoder"] = self.stream.metrics()
             if self.dev_fallback:
                 samples = sorted(self.latency_samples)
                 duration = (self.ended_at or now) - (self.started_at or now)
@@ -195,6 +201,8 @@ class LiveStore:
         max_reference_bytes_per_owner: int = MAX_REFERENCE_BYTES_PER_OWNER,
         max_references_per_owner: int = MAX_REFERENCES_PER_OWNER,
         janitor_interval_seconds: float = 60.0,
+        stream_factory: Callable[[str, str, Path], AVSessionStream] | None = None,
+        direct_audio: bool | None = None,
     ):
         if min(audio_idle_timeout_seconds, reference_ttl_seconds, max_reference_storage_bytes,
                max_references, max_reference_bytes_per_owner,
@@ -207,6 +215,8 @@ class LiveStore:
         self.max_references = max_references
         self.max_reference_bytes_per_owner = max_reference_bytes_per_owner
         self.max_references_per_owner = max_references_per_owner
+        self.stream_factory = stream_factory
+        self.direct_audio = dev_fallback_enabled() if direct_audio is None else direct_audio
         self.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         if self.data_dir.is_symlink():
             raise ValueError("Reference directory must not be a symlink")
@@ -329,9 +339,11 @@ class LiveStore:
                     audio_idle_timeout_seconds=self.audio_idle_timeout_seconds,
                 )
                 session.dev_fallback = dev_fallback_enabled()
-                if session.dev_fallback:
+                session.direct_audio = self.direct_audio
+                if session.dev_fallback or self.stream_factory is not None:
                     output_dir = Path(os.getenv("AI_LIVE_DEV_OUTPUT_DIR", "").strip() or str(self.data_dir / "outputs"))
                     session.output_path = output_dir / f"{session_id}.mp4"
+                    session.stream_factory = (lambda path: self.stream_factory(owner_id, session_id, path)) if self.stream_factory else AVSessionStream
                 # Retain a bounded number of completed records for diagnostics.
                 completed = [key for key, value in self.sessions.items() if value.status in ("STOPPED", "FAILED")]
                 for key in completed[:-19]:
@@ -362,14 +374,20 @@ class LiveStore:
                     session.process.cpu_percent()
                 except ImportError:
                     pass
+            if session.stream_factory and not session.stop_event.is_set():
                 assert session.output_path is not None
-                session.stream = SoftwareLocalStream(session.output_path, session.fps_target)
+                session.stream = session.stream_factory(session.output_path)
+                session.stream.presenter_timeout_seconds = 30.0 if session.dev_fallback else 5.0
+                session.stream.on_failure = lambda: (session.stop_event.set(), getattr(session.engine, "interrupt", lambda: None)())
+                session.stream.start()
             with session.lock:
                 if not session.stop_event.is_set():
                     session.status = "RUNNING"
                     session.last_audio_at = time.monotonic()
                     session.started_at = session.last_audio_at
             while not session.stop_event.is_set():
+                if session.stream and session.stream.metrics()["status"] == "FAILED":
+                    raise RuntimeError("ENCODER_FAILED")
                 try:
                     item = session.audio.get(timeout=0.25)
                 except queue.Empty:
@@ -391,6 +409,9 @@ class LiveStore:
                     session.audio_queue_delay_ms = round((time.monotonic() - received_at) * 1000, 1)
                     session.inference_active = True
                     session.inference_started_at = time.monotonic()
+                activity = getattr(session.stream, "presenter_activity", None)
+                if callable(activity):
+                    activity(True)
                 # The engine must yield frames during inference, not after a
                 # complete video has been rendered to disk.
                 for jpeg in session.engine.render_pcm16_chunk(pcm):
@@ -399,6 +420,8 @@ class LiveStore:
                     session.emit_frame(jpeg, received_at)
                 with session.lock:
                     session.inference_active = False
+                if callable(activity):
+                    activity(False)
         except Exception:
             if session.dev_fallback:
                 logging.getLogger(__name__).exception("Development presenter inference failed")
@@ -413,6 +436,9 @@ class LiveStore:
                 pass
             if session.stream is not None:
                 session.stream.close()
+                if session.stream.metrics()["status"] == "FAILED":
+                    session.status = "FAILED"
+                    session.error = "LIVE_PIPELINE_FAILED"
             with session.lock:
                 session.inference_active = False
                 session.ended_at = time.monotonic()
@@ -447,6 +473,15 @@ class LiveStore:
                 raise LiveError(409, "PRESENTER_NOT_RUNNING", "Presenter is not running")
             try:
                 received_at = time.monotonic()
+                if session.stream and session.direct_audio:
+                    if not session.stream.push_audio(pcm):
+                        raise LiveError(429, "AUDIO_BACKPRESSURE", "Live audio buffer is full")
+                    if session.audio.full():
+                        # Audio playback is already clocked independently. Slow
+                        # CPU inference uses recent speech instead of growing
+                        # an unbounded lip-sync backlog. Count this explicitly.
+                        session.audio.get_nowait()
+                        session.inference_audio_drops += 1
                 session.audio.put_nowait((pcm, received_at))
                 session.last_audio_at = received_at
                 session.audio_chunks += 1

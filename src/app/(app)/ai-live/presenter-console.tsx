@@ -6,10 +6,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { LocalLiveClient, type LocalMachineView } from "@/features/ai-live/local-client";
+import { customerConnectionQuality, customerLiveStatus } from "@/features/ai-live/customer-stream-status";
+import { AI_LIVE_REALTIME_VALIDATED } from "@/features/ai-live/local-contract";
 
 type Choice = { id: string; label: string };
 type ProductChoice = { id: string; title: string };
-type Action = "pair" | "check" | "register" | "revoke" | "update-check" | "update" | "repair" | "start" | "stop" | null;
+type Action = "pair" | "check" | "register" | "revoke" | "update-check" | "update" | "repair" | "configure" | "start" | "stop" | null;
 
 function machineLabel(view: LocalMachineView | null): string {
   if (!view) return "กำลังตรวจสอบ";
@@ -54,6 +56,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
   const [selectedProduct, setSelectedProduct] = useState("");
   const [presenter, setPresenter] = useState<File | null>(null);
   const [presenterPreview, setPresenterPreview] = useState<string | null>(null);
+  const [systemPreview, setSystemPreview] = useState<string | null>(null);
   const [microphoneReady, setMicrophoneReady] = useState(false);
   const [microphoneLabel, setMicrophoneLabel] = useState("");
   const [pairCode, setPairCode] = useState("");
@@ -67,6 +70,9 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
   const requestQueueRef = useRef<Promise<unknown>>(Promise.resolve());
   const requestControllerRef = useRef<AbortController | null>(null);
   const presenterUrlRef = useRef<string | null>(null);
+  const systemPreviewUrlRef = useRef<string | null>(null);
+  const previewEnabled = AI_LIVE_REALTIME_VALIDATED && !!machine?.paired && !!machine.sessionActive
+    && machine.deviceAuthorized && action !== "stop" && !["STOPPING", "OFFLINE", "ERROR"].includes(machine.state);
 
   // Polling and user actions use the same queue, so only one local request runs at a time.
   const requestMachine = useCallback((operation: (client: LocalLiveClient, signal: AbortSignal) => Promise<LocalMachineView>) => {
@@ -114,6 +120,40 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
       presenterUrlRef.current = null;
     };
   }, [requestMachine]);
+
+  useEffect(() => {
+    if (!previewEnabled) return;
+    const controller = new AbortController();
+    let timer: number | null = null;
+    const poll = async () => {
+      try {
+        const frame = await clientRef.current?.previewFrame(controller.signal);
+        if (controller.signal.aborted || !mountedRef.current) return;
+        if (!frame) return;
+        const url = URL.createObjectURL(frame);
+        if (systemPreviewUrlRef.current) URL.revokeObjectURL(systemPreviewUrlRef.current);
+        systemPreviewUrlRef.current = url;
+        setSystemPreview(url);
+      } catch {
+        if (!controller.signal.aborted && mountedRef.current) {
+          if (systemPreviewUrlRef.current) URL.revokeObjectURL(systemPreviewUrlRef.current);
+          systemPreviewUrlRef.current = null;
+          setSystemPreview(null);
+        }
+      } finally {
+        // Schedule after completion so slow requests never overlap or build a queue.
+        if (!controller.signal.aborted && mountedRef.current) timer = window.setTimeout(() => { void poll(); }, 500);
+      }
+    };
+    void poll();
+    return () => {
+      controller.abort();
+      if (timer !== null) window.clearTimeout(timer);
+      if (systemPreviewUrlRef.current) URL.revokeObjectURL(systemPreviewUrlRef.current);
+      systemPreviewUrlRef.current = null;
+      if (mountedRef.current) setSystemPreview(null);
+    };
+  }, [previewEnabled]);
 
   function choosePresenter(file: File | null) {
     if (file && (!["image/jpeg", "image/png"].includes(file.type) || file.size > 4 * 1024 * 1024)) {
@@ -191,6 +231,27 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
     finally { if (mountedRef.current) setAction(null); }
   }
 
+  async function configureLive() {
+    if (action || !clientRef.current || !machine?.paired || !machine.deviceAuthorized
+      || machine.membershipStatus !== "SUPPORTED" || machine.sessionActive || !selectedAccount || !selectedProduct) return;
+    setAction("configure"); setError(null); setNotice(null);
+    // Use the same request queue as session actions without exposing the dialog's configuration.
+    const generation = generationRef.current;
+    const operation = requestQueueRef.current.catch(() => undefined).then(async () => {
+      if (!mountedRef.current || generation !== generationRef.current || !clientRef.current) return;
+      const controller = new AbortController();
+      requestControllerRef.current = controller;
+      try {
+        await clientRef.current.configureStream({ accountId: selectedAccount, productIds: [selectedProduct] }, controller.signal);
+        if (mountedRef.current && generation === generationRef.current) setNotice("เปิดหน้าตั้งค่าบนเครื่องแล้ว");
+      } finally { if (requestControllerRef.current === controller) requestControllerRef.current = null; }
+    });
+    requestQueueRef.current = operation.catch(() => undefined);
+    try { await operation; }
+    catch { if (mountedRef.current) setError("ยังเปิดหน้าตั้งค่าการ LIVE ไม่สำเร็จ กรุณาตรวจสอบสิทธิ์และการเชื่อมต่อเครื่อง"); }
+    finally { if (mountedRef.current) setAction(null); }
+  }
+
   async function revokeMachine() {
     if (action || !machine?.paired || !window.confirm("ยกเลิกสิทธิ์ใช้ AI LIVE ของเครื่องนี้หรือไม่?")) return;
     setAction("revoke"); setError(null); setNotice(null);
@@ -232,12 +293,17 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
 
   const showPairing = machine && !machine.paired && !["NOT_INSTALLED", "OFFLINE", "INSTALLING"].includes(machine.state);
   const canStart = !!machine?.canStart && machine.deviceAuthorized && !machine.sessionActive && !action && !!selectedAccount && !!selectedProduct && !!presenter && microphoneReady;
+  const liveStatus = customerLiveStatus(machine, action === "start" || action === "stop" ? action : null);
+  const previewImage = previewEnabled && systemPreview ? systemPreview : presenterPreview;
+  const previewIsGenerated = previewEnabled && !!systemPreview;
 
   return <div className="ai-live-page">
     <header className="ai-live-hero">
-      <div><p className="eyebrow">VIRALFLOW / AI LIVE</p><h1>AI LIVE</h1><p>เลือกบัญชี พรีเซนเตอร์ และสินค้า แล้วตรวจสอบความพร้อมของเครื่องก่อนเริ่ม</p></div>
-      <span className={`ai-live-state ${machine?.canStart ? "ready" : "blocked"}`} role="status" aria-live="polite">{machineLabel(machine)}</span>
+      <div><p className="eyebrow">VIRALFLOW / AI LIVE</p><h1>AI LIVE</h1><p>เลือกบัญชี พรีเซนเตอร์ และสินค้า แล้วเริ่มไลฟ์จาก ViralFlow</p></div>
+      <span className={`ai-live-state ${machine?.canStart ? "ready" : "blocked"}`} role="status" aria-live="polite">{liveStatus}</span>
     </header>
+    {notice && <p className="ai-live-notice" role="status">{notice}</p>}
+    {error && <p className="ai-live-error" role="alert">{error}</p>}
 
     <div className="ai-live-grid">
       <section className="ai-live-panel ai-live-setup" aria-label="เตรียม AI LIVE">
@@ -267,15 +333,22 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
           </div><small>ระบบจะใช้ไมโครโฟนเริ่มต้นของเครื่อง และขอสิทธิ์เมื่อคุณกดตรวจสอบเท่านั้น</small>
         </div>
         <div className="ai-live-live-actions">
-          <button className="primary-action" type="button" disabled={!canStart} onClick={() => void startLive()}>{action === "start" ? "กำลังเริ่ม..." : "เริ่มไลฟ์"}</button>
-          <button className="danger-action" type="button" disabled={!machine?.sessionActive || !!action} onClick={() => void stopLive()}>{action === "stop" ? "กำลังหยุด..." : "หยุดไลฟ์"}</button>
+          <button className="primary-action" type="button" disabled={!canStart} onClick={() => void startLive()}>{action === "start" ? "กำลังเตรียม..." : "START LIVE"}</button>
+          <button className="danger-action" type="button" disabled={!machine?.sessionActive || !!action} onClick={() => void stopLive()}>{action === "stop" ? "กำลังหยุด..." : "STOP LIVE"}</button>
         </div>
-        {!machine?.canStart && <p className="ai-live-context-note">AI LIVE จะเปิดให้เริ่มได้เมื่อส่วนเสริมและเครื่องผ่านการตรวจสอบครบถ้วน</p>}
+        {!machine?.canStart && <p className="ai-live-context-note">AI LIVE ยังไม่พร้อมเริ่มถ่ายทอดสด ดูความพร้อมและเชื่อมต่อเครื่องได้ใน “ตั้งค่าการ LIVE”</p>}
       </section>
 
       <div className="ai-live-side">
-        <section className="ai-live-panel ai-live-machine" aria-label="สถานะเครื่อง">
-          <div className="ai-live-panel-title"><h2>สถานะเครื่อง</h2><span className={`ai-live-machine-dot ${machine?.canStart ? "ready" : ""}`} aria-hidden="true" /></div>
+        <details className="ai-live-panel ai-live-machine ai-live-settings">
+          <summary>ตั้งค่าการ LIVE<span>ความพร้อมและการเชื่อมต่อเครื่อง</span></summary>
+          <div className="ai-live-settings-content">
+          <div className="ai-live-transport-setup">
+            <button type="button" className="ai-live-secondary" disabled={!!action || !machine?.paired || !machine.deviceAuthorized
+              || machine.membershipStatus !== "SUPPORTED" || machine.sessionActive || !selectedAccount || !selectedProduct}
+              onClick={() => void configureLive()}>{action === "configure" ? "กำลังเปิดหน้าตั้งค่า..." : "ตั้งค่าการ LIVE"}</button>
+            <p className="ai-live-context-note">เลือกบัญชีและสินค้า แล้วกรอกข้อมูลการ LIVE ที่คุณได้รับอนุญาตให้ใช้ในหน้าต่างบนเครื่อง</p>
+          </div>
           <strong className="ai-live-machine-status" aria-live="polite">{machineLabel(machine)}</strong>
           <p className="ai-live-machine-description">{machineDescription(machine)}</p>
           {machine && <dl className="ai-live-delivery-status">
@@ -316,23 +389,21 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
             <button type="button" className="ai-live-secondary" disabled={!!action} onClick={() => void checkMachine()}>{action === "check" ? "กำลังตรวจสอบ..." : "ตรวจสอบเครื่อง"}</button>
             <p>หากเบราว์เซอร์ถาม ให้ยอมให้หน้านี้เชื่อมต่อส่วนเสริมบนเครื่อง</p>
           </div>
-          {notice && machine?.paired && <p className="ai-live-notice" role="status">{notice}</p>}
-          {error && <p className="ai-live-error" role="alert">{error}</p>}
-        </section>
-        <section className="ai-live-panel ai-live-preview" aria-label="ภาพพรีเซนเตอร์ที่เลือก">
-          <div className="ai-live-panel-title"><h2>ภาพพรีเซนเตอร์</h2><span className="ai-live-preview-state">ภาพอ้างอิง</span></div>
+          </div>
+        </details>
+        <section className="ai-live-panel ai-live-preview" aria-label="ภาพพรีเซนเตอร์">
+          <div className="ai-live-panel-title"><h2>Preview</h2><span className="ai-live-preview-state">{previewIsGenerated ? "ภาพจากระบบ" : "ภาพอ้างอิง · ยังไม่ใช่ภาพสด"}</span></div>
           <div className="ai-live-stage">
-            {presenterPreview ? <img src={presenterPreview} alt="ภาพพรีเซนเตอร์ที่เลือก ยังไม่ใช่ภาพสด" />
+            {previewImage ? <img src={previewImage} alt={previewIsGenerated ? "ภาพพรีเซนเตอร์จากระบบ" : "ภาพพรีเซนเตอร์ที่เลือก ยังไม่ใช่ภาพสด"} />
               : <div className="ai-live-stage-empty"><span>✦</span><strong>เลือกภาพพรีเซนเตอร์</strong><p>ภาพที่เลือกจะแสดงตรงนี้</p></div>}
-            {presenterPreview && <span className="ai-live-stage-tag">ภาพที่เลือก · ยังไม่ใช่ภาพสด</span>}
+            {previewImage && <span className="ai-live-stage-tag">{previewIsGenerated ? "ภาพจากระบบ" : "ภาพที่เลือก · ยังไม่ใช่ภาพสด"}</span>}
           </div>
         </section>
       </div>
     </div>
     <section className="ai-live-summary" aria-label="สถานะไลฟ์" aria-live="polite">
-      <div><span>สถานะตอนนี้</span><strong>{machine?.state === "ERROR" && machine.sessionActive ? "ต้องตรวจสอบหรือหยุดไลฟ์" : machine?.state === "PAUSED" ? "พักไลฟ์ชั่วคราว" : machine?.sessionActive ? "กำลังใช้งาน AI LIVE" : "ยังไม่เริ่มไลฟ์"}</strong></div>
-      <div><span>บัญชีที่เลือก</span><strong>{accounts.find((account) => account.id === selectedAccount)?.label ?? "ยังไม่ได้เลือกบัญชี"}</strong></div>
-      <div><span>สินค้าที่เลือก</span><strong>{products.find((product) => product.id === selectedProduct)?.title ?? "ยังไม่ได้เลือกสินค้า"}</strong></div>
+      <div><span>สถานะ</span><strong>{liveStatus}</strong></div>
+      <div><span>คุณภาพการเชื่อมต่อ</span><strong>{customerConnectionQuality(machine)}</strong></div>
     </section>
   </div>;
 }

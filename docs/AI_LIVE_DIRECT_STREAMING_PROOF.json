@@ -1,0 +1,101 @@
+{
+  "mode": "DEV_PROOF_ONLY",
+  "completed": true,
+  "duration_seconds": 600.026,
+  "comment_source": "SIMULATED_THAI_FIXTURE",
+  "product_source": "EXISTING_TEST_FIXTURE",
+  "voice": "Windows offline Thai SAPI",
+  "presenter": "MuseTalkCPUFloat32",
+  "comments_accepted": 51,
+  "duplicates_rejected": 51,
+  "speech_calls": 51,
+  "audio_delivered_bytes": 8417760,
+  "presenter_real_frames": 240,
+  "presenter_average_fps": 0.397,
+  "presenter_latency_p50_ms": 9531,
+  "presenter_latency_p95_ms": 15969,
+  "encoder_fps": 25.001,
+  "encoder_frames": 15025,
+  "held_real_frames": 14785,
+  "inference_audio_drops": 173,
+  "encoded_audio_dropped_samples": 0,
+  "transport_dropped_tags": 15,
+  "transport_dropped_audio_tags": 5,
+  "audio_buffer_max_ms": 6815,
+  "av_mux_packet_drift_final_ms": 8,
+  "av_mux_packet_drift_max_ms": 64,
+  "av_input_clock_drift_ms": 0,
+  "encoder_bitrate_kbps": 308.45,
+  "transport_bitrate_kbps": 306.198,
+  "queues_max": {
+    "comment": 1,
+    "action": 2,
+    "presenter": 4,
+    "encoder": 0,
+    "transport": 0
+  },
+  "ram_after_warmup_min_mb": 4341.2,
+  "ram_after_warmup_max_mb": 4347.5,
+  "ram_first_warm_mb": 4346.2,
+  "ram_last_running_mb": 4343.7,
+  "ram_after_stop_mb": 750.6,
+  "reconnect_count": 1,
+  "received_while_producer_active": true,
+  "reconnect_injected": true,
+  "resources_released": true,
+  "worker_closed": true,
+  "receiver_closed": true,
+  "recordings": [
+    {
+      "filename": "7f428ab8-7be2-4378-92ec-8c8176c5fe70.mp4",
+      "sha256": "0ea3ca85a1b0df922b81167f6ca702f1a7b10cd03bcb9a7ecd9a01b3baa38251",
+      "bytes": 22865518,
+      "duration_seconds": 601.904063,
+      "codecs": [
+        "h264",
+        "aac"
+      ],
+      "audio_decoded_samples": 160000,
+      "audio_rms_pcm16": 2161.0,
+      "jpeg_decoded_bytes": 7147
+    },
+    {
+      "filename": "received-reconnected.flv",
+      "sha256": "c5c0743e99c3393910015d8976b294b5bc683b57a9c23063d1b9317b0ddffa29",
+      "bytes": 19499748,
+      "duration_seconds": 509.84,
+      "codecs": [
+        "h264",
+        "aac"
+      ],
+      "audio_decoded_samples": 159744,
+      "audio_rms_pcm16": 1477.9,
+      "jpeg_decoded_bytes": 6954
+    },
+    {
+      "filename": "received.flv",
+      "sha256": "059c1f5ab7c1a41c9fc780208308e7688ff6bbbc796c2a87c6c584e4ff789764",
+      "bytes": 3668206,
+      "duration_seconds": 91.52,
+      "codecs": [
+        "h264",
+        "aac"
+      ],
+      "audio_decoded_samples": 160000,
+      "audio_rms_pcm16": 2161.0,
+      "jpeg_decoded_bytes": 7150
+    }
+  ],
+  "production_realtime_validated": false,
+  "interpretation": "Packet timestamps are synchronized; slow held CPU frames do not prove realtime phoneme/lip synchronization.",
+  "helper_shutdown_check": {
+    "completed": true,
+    "duration_seconds": 12.048,
+    "worker_closed": true,
+    "receiver_closed": true,
+    "resources_released": true,
+    "process_exit_code": 0,
+    "owned_helpers_remaining": 0,
+    "windows_native_runtime_exit": "OWN_PROCESS_TERMINATION_AFTER_VERIFIED_CLEANUP"
+  }
+}

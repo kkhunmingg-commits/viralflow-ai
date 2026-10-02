@@ -19,6 +19,8 @@ class LiveObservation:
     audio_oldest_age_seconds: float = 0.0
     comment_queue_depth: int = 0
     comment_oldest_age_seconds: float = 0.0
+    encoder_alive: bool = True
+    encoder_output_age_seconds: float = 0.0
 
 
 class LiveWatchdog:
@@ -37,13 +39,17 @@ class LiveWatchdog:
     def inspect(self, observation: LiveObservation) -> tuple[str, ...]:
         if min(observation.audio_queue_depth, observation.comment_queue_depth,
                observation.audio_oldest_age_seconds,
-               observation.comment_oldest_age_seconds) < 0:
+               observation.comment_oldest_age_seconds, observation.encoder_output_age_seconds) < 0:
             raise ValueError("INVALID_WATCHDOG_OBSERVATION")
         issues = []
         if not observation.session_alive:
             issues.append("SESSION_NOT_ALIVE")
         if not observation.presenter_alive:
             issues.append("PRESENTER_NOT_ALIVE")
+        if not observation.encoder_alive:
+            issues.append("ENCODER_NOT_ALIVE")
+        if observation.encoder_output_age_seconds >= self._stuck_after_seconds:
+            issues.append("ENCODER_OUTPUT_STALLED")
         if observation.audio_queue_depth and observation.audio_oldest_age_seconds >= self._stuck_after_seconds:
             issues.append("AUDIO_QUEUE_STUCK")
         if observation.comment_queue_depth and observation.comment_oldest_age_seconds >= self._stuck_after_seconds:

@@ -1,2 +1,3 @@
 # Package into the signed Windows installer; grant verification fails closed if absent.
 cryptography==50.0.2
+sounddevice==0.5.1

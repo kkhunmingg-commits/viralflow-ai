@@ -18,6 +18,32 @@ WORKER = HERE.parent
 REPO = WORKER.parents[1]
 BUILD = HERE / ".build"
 DIST = HERE / ".dist"
+RUNTIME_HIDDEN_IMPORTS = (
+    "local_agent", "local_agent.updater", "local_agent.live_worker",
+    "local_agent.stream_credentials", "av_encoder", "av_pipeline", "direct_stream",
+    "sounddevice", "_sounddevice", "_sounddevice_data", "cffi", "_cffi_backend",
+    "tkinter.messagebox", "installer.setup_app",
+)
+
+
+def runtime_arguments(trusted_config: list[str]) -> list[str]:
+    """runpy's launcher imports and native microphone dependencies are explicit.
+
+    The Windows sounddevice wheel supplies PortAudio. RawInputStream uses buffer
+    objects without NumPy. Model/GPU packages are provisioned separately and are
+    deliberately excluded from this unvalidated engineering runtime.
+    """
+    arguments = ["--onedir", "--windowed", "--name", "LocalLiveAgent", "--paths", str(WORKER)]
+    for module in RUNTIME_HIDDEN_IMPORTS:
+        arguments += ["--hidden-import", module]
+    for module in ("torch", "numpy", "dev_fallback_engine", "imageio_ffmpeg"):
+        arguments += ["--exclude-module", module]
+    arguments += ["--collect-all", "cryptography", "--collect-all", "sounddevice",
+                  "--collect-all", "_sounddevice_data", "--copy-metadata", "sounddevice",
+                  "--add-data", f"{WORKER / 'local_agent' / 'launcher.pyw'};local_agent",
+                  "--add-data", f"{WORKER / 'local_agent' / '__init__.py'};local_agent",
+                  *trusted_config, str(HERE / "runtime_entry.py")]
+    return arguments
 
 
 def invoke(arguments: list[str]) -> None:
@@ -86,13 +112,7 @@ def main() -> None:
         configuration = public_configuration(args.public_config) if args.public_config else public_key_configuration(args.grant_public_key_file)
         config.write_text(json.dumps(configuration), encoding="utf-8")
         trusted_config = ["--add-data", f"{config};local_agent"]
-    invoke(["--onedir", "--windowed", "--name", "LocalLiveAgent", "--paths", str(WORKER),
-            "--hidden-import", "local_agent", "--hidden-import", "local_agent.updater",
-            "--hidden-import", "tkinter.messagebox",
-            "--hidden-import", "installer.setup_app",
-            "--collect-all", "cryptography", "--add-data", f"{WORKER / 'local_agent' / 'launcher.pyw'};local_agent",
-            "--add-data", f"{WORKER / 'local_agent' / '__init__.py'};local_agent",
-            *trusted_config, str(HERE / "runtime_entry.py")])
+    invoke(runtime_arguments(trusted_config))
     bundle = DIST / "LocalLiveAgent"
     # Reuse already installed/pinned local binary; no runtime network download.
     node = subprocess.run(["node", "-e", "process.stdout.write(require('ffmpeg-static'))"],

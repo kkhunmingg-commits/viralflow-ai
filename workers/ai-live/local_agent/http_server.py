@@ -17,6 +17,7 @@ MAX_CONCURRENT_CLIENTS = 16
 SOCKET_TIMEOUT_SECONDS = 5
 BODY_DEADLINE_SECONDS = 10
 SESSION_ROUTE = re.compile(r"^/v1/sessions/([0-9a-fA-F-]{36})/(pause|resume|stop|recover)$")
+FRAME_ROUTE = re.compile(r"^/v1/sessions/([0-9a-fA-F-]{36})/frame$")
 
 
 class AgentHTTPServer(ThreadingHTTPServer):
@@ -195,6 +196,25 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json(200, agent.status(token, origin), origin)
             elif method == "GET" and self.path == "/v1/hardware":
                 self._send_json(200, agent.hardware(token, origin), origin)
+            elif method == "GET" and (match := FRAME_ROUTE.fullmatch(self.path)):
+                frame = agent.preview_frame(token, origin, match.group(1))
+                self.send_response(200 if frame else 204)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Content-Length", str(len(frame) if frame else 0))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Connection", "close")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Access-Control-Allow-Origin", origin)
+                self.send_header("Vary", "Origin")
+                self.end_headers()
+                if frame:
+                    self.wfile.write(frame)
+                self.close_connection = True
+            elif method == "POST" and self.path == "/v1/stream/setup":
+                request = self._json_body()
+                if set(request) != {"grant"}:
+                    raise AgentError(400, "INVALID_SETUP_REQUEST", "ข้อมูลไม่ถูกต้อง")
+                self._send_json(202, agent.request_stream_setup(token, origin, request["grant"]), origin)
             elif method == "POST" and self.path == "/v1/updates/check":
                 request = self._json_body()
                 if set(request) != {"manifest"}:

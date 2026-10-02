@@ -115,18 +115,25 @@ Official packaging reference: https://pyinstaller.org/en/stable/usage.html
 
 ## Local delivery evidence — 2026-10-02
 
-Generated setup: `ViralFlow-Live-Agent-Setup-0.3.0.exe`, 54,019,573 bytes.
-SHA-256: `a35de9e1893a7335760f3185af70389e45de8443a1655275ea2b8ec443d34da0`.
-Immutable package input: `installer/.build/payload.zip`, 44,627,324 bytes.
-SHA-256: `72d3f24fe70e89cae229f611be633e426426d1849a90519ef1f5d21516c2e1d7`.
+Generated setup: `ViralFlow-Live-Agent-Setup-0.3.0.exe`, 56,278,774 bytes.
+SHA-256: `d6b3168c7025d6f81ef903fe95a4917be7253ac312ca81bcd9f14ab36a1adda5`.
+Immutable package input: `installer/.build/payload.zip`, 46,886,504 bytes.
+SHA-256: `4255420400c6485f0e058d77fbd9082a8c2b1d24408c3c0ae7b02678ba60ef3b`.
 This package ZIP, rather than the GUI setup EXE, is the update manifest's target
 when a publisher prepares a real signed release channel. It is not uploaded or
 published by this work, and both artifacts remain ignored by Git.
 Authenticode status: `NotSigned`. This is the local engineering artifact, not a
 published customer release. A rebuild may produce a different binary hash.
 
-The real extracted runtime passed its cryptography/public-agent exports and
-Tk resource self-test. Fresh install, corrupted-file repair and uninstall ran
+The real extracted runtime passed its cryptography/public-agent exports,
+Tk resources, native PortAudio, internal media/stream worker imports, and
+H.264/AAC capability self-test. It verifies that `REALTIME_VALIDATED` remains
+false. Managed sounddevice/PortAudio files and their notices are bundled; no
+manual Python setup, virtual audio driver or external broadcaster is required.
+Windows long-path normalization is applied only to the packaged PortAudio DLL
+path so the native loader works even in deep isolated installation directories.
+Self-test failures return a nonzero exit code instead of an invisible windowed
+exception dialog. Fresh install, corrupted-file repair and uninstall ran
 against the real bundle in isolated workspace directories. A hidden launch
 with isolated `LOCALAPPDATA` executed the production launcher, created its
 DPAPI identity, and returned unpaired, unauthorized discovery with version
