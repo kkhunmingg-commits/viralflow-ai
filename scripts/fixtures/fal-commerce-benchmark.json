@@ -1,0 +1,17 @@
+[
+  {
+    "id": "beauty", "label": "Beauty", "imagePath": "benchmark-assets/beauty.jpg",
+    "prompt": "Vertical commerce packshot. Preserve the reference product exactly: shape, color, packaging, readable existing label and proportions. A gentle camera arc and subtle studio light sweep; product stays centered, stable and fully visible. No extra products, people, hands, invented text, logos or speech. Natural restrained motion, clean premium background.",
+    "renderInput": {"productTitle":"Fictional skincare test product","hook":"Discover the product","cta":"See details","template":"POV","overlay":[],"scenes":[{"start":0,"end":2,"visual":"reference product","motion":"gentle arc"},{"start":2,"end":5,"visual":"packaging details","motion":"light sweep"},{"start":5,"end":8,"visual":"full product","motion":"stable hold"}]}
+  },
+  {
+    "id": "home", "label": "Home", "imagePath": "benchmark-assets/home.jpg",
+    "prompt": "Vertical commerce packshot. Preserve the reference product exactly: shape, color, packaging, readable existing label and proportions. A gentle camera arc and subtle studio light sweep; product stays centered, stable and fully visible. No extra products, people, hands, invented text, logos or speech. Natural restrained motion, clean premium background.",
+    "renderInput": {"productTitle":"Fictional household test product","hook":"Discover the product","cta":"See details","template":"POV","overlay":[],"scenes":[{"start":0,"end":2,"visual":"reference product","motion":"gentle arc"},{"start":2,"end":5,"visual":"product details","motion":"light sweep"},{"start":5,"end":8,"visual":"full product","motion":"stable hold"}]}
+  },
+  {
+    "id": "gadget", "label": "Gadget", "imagePath": "benchmark-assets/gadget.jpg",
+    "prompt": "Vertical commerce packshot. Preserve the reference product exactly: shape, color, packaging, readable existing label and proportions. A gentle camera arc and subtle studio light sweep; product stays centered, stable and fully visible. No extra products, people, hands, invented text, logos or speech. Natural restrained motion, clean premium background.",
+    "renderInput": {"productTitle":"Fictional gadget test product","hook":"Discover the product","cta":"See details","template":"POV","overlay":[],"scenes":[{"start":0,"end":2,"visual":"reference product","motion":"gentle arc"},{"start":2,"end":5,"visual":"buttons and display","motion":"light sweep"},{"start":5,"end":8,"visual":"full product","motion":"stable hold"}]}
+  }
+]

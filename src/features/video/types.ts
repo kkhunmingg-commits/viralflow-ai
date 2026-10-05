@@ -57,6 +57,8 @@ export interface VideoRenderer {
   probe(path:string):Promise<RenderedVideo>;
 }
 export interface VideoQualityInput extends RenderedVideo {
+  targetDurationSeconds?: 8 | 10;
+  qualityThreshold?: number;
   overlay:TimedText[];
   scenes:SceneInstruction[];
   productVisible:boolean;

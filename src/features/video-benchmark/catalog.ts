@@ -8,6 +8,10 @@ const META_VIBES="https://about.fb.com/news/2025/09/introducing-vibes-ai-videos/
 const GOOGLE_VEO="https://ai.google.dev/gemini-api/docs/veo";
 const GOOGLE_FLOW="https://support.google.com/flow/answer/16526234";
 export const BENCHMARK_CANDIDATES:readonly BenchmarkCandidate[]=[
+  {id:"fal_ltx_distilled",provider:"fal",apiModel:"fal-ai/ltxv-13b-098-distilled/image-to-video",label:"LTX 0.9.8 Distilled",resolution:"720p portrait",expectedCostUsd:.160834,minimumCostUsd:.160834,sourceUrl:"https://fal.ai/models/fal-ai/ltxv-13b-098-distilled/image-to-video",availability:"READY",limitation:"193 frames at 24 fps, detail pass off; catalog candidate, no quality benchmark or production approval yet."},
+  {id:"fal_wan_2_6_flash",provider:"fal",apiModel:"wan/v2.6/image-to-video/flash",label:"Wan 2.6 Flash silent",resolution:"720p portrait",expectedCostUsd:.50,minimumCostUsd:.25,sourceUrl:"https://fal.ai/models/wan/v2.6/image-to-video/flash/api",availability:"READY",limitation:"Native ten seconds; silent estimate $0.25 inferred from official conditional pricing. Reserve $0.50 until authenticated pricing confirms. Portrait inherits reference and must be measured."},
+  {id:"fal_kling_2_5_standard",provider:"fal",apiModel:"fal-ai/kling-video/v2.5-turbo/standard/image-to-video",label:"Kling 2.5 Turbo Standard",resolution:"Portrait reference; output verified",expectedCostUsd:.42,minimumCostUsd:.42,sourceUrl:"https://fal.ai/models/fal-ai/kling-video/v2.5-turbo/standard/image-to-video",availability:"READY",limitation:"Native ten seconds; no resolution or aspect field in actual Input schema. Validate source before normalization."},
+  {id:"fal_ltx_2_3_fast",provider:"fal",apiModel:"fal-ai/ltx-2.3/image-to-video/fast",label:"LTX 2.3 Fast silent",resolution:"1080p portrait",expectedCostUsd:.48,minimumCostUsd:.48,sourceUrl:"https://fal.ai/models/fal-ai/ltx-2.3/image-to-video/fast",availability:"READY",limitation:"Native eight seconds, audio off; comparison candidate, not an automatic premium route."},
   {id:"google_flow_manual",provider:"google_flow_manual",apiModel:"consumer-flow-manual",label:"Google Flow owner reference",resolution:"Owner supplied; normalized locally",expectedCostUsd:0,minimumCostUsd:0,sourceUrl:GOOGLE_FLOW,availability:"MANUAL_BENCHMARK_ONLY",limitation:"Google Flow is a consumer product with separate credits and no documented supported automation API. Owner-supplied clips are manual benchmark references only."},
   {id:"veo_3_1_lite",provider:"google_veo",apiModel:"veo-3.1-lite-generate-preview",label:"Google Veo 3.1 Lite",resolution:"720p portrait",expectedCostUsd:.40,minimumCostUsd:.40,sourceUrl:GOOGLE_VEO,availability:"READY",limitation:"Paid Gemini API model; requires explicit paid-mode opt-in, an API key, a hard budget cap, and owner Flow comparison before routing."},
   {id:"veo_3_1_fast",provider:"google_veo",apiModel:"veo-3.1-fast-generate-preview",label:"Google Veo 3.1 Fast",resolution:"720p portrait",expectedCostUsd:.80,minimumCostUsd:.80,sourceUrl:GOOGLE_VEO,availability:"READY",limitation:"Quality-ceiling candidate only; not part of the first paid stage unless Lite fails or needs comparison."},
@@ -27,6 +31,8 @@ export const STAGE_A_CANDIDATES:BenchmarkModel[]=["google_flow_manual"];
 export const STAGE_B_CANDIDATES:BenchmarkModel[]=["veo_3_1_lite"];
 export const STAGE_C_CANDIDATES:BenchmarkModel[]=["fal_wan_2_2_turbo","pixverse_v6","gen4_turbo"];
 export const STAGE_ONE_CANDIDATES:BenchmarkModel[]=["fal_wan_2_2_turbo"];
+/** No paid second sample: compare one identical reference across eligible models first. */
+export const FAL_PRODUCTION_CANDIDATES:BenchmarkModel[]=["fal_ltx_distilled","fal_wan_2_6_flash","fal_kling_2_5_standard","fal_ltx_2_3_fast"];
 
 export function selectCandidates(ids:BenchmarkModel[]){
   const wanted=new Set(ids),selected=BENCHMARK_CANDIDATES.filter(candidate=>wanted.has(candidate.id));

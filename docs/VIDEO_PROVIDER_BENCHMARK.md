@@ -1,4 +1,65 @@
-# Real Video AI Provider Benchmark V1
+# Real Video AI Provider Benchmark
+
+Updated 5 October 2026. The current task extends the existing harness for an 8–10-second fal-only production comparison. Earlier Stage B/C notes below are historical; the current policy and budgets in this section supersede their routing/forecast assumptions.
+
+## Current results and approvals
+
+**NOT_RUN — FAL_KEY unavailable.** Real generations 0, paid spend $0, outputs 0. Success rate, usable rate, invoice cost and generation latency are not measured. PRIMARY/FALLBACK are not selected from real evidence yet; no model becomes `PRODUCTION_APPROVED` from a dry plan. Original Beauty/Home/Gadget assets remain ignored and unchanged. A real owner Flow reference is optional for commercial/technical evaluation, but required for any Flow-equivalence label.
+
+## Reviewed candidates (5 October 2026)
+
+| Candidate / endpoint | Native settings | Estimated / reserved USD |
+|---|---|---:|
+| LTX Distilled: `fal-ai/ltxv-13b-098-distilled/image-to-video` | 193 frames at24fps (~8.0417s), 720p9:16, detail off | 0.160834 / 0.160834 |
+| Kling Standard: `fal-ai/kling-video/v2.5-turbo/standard/image-to-video` | 10s; portrait inherited from reference | 0.42 / 0.42 |
+| LTX Fast: `fal-ai/ltx-2.3/image-to-video/fast` | 8s,1080p9:16, audio off | 0.48 / 0.48 |
+| Wan Flash: `wan/v2.6/image-to-video/flash` | 10s,720p, audio off; portrait inherited | 0.25 inferred / 0.50 |
+
+Official pages: [LTX Distilled](https://fal.ai/models/fal-ai/ltxv-13b-098-distilled/image-to-video), [Kling Standard](https://fal.ai/models/fal-ai/kling-video/v2.5-turbo/standard/image-to-video), [LTX Fast](https://fal.ai/models/fal-ai/ltx-2.3/image-to-video/fast), [Wan Flash](https://fal.ai/models/wan/v2.6/image-to-video/flash/api). These endpoints are catalogued for commercial inference. Output fidelity, runtime, exact source geometry and bill are verified from real results, not assumed from labels.
+
+Wan2.2Turbo stays implemented but has no documented duration/frame input: it is not eligible in this8–10-second policy comparison without measured evidence. Non-Turbo Wan2.2(~$0.645), newer/premium Kling(~$0.672 for8s) and LTX2.5(~$0.72 for8s) are higher-cost comparisons, not justified defaults. Legacy LTX preview/research endpoint is excluded. LongCat distilled's lower advertised rate does not supply sufficiently documented portrait composition for this contract; do not silently use it as a winner.
+
+## Minimal run and cumulative cap
+
+Default `--fal-production` uses the first fixture only across four candidates, sorted by conservative cost. Forecast **$1.560834 reserved**, **$1.310834 minimum estimated**. Only models with a technically and commercially passing first sample can proceed to the other products using `--all-fixtures --resume`. All four models ×3products reserve **$4.682502**. Total hard benchmark cap is **$5**, including failed and unresolved attempts; a configured smaller cap is respected. There are no paid retries, repeat samples, or cross-provider calls.
+
+Before `--execute`, read-only authenticated [pricing](https://fal.ai/docs/platform-apis/v1/models/pricing) and [estimate](https://fal.ai/docs/platform-apis/v1/models/pricing/estimate) calls verify current USD billing units. Missing/ambiguous price, invalid forecast or cap excess stops before paid submit.
+
+The same full-image reference is padded into a hash-addressed720×1280COPY for every model, preserving product packaging. Sources remain unchanged. All models receive the same licensed synthetic product intent; providers lacking an explicit aspect field receive the same portrait reference. Original output remains `*-source.mp4`; normalization creates a separate copy. Native portrait geometry and7.88–10.2s source duration are required, so post-normalization padding cannot disguise a landscape/short source.
+
+```text
+# No-cost preparation/forecast (does not read .env.local)
+pnpm benchmark:video -- --fal-production --manifest scripts/fixtures/fal-commerce-benchmark.json
+
+# Owner configures server FAL_KEY, VIDEO_BENCHMARK_ALLOW_PAID=true,
+# VIDEO_BENCHMARK_MAX_USD=5 before explicitly enabling a real run.
+pnpm benchmark:video -- --fal-production --manifest scripts/fixtures/fal-commerce-benchmark.json --execute --resume
+
+# Import visual review without another generation:
+pnpm benchmark:video -- --fal-production --commerce-scores /absolute/path/reviews.json
+
+# Only passing models, same journal and cap, remaining two products:
+pnpm benchmark:video -- --fal-production --manifest scripts/fixtures/fal-commerce-benchmark.json --models fal_ltx_distilled,fal_wan_2_6_flash --all-fixtures --execute --resume
+```
+
+Last command is illustrative: models must actually pass first-sample review. A no-cost whole-plan forecast may use `--all-fixtures` without `--execute`. All generated files/reviews/journal are under ignored `.video-benchmark/fal-production/`; product images are under ignored `benchmark-assets/`. Never commit credentials or media.
+
+Durable `benchmark-journal.json` records liability before submit and request ID after acceptance. Exclusive lock rejects simultaneous processes. Completed/failed attempts are not resubmitted on resume; changed inputs or any reserved/submitted/unknown liability require reconciliation. Do not remove locks/journal to retry an ambiguous call. Estimates remain reserves unless the provider exposes a valid recorded charge.
+
+## Quality and metadata
+
+Each attempt records endpoint/native settings, source and normalized durations/resolution/codec/integrity, original/reference/output paths, queue/generation/total latency, conservative estimate, recorded cost (nullable), paid attempts and retry count. The technical gate requires all checks and score>=85. Commercial score is identity30%, packaging20%, motion15%, temporal15%, appeal10%, composition10%; total>=85, identity>=90, packaging/temporal>=85, human anatomy>=85 when present.
+
+Commercial reviews are keyed by sample ID (for example `fal_ltx_distilled:beauty:1`) with fields `productIdentity`, `packagingFidelity`, `motion`, `anatomy` (null when absent), `temporalConsistency`, `commercialAppeal`, `composition`, `notes`, `reviewedBy` (`OWNER` or `CODEX_VISUAL_REVIEW`). Reviews must come from inspecting actual videos.
+
+Selection uses total attempted cost including failures divided by usable clips; lowest usable cost wins, measured latency breaks ties. Require all observed samples to pass and retain preliminary-sample limits in reporting. Output state is `BENCHMARK_PASS_PENDING_OWNER_REVIEW`, never automatic production approval or a fabricated Flow rating. PREMIUM remains unset unless observed evidence justifies it. See [cost strategy](VIDEO_COST_STRATEGY.md) and [activation gates](FAL_WAN_PROVIDER.md).
+
+---
+
+## Historical Stage B/C record (not current fal policy)
+
+
+### Previous Real Video AI Provider Benchmark V1
 
 Updated 19 September 2026. fal Wan 2.2 Turbo is the primary production candidate. Google Veo remains implemented but disabled as a premium fallback. No provider may enter Auto Mode until real evidence and owner approval exist.
 
