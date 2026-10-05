@@ -1,11 +1,15 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  AtomicBudgetLedger,
+  BudgetGuardError,
+  FAL_BUDGET_GUARD_VERSION,
   executePaidGeneration,
   PaidGenerationUncertainError,
+  PaidProviderConfirmedFailureError,
   PaidProviderNotSubmittedError,
   recoverBudgetState,
-  type AtomicBudgetLedger,
   type BudgetReservation,
   type ReserveBudgetInput,
 } from "./budget-ledger";
@@ -36,6 +40,37 @@ function ledger(overrides: Partial<Record<keyof AtomicBudgetLedger, unknown>> = 
 }
 
 describe("Phase 11B atomic paid generation", () => {
+  it("requires the applied fal guard version before reserving money", async () => {
+    const rpc = vi.fn(async (name: string) => ({ data: name === "fal_budget_guard_version" ? FAL_BUDGET_GUARD_VERSION : row(), error: null }));
+    const store = new AtomicBudgetLedger({ rpc } as unknown as SupabaseClient);
+    await store.reserve(request);
+    expect(rpc.mock.calls.map(call => call[0])).toEqual(["fal_budget_guard_version", "reserve_generation_budget"]);
+  });
+
+  it.each([null, "older-version"])("rejects missing or incompatible fal guard version %s", async version => {
+    const rpc = vi.fn(async () => ({ data: version, error: null }));
+    const store = new AtomicBudgetLedger({ rpc } as unknown as SupabaseClient);
+    const callProvider = vi.fn();
+    await expect(executePaidGeneration({ ledger: store, reservation: request, callProvider })).rejects.toBeInstanceOf(BudgetGuardError);
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(callProvider).not.toHaveBeenCalled();
+  });
+
+  it("fails closed if the database readiness call fails", async () => {
+    const rpc = vi.fn(async () => { throw new Error("database unavailable"); });
+    const store = new AtomicBudgetLedger({ rpc } as unknown as SupabaseClient);
+    await expect(store.reserve(request)).rejects.toBeInstanceOf(BudgetGuardError);
+    expect(rpc).toHaveBeenCalledOnce();
+  });
+
+  it("preserves other providers' existing reservation path", async () => {
+    const rpc = vi.fn(async (name: string) => ({ data: name === "reserve_generation_budget" ? row() : null, error: null }));
+    const store = new AtomicBudgetLedger({ rpc } as unknown as SupabaseClient);
+    await store.reserve({ ...request, provider: "google" });
+    expect(rpc).toHaveBeenCalledOnce();
+    expect(rpc.mock.calls[0][0]).toBe("reserve_generation_budget");
+  });
+
   it("serializes concurrent reservations by owner before checking every cap", () => {
     expect(migration).toContain("pg_advisory_xact_lock(hashtextextended(p_owner_id::text,0))");
     for (const cap of ["per_video_budget_exceeded", "daily_budget_exceeded", "monthly_budget_exceeded", "run_budget_exceeded", "account_budget_exceeded", "provider_budget_exceeded"]) expect(migration).toContain(cap);
@@ -58,6 +93,79 @@ describe("Phase 11B atomic paid generation", () => {
     await expect(executePaidGeneration({ ledger: store, reservation: request, callProvider })).rejects.toBeInstanceOf(PaidGenerationUncertainError);
     expect(callProvider).toHaveBeenCalledOnce();
     expect(store.uncertain).toHaveBeenCalledWith("owner", "reservation", "provider-timeout");
+    expect(store.release).not.toHaveBeenCalled();
+  });
+
+  it("preserves uncertainty and the request ID when recording it also fails", async () => {
+    const store = ledger({ uncertain: vi.fn(async () => { throw new Error("database unavailable"); }) });
+    const failure = Object.assign(new Error("socket closed"), { requestId: "paid-request" });
+    await expect(executePaidGeneration({ ledger: store, reservation: request,
+      callProvider: async () => { throw failure; } })).rejects.toMatchObject({
+      name: "PaidGenerationUncertainError", providerRequestId: "paid-request", cause: failure,
+    });
+    expect(store.release).not.toHaveBeenCalled();
+  });
+
+  it("accounts for a confirmed failed generation before allowing a fallback", async () => {
+    const store = ledger();
+    const failure = new PaidProviderConfirmedFailureError("provider rejected output", "paid-failed", .1);
+    await expect(executePaidGeneration({ ledger: store, reservation: request,
+      callProvider: async () => { throw failure; } })).rejects.toBe(failure);
+    expect(store.submitted).toHaveBeenCalledWith("owner", "reservation", "paid-failed");
+    expect(store.settle).toHaveBeenCalledWith("owner", "reservation", .1, "paid-failed");
+    expect(store.uncertain).not.toHaveBeenCalled();
+    expect(store.release).not.toHaveBeenCalled();
+  });
+
+  it("holds a confirmed failure when settlement fails", async () => {
+    const store = ledger({ settle: vi.fn(async () => { throw new Error("database unavailable"); }) });
+    await expect(executePaidGeneration({ ledger: store, reservation: request,
+      callProvider: async () => { throw new PaidProviderConfirmedFailureError("failed", "known-paid", .1); } }))
+      .rejects.toMatchObject({ name: "PaidGenerationUncertainError", providerRequestId: "known-paid" });
+    expect(store.release).not.toHaveBeenCalled();
+  });
+
+  it("settles a confirmed failed request discovered during read-only recovery", async () => {
+    const store = ledger({ reserve: vi.fn(async () => row({
+      provider_submission_state: "SUBMITTED_UNKNOWN", provider_request_id: "known-failed",
+    })) });
+    const failure = new PaidProviderConfirmedFailureError("terminal failure", "known-failed", .1);
+    const callProvider = vi.fn();
+    await expect(executePaidGeneration({ ledger: store, reservation: request, callProvider,
+      recoverSubmitted: async () => { throw failure; } })).rejects.toBe(failure);
+    expect(store.settle).toHaveBeenCalledWith("owner", "reservation", .1, "known-failed");
+    expect(callProvider).not.toHaveBeenCalled();
+  });
+
+  it("does not submit when an atomic budget check rejects the reservation", async () => {
+    const store = ledger({ reserve: vi.fn(async () => { throw new Error("daily_budget_exceeded"); }) });
+    const callProvider = vi.fn();
+    await expect(executePaidGeneration({ ledger: store, reservation: request, callProvider }))
+      .rejects.toThrow("daily_budget_exceeded");
+    expect(callProvider).not.toHaveBeenCalled();
+    expect(store.begin).not.toHaveBeenCalled();
+  });
+
+  it("one worker wins the durable begin when two workers replay the same hold", async () => {
+    let current = row();
+    const store = ledger({
+      reserve: vi.fn(async () => current),
+      begin: vi.fn(async () => {
+        if (current.provider_submission_state !== "REQUEST_NOT_SENT") throw new Error("budget_reservation_not_submittable");
+        current = { ...current, provider_submission_state: "SUBMITTING" };
+        return current;
+      }),
+    });
+    const callProvider = vi.fn(async () => ({ value: "video", providerRequestId: "one-paid-request", actualUsd: .1 }));
+    const results = await Promise.allSettled([
+      executePaidGeneration({ ledger: store, reservation: request, callProvider }),
+      executePaidGeneration({ ledger: store, reservation: request, callProvider }),
+    ]);
+    expect(results.filter(result => result.status === "fulfilled")).toHaveLength(1);
+    expect(results.find(result => result.status === "rejected")).toMatchObject({
+      reason: { name: "PaidGenerationUncertainError" },
+    });
+    expect(callProvider).toHaveBeenCalledOnce();
     expect(store.release).not.toHaveBeenCalled();
   });
 

@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createProjectFromAssignment, generateCreativeProject, getCreativeProjectDetail, selectCreative } from "@/features/creative/services";
 import { buildMasterVideo } from "@/features/video/services";
-import { generateAutoFalMaster, reverifyAutoFalMaster } from "@/features/video/auto-fal";
+import { FalGenerationPendingError, generateAutoFalMaster, reverifyAutoFalMaster } from "@/features/video/auto-fal";
 import { PaidGenerationUncertainError } from "@/features/video/budget-ledger";
 import { falAutoModeAvailability } from "@/features/video/provider-routing";
 import { serverEnv } from "@/lib/server-env";
@@ -103,6 +103,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
           boundaries.falProvider, boundaries.visionProvider);
           return { kind: "ADVANCE", evidence: { videoId: video.id, videoKind: "MASTER", videoProvider: "fal" } };
         } catch (failure) {
+          if (failure instanceof FalGenerationPendingError) return wait("WAITING_FOR_DATA", "VIDEO_GENERATION_PENDING");
           if (failure instanceof PaidGenerationUncertainError) {
             return failure.providerRequestId
               ? wait("WAITING_FOR_DATA", "PROVIDER_RESULT_PENDING")

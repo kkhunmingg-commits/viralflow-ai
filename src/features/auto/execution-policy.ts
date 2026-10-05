@@ -32,16 +32,19 @@ export function autoPublishMode(account: PublishAccount, development: boolean) {
 }
 
 type QualityRow = {
-  quality_status: string | null;
-  quality_score: number | null;
-  quality_explanation_json: unknown;
-  provider: string | null;
-  status: string | null;
+  quality_status?: unknown;
+  quality_score?: unknown;
+  quality_explanation_json?: unknown;
+  provider?: unknown;
+  status?: unknown;
 };
 
 export function autoVideoQualityOutcome(row: QualityRow | null): StageOutcome {
   if (!row) return { kind: "WAIT", state: "WAITING_FOR_DATA", reason: "VIDEO_NOT_READY" };
   const evidence = row.quality_explanation_json;
+  if (evidence && typeof evidence === "object" && "reviewRequired" in evidence && evidence.reviewRequired === true) {
+    return { kind: "WAIT", state: "WAITING_FOR_APPROVAL", reason: "REVIEW_REQUIRED" };
+  }
   const visualStatus = evidence && typeof evidence === "object" && "visualVerificationStatus" in evidence
     ? (evidence as { visualVerificationStatus: unknown }).visualVerificationStatus : null;
   if (row.quality_status === "REJECT" || visualStatus === "FAIL") {
@@ -50,7 +53,10 @@ export function autoVideoQualityOutcome(row: QualityRow | null): StageOutcome {
   if (visualStatus === "REVIEW" || (row.provider === "fal" && visualStatus !== "PASS")) {
     return { kind: "WAIT", state: "WAITING_FOR_DATA", reason: "VISUAL_VERIFICATION_PENDING" };
   }
-  if (row.quality_status !== "PASS" || Number(row.quality_score) < 85 || !["READY", "APPROVED"].includes(row.status ?? "")) {
+  const threshold = evidence && typeof evidence === "object" && "qualityThreshold" in evidence ? Number(evidence.qualityThreshold) : 85;
+  const score = Number(row.quality_score);
+  if (!Number.isFinite(threshold) || threshold < 85 || threshold > 100 || !Number.isFinite(score) || score > 100
+    || row.quality_status !== "PASS" || score < threshold || !["READY", "APPROVED"].includes(String(row.status ?? ""))) {
     return { kind: "SKIP_ITEM", reason: "QUALITY_NOT_PASSED" };
   }
   return { kind: "ADVANCE", evidence: { qualityScore: row.quality_score } };

@@ -14,11 +14,11 @@ async function pixverseJson<T>(url:string,apiKey:string,init?:RequestInit):Promi
 
 export class FalWan22TurboProvider implements RealVideoProvider {
   readonly provider="fal";readonly model:string;private client:FalWanVideoProvider;
-  constructor(private candidate:BenchmarkCandidate,apiKey:string,options:Omit<ConstructorParameters<typeof FalWanVideoProvider>[0],"apiKey">={}){if(!apiKey)throw new Error("FAL_KEY is required only for an explicitly approved live benchmark");this.model=candidate.apiModel;this.client=new FalWanVideoProvider({...options,apiKey})}
+  constructor(private candidate:BenchmarkCandidate,apiKey:string,options:Omit<ConstructorParameters<typeof FalWanVideoProvider>[0],"apiKey">={}){if(!apiKey)throw new Error("FAL_KEY is required only for an explicitly approved live benchmark");this.model=candidate.apiModel;this.client=new FalWanVideoProvider({...options,apiKey,model:candidate.apiModel,durationSeconds:8,resolution:candidate.id==="fal_ltx_2_3_fast"?"1080p":"720p",aspectRatio:"9:16"})}
   async plan(input:VideoRenderInput){return structuredClone(input)}
   async generate(request:RemoteVideoRequest):Promise<RemoteVideoResult>{
     const started=Date.now(),bytes=await readFile(request.fixture.imagePath);
-    try{const result=await this.client.generate({image:new Blob([bytes],{type:mimeFor(request.fixture.imagePath)}),prompt:request.fixture.prompt,resolution:"720p",aspectRatio:"9:16",seed:request.seed,maxCostUsd:this.candidate.expectedCostUsd});await writeFile(request.outputPath,result.bytes);return{taskId:result.requestId,provider:this.provider,model:this.model,outputPath:request.outputPath,costUsd:result.actualCostUsd,latencyMs:Date.now()-started,remoteUrl:result.videoUrl,retryCount:result.retryCount}}
+    try{const result=await this.client.generate({image:new Blob([bytes],{type:mimeFor(request.fixture.imagePath)}),prompt:request.fixture.prompt,aspectRatio:"9:16",seed:request.seed,maxCostUsd:this.candidate.expectedCostUsd,onSubmitted:request.onSubmitted});await writeFile(request.outputPath,result.bytes);return{taskId:result.requestId,provider:this.provider,model:this.model,outputPath:request.outputPath,costUsd:result.actualCostUsd,recordedCostUsd:result.recordedCostUsd,costBasis:result.costBasis,queueTimeMs:result.queueTimeMs,generationTimeMs:result.generationTimeMs,latencyMs:Date.now()-started,remoteUrl:result.videoUrl,retryCount:result.retryCount}}
     catch(error){if(error instanceof FalWanProviderError)throw new ProviderGenerationError(error.message,error.requestId,error.actualCostUsd);throw error}
   }
 }

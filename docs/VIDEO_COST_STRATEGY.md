@@ -1,67 +1,55 @@
 # Video cost strategy
 
-ViralFlow minimizes paid master generations while preserving meaningful creative variation. The current target is 15–20 AI masters per day for three accounts and 40–50 masters per day for ten accounts. Existing local FFmpeg composition produces the final candidates. A variation must change the hook, opening, scene structure, CTA, voice/script, approved product asset, or creative angle. Crop or zoom alone is not counted as sufficient originality, and every variation still passes Phase 6C.
+Updated 5 October 2026. Reuse approved masters before paying for another. Variations must change meaningful creative content and pass existing quality/compliance/originality gates. Current fal defaults are provisional: no production winner is asserted.
 
-## Router formula
+## Current comparison
 
-Only automatable providers with real benchmark evidence are eligible:
+| Candidate | Native source request | Public estimated charge | Conservative reservation |
+|---|---|---:|---:|
+| LTX 0.9.8 Distilled | 193 frames / 24 fps, 720p portrait, detail off | $0.160833… | $0.160834 benchmark |
+| Wan 2.6 Flash | 10 seconds, 720p, silent | $0.25, conditional-price inference | $0.50 |
+| Kling 2.5 Turbo Standard | 10 seconds, portrait reference | $0.42 | $0.42 |
+| LTX 2.3 Fast | 8 seconds, 1080p portrait, silent | $0.48 | $0.48 |
+
+Current official sources: [LTX Distilled](https://fal.ai/models/fal-ai/ltxv-13b-098-distilled/image-to-video), [Wan Flash API](https://fal.ai/models/wan/v2.6/image-to-video/flash/api), [Kling Standard](https://fal.ai/models/fal-ai/kling-video/v2.5-turbo/standard/image-to-video), [LTX Fast](https://fal.ai/models/fal-ai/ltx-2.3/image-to-video/fast). Wan silent pricing is inferred from the documented 25% of standard I2V condition; reserve the higher audio-on Flash quote pending authenticated verification. Actual charges/latency remain unknown: **0 real generations, $0 spend, no FAL_KEY available**.
+
+Legacy Wan 2.2 Turbo is $0.10/video but its schema cannot request duration/frames; it is excluded from the 8–10-second policy comparison without measured duration evidence. Preview/research-only LTX and models lacking documented portrait support are excluded. Existing non-fal adapters are retained and not invoked by this comparison.
+
+## Evidence-based selection
 
 ```text
-RetryAdjustedCost = NominalGenerationCost / ObservedSuccessRate
-SelectionScore = (TechnicalQuality / 100)
-               × ObservedSuccessRate
-               / RetryAdjustedCost
+UsableCostPerClip = SUM(all attempted costs, including failed/unknown liabilities)
+                   / COUNT(technically and commercially passing clips)
 ```
 
-The provider must also meet automated quality 85, have at least one real sample, and receive `FLOW_COMPARABLE` or `ABOVE_FLOW` beside the owner's Flow reference. `GOOGLE_FLOW_MANUAL` and Meta/Vibes remain manual-only. The router ranks evidence rather than hardcoding a permanent winner.
+Missing invoices retain reservations; never assume failed/unknown requests cost zero. All selected observations must complete and pass for a candidate to be eligible. Lowest usable cost ranks first; measured latency breaks ties. One passing sample is preliminary observed evidence, not proof of sustained reliability.
 
-The intended evaluation sequence is reusable approved master, legitimate automatable free/credit source, sufficient local composition, Google Veo 3.1 Lite, fal Wan 2.2 Turbo, PixVerse V6, Runway Gen-4 Turbo, and premium models only when justified. Benchmark evidence may change this order.
+Commercial weights: identity 30%, packaging 20%, motion 15%, temporal consistency 15%, appeal 10%, portrait composition 10%. Total >=85, identity >=90, packaging/temporal >=85; visible human/hand anatomy must also be >=85. Technical duration, native portrait resolution and integrity pass independently. Owner approval and real Flow comparison remain separate; no invented Flow labels.
 
-## Current public prices used for planning
+## Minimal benchmark budget
 
-| Provider | 8-second 720p nominal cost | Source/assumption |
-|---|---:|---|
-| Google Veo 3.1 Lite | $0.40 | $0.05/second, official Gemini API pricing |
-| Google Veo 3.1 Fast | $0.80 | $0.10/second, official Gemini API pricing |
-| fal Wan 2.2 Turbo | $0.10 | official fal model price per 720p video |
-| PixVerse V6 | $0.72 conservative | 72 credits × configured $0.01/credit; actual package can be lower |
-| Runway Gen-4 Turbo | $0.40 | 5 credits/second × 8 seconds × $0.01/credit |
+Same portrait product image/intent, four candidates once: estimated **$1.310834**, reserved **$1.560834**. Ascending reserved cost order. Only models whose first sample passes technical and visual commercial review may proceed to the other two products. Four models × three products reserve **$4.682502**, below the immutable **$5 total maximum**. Authenticated pricing may raise the forecast; stop before generation if above either configured or hard cap.
 
-Pricing sources:
+No paid retry or second sample. Durable pre-submit liability and exclusive journal prevent reload/concurrent/ambiguous duplicate payment. Failed/unknown attempts count against the cumulative cap across resumed runs.
 
-- Google: https://ai.google.dev/gemini-api/docs/pricing
-- fal: https://fal.ai/models/fal-ai/wan/v2.2-a14b/image-to-video/turbo
-- PixVerse: https://docs.platform.pixverse.ai/pricing-796039m0
-- Runway: https://docs.dev.runwayml.com/guides/pricing/
+## Daily planning: provisional primary
 
-Forecasts use an 85% planning success rate only to expose retry risk. Real routing must replace this assumption with observed benchmark reliability.
+Public-rate forecasts, not actual usable-cost guarantees. No assumed success rate.
 
-## Three-account forecast
+| Masters/day | Primary only: 193/24 × $0.02 | Worst case: primary + $0.50 fallback on every job |
+|---:|---:|---:|
+| 15 | $2.4125 | $9.9125 |
+| 20 | $3.2167 | $13.2167 |
+| 45 | $7.2375 | $29.7375 |
 
-Target: 15–20 masters/day, 45–60 final clips/day, 450–600 AI generations/month, and 1,350–1,800 final clips/month.
+Default $5 daily fal cap blocks volumes above it. More target clips never increase budget automatically. A 10-second LTX target uses 241/24 seconds (~$0.200833). Recalculate from measured output reliability and current price after real benchmark.
 
-| Provider | Nominal/month | Retry-adjusted/month | Retry-adjusted cost/final |
-|---|---:|---:|---:|
-| Veo Lite | $180–$240 | $211.76–$282.35 | $0.1176–$0.2092 |
-| Veo Fast | $360–$480 | $423.53–$564.71 | $0.2353–$0.4183 |
-| fal Wan | $45–$60 | $52.94–$70.59 | $0.0294–$0.0523 |
-| PixVerse | $324–$432 | $381.18–$508.24 | $0.2118–$0.3765 |
-| Runway Gen-4 Turbo | $180–$240 | $211.76–$282.35 | $0.1176–$0.2092 |
+## Production rules
 
-## Ten-account forecast
+- PRIMARY once, FALLBACK at most once, then `REVIEW_REQUIRED`.
+- Clip/job caps count both attempts cumulatively; account/run/provider/day/month and fal daily limits all apply, strictest wins.
+- Database serialization enforces two operation slots across processes; request/settlement replay is not another charge.
+- Confirmed paid failure is settled before fallback. Unknown submit, timeout or cancel acknowledgement retains the hold and blocks fallback until reconciliation.
+- Kill switch, credential, exact model owner approval, real narration, visual evaluator and migration handshake precede paid work.
 
-Target: 40–50 masters/day, 150 final clips/day, 1,200–1,500 AI generations/month, and 4,500 final clips/month.
-
-| Provider | Nominal/month | Retry-adjusted/month | Retry-adjusted cost/final |
-|---|---:|---:|---:|
-| Veo Lite | $480–$600 | $564.71–$705.88 | $0.1255–$0.1569 |
-| Veo Fast | $960–$1,200 | $1,129.41–$1,411.76 | $0.2510–$0.3137 |
-| fal Wan | $120–$150 | $141.18–$176.47 | $0.0314–$0.0392 |
-| PixVerse | $864–$1,080 | $1,016.47–$1,270.59 | $0.2259–$0.2824 |
-| Runway Gen-4 Turbo | $480–$600 | $564.71–$705.88 | $0.1255–$0.1569 |
-
-The cheapest nominal provider is not automatically selected. Product identity, motion, artifacts, commercial suitability, prompt adherence, visual attractiveness, technical pass rate, and accepted-output cost determine the winner.
-
-## Spending controls
-
-Every paid benchmark needs both `VIDEO_BENCHMARK_ALLOW_PAID=true` and a positive `VIDEO_BENCHMARK_MAX_USD`. ViralFlow computes the full forecast before execution and stops if it exceeds the cap. Production account budgets also enforce per-video, provider, run, account, daily, and monthly limits. Google AI Studio project spend caps are a second guard, not a replacement for ViralFlow's pre-request checks.
+See [fal activation/configuration](FAL_WAN_PROVIDER.md). Account billing caps at fal are additional safeguards.

@@ -1,5 +1,5 @@
 import {createHash,randomUUID} from "node:crypto";
-import {mkdir,readFile,rm} from "node:fs/promises";
+import {mkdir,readFile,rm,writeFile} from "node:fs/promises";
 import {tmpdir} from "node:os";
 import {join} from "node:path";
 import type {SupabaseClient} from "@supabase/supabase-js";
@@ -10,9 +10,11 @@ import {DeterministicVideoQualityEvaluator} from "./quality";
 import {FFmpegVideoRenderer} from "./renderer";
 import {extractVideoFrameEvidence,OpenAIFrameVisionProvider,verifyVideoFrames,type FrameVisionProvider} from "./frame-verification";
 import {serverEnv} from "@/lib/server-env";
+import {generateVideoFactoryFalMaster,referenceProductImage} from "./auto-fal";
+import {composeGeneratedVideo} from "./media-composition";
 import {videoSimilarity} from "./similarity";
 import {masterJobKey,nextJobAttempt,variationJobKey,variationRunId} from "./jobs";
-import {videoStoragePath} from "./storage";
+import {ownsVideoStoragePath,videoStoragePath} from "./storage";
 import {templateFor,variationPlan} from "./templates";
 import {VIDEO_BUCKET,VIDEO_DURATION_SECONDS,VIDEO_FACTORY_VERSION,type SimilarityMetadata,type VideoBudget,type VideoRenderInput} from "./types";
 import { assertScriptCompliance, checkFinalMedia, commerceScope, scriptContent } from "../compliance-brain/server-runtime";
@@ -73,7 +75,10 @@ async function spend(client:SupabaseClient,owner:string){
 function budget(account:Row,spent:{daySpend:number;monthSpend:number}):VideoBudget{return {maxCostPerVideoUsd:Number(account.max_cost_per_video_usd??0),dailyVideoBudgetUsd:Number(account.daily_video_budget_usd??0),monthlyVideoBudgetUsd:Number(account.monthly_video_budget_usd??0),spentTodayUsd:spent.daySpend,spentMonthUsd:spent.monthSpend}}
 
 export async function buildMasterVideo(client:SupabaseClient,owner:string,projectId:string,visionProvider?:FrameVisionProvider){
-  const src=await source(client,owner,projectId),existing=await client.from("master_videos").select("*").eq("owner_id",owner).eq("creative_project_id",projectId).maybeSingle();
+  const src=await source(client,owner,projectId);
+  if(!src.account.is_mock)return generateVideoFactoryFalMaster(client,owner,projectId,undefined,visionProvider);
+  if(process.env.NODE_ENV!=="development")throw new Error("mock_video_disabled");
+  const existing=await client.from("master_videos").select("*").eq("owner_id",owner).eq("creative_project_id",projectId).maybeSingle();
   if(existing.error)throw new Error(existing.error.message);
   if(existing.data&&["READY","APPROVED"].includes(existing.data.status)&&existing.data.quality_status==="PASS"){if(existing.data.generation_job_id)await recordZeroCost(client,owner,existing.data.generation_job_id);return existing.data}
   const decision=chooseVideoStrategy({existingApprovedMaster:existing.data?.status==="APPROVED",hasUsableAssets:true,qualityRequirement:85,budget:budget(src.account,await spend(client,owner)),availability:{freeCredit:false,lowCostPaid:false,premium:false,paidAllowed:false}});
@@ -110,27 +115,65 @@ export async function buildMasterVideo(client:SupabaseClient,owner:string,projec
 }
 
 export async function createVideoVariations(client:SupabaseClient,owner:string,masterId:string,count=3){
-  const master=await one(client,"master_videos",owner,masterId);if(!master||!["READY","APPROVED"].includes(String(master.status)))throw new Error("A passing master is required");
+  const master=await one(client,"master_videos",owner,masterId);if(!master||!["READY","APPROVED"].includes(String(master.status))||master.quality_status!=="PASS")throw new Error("A passing master is required");
   const existing=await client.from("video_variations").select("*").eq("owner_id",owner).eq("master_video_id",masterId).order("variation_index");
   if(existing.error)throw new Error(existing.error.message);
   if((existing.data?.length??0)>=count)return existing.data?.slice(0,count)??[];
-  const src=await source(client,owner,String(master.creative_project_id)),runId=variationRunId(masterId),base:SimilarityMetadata={masterId,hook:src.input.hook,cta:src.input.cta,scenes:src.input.scenes,motion:{pattern:"ZOOM_IN"},overlay:src.input.overlay,audio:{voice:"mock"}};
+  const voice=master.provider==="fal"?"master":"mock";
+  const src=await source(client,owner,String(master.creative_project_id)),runId=variationRunId(masterId),base:SimilarityMetadata={masterId,hook:src.input.hook,cta:src.input.cta,scenes:src.input.scenes,motion:{pattern:"ZOOM_IN"},overlay:src.input.overlay,audio:{voice}};
   const rows=[] as Row[],accepted=[] as SimilarityMetadata[];
   for(let i=1;i<=count;i++){
-    const plan=variationPlan(i,src.input),candidate:SimilarityMetadata={masterId,hook:plan.hook,cta:plan.cta,scenes:src.input.scenes,motion:{pattern:plan.motionPattern,transition:plan.transition},overlay:{items:src.input.overlay,position:plan.overlayPosition},audio:{voice:"mock",speed:plan.speed}};
+    const plan=variationPlan(i,src.input),candidate:SimilarityMetadata={masterId,hook:plan.hook,cta:plan.cta,scenes:src.input.scenes,motion:{pattern:plan.motionPattern,transition:plan.transition},overlay:{items:src.input.overlay,position:plan.overlayPosition},audio:{voice,speed:plan.speed}};
     const comparisons=[base,...accepted].map(v=>videoSimilarity(v,candidate)),similarity=Math.max(...comparisons.map(v=>v.score));
     if(similarity>=.82)continue;accepted.push(candidate);
-    rows.push({owner_id:owner,master_video_id:masterId,tiktok_account_id:master.tiktok_account_id,product_id:master.product_id,creative_project_id:master.creative_project_id,run_id:runId,variation_index:i,variation_type:plan.variationType,hook_variant:plan.hook,cta_variant:plan.cta,overlay_config_json:{position:plan.overlayPosition,items:src.input.overlay},motion_config_json:{pattern:plan.motionPattern,transition:plan.transition,speed:plan.speed},scene_config_json:{scenes:src.input.scenes},audio_config_json:{voice:"mock",normalization:true,fade:true},similarity_score:similarity,estimated_cost_usd:0,status:"QUEUED",quality_explanation_json:{}});
+    rows.push({owner_id:owner,master_video_id:masterId,tiktok_account_id:master.tiktok_account_id,product_id:master.product_id,creative_project_id:master.creative_project_id,run_id:runId,variation_index:i,variation_type:plan.variationType,hook_variant:plan.hook,cta_variant:plan.cta,overlay_config_json:{position:plan.overlayPosition,items:src.input.overlay},motion_config_json:{pattern:plan.motionPattern,transition:plan.transition,speed:plan.speed},scene_config_json:{scenes:src.input.scenes},audio_config_json:{voice,normalization:true,fade:true},similarity_score:similarity,estimated_cost_usd:0,status:"QUEUED",quality_explanation_json:{}});
   }
   const {error}=await client.from("video_variations").upsert(rows,{onConflict:"owner_id,master_video_id,variation_index",ignoreDuplicates:true});if(error)throw new Error(error.message);
   const result=await client.from("video_variations").select("*").eq("owner_id",owner).eq("master_video_id",masterId).order("variation_index");if(result.error)throw new Error(result.error.message);return result.data??[];
+}
+
+async function buildStoredMasterVariation(client:SupabaseClient,owner:string,variation:Row,master:Row,src:Awaited<ReturnType<typeof source>>,visionProvider?:FrameVisionProvider){
+  if(master.quality_status!=="PASS"||!master.storage_path)throw new Error("passing_master_required");
+  if(!ownsVideoStoragePath(owner,String(master.storage_path)))throw new Error("master_video_storage_invalid");
+  const duration=Number(master.duration_seconds);
+  if(duration!==8&&duration!==10)throw new Error("video_duration_invalid");
+  const job=await jobFor(client,owner,variationJobKey(String(variation.id),String(variation.run_id)),{variationId:variation.id,runId:variation.run_id},"VARIATION_RENDER");
+  await client.from("generation_jobs").update({video_variation_id:variation.id,master_video_id:master.id,creative_project_id:variation.creative_project_id}).eq("owner_id",owner).eq("id",job.id);
+  await beginJob(client,owner,job);
+  const dir=join(tmpdir(),"viralflow-video",randomUUID());await mkdir(dir,{recursive:true});
+  try{
+    const [stored,image]=await Promise.all([client.storage.from(VIDEO_BUCKET).download(String(master.storage_path)),referenceProductImage(client,owner,src.product)]);
+    if(stored.error||!stored.data||stored.data.size>100_000_000)throw new Error("master_video_unavailable");
+    const masterPath=join(dir,"master.mp4"),referencePath=join(dir,"reference-image"),outputPath=join(dir,"variation.mp4");
+    await Promise.all([writeFile(masterPath,new Uint8Array(await stored.data.arrayBuffer())),writeFile(referencePath,new Uint8Array(await image.arrayBuffer()))]);
+    const overlay=[{text:String(variation.hook_variant??""),start:0,end:3},{text:String(variation.cta_variant??""),start:duration-3,end:duration}];
+    const {media}=await composeGeneratedVideo(masterPath,outputPath,{durationSeconds:duration,resolution:"720p",overlay,preserveAudio:true});
+    const evidence=await extractVideoFrameEvidence(outputPath,referencePath,media.duration),visualVerification=await verifyVideoFrames({...evidence,productTitle:String(src.product.title),expectedText:[String(variation.cta_variant??"")]},visionProvider??(serverEnv.openAIApiKey?new OpenAIFrameVisionProvider(serverEnv.openAIApiKey):null));
+    const end=src.input.scenes.at(-1)?.end||8,scenes=src.input.scenes.map(scene=>({...scene,start:scene.start/end*duration,end:scene.end/end*duration}));
+    const threshold=Number((master.quality_explanation_json as Row).qualityThreshold??serverEnv.videoFalQualityThreshold);
+    const quality=new DeterministicVideoQualityEvaluator().evaluate({...media,overlay,scenes,visualVerification,productVisible:visualVerification.productVisible,ctaVisible:visualVerification.ctaVisible,malformedAssets:false,inheritedRisk:"SAFE",targetDurationSeconds:duration,qualityThreshold:threshold});
+    const path=videoStoragePath(owner,"variations",String(variation.id),"video.mp4"),file=await upload(client,path,outputPath,"video/mp4");
+    const asset=await client.from("media_assets").upsert({owner_id:owner,product_id:variation.product_id,creative_project_id:variation.creative_project_id,asset_type:"VIDEO",source_type:"RENDERED",storage_path:path,mime_type:"video/mp4",width:media.width,height:media.height,duration_seconds:media.duration,provider:"local-ffmpeg",model:"stored-master-variation-v1",checksum:file.checksum},{onConflict:"owner_id,storage_path"});
+    if(asset.error)throw new Error("variation_asset_write_failed");
+    const explanation={...quality.explanation,qualityThreshold:threshold,reviewRequired:quality.status!=="PASS"};
+    const status=quality.status==="REJECT"?"FAILED":"READY",updated=await client.from("video_variations").update({generation_job_id:job.id,storage_path:path,quality_score:quality.score,quality_status:quality.status,quality_explanation_json:explanation,status}).eq("owner_id",owner).eq("id",variation.id);
+    if(updated.error)throw new Error("variation_write_failed");
+    await recordZeroCost(client,owner,String(job.id));
+    const completed=await client.from("generation_jobs").update({status:"COMPLETED",output_json:{variationId:variation.id,storagePath:path,quality,reviewRequired:quality.status!=="PASS"},completed_at:new Date().toISOString()}).eq("owner_id",owner).eq("id",job.id);
+    if(completed.error)throw new Error("variation_job_write_failed");
+    return {...variation,generation_job_id:job.id,storage_path:path,quality_score:quality.score,quality_status:quality.status,quality_explanation_json:explanation,status};
+  }catch(error){await failJob(client,owner,String(job.id),error);throw error}
+  finally{await rm(dir,{recursive:true,force:true})}
 }
 
 export async function buildVideoVariation(client:SupabaseClient,owner:string,variationId:string,visionProvider?:FrameVisionProvider){
   const variation=await one(client,"video_variations",owner,variationId);if(!variation)throw new Error("Variation not found");
   if(["READY","APPROVED"].includes(String(variation.status))&&variation.storage_path)return variation;
   const master=await one(client,"master_videos",owner,String(variation.master_video_id));if(!master)throw new Error("Master not found");
-  const src=await source(client,owner,String(variation.creative_project_id)),planData=variationPlan(Number(variation.variation_index),src.input),job=await jobFor(client,owner,variationJobKey(String(variation.id),String(variation.run_id)),{variationId:variation.id,runId:variation.run_id},"VARIATION_RENDER");
+  const src=await source(client,owner,String(variation.creative_project_id));
+  if(master.provider==="fal")return buildStoredMasterVariation(client,owner,variation,master,src,visionProvider);
+  if(process.env.NODE_ENV!=="development"||!src.account.is_mock)throw new Error("production_video_source_required");
+  const planData=variationPlan(Number(variation.variation_index),src.input),job=await jobFor(client,owner,variationJobKey(String(variation.id),String(variation.run_id)),{variationId:variation.id,runId:variation.run_id},"VARIATION_RENDER");
   await client.from("generation_jobs").update({video_variation_id:variation.id,master_video_id:master.id,creative_project_id:variation.creative_project_id}).eq("owner_id",owner).eq("id",job.id);await beginJob(client,owner,job);
   const dir=join(tmpdir(),"viralflow-video",owner,String(variation.id));await mkdir(dir,{recursive:true});
   try{
@@ -158,10 +201,10 @@ export async function setVideoStatus(client:SupabaseClient,owner:string,kind:"ma
 }
 export async function listVideoFactory(client:SupabaseClient,owner:string,page=1){
   const {from,to}=operationalWindow(page);
-  const masters=await client.from("master_videos").select("*").eq("owner_id",owner).order("updated_at",{ascending:false}).order("id",{ascending:false}).range(from,to);
+  const masters=await client.from("master_videos").select("*",{count:"exact"}).eq("owner_id",owner).order("updated_at",{ascending:false}).order("id",{ascending:false}).range(from,to);
   if(masters.error)throw new Error(masters.error.message);
   const masterPage=operationalPage(masters.data??[],page);
-  if(!masterPage.items.length)return{...masterPage,items:[]};
+  if(!masterPage.items.length)return{...masterPage,totalCount:masters.count??0,items:[]};
   const ids=masterPage.items.map(v=>v.id),accountIds=[...new Set(masterPage.items.map(v=>v.tiktok_account_id))],productIds=[...new Set(masterPage.items.map(v=>v.product_id))];
   const [variations,accounts,products,eligibility,compliance,originality,health]=await Promise.all([
     client.from("video_variations").select("*").eq("owner_id",owner).in("master_video_id",ids).order("variation_index"),
@@ -176,7 +219,7 @@ export async function listVideoFactory(client:SupabaseClient,owner:string,page=1
   const latest=<T extends {video_id:string}>(rows:T[])=>{const map=new Map<string,T>();for(const row of rows)if(!map.has(row.video_id))map.set(row.video_id,row);return map};
   const eligibilityMap=latest(eligibility.data??[]),complianceMap=latest(compliance.data??[]),originalityMap=latest(originality.data??[]),healthMap=new Map((health.data??[]).map(row=>[row.tiktok_account_id,row]));
   const variationMap=new Map<string,typeof variations.data>();for(const variation of variations.data??[]){const rows=variationMap.get(variation.master_video_id)??[];rows.push(variation);variationMap.set(variation.master_video_id,rows)}
-  return {...masterPage,items:masterPage.items.map(master=>{const account=accountMap.get(master.tiktok_account_id);return {...master,account_name:account?.display_name??"Unknown",requested_mode:account?.mode??"—",effective_mode:account?.effective_mode??"—",product_title:productMap.get(master.product_id)??"Unknown",publish_status:eligibilityMap.get(master.id)?.final_status??"NOT_CHECKED",eligibility:eligibilityMap.get(master.id),compliance:complianceMap.get(master.id),originality:originalityMap.get(master.id),publish_health:healthMap.get(master.tiktok_account_id),variations:variationMap.get(master.id)??[]}})};
+  return {...masterPage,totalCount:masters.count??masterPage.items.length,items:masterPage.items.map(master=>{const account=accountMap.get(master.tiktok_account_id);return {...master,account_name:account?.display_name??"Unknown",requested_mode:account?.mode??"—",effective_mode:account?.effective_mode??"—",product_title:productMap.get(master.product_id)??"Unknown",publish_status:eligibilityMap.get(master.id)?.final_status??"NOT_CHECKED",eligibility:eligibilityMap.get(master.id),compliance:complianceMap.get(master.id),originality:originalityMap.get(master.id),publish_health:healthMap.get(master.tiktok_account_id),variations:variationMap.get(master.id)??[]}})};
 }
 export async function getVideoDetail(client:SupabaseClient,owner:string,masterId:string){
   const master=await one(client,"master_videos",owner,masterId);if(!master)throw new Error("Video not found");
@@ -191,5 +234,13 @@ export async function getVideoDetail(client:SupabaseClient,owner:string,masterId
   let signedUrl:string|null=null;if(master.storage_path){const signed=await client.storage.from(VIDEO_BUCKET).createSignedUrl(String(master.storage_path),900);if(signed.error)throw new Error(signed.error.message);signedUrl=signed.data.signedUrl}
   const variationRows=await Promise.all((variations.data??[]).map(async v=>{let url:string|null=null;if(v.storage_path){const s=await client.storage.from(VIDEO_BUCKET).createSignedUrl(v.storage_path,900);url=s.data?.signedUrl??null}return {...v,signed_url:url}}));
   return {master,project,script,account,product,variations:variationRows,jobs:jobs.data??[],costs:costs.data??[],signedUrl};
+}
+export async function videoFactorySpend(client:SupabaseClient,owner:string){
+  const day=new Date().toISOString().slice(0,10),result=await client.from("generation_budget_reservations").select("state,actual_usd,reserved_usd")
+    .eq("owner_id",owner).eq("budget_day",day).in("state",["RESERVED","SETTLED"]);
+  if(result.error)throw new Error("video_spend_unavailable");
+  const spent=(result.data??[]).reduce((sum,row)=>sum+(row.state==="SETTLED"?Number(row.actual_usd??0):0),0);
+  const held=(result.data??[]).reduce((sum,row)=>sum+(row.state==="RESERVED"?Number(row.reserved_usd):0),0);
+  return {spent,held,remaining:Math.max(0,serverEnv.videoFalDailyCapUsd-spent-held)};
 }
 export const videoCostRouter=new CostRouter();

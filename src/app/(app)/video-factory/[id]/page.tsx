@@ -1,48 +1,73 @@
 import Link from "next/link";
-import {notFound,redirect} from "next/navigation";
-import {PageHeading} from "@/components/page-heading";
-import {createClient} from "@/lib/supabase/server";
-import {getVideoDetail} from "@/features/video/services";
-import {getLatestVideoGate} from "@/features/compliance/services";
-import {createVariationsAction,renderVariationAction,retryMasterAction,setVideoStatusAction} from "../actions";
-import {queueVideoAction} from "../../publishing/actions";
-const money=(n:number|string)=>new Intl.NumberFormat("th-TH",{style:"currency",currency:"USD",minimumFractionDigits:4}).format(Number(n));
-export default async function VideoDetailPage({params}:{params:Promise<{id:string}>}){
-  const {id}=await params,client=await createClient(),{data}=await client.auth.getUser();if(!data.user)redirect("/login");
-  let detail;try{detail=await getVideoDetail(client,data.user.id,id)}catch{return notFound()}
-  const {master,product,account,script,variations,jobs,costs,signedUrl}=detail,gate=await getLatestVideoGate(client,data.user.id,id),latestJob=jobs[0],actualCost=costs.reduce((sum,cost)=>sum+Number(cost.total_cost_usd),0);
-  return <><PageHeading eyebrow="VIDEO MASTER" title={String(product?.title??"Video")} description={`${account?.display_name??"Account"} · ${master.render_strategy} · ${master.status}`} action={<Link className="secondary-action" href="/video-factory">← Video Factory</Link>}/>
-    <section className="video-detail-grid"><article className="panel video-preview-panel">{signedUrl?<video controls playsInline src={signedUrl}/>:<div className="video-placeholder">ยังไม่มีไฟล์วิดีโอ</div>}<div className="form-actions">
-      <form action={setVideoStatusAction}><input type="hidden" name="id" value={id}/><input type="hidden" name="masterId" value={id}/><input type="hidden" name="kind" value="master"/><input type="hidden" name="status" value="APPROVED"/><button className="primary-action" disabled={master.quality_status!=="PASS"}>APPROVE</button></form>
-      <form action={setVideoStatusAction}><input type="hidden" name="id" value={id}/><input type="hidden" name="masterId" value={id}/><input type="hidden" name="kind" value="master"/><input type="hidden" name="status" value="REJECTED"/><button className="danger-action">REJECT</button></form>
-      <form action={retryMasterAction}><input type="hidden" name="masterId" value={id}/><input type="hidden" name="projectId" value={String(master.creative_project_id)}/><button className="secondary-action">RETRY</button></form>
-      <form action={queueVideoAction}><input type="hidden" name="account_id" value={String(master.tiktok_account_id)}/><input type="hidden" name="video_id" value={id}/><input type="hidden" name="video_kind" value="MASTER"/><button className="secondary-action" disabled={master.quality_status!=="PASS"}>QUEUE DIRECT POST</button></form>
-    </div></article>
-    <article className="panel"><h2>Quality & cost</h2><dl className="detail-list"><div><dt>Quality</dt><dd>{String(master.quality_score??"—")} · {String(master.quality_status??"PENDING")}</dd></div><div><dt>Format</dt><dd>{String(master.width)}×{String(master.height)} · {Number(master.duration_seconds).toFixed(3)}s · {Number(master.fps).toFixed(2)}fps</dd></div><div><dt>Provider / model</dt><dd>{String(master.provider)} · {String(master.model)}</dd></div><div><dt>Estimated / actual cost</dt><dd>{money(Number(master.estimated_cost_usd))} / {money(actualCost)}</dd></div><div><dt>Provider status</dt><dd>{String(latestJob?.status??master.status)}</dd></div><div><dt>Retry count</dt><dd>{String(latestJob?.attempt??0)} / {String(latestJob?.max_attempts??0)}</dd></div><div><dt>Benchmark state</dt><dd>{master.provider==="google-veo"?"OWNER REVIEW REQUIRED":"LOCAL VERIFIED"}</dd></div></dl><details><summary>Quality explanation</summary><pre className="metadata-json">{JSON.stringify(master.quality_explanation_json,null,2)}</pre></details></article></section>
-    <section className="panel radar-section"><div className="panel-heading"><div><p className="eyebrow">PRE-PUBLISH GATE</p><h2>{gate.eligibility?.final_status??"NOT CHECKED"}</h2></div><Link href="/compliance">เปิด Compliance →</Link></div>
-      <dl className="detail-list">
-        <div><dt>Quality</dt><dd>{String(master.quality_score??"—")} · {String(master.quality_status??"PENDING")}</dd></div>
-        <div><dt>Compliance</dt><dd>{gate.compliance?.overall_status??"—"}</dd></div>
-        <div><dt>Claims / Product Truth</dt><dd>{gate.compliance?.claim_status??"—"} / {gate.compliance?.product_truth_status??"—"}</dd></div>
-        <div><dt>AIGC</dt><dd>{gate.compliance?.aigc_status??"—"}</dd></div>
-        <div><dt>Originality</dt><dd>{gate.originality?.originality_status??"—"} · {Number(gate.originality?.overall_similarity??0).toFixed(2)}</dd></div>
-        <div><dt>Account Health</dt><dd>{String(gate.health?.health_status??"—")}</dd></div>
-        <div><dt>Effective Publish Cap</dt><dd>{String(gate.health?.effective_publish_cap??"—")}</dd></div>
-        <div><dt>Used / Remaining Slots</dt><dd>{gate.health?`${gate.health.posts_today} / ${Math.max(0,Number(gate.health.effective_publish_cap)-Number(gate.health.posts_today))}`:"—"}</dd></div>
-        <div><dt>Eligibility</dt><dd>{gate.eligibility?.final_status??"NOT CHECKED"}</dd></div>
-        <div><dt>Blockers</dt><dd>{(gate.eligibility?.blockers_json as string[]|undefined)?.join(", ")||"ไม่มี"}</dd></div>
-      </dl><small>การเผยแพร่ต้องได้รับอนุมัติจากเจ้าของเสมอ และ Phase 6C ไม่เรียก TikTok API</small>
+import { notFound, redirect } from "next/navigation";
+import { PageHeading } from "@/components/page-heading";
+import { createClient } from "@/lib/supabase/server";
+import { getVideoDetail } from "@/features/video/services";
+import { customerVideoStatus } from "@/features/video/customer-presentation";
+import { getLatestVideoGate } from "@/features/compliance/services";
+import { cancelVideoGenerationAction, createVariationsAction, renderVariationAction, retryMasterAction, setVideoStatusAction, uploadVideoSourceAction } from "../actions";
+import { queueVideoAction } from "../../publishing/actions";
+const money = (value: number | string) => new Intl.NumberFormat("th-TH", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(Number(value));
+export default async function VideoDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ asset?: string }> }) {
+  const { id } = await params, client = await createClient(), { data } = await client.auth.getUser();
+  if (!data.user) redirect("/login");
+  let detail;
+  try { detail = await getVideoDetail(client, data.user.id, id); } catch { return notFound(); }
+  const { master, product, account, variations, jobs, costs, signedUrl } = detail;
+  const gate = await getLatestVideoGate(client, data.user.id, id), status = customerVideoStatus(master);
+  const query = await searchParams;
+  const spent = costs.reduce((sum, cost) => sum + Number(cost.total_cost_usd), 0), passing = master.quality_status === "PASS";
+  const generating = ["QUEUED", "PROCESSING", "RETRYING"].includes(String(jobs[0]?.status));
+  const gateLabel = gate.eligibility?.final_status === "READY_TO_PUBLISH" ? "พร้อมเผยแพร่" : gate.eligibility?.final_status === "READY_FOR_REVIEW" ? "พร้อมส่งตรวจ" : "ต้องตรวจสอบก่อนเผยแพร่";
+  return <>
+    <PageHeading eyebrow="วิดีโอของคุณ" title={String(product?.title ?? "Video")} description={`${account?.display_name ?? "Account"} · ${status}`} action={<Link className="secondary-action" href="/video-factory">← Video Factory</Link>} />
+    <section className="video-detail-grid">
+      <article className="panel video-preview-panel">{signedUrl ? <video controls playsInline src={signedUrl} /> : <div className="video-placeholder">{status}</div>}
+        <div className="form-actions">
+          <form action={setVideoStatusAction}><input type="hidden" name="id" value={id} /><input type="hidden" name="masterId" value={id} /><input type="hidden" name="kind" value="master" /><input type="hidden" name="status" value="APPROVED" /><button className="primary-action" disabled={!passing}>อนุมัติ</button></form>
+          <form action={setVideoStatusAction}><input type="hidden" name="id" value={id} /><input type="hidden" name="masterId" value={id} /><input type="hidden" name="kind" value="master" /><input type="hidden" name="status" value="REJECTED" /><button className="danger-action">ไม่อนุมัติ</button></form>
+          {status === "REVIEW_REQUIRED" && <form action={retryMasterAction}><input type="hidden" name="masterId" value={id} /><input type="hidden" name="projectId" value={String(master.creative_project_id)} /><button className="secondary-action">ตรวจสอบอีกครั้ง</button></form>}
+          {generating && <form action={cancelVideoGenerationAction}><input type="hidden" name="masterId" value={id} /><button className="danger-action">ยกเลิกการสร้าง</button></form>}
+          <form action={queueVideoAction}><input type="hidden" name="account_id" value={String(master.tiktok_account_id)} /><input type="hidden" name="video_id" value={id} /><input type="hidden" name="video_kind" value="MASTER" /><button className="secondary-action" disabled={!passing}>เพิ่มเข้าคิวเผยแพร่</button></form>
+        </div>
+      </article>
+      <article className="panel"><h2>สถานะและค่าใช้จ่าย</h2><dl className="detail-list">
+        <div><dt>สถานะ</dt><dd>{status}</dd></div><div><dt>ความยาวคลิป</dt><dd>{Number(master.duration_seconds).toFixed(0)} วินาที</dd></div>
+        <div><dt>ค่าใช้จ่ายประมาณการ</dt><dd>{money(Number(master.estimated_cost_usd))}</dd></div><div><dt>ค่าใช้จ่ายที่บันทึกไว้</dt><dd>{money(spent)}</dd></div>
+      </dl>{status === "REVIEW_REQUIRED" && <p>คลิปนี้ต้องได้รับการตรวจสอบก่อนใช้งาน ระบบหยุดสร้างเพิ่มเติมแล้ว</p>}</article>
     </section>
-    <section className="panel radar-section"><div className="panel-heading"><div><p className="eyebrow">CREATIVE TIMELINE</p><h2>Scene plan</h2></div><span className="phase-chip">8 SECONDS</span></div>{(script?.scene_plan_json as Array<{start:number;end:number;visual:string;motion:string}>??[]).map((scene,i)=><p key={i}>{scene.start}–{scene.end}s · {scene.visual} · {scene.motion}</p>)}</section>
-    <section className="panel radar-section"><div className="panel-heading"><div><p className="eyebrow">CONTROLLED OUTPUT</p><h2>Variations</h2></div><form action={createVariationsAction}><input type="hidden" name="masterId" value={id}/><button className="primary-action">CREATE VARIATIONS</button></form></div>
-      <div className="variation-list">{variations.map(v=><article className="variation-row" key={v.id}><div><span className="phase-chip">#{v.variation_index} {v.variation_type}</span><h3>{v.hook_variant}</h3><p>{v.cta_variant}</p><small>Similarity {Number(v.similarity_score).toFixed(2)} · Quality {v.quality_score??"—"} · {money(v.estimated_cost_usd)} · {v.status}</small></div>
-        {v.signed_url?<video controls playsInline src={v.signed_url}/>:<div className="variation-placeholder">Queued</div>}<div className="video-actions">
-          <form action={renderVariationAction}><input type="hidden" name="masterId" value={id}/><input type="hidden" name="variationId" value={v.id}/><button className="secondary-action">{v.status==="FAILED"?"RETRY":"RENDER"}</button></form>
-          <form action={setVideoStatusAction}><input type="hidden" name="id" value={v.id}/><input type="hidden" name="masterId" value={id}/><input type="hidden" name="kind" value="variation"/><input type="hidden" name="status" value="APPROVED"/><button className="primary-action" disabled={v.quality_status!=="PASS"}>APPROVE</button></form>
-          <form action={setVideoStatusAction}><input type="hidden" name="id" value={v.id}/><input type="hidden" name="masterId" value={id}/><input type="hidden" name="kind" value="variation"/><input type="hidden" name="status" value="REJECTED"/><button className="danger-action">REJECT</button></form>
-          <form action={queueVideoAction}><input type="hidden" name="account_id" value={String(v.tiktok_account_id)}/><input type="hidden" name="video_id" value={v.id}/><input type="hidden" name="video_kind" value="VARIATION"/><button className="secondary-action" disabled={v.quality_status!=="PASS"}>QUEUE DIRECT POST</button></form>
-        </div></article>)}</div>
+    {!passing && !generating && <section className="panel radar-section">
+      <h2>รูปสินค้าและเสียงบรรยาย</h2>
+      <p>แนบไฟล์จริงสำหรับคลิปนี้ แล้วกดตรวจสอบอีกครั้ง จำกัดไฟล์ละ 750 KB</p>
+      {query.asset === "ready" && <p role="status">บันทึกไฟล์แล้ว</p>}
+      {query.asset === "error" && <p role="alert">แนบไฟล์ไม่สำเร็จ กรุณาตรวจชนิดไฟล์และขนาด แล้วลองอีกครั้ง</p>}
+      <div className="detail-summary-grid">
+        <form action={uploadVideoSourceAction} className="grid min-w-0 gap-3">
+          <input type="hidden" name="masterId" value={id} /><input type="hidden" name="kind" value="PRODUCT_IMAGE" />
+          <label htmlFor="product-photo">รูปสินค้า</label>
+          <input className="min-w-0 w-full max-w-full" id="product-photo" name="file" type="file" accept="image/jpeg,image/png,image/webp" required />
+          <button className="secondary-action">บันทึกรูปสินค้า</button>
+        </form>
+        <form action={uploadVideoSourceAction} className="grid min-w-0 gap-3">
+          <input type="hidden" name="masterId" value={id} /><input type="hidden" name="kind" value="VOICE" />
+          <label htmlFor="narration-audio">เสียงบรรยาย</label>
+          <input className="min-w-0 w-full max-w-full" id="narration-audio" name="file" type="file" accept="audio/wav,audio/x-wav,audio/mpeg,audio/mp4,audio/ogg" required />
+          <button className="secondary-action">บันทึกเสียงบรรยาย</button>
+        </form>
+      </div>
+    </section>}
+    <section className="panel radar-section"><div className="panel-heading"><h2>{gateLabel}</h2><Link href="/compliance">เปิดการตรวจสอบเนื้อหา →</Link></div><p>ตรวจสอบคุณภาพและอนุมัติก่อนส่งวิดีโอเข้าคิวเผยแพร่</p></section>
+    <section className="panel radar-section"><div className="panel-heading"><h2>คลิปเพิ่มเติม</h2><form action={createVariationsAction}><input type="hidden" name="masterId" value={id} /><button className="primary-action" disabled={!passing}>สร้างคลิปเพิ่มเติม</button></form></div>
+      <div className="variation-list">{variations.map((variation, index) => <article className="variation-row" key={variation.id}>
+        <div><span className="phase-chip">คลิปที่ {index + 1} จาก {variations.length}</span><h3>{variation.hook_variant}</h3><p>{variation.cta_variant}</p><small>{customerVideoStatus(variation)} · {money(variation.estimated_cost_usd)}</small></div>
+        {variation.signed_url ? <video controls playsInline src={variation.signed_url} /> : <div className="variation-placeholder">{customerVideoStatus(variation)}</div>}
+        <div className="video-actions">
+          {["QUEUED", "FAILED"].includes(variation.status) && <form action={renderVariationAction}><input type="hidden" name="masterId" value={id} /><input type="hidden" name="variationId" value={variation.id} /><button className="secondary-action">สร้างคลิป</button></form>}
+          <form action={setVideoStatusAction}><input type="hidden" name="id" value={variation.id} /><input type="hidden" name="masterId" value={id} /><input type="hidden" name="kind" value="variation" /><input type="hidden" name="status" value="APPROVED" /><button className="primary-action" disabled={variation.quality_status !== "PASS"}>อนุมัติ</button></form>
+          <form action={setVideoStatusAction}><input type="hidden" name="id" value={variation.id} /><input type="hidden" name="masterId" value={id} /><input type="hidden" name="kind" value="variation" /><input type="hidden" name="status" value="REJECTED" /><button className="danger-action">ไม่อนุมัติ</button></form>
+          <form action={queueVideoAction}><input type="hidden" name="account_id" value={String(variation.tiktok_account_id)} /><input type="hidden" name="video_id" value={variation.id} /><input type="hidden" name="video_kind" value="VARIATION" /><button className="secondary-action" disabled={variation.quality_status !== "PASS"}>เพิ่มเข้าคิวเผยแพร่</button></form>
+        </div>
+      </article>)}</div>
     </section>
-    <section className="video-detail-grid"><article className="panel"><h2>Generation history</h2>{jobs.map(job=><p key={job.id}>{job.job_type} · {job.provider} · attempt {job.attempt}/{job.max_attempts} · {job.status}</p>)}</article><article className="panel"><h2>Cost ledger</h2>{costs.length?costs.map(cost=><p key={cost.id}>{cost.provider} · {cost.quantity} {cost.unit} · {money(cost.total_cost_usd)}</p>):<p>ไม่มีค่าใช้จ่าย</p>}</article></section>
   </>;
 }
