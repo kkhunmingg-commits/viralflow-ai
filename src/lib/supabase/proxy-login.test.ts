@@ -24,14 +24,16 @@ describe("login session routing", () => {
     expect(callback.headers.get("location")).toBeNull();
   });
 
-  it("keeps the Terms and Privacy pages public without opening application routes", async () => {
+  it("keeps the homepage, Terms and Privacy public without opening application routes", async () => {
     getClaims.mockResolvedValue({ data: { claims: null } });
-    for (const path of ["/terms", "/privacy"]) {
+    for (const path of ["/", "/terms", "/privacy"]) {
       const response = await updateSession(new NextRequest(`https://viralflow.example${path}`));
       expect(response.headers.get("location")).toBeNull();
+      expect(response.status).toBe(200);
     }
     const protectedResponse = await updateSession(new NextRequest("https://viralflow.example/auto"));
     expect(protectedResponse.headers.get("location")).toContain("/login?next=%2Fauto");
+    expect(protectedResponse.status).toBe(307);
   });
 
   it("requires a server-managed role for internal diagnostics", async () => {
