@@ -1,5 +1,23 @@
 # AI LIVE — Local GPU architecture
 
+## Digital Human foundation — รุ่น 0.5.0
+
+งานต่อจาก Direct Streaming Core `9b29cda6f984b45f0372f598679fac0a92686607` และเก็บจุดย้อนกลับด้วย tag `ai-live-direct-stream-core-9b29cda` บน branch `feature/ai-live` ไม่มี merge/deploy Production และไม่เปลี่ยน TikTok OAuth/scopes/config หรือ Affiliate AUTO
+
+รายละเอียด modules, ขอบเขต wiring และ NVIDIA benchmark อยู่ใน [Digital Human foundation](AI_LIVE_DIGITAL_HUMAN.md) ส่วนหลักฐาน CPU/A/V/RTMP สิบนาทีเดิมยังอยู่ใน [Direct Streaming](AI_LIVE_DIRECT_STREAMING.md) การเพิ่มโครงนี้ **ไม่ได้ทำให้ LIVE-1 complete**
+
+| สถานะ | งานเพิ่มในรุ่นนี้ | ขอบเขตที่ยังไม่ผ่าน |
+| --- | --- | --- |
+| `READY_WITHOUT_GPU` | AvatarRenderer V2 boundary, PresenterPack/library ที่เข้ารหัส, gesture/quality guards, comment interruption, PCM safety buffer, isolated LiveRoom/policy, shared POST/LIVE contract, Control Room/คน LIVE | ผ่าน contract/integration tests; ไม่ใช่หลักฐานภาพเคลื่อนไหวบน GPU หรือหลายห้องจริง |
+| `WAITING_FOR_GPU` | MuseTalk GPU, MuseTalk + FasterLivePortrait, Ditto และ Hybrid candidate adapters พร้อม dependency manifest/benchmark harness | ต้องต่อ upstream incremental backends, real layer/gesture sources และ quality detectors; ไม่ใช่แค่ใส่ GPU แล้วทุก adapter พร้อมทันที |
+| `GPU_VALIDATION_REQUIRED` | harness 4 candidates × 1/2/3 rooms, measured-only capacity planner | ยังไม่มี NVIDIA benchmark; FPS/latency/VRAM/quality ที่ยังไม่วัดเป็น `null`, capacity `UNVERIFIED_CAPACITY` |
+
+หน้า `/ai-live` มีห้องตามบัญชีและ Presenter Studio ผ่าน LocalLiveClient ที่จับคู่ไว้เดิม ค่า readiness/Start ยังคงผ่าน entitlement/device/compatibility/validation gates เดิม ไม่มี fallback mock ฝั่งลูกค้า local agent ยังมี **หนึ่ง physical session ต่อเครื่อง** จนกว่าจะทำ multi-room media wiring และ NVIDIA validation; room registry ที่แยกหลายบัญชีเป็น foundation ที่ทดสอบผ่าน ports เดิม ไม่ใช่หลายห้อง production ที่เปิดใช้แล้ว
+
+ชื่อห้องและระยะเวลาใน UI เป็นแผนชั่วคราว ไม่ใช่ durable scheduling หรือ automatic Stop ปุ่มพูด/เปลี่ยนสินค้าระหว่าง LIVE ยังปิดไว้จนมี local execution endpoint จริง ค่า viewers/sales/units/ชั่วโมงสะสมไม่สร้างขึ้นเอง Presenter Studio เก็บภาพและ configuration ได้ แต่การผูกเสียง/gesture pack เข้า advanced runtime ยังรอ backend ที่ผ่าน validation
+
+Component contract เพิ่มเป็น `0.5.0` ทั้ง web/agent/worker และ installer source ต้อง build/เซ็น/เผยแพร่ release ใหม่ผ่านช่องทางเดิมก่อนส่งลูกค้า ไม่มีการอ้างว่า installer รุ่นใหม่เผยแพร่แล้ว
+
 AI LIVE อยู่ใน ViralFlow AI เดิม ใช้ผู้ใช้ บัญชี TikTok และสินค้าเดิม ค่าเริ่มต้นคือ `LOCAL_GPU`: งาน Presenter/เสียง/เข้ารหัสอยู่บน Windows ของลูกค้า ไม่มีการเลือก Cloud GPU หรือ MockPresenter แทนโดยเงียบ ๆ ระบบ Affiliate AUTO และ Content Posting เดิมไม่เปลี่ยนแปลง **LIVE-1 ยังไม่ complete และยังเริ่มไลฟ์จริงไม่ได้**
 
 ## สถานะจาก implementation

@@ -5,6 +5,28 @@ export type { LocalMachineView } from "./local-contract";
 const AGENT_ORIGIN = "http://127.0.0.1:8766";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Json = Record<string, unknown>;
+export interface LocalPresenterCard {
+  id: string; name: string; voiceLabel: string; assignedAccountIds: string[];
+  status: "READY" | "SETUP_REQUIRED"; hasReference: boolean; consentConfirmed: boolean; updatedAt: number;
+}
+export interface SaveLocalPresenter {
+  id?: string; name: string; voiceLabel: string; assignedAccountIds: string[];
+  consentConfirmed: boolean; reference?: File;
+}
+function presenterCard(value: unknown): LocalPresenterCard {
+  if (!value || typeof value !== "object") throw new Error("ข้อมูลคน LIVE ไม่ถูกต้อง");
+  const card = value as Record<string, unknown>;
+  if (typeof card.id !== "string" || !uuid.test(card.id) || typeof card.name !== "string" || card.name.length > 80
+    || typeof card.voiceLabel !== "string" || card.voiceLabel.length > 80 || !Array.isArray(card.assignedAccountIds)
+    || card.assignedAccountIds.length > 50 || card.assignedAccountIds.some((id) => typeof id !== "string" || !uuid.test(id))
+    || !["READY", "SETUP_REQUIRED"].includes(String(card.status)) || typeof card.hasReference !== "boolean"
+    || typeof card.consentConfirmed !== "boolean" || typeof card.updatedAt !== "number" || !Number.isSafeInteger(card.updatedAt)) {
+    throw new Error("ข้อมูลคน LIVE ไม่ถูกต้อง");
+  }
+  return { id: card.id, name: card.name, voiceLabel: card.voiceLabel, assignedAccountIds: [...card.assignedAccountIds] as string[],
+    status: card.status as LocalPresenterCard["status"], hasReference: card.hasReference,
+    consentConfirmed: card.consentConfirmed, updatedAt: card.updatedAt };
+}
 
 /** Browser → loopback only. Auth and license leases never enter persistent browser storage. */
 export class LocalLiveClient {
@@ -22,7 +44,7 @@ export class LocalLiveClient {
     ...(this.current.components ? { components: { ...this.current.components } } : {}) }; }
 
   private async request(path: string, options: RequestInit = {}, signal?: AbortSignal, authenticated = true): Promise<Json> {
-    if (!/^\/v1\/(discovery|pair|renew|status|hardware|challenge|references|stream\/setup|components\/(prepare|status)|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/stop)$/.test(path)) {
+    if (!/^\/v1\/(discovery|pair|renew|status|hardware|challenge|references|presenters|presenters\/[0-9a-f-]{36}\/delete|stream\/setup|components\/(prepare|status)|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/(stop|pause|resume))$/.test(path)) {
       throw new Error("ไม่สามารถทำรายการนี้ได้");
     }
     if (authenticated && (!this.token || this.tokenExpiresAt <= this.now() / 1000)) {
@@ -44,8 +66,33 @@ export class LocalLiveClient {
         signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
       });
       if (!response.ok) throw new Error("ไม่สามารถเชื่อมส่วนเสริมได้ กรุณาตรวจสอบแล้วลองอีกครั้ง");
-      const text = await response.text();
-      if (text.length > 16_384) throw new Error("ข้อมูลส่วนเสริมไม่ถูกต้อง");
+      let text: string;
+      if (path === "/v1/presenters") {
+        // Twenty presenter packs with fifty account assignments exceed the normal small status response.
+        // Bound the new route while it is streamed; unrelated routes retain their existing response limit.
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("ข้อมูลคน LIVE ไม่ถูกต้อง");
+        const decoder = new TextDecoder();
+        let bytes = 0;
+        text = "";
+        try {
+          for (;;) {
+            const part = await reader.read();
+            if (part.done) break;
+            bytes += part.value.byteLength;
+            if (bytes > 65_536 * 4) { await reader.cancel(); throw new Error("ข้อมูลคน LIVE มีขนาดไม่ถูกต้อง"); }
+            text += decoder.decode(part.value, { stream: true });
+            if (text.length > 65_536) {
+              await reader.cancel(); throw new Error("ข้อมูลคน LIVE มีขนาดไม่ถูกต้อง");
+            }
+          }
+          text += decoder.decode();
+          if (text.length > 65_536 || controller.signal.aborted || signal?.aborted) throw new Error("ข้อมูลคน LIVE ไม่ครบถ้วน");
+        } finally { reader.releaseLock(); }
+      } else {
+        text = await response.text();
+        if (text.length > 16_384) throw new Error("ข้อมูลส่วนเสริมไม่ถูกต้อง");
+      }
       const result: unknown = JSON.parse(text);
       if (!result || typeof result !== "object" || Array.isArray(result)) throw new Error("ข้อมูลส่วนเสริมไม่ถูกต้อง");
       return result as Json;
@@ -288,6 +335,82 @@ export class LocalLiveClient {
     this.sessionId = null;
     this.current = projectLocalMachine(result, !!this.token);
     return this.snapshot();
+  }
+
+  async pause(signal?: AbortSignal): Promise<LocalMachineView> { return this.changeSession("pause", signal); }
+  async resume(signal?: AbortSignal): Promise<LocalMachineView> { return this.changeSession("resume", signal); }
+  private async changeSession(action: "pause" | "resume", signal?: AbortSignal): Promise<LocalMachineView> {
+    if (!this.sessionId) throw new Error("ไม่มี LIVE ที่กำลังทำงาน");
+    const result = await this.request(`/v1/sessions/${this.sessionId}/${action}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    }, signal);
+    this.current = projectLocalMachine(result, !!this.token);
+    return this.snapshot();
+  }
+
+  async listPresenters(signal?: AbortSignal): Promise<LocalPresenterCard[]> {
+    const result = await this.request("/v1/presenters", {}, signal);
+    if (!Array.isArray(result.presenters) || result.presenters.length > 20) throw new Error("ข้อมูลคน LIVE ไม่ถูกต้อง");
+    return result.presenters.map(presenterCard);
+  }
+
+  async savePresenter(input: SaveLocalPresenter, signal?: AbortSignal): Promise<LocalPresenterCard> {
+    let image: string | null = null;
+    if (input.reference) {
+      if (!["image/jpeg", "image/png"].includes(input.reference.type) || !input.reference.size || input.reference.size > 4 * 1024 * 1024) {
+        throw new Error("กรุณาใช้ภาพ JPEG หรือ PNG ขนาดไม่เกิน 4 MB");
+      }
+      const bytes = new Uint8Array(await input.reference.arrayBuffer());
+      let binary = "";
+      for (let index = 0; index < bytes.length; index += 8192) binary += String.fromCharCode(...bytes.subarray(index, index + 8192));
+      image = btoa(binary);
+    }
+    const result = await this.request("/v1/presenters", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: input.id ?? null, name: input.name, voiceLabel: input.voiceLabel,
+        assignedAccountIds: input.assignedAccountIds, consentConfirmed: input.consentConfirmed, image, mediaType: input.reference?.type ?? null }),
+    }, signal);
+    return presenterCard(result.presenter);
+  }
+
+  async deletePresenter(id: string, signal?: AbortSignal): Promise<void> {
+    if (!uuid.test(id)) throw new Error("ไม่พบคน LIVE");
+    await this.request(`/v1/presenters/${id}/delete`, { method: "POST" }, signal);
+  }
+
+  async presenterReference(id: string, signal?: AbortSignal): Promise<File> {
+    if (!uuid.test(id) || !this.token || this.tokenExpiresAt <= this.now() / 1000) throw new Error("กรุณาเชื่อมส่วนเสริมอีกครั้ง");
+    // Renew the pairing through the same origin-bound path before reading binary media.
+    await this.request("/v1/status", {}, signal);
+    const controller = new AbortController();
+    this.requests.add(controller);
+    const timer = setTimeout(() => controller.abort(), 5000);
+    try {
+      const response = await this.fetcher(`${AGENT_ORIGIN}/v1/presenters/${id}/reference`, {
+        headers: { Authorization: `Bearer ${this.token}` }, cache: "no-store", credentials: "omit", redirect: "error",
+        referrerPolicy: "no-referrer", signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
+      });
+      const type = response.headers.get("content-type");
+      const size = Number(response.headers.get("content-length"));
+      if (!response.ok || !["image/jpeg", "image/png"].includes(type ?? "") || !Number.isSafeInteger(size) || size < 1 || size > 4 * 1024 * 1024) {
+        await response.body?.cancel().catch(() => undefined);
+        throw new Error("ไม่สามารถเปิดรูปคน LIVE ได้");
+      }
+      if (!response.body) throw new Error("รูปคน LIVE ไม่ครบถ้วน");
+      const reader = response.body.getReader();
+      const chunks: Uint8Array<ArrayBuffer>[] = [];
+      let received = 0;
+      try {
+        for (;;) {
+          const part = await reader.read();
+          if (part.done) break;
+          received += part.value.byteLength;
+          if (received > size) { await reader.cancel(); throw new Error("รูปคน LIVE มีขนาดไม่ถูกต้อง"); }
+          chunks.push(new Uint8Array(part.value));
+        }
+      } finally { reader.releaseLock(); }
+      if (received !== size || controller.signal.aborted || signal?.aborted || !this.token) throw new Error("รูปคน LIVE ไม่ครบถ้วน");
+      return new File(chunks, type === "image/png" ? "presenter.png" : "presenter.jpg", { type: type! });
+    } finally { clearTimeout(timer); this.requests.delete(controller); }
   }
 
   /** The owned session path is internal. No credentials are placed in an image URL. */

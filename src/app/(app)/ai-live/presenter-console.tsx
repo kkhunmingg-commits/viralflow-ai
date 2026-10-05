@@ -4,14 +4,30 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { LocalLiveClient, type LocalMachineView } from "@/features/ai-live/local-client";
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
+import { LocalLiveClient, type LocalMachineView, type LocalPresenterCard } from "@/features/ai-live/local-client";
+import { customerRoomRuntime, type CustomerRoomRuntime } from "@/features/ai-live/customer-room-view";
+import { PassivePresenterRequests } from "@/features/ai-live/passive-presenter-requests";
 import { customerConnectionQuality, customerLiveStatus } from "@/features/ai-live/customer-stream-status";
 import { AI_LIVE_REALTIME_VALIDATED } from "@/features/ai-live/local-contract";
 
 type Choice = { id: string; label: string };
 type ProductChoice = { id: string; title: string };
-type Action = "pair" | "check" | "register" | "revoke" | "update-check" | "update" | "repair" | "configure" | "prepare" | "start" | "stop" | null;
+type Action = "pair" | "check" | "register" | "revoke" | "update-check" | "update" | "repair" | "configure" | "prepare" | "start" | "stop" | "pause" | "resume" | null;
+
+export interface PresenterConsoleHandle {
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  check(): Promise<void>;
+  pause(): Promise<void>;
+  resume(): Promise<void>;
+  loadReference(file: File | null): void;
+  listPresenters(): Promise<LocalPresenterCard[]>;
+  savePresenter(input: { id?: string; name: string; voiceLabel: string; assignedAccountIds: string[]; consentConfirmed: boolean; reference?: File }): Promise<LocalPresenterCard>;
+  deletePresenter(id: string): Promise<void>;
+  presenterReference(id: string): Promise<File>;
+  presenterThumbnail(id: string, signal: AbortSignal): Promise<File>;
+}
 
 function machineLabel(view: LocalMachineView | null): string {
   if (!view) return "กำลังตรวจสอบ";
@@ -50,17 +66,36 @@ function machineDescription(view: LocalMachineView | null): string {
   }
 }
 
-export function LivePresenterConsole({ accounts, products }: { accounts: Choice[]; products: ProductChoice[] }) {
+export function LivePresenterConsole({ accounts, products, accountId, productId, productIds, onReferenceChange, onProductChange, onAccountChange, onRuntimeChange, controlsRef, embedded = false }: {
+  accounts: Choice[]; products: ProductChoice[]; accountId?: string; productId?: string; productIds?: string[];
+  onProductChange?: (productId: string) => void;
+  onReferenceChange?: (reference: File | null) => void;
+  onAccountChange?: (accountId: string) => void; onRuntimeChange?: (runtime: CustomerRoomRuntime) => void;
+  controlsRef?: Ref<PresenterConsoleHandle>; embedded?: boolean;
+}) {
   const [machine, setMachine] = useState<LocalMachineView | null>(null);
-  const [selectedAccount, setSelectedAccount] = useState("");
-  const [selectedProduct, setSelectedProduct] = useState("");
+  const [internalAccount, setInternalAccount] = useState("");
+  const selectedAccount = accountId ?? internalAccount;
+  const accountSelectionReady = accounts.some((account) => account.id === selectedAccount);
+  const [internalProduct, setInternalProduct] = useState("");
+  const selectedProduct = productId ?? internalProduct;
+  const selectedProductIds = useMemo(() => productIds ?? (selectedProduct ? [selectedProduct] : []), [productIds, selectedProduct]);
+  const productSelectionReady = selectedProductIds.length > 0 && selectedProductIds.length <= 10
+    && new Set(selectedProductIds).size === selectedProductIds.length
+    && selectedProductIds.every((id) => products.some((product) => product.id === id));
   const [presenter, setPresenter] = useState<File | null>(null);
   const [presenterPreview, setPresenterPreview] = useState<string | null>(null);
   const [systemPreview, setSystemPreview] = useState<string | null>(null);
   const [microphoneReady, setMicrophoneReady] = useState(false);
   const [microphoneLabel, setMicrophoneLabel] = useState("");
   const [pairCode, setPairCode] = useState("");
-  const [action, setAction] = useState<Action>(null);
+  const [action, setActionState] = useState<Action>(null);
+  const [passivePresenterReads] = useState(() => new PassivePresenterRequests());
+  const setAction = useCallback((next: Action) => {
+    // Session controls never wait for an image read, even before React commits the UI.
+    if (next !== null) passivePresenterReads.suspend();
+    setActionState(next);
+  }, [passivePresenterReads]);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -84,6 +119,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
       requestControllerRef.current = controller;
       try {
         const result = await operation(clientRef.current, controller.signal);
+        if (!result.paired || !result.deviceAuthorized || result.membershipStatus !== "SUPPORTED" || result.sessionActive) passivePresenterReads.suspend();
         if (mountedRef.current && generation === generationRef.current) setMachine(result);
         return result;
       } finally {
@@ -92,7 +128,14 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
     });
     requestQueueRef.current = request.catch(() => undefined);
     return request;
-  }, []);
+  }, [passivePresenterReads]);
+
+  const passiveReadsEnabled = !!machine?.paired && machine.deviceAuthorized && machine.membershipStatus === "SUPPORTED"
+    && !machine.sessionActive && !action && !["UPDATE_REQUIRED", "OFFLINE", "ERROR"].includes(machine.state);
+  useEffect(() => {
+    passivePresenterReads.setEnabled(passiveReadsEnabled);
+    return () => passivePresenterReads.suspend();
+  }, [passiveReadsEnabled, passivePresenterReads]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -118,33 +161,34 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
       generationRef.current += 1;
       if (timer !== null) window.clearTimeout(timer);
       requestControllerRef.current?.abort();
+      passivePresenterReads.suspend();
       clientRef.current?.dispose();
       clientRef.current = null;
       if (presenterUrlRef.current) URL.revokeObjectURL(presenterUrlRef.current);
       presenterUrlRef.current = null;
     };
-  }, [requestMachine]);
+  }, [requestMachine, passivePresenterReads]);
 
   const prepareMachine = useCallback(async (repair = false) => {
     if (action || !machine?.paired || !machine.deviceAuthorized || machine.membershipStatus !== "SUPPORTED"
       || machine.sessionActive || !machine.components?.canPrepare
-      || !selectedAccount || !selectedProduct) return;
+      || !accountSelectionReady || !productSelectionReady) return;
     automaticPreparationAttemptedRef.current = true;
     setAction("prepare"); setError(null); setNotice(null);
     try {
-      await requestMachine((client, signal) => client.prepareComponents({ accountId: selectedAccount, productIds: [selectedProduct] }, repair, signal));
+      await requestMachine((client, signal) => client.prepareComponents({ accountId: selectedAccount, productIds: selectedProductIds }, repair, signal));
     } catch {
       if (mountedRef.current) setError("ยังเตรียมเครื่องไม่สำเร็จ กรุณาตรวจสอบการเชื่อมต่อแล้วกดเตรียมเครื่องอีกครั้ง");
     } finally { if (mountedRef.current) setAction(null); }
-  }, [action, machine, requestMachine, selectedAccount, selectedProduct]);
+  }, [action, machine, requestMachine, selectedAccount, accountSelectionReady, productSelectionReady, selectedProductIds, setAction]);
 
   useEffect(() => {
     if (automaticPreparationAttemptedRef.current || action || !machine?.paired || !machine.deviceAuthorized
       || machine.membershipStatus !== "SUPPORTED" || machine.sessionActive
-      || machine.components?.state !== "NOT_CONFIGURED" || !machine.components.canPrepare || !selectedAccount || !selectedProduct) return;
+      || machine.components?.state !== "NOT_CONFIGURED" || !machine.components.canPrepare || !accountSelectionReady || !productSelectionReady) return;
     const timer = window.setTimeout(() => { void prepareMachine(false); }, 0);
     return () => window.clearTimeout(timer);
-  }, [action, machine, prepareMachine, selectedAccount, selectedProduct]);
+  }, [action, machine, prepareMachine, accountSelectionReady, productSelectionReady]);
 
   useEffect(() => {
     if (!previewEnabled) return;
@@ -180,7 +224,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
     };
   }, [previewEnabled]);
 
-  function choosePresenter(file: File | null) {
+  function choosePresenter(file: File | null, notify = true) {
     if (file && (!["image/jpeg", "image/png"].includes(file.type) || file.size > 4 * 1024 * 1024)) {
       setError("กรุณาเลือกภาพ JPEG หรือ PNG ขนาดไม่เกิน 4 MB");
       file = null;
@@ -190,6 +234,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
     presenterUrlRef.current = url;
     setPresenter(file);
     setPresenterPreview(url);
+    if (notify) onReferenceChange?.(file);
   }
 
   async function chooseMicrophone() {
@@ -235,11 +280,12 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
   }
 
   async function startLive() {
-    if (action || !machine?.canStart || !selectedAccount || !selectedProduct || !presenter || !microphoneReady) return;
+    if (action || !machine?.canStart || !accountSelectionReady
+      || !productSelectionReady || !presenter || !microphoneReady) return;
     setAction("start"); setError(null);
     try {
       await requestMachine((client, signal) => client.start({
-        accountId: selectedAccount, productIds: [selectedProduct], presenter, microphoneId: "default",
+        accountId: selectedAccount, productIds: selectedProductIds, presenter, microphoneId: "default",
       }, signal));
     } catch { if (mountedRef.current) setError("เริ่ม AI LIVE ไม่สำเร็จ กรุณาตรวจสอบเครื่องแล้วลองอีกครั้ง"); }
     finally { if (mountedRef.current) setAction(null); }
@@ -258,7 +304,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
 
   async function configureLive() {
     if (action || !clientRef.current || !machine?.paired || !machine.deviceAuthorized
-      || machine.membershipStatus !== "SUPPORTED" || machine.sessionActive || !selectedAccount || !selectedProduct) return;
+      || machine.membershipStatus !== "SUPPORTED" || machine.sessionActive || !accountSelectionReady || !productSelectionReady) return;
     setAction("configure"); setError(null); setNotice(null);
     // Use the same request queue as session actions without exposing the dialog's configuration.
     const generation = generationRef.current;
@@ -267,7 +313,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
       const controller = new AbortController();
       requestControllerRef.current = controller;
       try {
-        await clientRef.current.configureStream({ accountId: selectedAccount, productIds: [selectedProduct] }, controller.signal);
+        await clientRef.current.configureStream({ accountId: selectedAccount, productIds: selectedProductIds }, controller.signal);
         if (mountedRef.current && generation === generationRef.current) setNotice("เปิดหน้าตั้งค่าบนเครื่องแล้ว");
       } finally { if (requestControllerRef.current === controller) requestControllerRef.current = null; }
     });
@@ -295,6 +341,47 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
     finally { if (mountedRef.current) setAction(null); }
   }
 
+  async function pauseLive(resume = false) {
+    if (action || !machine?.sessionActive) return;
+    setAction(resume ? "resume" : "pause"); setError(null);
+    try { await requestMachine((client, signal) => resume ? client.resume(signal) : client.pause(signal)); }
+    catch { if (mountedRef.current) setError("ยังเปลี่ยนสถานะการพูดไม่ได้ กรุณาลองอีกครั้ง"); }
+    finally { if (mountedRef.current) setAction(null); }
+  }
+
+  // Studio and runtime share the same authenticated bridge and serialized request queue.
+  async function studioRequest<T>(operation: (client: LocalLiveClient, signal: AbortSignal) => Promise<T>): Promise<T> {
+    const generation = generationRef.current;
+    const queued = requestQueueRef.current.catch(() => undefined).then(async () => {
+      if (!mountedRef.current || generation !== generationRef.current || !clientRef.current) throw new Error("กรุณาเชื่อมต่อเครื่องก่อน");
+      const controller = new AbortController();
+      requestControllerRef.current = controller;
+      try { return await operation(clientRef.current, controller.signal); }
+      finally { if (requestControllerRef.current === controller) requestControllerRef.current = null; }
+    });
+    requestQueueRef.current = queued.catch(() => undefined);
+    return queued;
+  }
+
+  useImperativeHandle(controlsRef, () => ({
+    start: startLive, stop: stopLive, check: checkMachine,
+    pause: () => pauseLive(), resume: () => pauseLive(true), loadReference: (file) => choosePresenter(file, false),
+    listPresenters: () => studioRequest((client, signal) => client.listPresenters(signal)),
+    savePresenter: (input) => studioRequest((client, signal) => client.savePresenter(input, signal)),
+    deletePresenter: (id) => studioRequest((client, signal) => client.deletePresenter(id, signal)),
+    presenterReference: (id) => studioRequest((client, signal) => client.presenterReference(id, signal)),
+    presenterThumbnail: (id, signal) => passivePresenterReads.read(async (readSignal) => {
+      if (!mountedRef.current || !clientRef.current) throw new DOMException("Read cancelled", "AbortError");
+      return clientRef.current.presenterReference(id, readSignal);
+    }, signal),
+  }));
+
+  useEffect(() => {
+    onRuntimeChange?.(customerRoomRuntime({ accountId: selectedAccount, machine, imageReady: !!presenter,
+      microphoneReady, productsReady: productSelectionReady,
+      busy: !!action, accountReady: accountSelectionReady }));
+  }, [onRuntimeChange, selectedAccount, machine, presenter, microphoneReady, productSelectionReady, action, accountSelectionReady]);
+
   async function checkUpdates() {
     if (action || !machine?.paired) return;
     setAction("update-check"); setError(null); setNotice(null);
@@ -317,22 +404,23 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
   }
 
   const showPairing = machine && !machine.paired && !["NOT_INSTALLED", "OFFLINE", "INSTALLING"].includes(machine.state);
-  const canStart = !!machine?.canStart && machine.deviceAuthorized && !machine.sessionActive && !action && !!selectedAccount && !!selectedProduct && !!presenter && microphoneReady;
+  const canStart = !!machine?.canStart && machine.deviceAuthorized && !machine.sessionActive && !action
+    && accountSelectionReady && productSelectionReady && !!presenter && microphoneReady;
   const components = machine?.components;
   const liveStatus = components?.state === "READY" && !machine?.canStart && !machine?.sessionActive
     ? "กำลังเตรียมพร้อม" : customerLiveStatus(machine, action === "start" || action === "stop" ? action : null);
   const componentBusy = !!components && ["CHECKING", "DOWNLOADING", "VERIFYING", "INSTALLING"].includes(components.state);
   const componentProgress = components?.totalBytes ? Math.min(100, Math.floor(100 * components.bytesReceived / components.totalBytes)) : null;
   const preparationAllowed = !!machine?.paired && machine.deviceAuthorized && machine.membershipStatus === "SUPPORTED"
-    && !machine.sessionActive && !!components?.canPrepare && !!selectedAccount && !!selectedProduct && !action;
+    && !machine.sessionActive && !!components?.canPrepare && accountSelectionReady && productSelectionReady && !action;
   const previewImage = previewEnabled && systemPreview ? systemPreview : presenterPreview;
   const previewIsGenerated = previewEnabled && !!systemPreview;
 
-  return <div className="ai-live-page">
-    <header className="ai-live-hero">
+  return <div className={`ai-live-page ${embedded ? "ai-live-room-runtime" : ""}`}>
+    {!embedded && <header className="ai-live-hero">
       <div><p className="eyebrow">VIRALFLOW / AI LIVE</p><h1>AI LIVE</h1><p>เลือกบัญชี พรีเซนเตอร์ และสินค้า แล้วเริ่มไลฟ์จาก ViralFlow</p></div>
       <span className={`ai-live-state ${machine?.canStart ? "ready" : "blocked"}`} role="status" aria-live="polite">{liveStatus}</span>
-    </header>
+    </header>}
     {notice && <p className="ai-live-notice" role="status">{notice}</p>}
     {error && <p className="ai-live-error" role="alert">{error}</p>}
 
@@ -355,7 +443,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
         {(!components || components.state !== "READY") && !componentBusy && <button type="button" className="ai-live-secondary" disabled={!preparationAllowed}
           onClick={() => void prepareMachine(components?.state === "REPAIR_REQUIRED" || components?.state === "ERROR")}>{action === "prepare" ? "กำลังเตรียมเครื่อง..." : "เตรียมเครื่อง"}</button>}
         {machine?.paired && !machine.deviceAuthorized && <p>เชื่อมต่อและอนุญาตเครื่องใน “ตั้งค่าการ LIVE” ก่อนเตรียมเครื่อง</p>}
-        {machine?.deviceAuthorized && (!selectedAccount || !selectedProduct) && components?.state !== "READY" && <p>เลือกบัญชีและสินค้าเพื่อเตรียมเครื่อง</p>}
+        {machine?.deviceAuthorized && (!accountSelectionReady || !productSelectionReady) && components?.state !== "READY" && <p>เลือกบัญชีที่เชื่อมต่อและสินค้าเพื่อเตรียมเครื่อง</p>}
         {machine?.hardwareAdvice === "DRIVER_UPDATE_REQUIRED" && <a href="https://www.nvidia.com/Download/index.aspx" target="_blank" rel="noopener noreferrer">อัปเดตไดรเวอร์จากผู้ผลิต</a>}
       </div>
     </section>
@@ -364,8 +452,9 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
       <section className="ai-live-panel ai-live-setup" aria-label="เตรียม AI LIVE">
         <div className="ai-live-panel-title"><h2>เตรียมไลฟ์</h2></div>
         <label className="ai-live-field">บัญชี TikTok
-          <select value={selectedAccount} disabled={!!machine?.sessionActive} onChange={(event) => setSelectedAccount(event.target.value)}>
+          <select value={selectedAccount} disabled={!!machine?.sessionActive} onChange={(event) => { setInternalAccount(event.target.value); onAccountChange?.(event.target.value); }}>
             <option value="">เลือกบัญชี</option>
+            {!!selectedAccount && !accountSelectionReady && <option value={selectedAccount} disabled>บัญชีนี้ต้องเชื่อม TikTok ใหม่</option>}
             {accounts.map((account) => <option key={account.id} value={account.id}>{account.label}</option>)}
           </select>
         </label>
@@ -374,12 +463,12 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
           <input type="file" accept="image/jpeg,image/png" disabled={!!machine?.sessionActive} onChange={(event) => choosePresenter(event.target.files?.[0] ?? null)} />
           <small>เลือกภาพที่คุณมีสิทธิใช้งาน ขนาดไม่เกิน 4 MB</small>
         </label>
-        <label className="ai-live-field">สินค้า
-          <select value={selectedProduct} disabled={!!machine?.sessionActive} onChange={(event) => setSelectedProduct(event.target.value)}>
+        {!embedded && <label className="ai-live-field">สินค้า
+          <select value={selectedProduct} disabled={!!machine?.sessionActive} onChange={(event) => { setInternalProduct(event.target.value); onProductChange?.(event.target.value); }}>
             <option value="">เลือกสินค้า</option>
             {products.map((product) => <option key={product.id} value={product.id}>{product.title}</option>)}
           </select>
-        </label>
+        </label>}
         {products.length === 0 && <p className="ai-live-help">ยังไม่มีสินค้าให้เลือก</p>}
         <div className="ai-live-field"><span>ไมโครโฟน</span>
           <div className="ai-live-microphone-row">
@@ -400,7 +489,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
           <div className="ai-live-settings-content">
           <div className="ai-live-transport-setup">
             <button type="button" className="ai-live-secondary" disabled={!!action || !machine?.paired || !machine.deviceAuthorized
-              || machine.membershipStatus !== "SUPPORTED" || machine.sessionActive || !selectedAccount || !selectedProduct}
+              || machine.membershipStatus !== "SUPPORTED" || machine.sessionActive || !accountSelectionReady || !productSelectionReady}
               onClick={() => void configureLive()}>{action === "configure" ? "กำลังเปิดหน้าตั้งค่า..." : "ตั้งค่าการ LIVE"}</button>
             <p className="ai-live-context-note">เลือกบัญชีและสินค้า แล้วกรอกข้อมูลการ LIVE ที่คุณได้รับอนุญาตให้ใช้ในหน้าต่างบนเครื่อง</p>
           </div>

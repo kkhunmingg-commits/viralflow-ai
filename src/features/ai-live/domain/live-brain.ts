@@ -1,7 +1,7 @@
 import type { LiveComment } from "./comment-engine";
 import type { LiveActionType, LiveProduct } from "./types";
 
-export type LiveIntent = "BUY" | "PRICE" | "PRODUCT" | "GREETING" | "GENERAL";
+export type LiveIntent = "BUY" | "PRICE" | "PRODUCT" | "GREETING" | "GENERAL" | "SAFETY";
 
 export interface SellerRules {
   /** A verified seller message; used only when no product-specific answer is known. */
@@ -13,6 +13,7 @@ export interface LiveBrainInput {
   comment: LiveComment;
   product: LiveProduct | null;
   sellerRules?: SellerRules;
+  signal?: AbortSignal;
 }
 
 export interface LiveBrainDecision {
@@ -27,6 +28,7 @@ export interface LiveBrainProvider {
 }
 
 function intentFor(text: string): LiveIntent {
+  if (/(อันตราย|หลอกลวง|รายงาน|คุกคาม|unsafe|scam|report|harassment)/iu.test(text)) return "SAFETY";
   if (/(ซื้อ|สั่ง|ตะกร้า|buy|order|checkout)/iu.test(text)) return "BUY";
   if (/(ราคา|เท่าไหร่|กี่บาท|price|cost)/iu.test(text)) return "PRICE";
   if (/(สินค้า|รุ่น|รายละเอียด|product|detail|feature)/iu.test(text)) return "PRODUCT";
@@ -41,7 +43,9 @@ export class RuleBasedLiveBrain implements LiveBrainProvider {
     const thai = comment.language === "th";
     const available = product?.status === "available";
     let reply: string;
-    if (intent === "GREETING") {
+    if (intent === "SAFETY") {
+      reply = thai ? "ขอบคุณที่แจ้งค่ะ ขอหยุดคำแนะนำนี้เพื่อตรวจสอบความปลอดภัยก่อนค่ะ" : "Thank you for flagging this. Let's pause that recommendation and check its safety.";
+    } else if (intent === "GREETING") {
       reply = thai ? "สวัสดีค่ะ ยินดีต้อนรับค่ะ" : "Hello, welcome!";
     } else if (!product || !available) {
       reply = sellerRules?.fallbackReply?.trim()

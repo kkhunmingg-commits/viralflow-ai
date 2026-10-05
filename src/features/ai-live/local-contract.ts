@@ -4,7 +4,7 @@ export const AI_LIVE_EXECUTION_MODE = "LOCAL_GPU" as const;
 // This release has not passed the NVIDIA acceptance checklist.
 export const AI_LIVE_REALTIME_VALIDATED = false;
 export const LIVE_COMPONENT_VERSIONS = {
-  web: "0.4.0", agent: "0.4.0", worker: "0.4.0", model: "musetalk-unvalidated",
+  web: "0.5.0", agent: "0.5.0", worker: "0.5.0", model: "musetalk-unvalidated",
 } as const;
 
 export type LocalAgentState = "NOT_INSTALLED" | "INSTALLING" | "STARTING" | "READY" | "BUSY"
@@ -34,6 +34,9 @@ export function projectLocalComponents(value: unknown): LocalComponentsView {
     message: componentMessages[state] };
 }
 export interface LocalMachineView {
+  activeAccountId?: string;
+  currentProductId?: string;
+  sessionStartedAt?: number;
   customerStream?: CustomerStreamStatus;
   components?: LocalComponentsView;
   hardwareAdvice?: "DRIVER_UPDATE_REQUIRED";
@@ -90,6 +93,12 @@ export function projectLocalMachine(value: unknown, paired: boolean): LocalMachi
   const reasons = Array.isArray(data.reasons) ? data.reasons.filter((item): item is string => typeof item === "string") : [];
   if (!AI_LIVE_REALTIME_VALIDATED && state === "READY") reasons.push("กำลังรอการทดสอบการแสดงสดบนเครื่องที่รองรับ");
   const result = localMachineView(state, paired, reasons, data.sessionActive === true);
+  if (paired && result.sessionActive) {
+    const identifier = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (typeof data.activeAccountId === "string" && identifier.test(data.activeAccountId)) result.activeAccountId = data.activeAccountId;
+    if (typeof data.currentProductId === "string" && identifier.test(data.currentProductId)) result.currentProductId = data.currentProductId;
+    if (typeof data.sessionStartedAt === "number" && Number.isSafeInteger(data.sessionStartedAt) && data.sessionStartedAt >= 0) result.sessionStartedAt = data.sessionStartedAt;
+  }
   if (["AVAILABLE", "UPDATING", "RESTART_REQUIRED", "REQUIRED", "NOT_CONFIGURED", "ROLLED_BACK"].includes(String(data.updateStatus))) {
     result.updateStatus = data.updateStatus as LocalMachineView["updateStatus"];
   }

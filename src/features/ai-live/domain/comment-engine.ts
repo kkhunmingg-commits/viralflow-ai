@@ -37,11 +37,13 @@ const defaultLanguageDetector: LanguageDetector = {
   },
 };
 
-function priorityFor(text: string): number {
-  if (/(ซื้อ|สั่ง|ตะกร้า|buy|order|checkout)/iu.test(text)) return 80;
-  if (/(ราคา|เท่าไหร่|กี่บาท|price|cost|ส่งฟรี|shipping)/iu.test(text)) return 70;
-  if (/[?？]/u.test(text) || /(ไหม|มั้ย|หรือเปล่า|how|what|where)/iu.test(text)) return 50;
-  return 20;
+export function liveCommentPriority(text: string): number {
+  if (/(อันตราย|หลอกลวง|รายงาน|คุกคาม|unsafe|scam|report|harassment)/iu.test(text)) return 100;
+  if (/(ราคา|เท่าไหร่|กี่บาท|price|cost|ส่งฟรี|shipping)/iu.test(text)
+    || /[?？]/u.test(text) || /(ไหม|มั้ย|หรือเปล่า|how|what|where)/iu.test(text)) return 80;
+  if (/(ซื้อ|สั่ง|ตะกร้า|buy|order|checkout)/iu.test(text)) return 70;
+  if (/(สวัสดี|หวัดดี|hello|hi\b)/iu.test(text)) return 50;
+  return 30;
 }
 
 function isSpam(text: string): boolean {
@@ -92,7 +94,7 @@ export class CommentEngine {
       text,
       normalizedText: text.toLocaleLowerCase(),
       language: this.detector.detect(text),
-      priority: priorityFor(text),
+      priority: liveCommentPriority(text),
     };
     if (this.queue.length >= this.maxQueue) {
       let weakest = 0;

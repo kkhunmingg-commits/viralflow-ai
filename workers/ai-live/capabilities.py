@@ -159,6 +159,20 @@ def inspect_capabilities() -> dict[str, Any]:
             "dev_presenter": probe,
         })
         result["ffmpeg"]["software_encoder_available"] = software_ready
+    renderer_selection = os.getenv("AI_LIVE_AVATAR_RENDERER", "").strip()
+    if renderer_selection:
+        try:
+            from avatar_renderer import make_avatar_renderer
+            renderer = make_avatar_renderer(renderer_selection)
+            health = renderer.health()
+            renderer.stop()
+            renderer_ready = health.get("ready") is True
+            result.update({"ready": renderer_ready, "presenter_status": health.get("status", "RENDERER_NOT_READY"),
+                           "avatar_renderer": health,
+                           "blockers": [] if renderer_ready else ["Selected presenter requires setup or hardware validation"]})
+        except Exception:
+            result.update({"ready": False, "presenter_status": "AVATAR_RENDERER_CONFIGURATION_INVALID",
+                           "blockers": ["Selected presenter configuration is invalid"]})
     return result
 
 

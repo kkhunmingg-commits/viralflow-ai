@@ -143,6 +143,17 @@ def stage_worker(source: Path, target: Path) -> None:
         destination = target / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(path, destination)
+    # Renderer planning data travels inside the existing signed/hash-verified
+    # runtime archive. It does not authorize downloads or executable releases.
+    candidates = source / "renderer-dependencies.json"
+    if candidates.exists():
+        if candidates.is_symlink() or not candidates.is_file() or candidates.stat().st_size > 64 * 1024:
+            raise ValueError("Invalid renderer dependency planning manifest")
+        plan = json.loads(candidates.read_text(encoding="utf-8"))
+        if (plan.get("format") != "viralflow-avatar-renderer-candidates-v2"
+                or plan.get("automatic_download") is not False):
+            raise ValueError("Invalid renderer dependency planning manifest")
+        shutil.copyfile(candidates, target / candidates.name)
     # LocalAgent's public package imports updater, which imports delivery.
     # Include that small library without any installer GUI/build entry points.
     for name in ("__init__.py", "delivery.py"):

@@ -12,7 +12,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-VERSION = "0.4.0"
+VERSION = "0.5.0"
 HERE = Path(__file__).resolve().parent
 WORKER = HERE.parent
 REPO = WORKER.parents[1]
@@ -21,6 +21,7 @@ DIST = HERE / ".dist"
 RUNTIME_HIDDEN_IMPORTS = (
     "local_agent", "local_agent.updater", "local_agent.live_worker",
     "local_agent.stream_credentials", "local_agent.components", "local_agent.managed_runtime",
+    "local_agent.presenter_library",
     "av_encoder", "av_pipeline", "direct_stream",
     "sounddevice", "_sounddevice", "_sounddevice_data", "cffi", "_cffi_backend",
     "tkinter.messagebox", "tkinter.ttk", "installer.setup_app",

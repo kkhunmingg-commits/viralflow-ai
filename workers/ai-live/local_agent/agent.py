@@ -19,10 +19,11 @@ from .security import Grant, PairingStore, SecurityError, verify_device_message,
 from .device_identity import DeviceIdentity
 from .updater import SafeUpdater
 from .stream_credentials import StreamCredentialStore
+from .presenter_library import PresenterLibrary
 
 MAX_REFERENCE_BYTES = 4 * 1024 * 1024
 MAX_REFERENCES = 5
-VERSIONS = {"web": "0.4.0", "agent": "0.4.0", "worker": "0.4.0",
+VERSIONS = {"web": "0.5.0", "agent": "0.5.0", "worker": "0.5.0",
             "model": "musetalk-unvalidated"}
 PROVIDER_MODE = "LOCAL_GPU"
 REALTIME_VALIDATED = False  # Release gate; no environment or browser override.
@@ -137,6 +138,9 @@ class _Session:
     grant_expires_at: int
     state: str = "BUSY"
     recovery_attempts: int = 0
+    account_id: str | None = None
+    product_ids: tuple[str, ...] = ()
+    started_at: int | None = None
 
 
 class LocalAgent:
@@ -156,6 +160,7 @@ class LocalAgent:
         stream_setup_callback: Callable[[str, str], None] | None = None,
         components=None,
         component_manifest_url: str | None = None,
+        presenter_library: PresenterLibrary | None = None,
     ) -> None:
         self.config = config
         self._now = now
@@ -165,6 +170,7 @@ class LocalAgent:
         self._grant_signature_verifier = grant_signature_verifier
         self._validated = REALTIME_VALIDATED or test_only_realtime_validated
         self._references: dict[str, _Reference] = {}
+        self._presenter_library = presenter_library or PresenterLibrary(config.data_dir / "library")
         self._sessions: dict[str, _Session] = {}
         self._used_grants: set[str] = set()
         self._device_identity = device_identity
@@ -590,6 +596,10 @@ class LocalAgent:
             result["hardwareAdvice"] = "DRIVER_UPDATE_REQUIRED"
         visible_session = active or failed
         if visible_session:
+            if visible_session.account_id:
+                result.update({"activeAccountId": visible_session.account_id,
+                               "currentProductId": visible_session.product_ids[0] if visible_session.product_ids else None,
+                               "sessionStartedAt": visible_session.started_at})
             result["sessionId"] = visible_session.session_id
             observed = getattr(self._worker, "customer_stream", None)
             if callable(observed):
@@ -653,6 +663,42 @@ class LocalAgent:
                 raise
             self._references[presenter_id] = _Reference(path, token)
         return {"presenterId": presenter_id}
+
+    def _presenter_owner(self, token: str, origin: str) -> str:
+        self.authenticate(token, origin)
+        try:
+            return str(self._authorized_device(token, origin)["ownerId"])
+        except SecurityError as exc:
+            raise self._safe_error(exc) from exc
+
+    def list_presenters(self, token: str, origin: str) -> dict[str, object]:
+        owner = self._presenter_owner(token, origin)
+        return {"presenters": self._presenter_library.list(owner)}
+
+    def save_presenter(self, token: str, origin: str, body: object) -> dict[str, object]:
+        owner = self._presenter_owner(token, origin)
+        try:
+            return {"presenter": self._presenter_library.put(owner, body)}
+        except SecurityError as exc:
+            raise AgentError(422, "PRESENTER_NOT_READY", "กรุณาตรวจสอบชื่อ รูปภาพ และการอนุญาตใช้ภาพ") from exc
+
+    def delete_presenter(self, token: str, origin: str, presenter_id: str) -> dict[str, object]:
+        owner = self._presenter_owner(token, origin)
+        with self._lock:
+            if any(session.owner_id == owner and session.state != "STOPPED" for session in self._sessions.values()):
+                raise AgentError(409, "PRESENTER_BUSY", "กรุณาหยุด LIVE ก่อนลบคน LIVE")
+            try:
+                self._presenter_library.delete(owner, presenter_id)
+            except SecurityError as exc:
+                raise AgentError(404, "PRESENTER_NOT_FOUND", "ไม่พบคน LIVE") from exc
+        return {"deleted": True}
+
+    def presenter_reference(self, token: str, origin: str, presenter_id: str) -> tuple[bytes, str]:
+        owner = self._presenter_owner(token, origin)
+        try:
+            return self._presenter_library.reference(owner, presenter_id)
+        except SecurityError as exc:
+            raise AgentError(404, "PRESENTER_NOT_FOUND", "ไม่พบรูปคน LIVE") from exc
 
     def _owned_session(self, token: str, origin: str, session_id: str) -> _Session:
         try:
@@ -784,7 +830,8 @@ class LocalAgent:
                 session_id = str(uuid.UUID(session_id))
             except (ValueError, TypeError) as exc:
                 raise AgentError(503, "WORKER_INVALID_SESSION", "ไม่สามารถเริ่ม AI LIVE") from exc
-            self._sessions[session_id] = _Session(session_id, grant.owner_id, grant.expires_at)
+            self._sessions[session_id] = _Session(session_id, grant.owner_id, grant.expires_at,
+                account_id=grant.account_id, product_ids=tuple(grant.product_ids), started_at=int(self._now() * 1000))
         return self._view(token, origin)
 
     def pause(self, token: str, origin: str, session_id: str) -> dict[str, object]:

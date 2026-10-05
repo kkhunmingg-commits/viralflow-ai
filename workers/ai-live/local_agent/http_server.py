@@ -18,6 +18,7 @@ SOCKET_TIMEOUT_SECONDS = 5
 BODY_DEADLINE_SECONDS = 10
 SESSION_ROUTE = re.compile(r"^/v1/sessions/([0-9a-fA-F-]{36})/(pause|resume|stop|recover)$")
 FRAME_ROUTE = re.compile(r"^/v1/sessions/([0-9a-fA-F-]{36})/frame$")
+PRESENTER_ROUTE = re.compile(r"^/v1/presenters/([0-9a-f-]{36})/(reference|delete)$")
 
 
 class AgentHTTPServer(ThreadingHTTPServer):
@@ -130,11 +131,11 @@ class _Handler(BaseHTTPRequestHandler):
             body.extend(chunk)
         return bytes(body)
 
-    def _json_body(self) -> dict[str, object]:
+    def _json_body(self, max_bytes: int = MAX_JSON_BYTES) -> dict[str, object]:
         if self.headers.get("Content-Type", "").split(";")[0].strip().lower() != "application/json":
             raise AgentError(415, "INVALID_CONTENT_TYPE", "ข้อมูลไม่ถูกต้อง")
         try:
-            value = json.loads(self._read_body(MAX_JSON_BYTES))
+            value = json.loads(self._read_body(max_bytes))
         except (UnicodeDecodeError, ValueError) as exc:
             raise AgentError(400, "INVALID_JSON", "ข้อมูลไม่ถูกต้อง") from exc
         if not isinstance(value, dict):
@@ -252,6 +253,28 @@ class _Handler(BaseHTTPRequestHandler):
                 media_type = self.headers.get("Content-Type", "").split(";")[0].strip().lower()
                 body = self._read_body(MAX_REFERENCE_BYTES)
                 self._send_json(201, agent.upload_reference(token, origin, body, media_type), origin)
+            elif method == "GET" and self.path == "/v1/presenters":
+                self._send_json(200, agent.list_presenters(token, origin), origin)
+            elif method == "POST" and self.path == "/v1/presenters":
+                # Authorize before consuming a potentially large reference body.
+                agent._presenter_owner(token, origin)
+                self._send_json(200, agent.save_presenter(token, origin,
+                    self._json_body(MAX_REFERENCE_BYTES * 4 // 3 + MAX_JSON_BYTES)), origin)
+            elif (match := PRESENTER_ROUTE.fullmatch(self.path)) and method == "POST" and match.group(2) == "delete":
+                self._send_json(200, agent.delete_presenter(token, origin, match.group(1)), origin)
+            elif (match := PRESENTER_ROUTE.fullmatch(self.path)) and method == "GET" and match.group(2) == "reference":
+                body, media_type = agent.presenter_reference(token, origin, match.group(1))
+                self.send_response(200)
+                self.send_header("Content-Type", media_type)
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Access-Control-Allow-Origin", origin)
+                self.send_header("Vary", "Origin")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.wfile.write(body)
+                self.close_connection = True
             elif method == "POST" and self.path == "/v1/sessions/start":
                 request = self._json_body()
                 if set(request) != {"grant", "accountId", "productIds", "presenterId", "microphoneId"}:
