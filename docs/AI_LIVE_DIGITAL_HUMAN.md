@@ -29,7 +29,7 @@ flowchart TD
   Capacity --> Room
 ```
 
-กราฟแสดงขอบเขตและ ports; ไม่ได้แปลว่าทุกลูกศรเปิด production แล้ว โดยเฉพาะ TS room orchestration → physical multi-room local runtime, advanced renderer, real platform comments และ TikTok LIVE transport ยังต้องต่อ/พิสูจน์ ระบบไม่มี private TikTok API และไม่ใช้ OBS/TikTok Studio
+กราฟแสดงขอบเขตและ ports; ไม่ได้แปลว่าทุกลูกศรเปิด production แล้ว ปัจจุบัน local runtime มี managed child process แยกต่อห้องและ owner/account routing แล้ว แต่ physical NVIDIA concurrency, advanced renderer, real platform comments และ official TikTok LIVE transport ยังต้องต่อ/พิสูจน์ ระบบไม่มี private TikTok API และไม่ใช้ OBS/TikTok Studio
 
 ## Modules และข้อจำกัด
 
@@ -44,7 +44,7 @@ flowchart TD
 | `OcclusionGuard` / `MotionQualityGuard` | face/mouth/eyes/product overlap, confidence, face/lip/hand/freeze/motion/temporal checks; advanced → safe → neutral; last real frame fallback | detector observations ต้องมาจาก actual frames; ไม่มี hardcoded quality score เพื่อเปิด production |
 | Speech scheduler | priority safety > product question > purchase > greeting > general > filler; no overlapping voice lease; script PCM cursor resume ไม่ส่ง chunk เดิมซ้ำ | actual upstream voice cancellation/ack latency บน hardware |
 | `SafetyVoiceBuffer` | prewarm ผ่าน VoiceProvider เดิมครบ 7 หมวด: introduction/features/CTA/FAQ/filler/engagement/transition; bounded PCM, timeout fallback, remaining/fallback/dead-air metrics | ต้องมี actual approved product text/voice และ audio delivery observations; exhausted buffer ไม่วนไม่จำกัด |
-| `LiveRoomRegistry` | owner/account isolation; distinct brain/voice/gesture/encoder/stream resources; duplicate protection; pause/resume AI, watchdog, ambiguous-start lease retained จน Stop ยืนยัน | physical multiple local sessions ยังไม่เปิด; unknown measured capacity ห้าม Start |
+| `LiveRoomRegistry` / managed room pool | owner/account isolation; child process และ presenter/audio/encoder/stream lifecycle ต่อห้อง; duplicate protection; pause/resume/stop/preview ตามห้อง, watchdog, ambiguous-start lease retained จน Stop ยืนยัน | physical NVIDIA concurrency ยังไม่ benchmark; ไม่มี signed measured capacity ที่ตรงเครื่องจะห้าม Start; generic config ไม่ใช่ per-account TikTok LIVE transport |
 | Policy | disclosure/platform/region/product/claim/identity guards ก่อนส่งเสียง | official policy/region configuration และ transport eligibility ต้องได้จริง; ไม่มี anti-detection/bypass |
 | Analytics contract | account/post/live/clip/views/sales/units/commission/revenue/hour/top product shape สำหรับ Learning เดียวกัน; unavailable เป็น `null` | ไม่แก้ POST analytics หรือ invent LIVE observations |
 
@@ -85,7 +85,7 @@ Metric ที่ encoder/detector/receiver ยังไม่ส่งกลั�
 
 แหล่ง upstream ที่ใช้เตรียม candidate contract: [MuseTalk inference](https://github.com/TMElyralab/MuseTalk/blob/main/inference.sh), [FasterLivePortrait](https://github.com/warmshao/FasterLivePortrait/blob/master/README.md), [Ditto online pipeline](https://github.com/antgroup/ditto-talkinghead/blob/main/stream_pipeline_online.py) Manifest เป็น planning/detection เท่านั้น ต้อง pin/review model licenses/sign release artifacts ก่อนดาวน์โหลดให้ลูกค้า
 
-## Verification รอบนี้
+## Verification รุ่น Digital Human ก่อน Multi-Account Control Center
 
 - AI LIVE TypeScript suite: room isolation, owner checks, pack validation, priority interruption/PCM resume, real-buffer preparation/fallback, audio ambiguity/recovery, lifecycle, watchdog, policy, UI projection และ paired presenter CRUD
 - Python suite: renderer factory/guard boundary, capability gate, gestures, occlusion/fallback, measured-only capacity, benchmark no-GPU behavior, encrypted presenter persistence/owner isolation/loopback HTTP รวม regression worker/streaming เดิม
@@ -99,6 +99,10 @@ Metric ที่ encoder/detector/receiver ยังไม่ส่งกลั�
 
 1. ต่อ/ตรวจ GPU incremental backends, gesture sources, measured occlusion/quality detectors และ pack/voice runtime binding
 2. Benchmark NVIDIA จริงครบ 4 candidates × 1/2/3 rooms; validate lip sync, motion, A/V, reconnect, resource release และ capacity
-3. ต่อ physical multi-room execution พร้อม real comment/voice/action endpoints หลัง policy/hardware ผ่าน; ตอนนี้ customer agent ยัง one active session
+3. พิสูจน์ managed multi-room child processes บน native NVIDIA จริงหลัง signed capacity gate และต่อ real comment/voice/action endpoints; customer agent มี pooled room routing แล้ว แต่ยังไม่อ้างว่า hardware concurrency หรือ official per-account TikTok LIVE transport ผ่าน
 4. Build/เซ็น/เผยแพร่ `0.5.0` ผ่าน signed distribution และ provision membership/device/signing infrastructure เดิม
 5. TikTok LIVE ใช้ได้เมื่อมี official eligibility/transport credentials จริงเท่านั้น Content Posting approval ไม่ใช่ LIVE authorization
+
+## อัปเดต Multi-Account Customer Control Center
+
+Home/POST หลายบัญชี, measured-only local room capacity และ managed child process pool ถูกเพิ่มใน branch เดิม ดู [รายละเอียดและข้อจำกัดรอบนี้](MULTI_ACCOUNT_CONTROL_CENTER.md) คำว่า pooled rooms หมายถึง lifecycle/routing ที่แยกกันและผ่าน contract tests ไม่ใช่ผล benchmark ว่าเครื่องปัจจุบันเริ่มหลาย LIVE ได้จริง Capacity ที่ยังไม่วัดเป็น `UNVERIFIED_CAPACITY` และ Start ถูกปิด; ปุ่มพูด/เปลี่ยนสินค้าระหว่าง LIVE ยังไม่เปิดจนมี execution endpoint จริง

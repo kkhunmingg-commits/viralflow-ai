@@ -34,6 +34,8 @@ export function projectLocalComponents(value: unknown): LocalComponentsView {
     message: componentMessages[state] };
 }
 export interface LocalMachineView {
+  rooms?: LocalRoomView[];
+  capacity?: LocalRoomCapacity;
   activeAccountId?: string;
   currentProductId?: string;
   sessionStartedAt?: number;
@@ -54,6 +56,52 @@ export interface LocalMachineView {
   updateStatus: "CURRENT" | "AVAILABLE" | "UPDATING" | "RESTART_REQUIRED" | "REQUIRED" | "NOT_CONFIGURED" | "ROLLED_BACK";
   updateCanApply: boolean;
   updateCanRepair: boolean;
+}
+/** Opaque routing identifiers remain inside the authenticated bridge, never customer labels. */
+export interface LocalRoomView {
+  accountId: string;
+  sessionId: string;
+  state: "BUSY" | "PAUSED" | "STOPPING" | "STOPPED" | "ERROR";
+  currentProductId: string | null;
+  sessionStartedAt: number | null;
+  customerStream: CustomerStreamStatus;
+}
+export interface LocalRoomCapacity {
+  status: "UNVERIFIED_CAPACITY" | "VERIFIED";
+  maximumRooms: number | null;
+  activeRooms: number;
+  canStartAnotherRoom: boolean;
+}
+const roomIdentifier = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function projectLocalRooms(value: unknown): LocalRoomView[] {
+  if (!Array.isArray(value) || value.length > 10) return [];
+  const accounts = new Set<string>();
+  const sessions = new Set<string>();
+  const rooms: LocalRoomView[] = [];
+  for (const input of value) {
+    if (!input || typeof input !== "object" || Array.isArray(input)) return [];
+    const room = input as Record<string, unknown>;
+    if (typeof room.accountId !== "string" || !roomIdentifier.test(room.accountId)
+      || typeof room.sessionId !== "string" || !roomIdentifier.test(room.sessionId)
+      || !["BUSY", "PAUSED", "STOPPING", "STOPPED", "ERROR"].includes(String(room.state))
+      || accounts.has(room.accountId) || sessions.has(room.sessionId)) return [];
+    accounts.add(room.accountId); sessions.add(room.sessionId);
+    rooms.push({ accountId: room.accountId, sessionId: room.sessionId, state: room.state as LocalRoomView["state"],
+      currentProductId: typeof room.currentProductId === "string" && roomIdentifier.test(room.currentProductId) ? room.currentProductId : null,
+      sessionStartedAt: typeof room.sessionStartedAt === "number" && Number.isSafeInteger(room.sessionStartedAt) && room.sessionStartedAt >= 0 ? room.sessionStartedAt : null,
+      customerStream: projectCustomerStreamStatus(room.customerStream) });
+  }
+  return rooms;
+}
+export function projectLocalCapacity(value: unknown): LocalRoomCapacity {
+  const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const verified = input.status === "VERIFIED" && typeof input.maximumRooms === "number"
+    && Number.isSafeInteger(input.maximumRooms) && input.maximumRooms >= 1 && input.maximumRooms <= 10;
+  const activeRooms = typeof input.activeRooms === "number" && Number.isSafeInteger(input.activeRooms)
+    && input.activeRooms >= 0 && input.activeRooms <= 10 ? input.activeRooms : 0;
+  const maximumRooms = verified ? input.maximumRooms as number : null;
+  return { status: verified ? "VERIFIED" : "UNVERIFIED_CAPACITY", maximumRooms, activeRooms,
+    canStartAnotherRoom: verified && input.canStartAnotherRoom === true && activeRooms < maximumRooms! };
 }
 export function compatibleLiveVersions(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
@@ -86,6 +134,7 @@ export function projectLocalMachine(value: unknown, paired: boolean): LocalMachi
   if (!compatibleLiveVersions(data.versions)) {
     const incompatible = localMachineView("UPDATE_REQUIRED", paired, [], paired && data.sessionActive === true);
     incompatible.updateCanApply = paired && data.updateCanApply === true && !incompatible.sessionActive;
+    if (paired) { incompatible.rooms = projectLocalRooms(data.rooms); incompatible.capacity = projectLocalCapacity(data.capacity); }
     return incompatible;
   }
   const state = typeof data.state === "string" && Object.hasOwn(stateMessages, data.state)
@@ -93,6 +142,10 @@ export function projectLocalMachine(value: unknown, paired: boolean): LocalMachi
   const reasons = Array.isArray(data.reasons) ? data.reasons.filter((item): item is string => typeof item === "string") : [];
   if (!AI_LIVE_REALTIME_VALIDATED && state === "READY") reasons.push("กำลังรอการทดสอบการแสดงสดบนเครื่องที่รองรับ");
   const result = localMachineView(state, paired, reasons, data.sessionActive === true);
+  if (paired) {
+    result.rooms = projectLocalRooms(data.rooms);
+    result.capacity = projectLocalCapacity(data.capacity);
+  }
   if (paired && result.sessionActive) {
     const identifier = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (typeof data.activeAccountId === "string" && identifier.test(data.activeAccountId)) result.activeAccountId = data.activeAccountId;

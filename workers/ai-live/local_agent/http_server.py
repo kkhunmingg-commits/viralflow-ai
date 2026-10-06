@@ -195,6 +195,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json(200, agent.renew(token, origin), origin)
             elif method == "GET" and self.path == "/v1/status":
                 self._send_json(200, agent.status(token, origin), origin)
+            elif method == "GET" and self.path == "/v1/rooms":
+                self._send_json(200, agent.rooms(token, origin), origin)
             elif method == "GET" and self.path == "/v1/hardware":
                 self._send_json(200, agent.hardware(token, origin), origin)
             elif method == "GET" and self.path == "/v1/components/status":

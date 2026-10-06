@@ -98,6 +98,7 @@ class DeviceRegistrationTests(unittest.TestCase):
         return LocalAgent(config, device_identity=self.identity if identity else None,
                           hardware_probe=supported_hardware, worker=self.worker,
                           now=lambda: self.clock[0], test_only_realtime_validated=True,
+                          test_only_verified_room_capacity=1,
                           update_status=lambda: update)
 
     def signed(self, payload):

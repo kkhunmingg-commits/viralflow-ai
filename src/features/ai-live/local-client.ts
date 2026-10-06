@@ -41,10 +41,12 @@ export class LocalLiveClient {
   constructor(private readonly fetcher: typeof fetch = fetch, private readonly now: () => number = Date.now) {}
 
   snapshot(): LocalMachineView { return { ...this.current, reasons: [...this.current.reasons],
+    ...(this.current.rooms ? { rooms: this.current.rooms.map((room) => ({ ...room, customerStream: { ...room.customerStream } })) } : {}),
+    ...(this.current.capacity ? { capacity: { ...this.current.capacity } } : {}),
     ...(this.current.components ? { components: { ...this.current.components } } : {}) }; }
 
   private async request(path: string, options: RequestInit = {}, signal?: AbortSignal, authenticated = true): Promise<Json> {
-    if (!/^\/v1\/(discovery|pair|renew|status|hardware|challenge|references|presenters|presenters\/[0-9a-f-]{36}\/delete|stream\/setup|components\/(prepare|status)|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/(stop|pause|resume))$/.test(path)) {
+    if (!/^\/v1\/(discovery|pair|renew|status|rooms|hardware|challenge|references|presenters|presenters\/[0-9a-f-]{36}\/delete|stream\/setup|components\/(prepare|status)|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/(stop|pause|resume))$/.test(path)) {
       throw new Error("ไม่สามารถทำรายการนี้ได้");
     }
     if (authenticated && (!this.token || this.tokenExpiresAt <= this.now() / 1000)) {
@@ -67,12 +69,13 @@ export class LocalLiveClient {
       });
       if (!response.ok) throw new Error("ไม่สามารถเชื่อมส่วนเสริมได้ กรุณาตรวจสอบแล้วลองอีกครั้ง");
       let text: string;
-      if (path === "/v1/presenters") {
+      if (path === "/v1/presenters" || path === "/v1/rooms") {
         // Twenty presenter packs with fifty account assignments exceed the normal small status response.
         // Bound the new route while it is streamed; unrelated routes retain their existing response limit.
         const reader = response.body?.getReader();
         if (!reader) throw new Error("ข้อมูลคน LIVE ไม่ถูกต้อง");
         const decoder = new TextDecoder();
+        const maximum = path === "/v1/presenters" ? 65_536 : 16_384;
         let bytes = 0;
         text = "";
         try {
@@ -80,14 +83,14 @@ export class LocalLiveClient {
             const part = await reader.read();
             if (part.done) break;
             bytes += part.value.byteLength;
-            if (bytes > 65_536 * 4) { await reader.cancel(); throw new Error("ข้อมูลคน LIVE มีขนาดไม่ถูกต้อง"); }
+            if (bytes > maximum * 4) { await reader.cancel(); throw new Error("ข้อมูลคน LIVE มีขนาดไม่ถูกต้อง"); }
             text += decoder.decode(part.value, { stream: true });
-            if (text.length > 65_536) {
+            if (text.length > maximum) {
               await reader.cancel(); throw new Error("ข้อมูลคน LIVE มีขนาดไม่ถูกต้อง");
             }
           }
           text += decoder.decode();
-          if (text.length > 65_536 || controller.signal.aborted || signal?.aborted) throw new Error("ข้อมูลคน LIVE ไม่ครบถ้วน");
+          if (text.length > maximum || controller.signal.aborted || signal?.aborted) throw new Error("ข้อมูลคน LIVE ไม่ครบถ้วน");
         } finally { reader.releaseLock(); }
       } else {
         text = await response.text();
@@ -337,6 +340,39 @@ export class LocalLiveClient {
     return this.snapshot();
   }
 
+  async refreshRooms(signal?: AbortSignal): Promise<LocalMachineView> {
+    this.acceptStatus(await this.request("/v1/rooms", {}, signal), true);
+    await this.confirmDevice(signal);
+    return this.snapshot();
+  }
+  private accountSession(accountId: string): string {
+    const room = this.current.rooms?.find((item) => item.accountId === accountId && item.state !== "STOPPED");
+    if (!uuid.test(accountId) || !room) throw new Error("ไม่มี LIVE ที่กำลังทำงานในบัญชีนี้");
+    return room.sessionId;
+  }
+  async stopAccount(accountId: string, signal?: AbortSignal): Promise<LocalMachineView> {
+    const sessionId = this.accountSession(accountId);
+    this.acceptStatus(await this.request(`/v1/sessions/${sessionId}/stop`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    }, signal), true);
+    await this.confirmDevice(signal);
+    return this.snapshot();
+  }
+  async pauseAccount(accountId: string, signal?: AbortSignal): Promise<LocalMachineView> {
+    return this.changeAccountSession(accountId, "pause", signal);
+  }
+  async resumeAccount(accountId: string, signal?: AbortSignal): Promise<LocalMachineView> {
+    return this.changeAccountSession(accountId, "resume", signal);
+  }
+  private async changeAccountSession(accountId: string, action: "pause" | "resume", signal?: AbortSignal): Promise<LocalMachineView> {
+    const sessionId = this.accountSession(accountId);
+    this.acceptStatus(await this.request(`/v1/sessions/${sessionId}/${action}`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
+    }, signal), true);
+    await this.confirmDevice(signal);
+    return this.snapshot();
+  }
+
   async pause(signal?: AbortSignal): Promise<LocalMachineView> { return this.changeSession("pause", signal); }
   async resume(signal?: AbortSignal): Promise<LocalMachineView> { return this.changeSession("resume", signal); }
   private async changeSession(action: "pause" | "resume", signal?: AbortSignal): Promise<LocalMachineView> {
@@ -414,11 +450,16 @@ export class LocalLiveClient {
   }
 
   /** The owned session path is internal. No credentials are placed in an image URL. */
-  async previewFrame(signal?: AbortSignal): Promise<Blob | null> {
+  async previewAccountFrame(accountId: string, signal?: AbortSignal): Promise<Blob | null> {
+    const room = this.current.rooms?.find((item) => item.accountId === accountId && item.state !== "STOPPED");
+    return room ? this.previewFrame(signal, room.sessionId) : null;
+  }
+  async previewFrame(signal?: AbortSignal, targetSessionId?: string): Promise<Blob | null> {
+    const selectedSessionId = targetSessionId ?? this.sessionId;
     if (!AI_LIVE_REALTIME_VALIDATED || !this.token || this.tokenExpiresAt <= this.now() / 1000
       || !this.current.paired || !this.current.sessionActive || !this.current.deviceAuthorized
-      || !this.sessionId || !uuid.test(this.sessionId) || signal?.aborted) return null;
-    const sessionId = this.sessionId;
+      || !selectedSessionId || !uuid.test(selectedSessionId) || signal?.aborted) return null;
+    const sessionId = selectedSessionId;
     const controller = new AbortController();
     this.requests.add(controller);
     const timer = setTimeout(() => controller.abort(), 5_000);
@@ -453,7 +494,8 @@ export class LocalLiveClient {
         }
       } finally { reader.releaseLock(); }
       // A response that finishes after Stop, revocation, disposal, or session replacement is stale.
-      if (controller.signal.aborted || signal?.aborted || this.sessionId !== sessionId || !this.token
+      const stillActive = targetSessionId ? this.current.rooms?.some((room) => room.sessionId === sessionId && room.state !== "STOPPED") : this.sessionId === sessionId;
+      if (controller.signal.aborted || signal?.aborted || !stillActive || !this.token
         || this.tokenExpiresAt <= this.now() / 1000 || !this.current.sessionActive || !this.current.deviceAuthorized || !size) return null;
       return new Blob(chunks, { type: "image/jpeg" });
     } finally { clearTimeout(timer); this.requests.delete(controller); }

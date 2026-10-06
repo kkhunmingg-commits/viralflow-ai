@@ -410,12 +410,16 @@ class LiveStore:
                     session.inference_active = True
                     session.inference_started_at = time.monotonic()
                 activity = getattr(session.stream, "presenter_activity", None)
+                generation = getattr(session.stream, "speech_generation", None)
+                accepts_generation = getattr(session.stream, "accepts_speech_generation", None)
                 if callable(activity):
                     activity(True)
                 # The engine must yield frames during inference, not after a
                 # complete video has been rendered to disk.
                 for jpeg in session.engine.render_pcm16_chunk(pcm):
                     if session.stop_event.is_set():
+                        break
+                    if callable(accepts_generation) and not accepts_generation(generation):
                         break
                     session.emit_frame(jpeg, received_at)
                 with session.lock:

@@ -36,10 +36,12 @@ describe("direct stream customer status boundary", () => {
   });
 
   it("does not hide a failed active session behind an optimistic phase", () => {
-    for (const state of ["ERROR", "OFFLINE", "PAUSED"] as const) {
+    for (const state of ["ERROR", "OFFLINE"] as const) {
       expect(customerLiveStatus({ ...localMachineView(state, true, [], true),
         customerStream: { phase: "LIVE", connectionQuality: "GOOD" } })).toBe("ต้องตรวจสอบการ LIVE");
     }
+    expect(customerLiveStatus({ ...localMachineView("PAUSED", true, [], true),
+      customerStream: { phase: "LIVE", connectionQuality: "GOOD" } })).toBe("กำลังเตรียม");
   });
 
   it("drops technical messages, credentials, URLs, and unrecognized quality values", () => {

@@ -13,8 +13,8 @@ describe("customer AI LIVE screen", () => {
     expect(settingsTag).not.toMatch(/\bopen\b/);
     expect(html).toContain("ตั้งค่าการ LIVE");
     expect(html).toContain("ภาพอ้างอิง · ยังไม่ใช่ภาพสด");
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>START LIVE<\/button>/);
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>STOP LIVE<\/button>/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>เริ่ม LIVE<\/button>/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>หยุด LIVE<\/button>/);
     expect(html).toContain("ยังไม่มีข้อมูล");
     expect(html).toContain("เข้าสู่ระบบแล้ว");
     expect(html).toContain("ตรวจสอบเครื่อง");

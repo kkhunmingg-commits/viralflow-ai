@@ -179,6 +179,55 @@ class LocalLiveWorkerTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "STREAM_OWNER_MISMATCH")
         self.assertEqual(len(worker.store.references), 0)
 
+    def test_two_accounts_have_distinct_real_room_resources_and_pause_keeps_stream_alive(self):
+        worker = self.worker(microphone_factory=MicrophoneFixture)
+        first = self.start(worker, "default")
+        second = worker.start_session("owner", "account-b", ("product-b",), self.reference, "default")
+        a, b = worker._sessions[first], worker._sessions[second]
+        deadline = time.monotonic() + 2
+        while b.store.get_session("owner", second).status == "STARTING" and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(b.store.get_session("owner", second).status, "RUNNING")
+        for field in ("store", "provider", "stream", "microphone", "microphone_queue", "microphone_stop"):
+            self.assertIsNot(getattr(a, field), getattr(b, field), field)
+        self.assertIsNot(a.store.get_session("owner", first).engine, b.store.get_session("owner", second).engine)
+        worker.push_audio("owner", first, b"\x01\x00" * 1600)
+        worker.push_audio("owner", second, b"\x02\x00" * 1600)
+        self.assertEqual(a.stream.audio, [b"\x01\x00" * 1600])
+        self.assertEqual(b.stream.audio, [b"\x02\x00" * 1600])
+        worker.pause_session("owner", first)
+        self.assertEqual(worker.push_audio("owner", first, b"\x03\x00" * 1600), 0)
+        self.assertGreaterEqual(worker.push_audio("owner", second, b"\x04\x00" * 1600), 1)
+        self.assertEqual(b.stream.audio[-1], b"\x04\x00" * 1600)
+        self.assertFalse(b.paused)
+        self.assertEqual(a.stream.status, "RUNNING")
+        worker.stop_session("owner", first)
+        self.assertTrue(a.cleanup_complete and a.provider.disposed)
+        self.assertFalse(b.cleanup_complete or b.provider.disposed or b.microphone.closed)
+        self.assertEqual(b.product_ids, ("product-b",))
+        worker.resume_session("owner", second)
+        with self.assertRaises(AgentError) as duplicate:
+            worker.start_session("owner", "account-b", (), self.reference, None)
+        self.assertEqual(duplicate.exception.code, "SESSION_BUSY")
+
+    def test_watchdog_failure_does_not_stop_or_contaminate_another_room(self):
+        worker = self.worker()
+        first = self.start(worker)
+        second = worker.start_session("owner", "account-b", (), self.reference, None)
+        a, b = worker._sessions[first], worker._sessions[second]
+        deadline = time.monotonic() + 2
+        while b.store.get_session("owner", second).status == "STARTING" and time.monotonic() < deadline:
+            time.sleep(0.01)
+        with a.store.get_session("owner", first).lock:
+            a.store.get_session("owner", first).inference_active = True
+            a.store.get_session("owner", first).inference_started_at = time.monotonic() - 6
+        self.assertTrue(worker.session_metrics("owner", first)["presenter_stalled"])
+        self.assertFalse(worker.session_metrics("owner", second)["presenter_stalled"])
+        a.stream.status = "FAILED"
+        self.assertEqual(worker.customer_stream("owner", first)["phase"], "ERROR")
+        self.assertNotEqual(worker.customer_stream("owner", second)["phase"], "ERROR")
+        self.assertFalse(b.provider.disposed)
+
     def test_reconnect_is_bounded_and_preserves_same_presenter_and_encoder(self):
         worker = self.worker()
         session_id = self.start(worker)

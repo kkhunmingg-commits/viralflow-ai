@@ -55,6 +55,27 @@ class AVEncoderPolicyTests(unittest.TestCase):
         with patch("av_encoder.resolve_ffmpeg_path", return_value="unit-ffmpeg"):
             return InternalAVEncoder(EncoderConfig(**limits), Path("unit-unused.mp4"))
 
+    def test_pause_cancels_only_unsent_speech_without_resetting_media_positions(self):
+        encoder = self.encoder()
+        encoder.push_frame(b"\xff\xd8real unit fixture\xff\xd9")
+        original = b"\x01\x00" * 640
+        encoder.push_audio(original)
+        with encoder._lock:
+            first_tick = encoder._audio_tick(320)
+        encoder._audio_queue.put(first_tick)
+        self.assertEqual(encoder.cancel_pending_audio(), 320)
+        self.assertEqual(encoder._audio_cursor, 320)
+        self.assertEqual(encoder._audio_tail, 320)
+        self.assertFalse(encoder._stop.is_set())
+        self.assertEqual(encoder._audio_queue.get_nowait(), bytes(len(first_tick)))
+        self.assertEqual(encoder._audio_tick(640), bytes(640))
+        next_speech = b"\x02\x00" * 320
+        self.assertTrue(encoder.push_audio(next_speech))
+        self.assertEqual(encoder._audio_tick(960), next_speech)
+        self.assertEqual(encoder._audio_cursor, 960)
+        self.assertEqual(encoder._audio_buffer_samples, 0)
+        encoder.dispose()
+
     def test_rejected_first_frame_does_not_start_shared_media_epoch(self):
         encoder = self.encoder()
         with patch("av_encoder.time.monotonic", return_value=100):

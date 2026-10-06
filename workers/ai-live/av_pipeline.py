@@ -29,6 +29,8 @@ class AVSessionStream:
         self.on_failure = None
         self._issues: tuple[str, ...] = ()
         self._monitor: threading.Thread | None = None
+        self._speech_paused = False
+        self.speech_generation = 0
 
     def start(self) -> None:
         self.provider.connect()
@@ -78,6 +80,8 @@ class AVSessionStream:
                         self.provider.stop()
 
     def push_frame(self, jpeg: bytes) -> bool:
+        if self._speech_paused:
+            return False
         accepted = self.encoder.push_frame(jpeg)
         if accepted:
             self._presenter_last_progress = time.monotonic()
@@ -86,7 +90,19 @@ class AVSessionStream:
     def push_audio(self, pcm: bytes) -> bool:
         # Reserve the entire chunk under the encoder lock, including concurrent
         # microphone and voice input. A rejected chunk was never partly played.
-        return self.encoder.push_audio(pcm, allow_partial=False)
+        return False if self._speech_paused else self.encoder.push_audio(pcm, allow_partial=False)
+
+    def pause_speech(self) -> None:
+        self._speech_paused = True
+        self.speech_generation += 1
+        self.encoder.cancel_pending_audio()
+        self.presenter_activity(False)
+
+    def resume_speech(self) -> None:
+        self._speech_paused = False
+
+    def accepts_speech_generation(self, generation: int) -> bool:
+        return not self._speech_paused and generation == self.speech_generation
 
     def presenter_activity(self, active: bool) -> None:
         self._inference_active = active

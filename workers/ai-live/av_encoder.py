@@ -241,6 +241,23 @@ class InternalAVEncoder:
                 self._audio_tail = start + accepted
             return accepted > 0 and accepted + late == sample_count
 
+    def cancel_pending_audio(self) -> int:
+        """Cancel unsent speech without resetting either media clock or transport.
+
+        A tick already written to the encoder cannot be withdrawn. Pending input
+        ticks keep their exact sample length as silence, preserving A/V continuity.
+        """
+        with self._lock:
+            cancelled = self._audio_buffer_samples
+            self._audio_dropped_samples += cancelled
+            self._audio.clear()
+            self._audio_buffer_samples = 0
+            self._audio_tail = self._audio_cursor
+            with self._audio_queue.mutex:
+                for index, tick in enumerate(self._audio_queue.queue):
+                    self._audio_queue.queue[index] = bytes(len(tick))
+            return cancelled
+
     def _audio_tick(self, end_sample: int) -> bytes:
         start_sample = self._audio_cursor
         block = bytearray((end_sample - start_sample) * 2)

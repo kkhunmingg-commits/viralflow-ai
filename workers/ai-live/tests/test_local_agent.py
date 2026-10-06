@@ -104,6 +104,7 @@ class AgentFixture(unittest.TestCase):
             grant_signature_verifier=test_signature,
             now=lambda: self.clock[0],
             test_only_realtime_validated=validated,
+            test_only_verified_room_capacity=1 if validated else None,
             device_identity=self.identity,
         )
         self.addCleanup(agent.close)

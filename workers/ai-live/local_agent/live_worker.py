@@ -11,6 +11,7 @@ import queue
 import subprocess
 import threading
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -34,6 +35,7 @@ class _LocalSession:
     product_ids: tuple[str, ...]
     reference_id: str
     provider: object
+    store: object
     session_id: str = ""
     paused: bool = False
     stopped: bool = False
@@ -64,6 +66,7 @@ class LocalWorkerBoundary:
         self._provider_factory = provider_factory
         self._stream_factory = stream_factory
         self._microphone_factory = microphone_factory
+        self._store_factory = store_factory
         if not 0 < stop_timeout_seconds <= 30:
             raise ValueError("Stop timeout must be positive and at most 30 seconds")
         self._stop_timeout_seconds = stop_timeout_seconds
@@ -71,21 +74,27 @@ class LocalWorkerBoundary:
         self._pending: dict[str, _LocalSession] = {}
         self._lock = threading.RLock()
         self._closed = False
+        self._initial_claimed = False
         self._capability_cache: dict[str, object] | None = None
         self._capability_at = 0.0
         self.encoder_config = EncoderConfig(video_codec=os.getenv("AI_LIVE_ENCODER", "libx264").strip() or "libx264")
         # Pausing speech or awaiting a comment keeps the live encoder running.
-        self.store = store_factory(self.data_dir / "presenters", stream_factory=self._create_stream,
-                                   direct_audio=True, audio_idle_timeout_seconds=86400)
+        self.store = self._make_store("initial")
+        self._stores = [self.store]
+
+    def _make_store(self, room_key: str):
+        return self._store_factory(self.data_dir / "rooms" / room_key / "presenters",
+            stream_factory=lambda owner, session, path: self._create_stream(owner, session, path, room_key),
+            direct_audio=True, audio_idle_timeout_seconds=86400)
 
     @staticmethod
     def _error(code: str, status: int = 503) -> AgentError:
         message = "ต้องตั้งค่าการ LIVE" if code == "TIKTOK_LIVE_TRANSPORT_REQUIRED" else "ระบบ AI LIVE ยังไม่พร้อมใช้งาน"
         return AgentError(status, code, message)
 
-    def _create_stream(self, owner_id: str, session_id: str, output_path: Path):
+    def _create_stream(self, owner_id: str, session_id: str, output_path: Path, room_key: str):
         with self._lock:
-            record = self._sessions.get(session_id) or self._pending.get(owner_id)
+            record = self._sessions.get(session_id) or self._pending.get(room_key)
             if record is None or record.owner_id != owner_id or record.stopped:
                 raise self._error("SESSION_NOT_FOUND", 404)
             record.session_id = session_id
@@ -117,7 +126,8 @@ class LocalWorkerBoundary:
                         "encoder_ready": codec_ready, "presenter_ready": capability.get("ready") is True,
                         "dev_fallback": capability.get("dev_fallback") is True}
                 except Exception:
-                    self._capability_cache = {"ready": False, "code": "WORKER_NOT_VALIDATED"}
+                    self._capability_cache = {"ready": False, "code": "WORKER_NOT_VALIDATED",
+                                              "encoder_ready": False, "presenter_ready": False}
                 self._capability_at = now
             return dict(self._capability_cache)
 
@@ -135,8 +145,12 @@ class LocalWorkerBoundary:
         with self._lock:
             if self._closed:
                 raise self._error("WORKER_STOPPED")
-            if any(not record.cleanup_complete for record in self._sessions.values()) or self._pending:
+            if (any(not record.cleanup_complete and record.owner_id == owner_id and record.account_id == account_id
+                    for record in self._sessions.values())
+                    or any(record.owner_id == owner_id and record.account_id == account_id for record in self._pending.values())):
                 raise self._error("SESSION_BUSY", 409)
+            if sum(not record.cleanup_complete for record in self._sessions.values()) + len(self._pending) >= 10:
+                raise self._error("ROOM_CAPACITY_REACHED", 409)
             try:
                 credentials = self._credentials.load(owner_id, account_id)
             except SecurityError as exc:
@@ -153,28 +167,36 @@ class LocalWorkerBoundary:
             provider = None
             engine = None
             record = None
+            room_key = "initial" if not self._initial_claimed else str(uuid.uuid4())
+            self._initial_claimed = True
+            room_store = self.store if room_key == "initial" else self._make_store(room_key)
+            if room_store is not self.store:
+                self._stores.append(room_store)
             try:
                 provider = self._provider_factory(credentials["server_url"], credentials["stream_key"])
                 # Avoid retaining a second plaintext credentials dictionary.
                 credentials.clear()
-                reference = self.store.save_reference(owner_id, image, media_type)
-                record = _LocalSession(owner_id, account_id, tuple(product_ids), reference, provider)
-                self._pending[owner_id] = record
+                reference = room_store.save_reference(owner_id, image, media_type)
+                record = _LocalSession(owner_id, account_id, tuple(product_ids), reference, provider, room_store)
+                self._pending[room_key] = record
                 engine = self._engine_factory()
                 inference_fps = 2 if dev_fallback_enabled() else self.encoder_config.fps
-                session_id, _ = self.store.start_session(owner_id, reference, inference_fps, engine)
+                session_id, _ = room_store.start_session(owner_id, reference, inference_fps, engine)
                 record.session_id = session_id
                 self._sessions[session_id] = record
-                self._pending.pop(owner_id, None)
+                self._pending.pop(room_key, None)
                 if microphone_id == "default":
                     self._start_microphone(record)
                 # Bound retained stopped records, matching LiveStore's history.
                 terminal = [key for key, item in self._sessions.items() if item.cleanup_complete]
                 for key in terminal[:-19]:
-                    self._sessions.pop(key, None)
+                    old = self._sessions.pop(key, None)
+                    if old and old.store is not self.store:
+                        old.store.close()
+                        self._stores.remove(old.store)
                 return session_id
             except Exception as exc:
-                self._pending.pop(owner_id, None)
+                self._pending.pop(room_key, None)
                 if record and record.session_id:
                     self.stop_session(owner_id, record.session_id)
                 else:
@@ -187,6 +209,9 @@ class LocalWorkerBoundary:
                         provider.dispose()
                     if record:
                         self._remove_reference(record)
+                    room_store.close()
+                    if room_store is not self.store:
+                        self._stores.remove(room_store)
                 if isinstance(exc, AgentError):
                     raise
                 if isinstance(exc, (StreamError, LiveError)):
@@ -205,7 +230,7 @@ class LocalWorkerBoundary:
             if record.paused:
                 return 0
         try:
-            return self.store.send_audio(owner_id, session_id, pcm16)
+            return record.store.send_audio(owner_id, session_id, pcm16)
         except LiveError as exc:
             raise self._error(exc.code, exc.status) from None
 
@@ -282,6 +307,15 @@ class LocalWorkerBoundary:
             if record.stopped:
                 raise self._error("SESSION_NOT_RUNNING", 409)
             record.paused = True
+            session = record.store.get_session(owner_id, session_id)
+            while not session.audio.empty():
+                try:
+                    session.audio.get_nowait()
+                except queue.Empty:
+                    break
+            pause_speech = getattr(record.stream, "pause_speech", None)
+            if callable(pause_speech):
+                pause_speech()
 
     def resume_session(self, owner_id: str, session_id: str) -> None:
         record = self._owned(owner_id, session_id)
@@ -289,10 +323,13 @@ class LocalWorkerBoundary:
             if record.stopped:
                 raise self._error("SESSION_NOT_RUNNING", 409)
             record.paused = False
+            resume_speech = getattr(record.stream, "resume_speech", None)
+            if callable(resume_speech):
+                resume_speech()
 
     def _remove_reference(self, record: _LocalSession) -> None:
-        with self.store.lock:
-            reference = self.store.references.pop(record.reference_id, None)
+        with record.store.lock:
+            reference = record.store.references.pop(record.reference_id, None)
         if reference:
             reference.path.unlink(missing_ok=True)
 
@@ -305,9 +342,9 @@ class LocalWorkerBoundary:
         deadline = time.monotonic() + self._stop_timeout_seconds
         self._stop_microphone(record)
         try:
-            self.store.stop_session(owner_id, session_id)
+            record.store.stop_session(owner_id, session_id)
         finally:
-            session = self.store.get_session(owner_id, session_id)
+            session = record.store.get_session(owner_id, session_id)
             if record.stream:
                 record.stream.close()
             record.provider.dispose()
@@ -319,11 +356,12 @@ class LocalWorkerBoundary:
             raise self._error("WORKER_STOP_PENDING", 409)
         self._remove_reference(record)
         record.cleanup_complete = True
+        record.store.close()
 
     def recover_session(self, owner_id: str, session_id: str) -> None:
         record = self._owned(owner_id, session_id)
         with self._lock:
-            session = self.store.get_session(owner_id, session_id)
+            session = record.store.get_session(owner_id, session_id)
             if record.stopped or record.recoveries >= 1 or session.status != "RUNNING":
                 raise self._error("RECOVERY_UNAVAILABLE", 409)
             record.recoveries += 1
@@ -334,7 +372,7 @@ class LocalWorkerBoundary:
 
     def session_metrics(self, owner_id: str, session_id: str) -> dict[str, object]:
         record = self._owned(owner_id, session_id)
-        session = self.store.get_session(owner_id, session_id)
+        session = record.store.get_session(owner_id, session_id)
         return {**session.metrics(),
                 "paused": record.paused, "microphone_drops": record.microphone_drops,
                 "microphone_error": record.microphone_error, "recovery_attempts": record.recoveries,
@@ -350,14 +388,14 @@ class LocalWorkerBoundary:
             return bool(pending and last_progress is not None and time.monotonic() - last_progress > threshold)
 
     def preview_frame(self, owner_id: str, session_id: str) -> bytes | None:
-        self._owned(owner_id, session_id)
-        session = self.store.get_session(owner_id, session_id)
+        record = self._owned(owner_id, session_id)
+        session = record.store.get_session(owner_id, session_id)
         with session.lock:
             return session.latest_frame
 
     def customer_stream(self, owner_id: str, session_id: str) -> dict[str, object]:
         record = self._owned(owner_id, session_id)
-        session = self.store.get_session(owner_id, session_id)
+        session = record.store.get_session(owner_id, session_id)
         transport = record.provider.health()
         encoder_failed = bool(record.stream and record.stream.metrics().get("status") == "FAILED")
         presenter_stalled = self._presenter_stalled(session)
@@ -367,8 +405,6 @@ class LocalWorkerBoundary:
             state = "STOPPING"
         elif session.status == "FAILED" or encoder_failed or transport.get("status") == "FAILED" or record.microphone_error:
             state = "ERROR"
-        elif record.paused:
-            state = "PAUSED"
         elif transport.get("status") == "RECONNECTING":
             state = "RECONNECTING"
         elif transport.get("healthy") is True:
@@ -377,7 +413,7 @@ class LocalWorkerBoundary:
             state = "PREPARING"
         else:
             state = "CONNECTING"
-        quality = "PROBLEM" if state == "ERROR" or presenter_stalled or transport.get("output_stalled") else "GOOD" if state in ("LIVE", "PAUSED") else "FAIR"
+        quality = "PROBLEM" if state == "ERROR" or presenter_stalled or transport.get("output_stalled") else "GOOD" if state == "LIVE" else "FAIR"
         return {"phase": state, "connectionQuality": quality}
 
     def close(self) -> None:
@@ -390,4 +426,5 @@ class LocalWorkerBoundary:
             except AgentError as exc:
                 if exc.code != "WORKER_STOP_PENDING":
                     raise
-        self.store.close()
+        for store in self._stores:
+            store.close()

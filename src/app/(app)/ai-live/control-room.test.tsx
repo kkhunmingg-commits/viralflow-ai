@@ -27,6 +27,40 @@ describe("consumer multi-account AI LIVE room", () => {
     // Receiving metrics alone must never switch the session into LIVE.
     expect(html).not.toContain("class=\"live-soft-badge active\"");
   });
+  it("keeps platform scheduling, product pinning and speech controls unavailable without a live connection", () => {
+    const html = renderToStaticMarkup(<AiLiveControlRoom accounts={accounts} products={[]} />);
+    expect(html).toContain("ยังไม่ได้ทดสอบจำนวนห้องพร้อมกัน");
+    expect(html).toContain("กำหนดเวลาแล้ว");
+    expect(html).toContain("รอการเชื่อมต่อจากแพลตฟอร์ม");
+    expect(html).toMatch(/<input[^>]*type="datetime-local"[^>]*disabled=""/);
+    expect(html).toMatch(/<fieldset disabled=""><legend>ตัวเลือกห้อง LIVE<\/legend>/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>ปักสินค้า<\/button>/);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>พัก AI<\/button>/);
+    expect(html).toContain("ยังไม่สามารถบันทึกหรือตั้งเวลาไลฟ์ได้");
+    expect(html).not.toContain("UNVERIFIED_CAPACITY");
+  });
+  it("maps actual nullable account metrics without borrowing another account's results", () => {
+    const html = renderToStaticMarkup(<AiLiveControlRoom accounts={accounts} products={[]} observations={[
+      { accountId: "account-a", liveSeconds: 300, sales: 45, units: 1, salesPerHour: 540, viewers: 4, totalViewers: 21,
+        comments: 2, currentProductName: "สินค้า Alice", currentResponse: null, latestComment: null,
+        scheduled: true, nextScheduledAt: "2026-10-07T03:00:00Z", backupVoiceReady: true },
+      { accountId: "account-b", liveSeconds: null, sales: null, units: null, salesPerHour: null, viewers: null,
+        comments: null, currentProductName: null, currentResponse: null, latestComment: null },
+    ]} />);
+    const cards = html.split('class="live-account-card');
+    expect(cards[1]).toContain("สินค้า Alice"); expect(cards[1]).toContain("21");
+    expect(cards[2].split("</article>")[0]).not.toContain("สินค้า Alice");
+    expect(cards[2].split("</article>")[0]).toContain("ยังไม่มีข้อมูล");
+    expect(html).toContain("เสียงสำรอง"); expect(html).toContain("ไลฟ์ถัดไป");
+  });
+  it("renders ten accounts with one responsive card per account and no technical values", () => {
+    const many = Array.from({ length: 10 }, (_, index) => ({ id: `internal-${index}`, label: `@ร้าน${index + 1}`, connected: true }));
+    const html = renderToStaticMarkup(<AiLiveControlRoom accounts={many} products={[]} />);
+    expect(html.match(/class="live-account-card/g)).toHaveLength(10);
+    // Routing selectors may be opaque option values, never customer-visible labels.
+    expect(html).not.toMatch(/>internal-[0-9]+</);
+    expect(html).not.toMatch(/FFmpeg|MuseTalk|Ditto|CUDA|NVENC|RTMPS?|8766|stream.?key|open_id/);
+  });
   it("gives a disconnected room an explicit reconnect path without selecting another account", () => {
     const html = renderToStaticMarkup(<AiLiveControlRoom accounts={[{ id: "disconnected-a", label: "@Disconnected", connected: false }]} products={[]} />);
     expect(html).toContain("ต้องเชื่อม TikTok บัญชีนี้ใหม่");

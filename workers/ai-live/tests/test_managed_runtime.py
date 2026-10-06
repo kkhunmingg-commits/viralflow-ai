@@ -11,6 +11,7 @@ import sys
 import tempfile
 import threading
 import unittest
+import uuid
 from pathlib import Path
 from unittest.mock import patch
 
@@ -472,6 +473,80 @@ class EntryProtocolTests(unittest.TestCase):
                 serve(io.BytesIO(json.dumps(config).encode() + b"\n"), io.BytesIO(),
                       worker_factory=lambda *_args: constructed.append(True))
         self.assertEqual(constructed, [])
+
+
+class MultiRoomProcessTests(unittest.TestCase):
+    setUp = ManagedRuntimeTests.setUp
+    def multi_bridge(self):
+        class RoomWorker(OwnedWorker):
+            def start_session(self, owner, account, products, reference, microphone):
+                self.owner = owner
+                self.session = str(uuid.uuid4())
+                self.calls.append(("start_session", owner, account, products))
+                return self.session
+
+            def _owned(self, owner, session):
+                if owner != self.owner or session != self.session:
+                    raise AgentError(404, "SESSION_NOT_FOUND", "private-owner")
+
+        def launch(command, **kwargs):
+            self.launches.append((command, kwargs))
+            process = InheritedPipeProcess(RoomWorker())
+            self.processes.append(process)
+            return process
+
+        bridge = ManagedRuntimeWorker(Path(self.temp.name) / "app", self.components,
+            process_factory=launch, timeout_seconds=0.25)
+        self.addCleanup(bridge.close)
+        return bridge
+
+    def test_distinct_children_owner_queues_stop_and_crash_isolation(self):
+        bridge = self.multi_bridge()
+        a = bridge.start_session(OWNER, ACCOUNT, (PRODUCT,), self.reference, None)
+        account_b = "11111111-1111-4111-8111-111111111111"
+        b = bridge.start_session(OWNER, account_b, (PRODUCT,), self.reference, None)
+        self.assertEqual(len(self.processes), 2)
+        first, second = self.processes
+        self.assertNotEqual(a, b)
+        self.assertNotEqual(json.loads(first.stdin.writes[0])["roomId"], json.loads(second.stdin.writes[0])["roomId"])
+        bridge.push_audio(OWNER, a, b"\x01\x00")
+        bridge.push_audio(OWNER, b, b"\x02\x00")
+        self.assertEqual(first.worker.pcm, b"\x01\x00")
+        self.assertEqual(second.worker.pcm, b"\x02\x00")
+        bridge.pause_session(OWNER, a)
+        self.assertNotIn(("pause_session", OWNER, a), second.worker.calls)
+        with self.assertRaises(AgentError):
+            bridge.push_audio(OTHER_OWNER, b, b"\x03\x00")
+        first.kill()
+        first.thread.join(1)
+        self.assertEqual(bridge.customer_stream(OWNER, a)["phase"], "ERROR")
+        self.assertEqual(bridge.preview_frame(OWNER, b), JPEG)
+        self.assertFalse(second.killed or second.worker.closed)
+        bridge.stop_session(OWNER, a)
+        self.assertFalse(second.worker.closed)
+        self.assertEqual(bridge.customer_stream(OWNER, a)["phase"], "STOPPED")
+        self.assertEqual(len(self.launches), 2, "Stop/crash must not create a replacement live process")
+        bridge.stop_session(OWNER, b)
+        self.assertTrue(second.worker.closed)
+
+    def test_timed_out_room_cannot_kill_other_room_or_silently_restart(self):
+        bridge = self.multi_bridge()
+        a = bridge.start_session(OWNER, ACCOUNT, (PRODUCT,), self.reference, None)
+        b = bridge.start_session(OWNER, "11111111-1111-4111-8111-111111111111", (PRODUCT,), self.reference, None)
+        first, second = self.processes
+        first.stdin.hang_method = "push_audio"
+        with self.assertRaises(AgentError):
+            bridge.push_audio(OWNER, a, b"\x01\x00")
+        self.assertTrue(first.killed)
+        bridge.pause_session(OWNER, b)
+        self.assertFalse(second.killed)
+        self.assertEqual(bridge.preview_frame(OWNER, b), JPEG)
+        with self.assertRaises(AgentError):
+            bridge.resume_session(OWNER, a)
+        self.assertEqual(len(self.launches), 2)
+        with self.assertRaises(AgentError) as duplicate:
+            bridge.start_session(OWNER, ACCOUNT, (PRODUCT,), self.reference, None)
+        self.assertEqual(duplicate.exception.code, "SESSION_BUSY")
 
 
 if __name__ == "__main__":

@@ -97,7 +97,11 @@
 .live-kicker { margin: 0 0 9px; color: #b8aaff; font-size: 10px; font-weight: 800; letter-spacing: .16em; }
 .live-control-heading h1 { margin: 0; font-size: clamp(29px, 3.2vw, 43px); letter-spacing: -.035em; }
 .live-control-heading > div > p:last-child { margin: 10px 0 0; color: #a7b5c9; font-size: 13px; line-height: 1.7; }
-.live-overview { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 18px; margin-bottom: 30px; padding: 23px 26px; border-radius: 22px; background: linear-gradient(120deg, rgba(84,64,158,.24), rgba(43,64,83,.2)); border: 1px solid rgba(139,124,200,.18); }
+.live-quick-controls { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 20px 22px; margin-bottom: 20px; border-radius: 18px; background: #202638; }
+.live-quick-controls .ai-live-field { flex: 1 1 220px; max-width: 380px; margin: 0; }
+.live-quick-controls .live-card-actions { flex: 1 1 270px; justify-content: flex-end; }
+.live-quick-controls .primary-action { min-width: 130px; min-height: 48px; font-size: 14px; }
+.live-overview { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; padding: 23px 26px; border-radius: 22px; background: linear-gradient(120deg, rgba(84,64,158,.24), rgba(43,64,83,.2)); border: 1px solid rgba(139,124,200,.18); }
 .live-overview > div { display: grid; align-content: start; gap: 13px; min-width: 0; }
 .live-overview span { color: #aebbd1; font-size: 11px; line-height: 1.6; }
 .live-overview strong { color: #f0eefb; font-size: 16px; font-weight: 700; overflow-wrap: anywhere; }
@@ -178,7 +182,46 @@
 .live-reference-preview { margin-top: 22px; padding: 24px; border-radius: 17px; background: #202a3b; }
 .live-reference-preview img { display: block; width: 100%; max-height: 430px; object-fit: contain; border-radius: 12px; }
 .live-reference-preview > p { margin-top: 16px; color: #c3bbde; font-size: 12px; }
+.live-device-capacity { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 15px; padding: 18px 22px; margin-bottom: 30px; border-radius: 15px; background: #181f2c; }
+.live-device-capacity > div { display: flex; align-items: center; gap: 15px; min-width: 0; }
+.live-device-capacity strong { font-size: 13px; }
+.live-device-capacity p { margin: 6px 0 0; color: #a8b4c9; font-size: 12px; line-height: 1.7; }
+.live-platform-options { margin: 0 0 22px; padding: 18px; border: 1px solid #343c4e; border-radius: 14px; background: #1a2130; }
+.live-platform-options summary { cursor: pointer; color: #cbd1e3; font-size: 12px; font-weight: 700; }
+.live-platform-options p { margin: 16px 0; color: #a9b6cd; font-size: 12px; }
+.live-platform-options fieldset { display: flex; flex-wrap: wrap; gap: 16px; min-width: 0; padding: 14px; border: 1px solid #3a4355; border-radius: 12px; }
+.live-platform-options legend { color: #a7b5c9; font-size: 11px; }
+.live-platform-options fieldset label { display: flex; align-items: center; gap: 8px; color: #8e9bb0; font-size: 12px; }
+.live-platform-options :disabled { opacity: .55; cursor: not-allowed; }
+.live-room-primary-actions { display: grid; grid-template-columns: minmax(0, .45fr) minmax(0, 1fr); gap: 14px; margin-bottom: 25px; }
+.live-room-primary-actions button { min-height: 58px; border-radius: 14px; font-size: 15px; font-weight: 800; }
+.live-room-primary-actions .primary-action { background: linear-gradient(110deg, #835def, #4e7df0); border: 0; color: #fff; box-shadow: 0 8px 28px rgba(100,80,210,.18); }
+.live-room-primary-actions button:disabled { opacity: .5; cursor: not-allowed; }
+.ai-live-room-runtime .ai-live-preview { padding: 23px; }
+.ai-live-room-runtime .ai-live-stage { min-height: 410px; }
+.presenter-wizard-steps { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin: 0 0 28px; padding: 0; list-style: none; }
+.presenter-wizard-steps li { display: flex; flex-direction: column; align-items: flex-start; gap: 9px; min-width: 0; padding-bottom: 12px; border-bottom: 2px solid #3c4457; color: #a1acc3; font-size: 11px; line-height: 1.6; }
+.presenter-wizard-steps li > span:first-child { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: #33394f; }
+.presenter-wizard-steps li.current { color: #e1d7ff; border-color: #a48aff; }
+.presenter-wizard-steps li.current > span:first-child { color: #f1ebff; background: #6c4dbc; }
+.presenter-wizard-steps li.visited { border-color: #497a70; }
+.presenter-wizard-steps small { display: block; color: #afa0b4; font-size: 10px; font-weight: 400; }
+.presenter-wizard-body { min-height: 230px; }
+.presenter-wizard-body h4 { margin: 0 0 18px; font-size: 18px; }
+.presenter-wizard-body > p { color: #b7c1d7; font-size: 12px; line-height: 1.9; }
+.presenter-wizard-body > .ai-live-secondary { margin: 0 0 22px; }
+.presenter-preparation-status { margin-bottom: 22px; padding: 22px; border-radius: 15px; background: #242d43; }
+.presenter-preparation-status strong { color: #dfd4ff; font-size: 15px; }
+.presenter-preparation-status p { color: #b6c0d5; font-size: 12px; line-height: 1.9; margin: 12px 0; }
+.presenter-wizard-preview { display: grid; place-items: center; min-height: 290px; overflow: hidden; padding: 18px; border-radius: 16px; background: #141d2a; }
+.presenter-wizard-preview img { display: block; width: 100%; max-height: 440px; object-fit: contain; border-radius: 12px; }
+.presenter-image-check { display: flex; align-items: center; gap: 15px; padding: 19px; margin: 18px 0; border-radius: 13px; background: #1e3935; }
+.presenter-image-check > span { color: #99e3c9; font-size: 23px; }
+.presenter-image-check strong { color: #b6eddd; font-size: 13px; }
+.presenter-image-check p { margin: 6px 0 0; color: #a7c9c6; font-size: 12px; }
+.presenter-wizard-actions { justify-content: space-between; margin-top: 23px; padding-top: 20px; border-top: 1px solid #3c465d; }
+@media (min-width: 1280px) { .live-account-grid { grid-template-columns: repeat(3,minmax(0,1fr)); } }
 @media (max-width: 1050px) { .live-overview { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 24px; } .live-readiness ul { grid-template-columns: repeat(3,minmax(0,1fr)); } .live-presenter-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
-@media (max-width: 720px) { .live-control-heading { flex-direction: column; align-items: flex-start; } .live-account-grid, .live-room-planning, .live-form-grid, .live-product-choice > div { grid-template-columns: minmax(0,1fr); } .live-room, .live-studio { padding: 19px; } .live-conversation-grid { grid-template-columns: minmax(0,1fr); } .live-account-card { padding: 20px; } }
-@media (max-width: 440px) { .live-overview { grid-template-columns: repeat(2,minmax(0,1fr)); padding: 20px; gap: 20px; } .live-overview strong { font-size: 14px; } .live-presenter-grid { grid-template-columns: minmax(0,1fr); } .live-readiness { padding: 16px; } .live-readiness ul { grid-template-columns: repeat(2,minmax(0,1fr)); } .live-account-header > .live-soft-badge { margin-left: 60px; } .live-room, .live-studio { padding: 15px; border-radius: 19px; } .live-studio-form { padding: 17px; } .live-card-actions button { flex: 1; } }
+@media (max-width: 720px) { .live-control-heading { flex-direction: column; align-items: flex-start; } .live-account-grid, .live-room-planning, .live-form-grid, .live-product-choice > div { grid-template-columns: minmax(0,1fr); } .live-room, .live-studio { padding: 19px; } .live-conversation-grid { grid-template-columns: minmax(0,1fr); } .live-account-card { padding: 20px; } .presenter-wizard-steps { grid-template-columns: repeat(3,minmax(0,1fr)); } .live-device-capacity { padding: 18px; } .ai-live-room-runtime .ai-live-stage { min-height: 300px; } }
+@media (max-width: 440px) { .live-overview { grid-template-columns: repeat(2,minmax(0,1fr)); padding: 20px; gap: 20px; } .live-overview strong { font-size: 14px; } .live-presenter-grid { grid-template-columns: minmax(0,1fr); } .live-readiness { padding: 16px; } .live-readiness ul { grid-template-columns: repeat(2,minmax(0,1fr)); } .live-account-header > .live-soft-badge { margin-left: 60px; } .live-room, .live-studio { padding: 15px; border-radius: 19px; } .live-studio-form { padding: 17px; } .live-card-actions button { flex: 1; } .live-quick-controls { padding: 17px; } .live-quick-controls .primary-action { min-width: 0; } }
 @media (prefers-reduced-motion: reduce) { .live-control-center * { scroll-behavior: auto !important; } }

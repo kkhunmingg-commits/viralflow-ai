@@ -117,6 +117,7 @@ class DistributionTests(unittest.TestCase):
                                      trusted_keys={"release-2026": self.public}),
                            device_identity=identity, worker=worker, now=lambda: 1000,
                            hardware_probe=supported_hardware, test_only_realtime_validated=True,
+                           test_only_verified_room_capacity=1,
                            updater=self.updater)
         def sign(payload):
             value = {"keyId": "release-2026", "payload": payload}

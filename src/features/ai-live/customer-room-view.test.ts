@@ -32,14 +32,15 @@ describe("customer room evidence boundary", () => {
     expect(room.status).toBe("กำลังเตรียม");
     expect(room.canStart).toBe(false);
   });
-  it("recovered session identity overrides a newly selected card without exposing diagnostics", () => {
+  it("recovered sessions never replace a newly selected account with another room", () => {
     const machine = localMachineView("BUSY", true, [], true);
     machine.activeAccountId = "account-a"; machine.currentProductId = "product-a"; machine.sessionStartedAt = 1_720_000_000_000;
     const room = customerRoomRuntime({ accountId: "account-b", machine, imageReady: false,
       microphoneReady: false, productsReady: false, busy: false });
-    expect(room.accountId).toBe("account-a");
-    expect(room.currentProductId).toBe("product-a");
-    expect(room.sessionStartedAt).toBe(1_720_000_000_000);
+    expect(room.accountId).toBe("account-b");
+    expect(room.sessionActive).toBe(false);
+    expect(room.currentProductId).toBeNull();
+    expect(room.sessionStartedAt).toBeNull();
     expect(room).not.toHaveProperty("reasons");
     expect(room).not.toHaveProperty("token");
   });

@@ -3,8 +3,9 @@
 /* References are authenticated local files displayed through temporary Blob URLs. */
 /* eslint-disable @next/next/no-img-element */
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import type { LocalPresenterCard } from "@/features/ai-live/local-client";
+import type { LocalPresenterCard, SaveLocalPresenter } from "@/features/ai-live/local-client";
 import type { PresenterConsoleHandle } from "./presenter-console";
+import { PresenterWizard } from "./presenter-wizard";
 
 type Account = { id: string; label: string };
 function PresenterThumbnail({ bridge, presenter, authorized, enabled }: {
@@ -42,11 +43,6 @@ export function PresenterStudio({ bridge, authorized, passiveImagesEnabled = fal
 }) {
   const [presenters, setPresenters] = useState<LocalPresenterCard[]>([]);
   const [editing, setEditing] = useState<LocalPresenterCard | "new" | null>(null);
-  const [name, setName] = useState("");
-  const [voice, setVoice] = useState("");
-  const [assignments, setAssignments] = useState<string[]>([]);
-  const [reference, setReference] = useState<File | null>(null);
-  const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ name: string; url: string } | null>(null);
@@ -75,24 +71,18 @@ export function PresenterStudio({ bridge, authorized, passiveImagesEnabled = fal
   }, [authorized, load]);
 
   function beginEdit(presenter: LocalPresenterCard | "new") {
-    setEditing(presenter); setName(presenter === "new" ? "" : presenter.name);
-    setVoice(presenter === "new" ? "" : presenter.voiceLabel ?? "");
-    setAssignments(presenter === "new" ? [] : presenter.assignedAccountIds);
-    setReference(null); setConsent(presenter === "new" ? false : presenter.consentConfirmed); setMessage(null);
+    setEditing(presenter); setMessage(null);
   }
 
-  async function save(event: React.FormEvent) {
-    event.preventDefault();
+  async function save(input: SaveLocalPresenter) {
     if (!editing || !bridge.current || busy || !authorized) return;
-    if (!name.trim() || (editing === "new" && !reference) || (reference && !consent)) {
+    if (!input.name.trim() || (editing === "new" && !input.reference) || !input.consentConfirmed) {
       setMessage("ใส่ชื่อ เลือกภาพ และยืนยันสิทธิ์ใช้ภาพก่อนบันทึก"); return;
     }
     const current = generation.current;
     setBusy(true); setMessage(null);
     try {
-      await bridge.current.savePresenter({ ...(editing !== "new" ? { id: editing.id } : {}), name: name.trim(),
-        voiceLabel: voice.trim(), assignedAccountIds: assignments, consentConfirmed: consent,
-        ...(reference ? { reference } : {}) });
+      await bridge.current.savePresenter(input);
       if (generation.current !== current) return;
       setEditing(null); await load();
       if (generation.current === current) setMessage("บันทึกคน LIVE แล้ว");
@@ -140,21 +130,14 @@ export function PresenterStudio({ bridge, authorized, passiveImagesEnabled = fal
         <div className="live-presenter-info"><h3>{presenter.name}</h3><span className="live-soft-badge">{presenter.status === "READY" ? "ตั้งค่าแล้ว" : "ต้องตั้งค่า"}</span>
           <p>เสียง: {presenter.voiceLabel || "ยังไม่ได้เลือก"}</p>
           <p>{presenter.assignedAccountIds.map((id) => accounts.find((account) => account.id === id)?.label).filter(Boolean).join(" · ") || "ยังไม่ได้กำหนดบัญชี"}</p></div>
-        <div className="live-card-actions"><button type="button" disabled={busy || !authorized || !presenter.hasReference} onClick={() => void openPreview(presenter)}>ดูภาพ</button>
+        <div className="live-card-actions"><button type="button" disabled={busy || !authorized || !presenter.hasReference} onClick={() => void openPreview(presenter)}>ดูตัวอย่าง</button>
           <button type="button" disabled={busy || !authorized} onClick={() => beginEdit(presenter)}>แก้ไข</button>
           <button type="button" disabled={busy || !authorized || !presenter.hasReference} onClick={() => void openPreview(presenter, true)}>ใช้ในห้องนี้</button>
           <button type="button" className="live-text-danger" disabled={busy || !authorized} onClick={() => void remove(presenter)}>ลบ</button></div>
       </article>)}
     </div>
-    {editing && authorized && <form className="live-studio-form" onSubmit={(event) => void save(event)}>
-      <h3>{editing === "new" ? "เพิ่มคน LIVE" : "แก้ไขคน LIVE"}</h3>
-      <div className="live-form-grid"><label className="ai-live-field">ชื่อ<input maxLength={80} required value={name} onChange={(event) => setName(event.target.value)} /></label>
-        <label className="ai-live-field">ชื่อเสียงที่ต้องการใช้<input maxLength={80} value={voice} onChange={(event) => setVoice(event.target.value)} placeholder="เช่น เสียงสุภาพ" /><small>บันทึกเป็นตัวเลือกของคุณ ยังไม่ยืนยันว่าเสียงพร้อมใช้งาน</small></label>
-        <label className="ai-live-field">ภาพอ้างอิง<input type="file" accept="image/jpeg,image/png" onChange={(event) => { setReference(event.target.files?.[0] ?? null); setConsent(false); }} required={editing === "new"} /><small>JPEG หรือ PNG ขนาดไม่เกิน 4 MB</small></label></div>
-      <fieldset className="live-assignment"><legend>ใช้กับบัญชี</legend>{accounts.map((account) => <label key={account.id}><input type="checkbox" checked={assignments.includes(account.id)} onChange={(event) => setAssignments((current) => event.target.checked ? [...current, account.id] : current.filter((id) => id !== account.id))} />{account.label}</label>)}</fieldset>
-      <label className="live-consent"><input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} />ฉันมีสิทธิ์ใช้ภาพและได้รับอนุญาตจากเจ้าของภาพ ไม่ใช้เพื่อแอบอ้างบุคคลอื่น</label>
-      <div className="live-card-actions"><button type="submit" className="primary-action" disabled={busy || !authorized}>{busy ? "กำลังบันทึก..." : "บันทึก"}</button><button type="button" disabled={busy} onClick={() => setEditing(null)}>ยกเลิก</button></div>
-    </form>}
+    {editing && authorized && <PresenterWizard key={editing === "new" ? "new" : editing.id} presenter={editing} accounts={accounts}
+      bridge={bridge} authorized={authorized} busy={busy} onSave={save} onCancel={() => setEditing(null)} />}
     {preview && authorized && <div className="live-reference-preview"><div className="live-section-heading"><h3>{preview.name}</h3><button type="button" className="ai-live-secondary" onClick={() => { if (previewUrl.current) URL.revokeObjectURL(previewUrl.current); previewUrl.current = null; setPreview(null); }}>ปิดภาพ</button></div>
       <img src={preview.url} alt={`ภาพอ้างอิงของ ${preview.name}`} /><p>ภาพอ้างอิง · ยังไม่ใช่ภาพ LIVE</p></div>}
   </section>;

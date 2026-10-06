@@ -9,6 +9,7 @@ import base64
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
 
 WORKER = Path(__file__).resolve().parent
@@ -25,7 +26,10 @@ def serve(source, destination, *, worker_factory=None) -> None:
         if len(first) > MAX_MESSAGE:
             raise ValueError("INVALID_RUNTIME_REQUEST")
         config = json.loads(first)
-        if not isinstance(config, dict) or set(config) != {"root", "profile", "componentRoot"}:
+        if not isinstance(config, dict) or set(config) not in ({"root", "profile", "componentRoot"}, {"root", "profile", "componentRoot", "roomId"}):
+            raise ValueError("INVALID_RUNTIME_CONFIG")
+        room_id = config.get("roomId")
+        if room_id is not None and (not isinstance(room_id, str) or str(uuid.UUID(room_id)) != room_id):
             raise ValueError("INVALID_RUNTIME_CONFIG")
         root, component_root = Path(config["root"]), Path(config["componentRoot"])
         if not root.is_absolute() or not component_root.is_absolute() or root.is_symlink() or component_root.is_symlink():
@@ -57,7 +61,8 @@ def serve(source, destination, *, worker_factory=None) -> None:
                     for value in _sounddevice_data.__path__]
             from local_agent.live_worker import LocalWorkerBoundary
             from local_agent.stream_credentials import StreamCredentialStore
-            worker = LocalWorkerBoundary(root / "worker", StreamCredentialStore(root / "live-credentials"))
+            worker_root = root / "worker" / "isolated" / room_id if room_id else root / "worker"
+            worker = LocalWorkerBoundary(worker_root, StreamCredentialStore(root / "live-credentials"))
         else:
             worker = worker_factory(root, profile, component_root)
         destination.write(b'{"ready":true}\n')

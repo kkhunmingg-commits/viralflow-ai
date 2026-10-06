@@ -37,7 +37,8 @@ export function customerLiveStatus(view: LocalMachineView | null, action: "start
   if (!view || ["INSTALLING", "STARTING"].includes(view.state)) return phaseLabels.PREPARING;
   const stream = projectCustomerStreamStatus(view.customerStream);
   if (view.paired && view.sessionActive) {
-    if (view.state === "ERROR" || view.state === "OFFLINE" || view.state === "PAUSED") return phaseLabels.ERROR;
+    if (view.state === "ERROR" || view.state === "OFFLINE") return phaseLabels.ERROR;
+    if (view.state === "PAUSED" && AI_LIVE_REALTIME_VALIDATED && view.deviceAuthorized) return "AI หยุดชั่วคราว";
     if (AI_LIVE_REALTIME_VALIDATED && view.deviceAuthorized && ["LIVE", "RECONNECTING", "CONNECTING"].includes(stream.phase)) {
       return phaseLabels[stream.phase];
     }

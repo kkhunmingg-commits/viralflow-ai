@@ -20,6 +20,7 @@ from .device_identity import DeviceIdentity
 from .updater import SafeUpdater
 from .stream_credentials import StreamCredentialStore
 from .presenter_library import PresenterLibrary
+from .room_capacity import verified_room_limit
 
 MAX_REFERENCE_BYTES = 4 * 1024 * 1024
 MAX_REFERENCES = 5
@@ -141,6 +142,7 @@ class _Session:
     account_id: str | None = None
     product_ids: tuple[str, ...] = ()
     started_at: int | None = None
+    operation_lock: object = field(default_factory=threading.RLock, repr=False)
 
 
 class LocalAgent:
@@ -153,6 +155,7 @@ class LocalAgent:
         grant_signature_verifier: Callable[[bytes, bytes, bytes], None] = verify_ed25519,
         now: Callable[[], float] = time.time,
         test_only_realtime_validated: bool = False,
+        test_only_verified_room_capacity: int | None = None,
         device_identity: DeviceIdentity | None = None,
         update_status: Callable[[], str] | None = None,
         updater: SafeUpdater | None = None,
@@ -169,9 +172,17 @@ class LocalAgent:
         self._hardware_probe = hardware_probe or (lambda: inspect_hardware(config.data_dir))
         self._grant_signature_verifier = grant_signature_verifier
         self._validated = REALTIME_VALIDATED or test_only_realtime_validated
+        if test_only_verified_room_capacity is not None and (
+                type(test_only_verified_room_capacity) is not int or not 1 <= test_only_verified_room_capacity <= 10
+                or not test_only_realtime_validated):
+            raise ValueError("Capacity test fixtures require the explicit test-only validation boundary")
+        self._test_room_capacity = test_only_verified_room_capacity
         self._references: dict[str, _Reference] = {}
         self._presenter_library = presenter_library or PresenterLibrary(config.data_dir / "library")
         self._sessions: dict[str, _Session] = {}
+        self._starting: set[tuple[str, str]] = set()
+        self._authorization_generation = 0
+        self._closing = False
         self._used_grants: set[str] = set()
         self._device_identity = device_identity
         self._update_status = update_status or (lambda: "CURRENT")
@@ -362,6 +373,7 @@ class LocalAgent:
             if payload["ownerId"] != owner_id:
                 raise SecurityError("OWNER_MISMATCH")
             with self._lock:
+                self._authorization_generation += 1
                 self._device_identity.mark_revoked(payload["issuedAt"])
                 if self._stream_credentials:
                     self._stream_credentials.revoke_owner(owner_id)
@@ -446,6 +458,61 @@ class LocalAgent:
             return HardwareAssessment(False, "UNSUPPORTED", True,
                                       ("ไม่สามารถตรวจสอบเครื่องนี้ได้",),
                                       {"marker": "GPU_VALIDATION_REQUIRED", "codes": ["HARDWARE_CHECK_FAILED"]})
+
+    def _room_capacity(self, owner_id: str | None) -> dict[str, object]:
+        with self._lock:
+            # Errors retain their lease until Stop proves resources were released.
+            active = sum(session.state != "STOPPED" for session in self._sessions.values()) + len(self._starting)
+        maximum = self._test_room_capacity
+        if maximum is None and owner_id:
+            try:
+                maximum = verified_room_limit(self.config.data_dir / "room-capacity.json",
+                    owner_id=owner_id, device_id=self.config.device_id, versions=VERSIONS,
+                    snapshot=self._hardware_probe(), now=self._now(), public_key=self.config.grant_public_key_pem,
+                    verifier=self._grant_signature_verifier, trusted_keys=self.config.trusted_keys,
+                    retired_key_ids=self.config.retired_key_ids)
+            except Exception:
+                maximum = None
+        return {"status": "VERIFIED" if maximum is not None else "UNVERIFIED_CAPACITY",
+                "maximumRooms": maximum, "activeRooms": active,
+                "canStartAnotherRoom": maximum is not None and active < maximum}
+
+    def _room_views(self, owner_id: str | None) -> list[dict[str, object]]:
+        if not owner_id:
+            return []
+        with self._lock:
+            # Return the latest room per account, not an unbounded diagnostic history.
+            latest = {session.account_id: session for session in self._sessions.values()
+                      if session.owner_id == owner_id and session.account_id}
+            records = list(latest.values())
+        result = []
+        observed = getattr(self._worker, "customer_stream", None)
+        for record in records:
+            stream = {"phase": "STOPPED" if record.state == "STOPPED" else "PREPARING", "connectionQuality": "UNAVAILABLE"}
+            if callable(observed) and record.state != "STOPPED":
+                try:
+                    candidate = observed(owner_id, record.session_id)
+                    phases = {"IDLE", "PREPARING", "CONNECTING", "LIVE", "RECONNECTING", "STOPPING", "STOPPED", "SETUP_REQUIRED", "ERROR"}
+                    qualities = {"GOOD", "FAIR", "PROBLEM", "UNAVAILABLE"}
+                    stream = {"phase": candidate.get("phase") if candidate.get("phase") in phases else "PREPARING",
+                              "connectionQuality": candidate.get("connectionQuality") if candidate.get("connectionQuality") in qualities else "UNAVAILABLE"}
+                    if stream["phase"] == "ERROR":
+                        with self._lock:
+                            if record.state != "STOPPED":
+                                record.state = "ERROR"
+                except Exception:
+                    with self._lock:
+                        if record.state != "STOPPED":
+                            record.state = "ERROR"
+                    stream = {"phase": "ERROR", "connectionQuality": "PROBLEM"}
+            result.append({"accountId": record.account_id, "sessionId": record.session_id,
+                "state": record.state, "currentProductId": record.product_ids[0] if record.product_ids else None,
+                "sessionStartedAt": record.started_at, "customerStream": stream})
+        return ([room for room in result if room["state"] != "STOPPED"]
+                + [room for room in reversed(result) if room["state"] == "STOPPED"])[:10]
+
+    def rooms(self, token: str, origin: str) -> dict[str, object]:
+        return self._view(token, origin)
 
     def _components_view(self, *, authorized: bool = False) -> dict[str, object]:
         """Only progress and customer-safe states cross the loopback boundary."""
@@ -587,7 +654,12 @@ class LocalAgent:
             "deviceAuthorized": authorized,
             **self._update_view(),
             "machineReady": hardware.compatible,
+            "capacity": self._room_capacity(owner_id),
+            "rooms": self._room_views(owner_id),
         }
+        result["canStart"] = (authorized and self._validated and worker_ready and hardware.compatible
+            and update not in ("UPDATING", "RESTART_REQUIRED", "REQUIRED", "UPDATE_REQUIRED")
+            and result["capacity"]["canStartAnotherRoom"])
         if self._components is not None:
             result["components"] = self._components_view(authorized=authorized)
             if result["components"]["state"] != "READY":
@@ -603,7 +675,9 @@ class LocalAgent:
             result["sessionId"] = visible_session.session_id
             observed = getattr(self._worker, "customer_stream", None)
             if callable(observed):
-                stream_view = observed(visible_session.owner_id, visible_session.session_id)
+                stream_view = next((room["customerStream"] for room in result["rooms"]
+                                    if room["sessionId"] == visible_session.session_id),
+                                   {"phase": "ERROR", "connectionQuality": "PROBLEM"})
                 result["customerStream"] = stream_view
                 if stream_view.get("phase") == "ERROR":
                     with self._lock:
@@ -797,7 +871,13 @@ class LocalAgent:
         presenter_id = body.get("presenterId")
         if not isinstance(presenter_id, str):
             raise AgentError(422, "PRESENTER_REQUIRED", "กรุณาเลือกรูปผู้นำเสนอ")
+        # Slow runtime inspection/start must never hold the registry lock needed
+        # to stop another room. Admission below reserves a slot atomically.
+        hardware = self._assessment()
+        worker_ready = self._worker.health().get("ready") is True
         with self._lock:
+            if self._closing:
+                raise AgentError(503, "WORKER_UNAVAILABLE", "กรุณาเปิด ViralFlow ใหม่")
             if self._current_update_status() in ("UPDATING", "RESTART_REQUIRED", "REQUIRED", "UPDATE_REQUIRED"):
                 raise AgentError(426, "UPDATE_REQUIRED", "ต้องอัปเดต AI LIVE")
             if grant.grant_id in self._used_grants:
@@ -806,18 +886,28 @@ class LocalAgent:
             reference = self._references.get(presenter_id)
             if reference is None or not hmac.compare_digest(reference.token, token):
                 raise AgentError(404, "PRESENTER_NOT_FOUND", "ไม่พบรูปผู้นำเสนอ")
-            if any(session.state in ("BUSY", "PAUSED", "STOPPING") for session in self._sessions.values()):
-                raise AgentError(409, "SESSION_BUSY", "AI LIVE กำลังทำงาน")
+            if any(session.state != "STOPPED" and session.owner_id == grant.owner_id
+                   and session.account_id == grant.account_id for session in self._sessions.values()) or (
+                       grant.owner_id, grant.account_id) in self._starting:
+                raise AgentError(409, "SESSION_BUSY", "บัญชีนี้กำลัง LIVE อยู่")
             if self._components is not None and self._components_view(authorized=True)["state"] != "READY":
                 raise AgentError(503, "COMPONENTS_REQUIRED", "กรุณารอให้เตรียมเครื่องเสร็จ")
-            hardware = self._assessment()
             if not hardware.compatible:
                 raise AgentError(503, "GPU_REQUIRED", "เครื่องนี้ยังไม่รองรับ AI LIVE")
             if not self._validated:
                 raise AgentError(503, "GPU_VALIDATION_REQUIRED", "AI LIVE ยังอยู่ระหว่างการเตรียมความพร้อม")
-            if self._worker.health().get("ready") is not True:
+            if not worker_ready:
                 raise AgentError(503, "WORKER_NOT_VALIDATED", "ระบบ AI LIVE ยังไม่พร้อมใช้งาน")
+            capacity = self._room_capacity(grant.owner_id)
+            if capacity["status"] == "UNVERIFIED_CAPACITY":
+                raise AgentError(503, "UNVERIFIED_CAPACITY", "ยังไม่ได้ทดสอบจำนวนห้องพร้อมกัน")
+            if not capacity["canStartAnotherRoom"]:
+                raise AgentError(409, "ROOM_CAPACITY_REACHED", "เครื่องนี้กำลังใช้จำนวนห้องที่รองรับครบแล้ว")
             reference.owner_id = grant.owner_id
+            reservation = (grant.owner_id, grant.account_id)
+            self._starting.add(reservation)
+            authorization_generation = self._authorization_generation
+        try:
             try:
                 session_id = self._worker.start_session(grant.owner_id, grant.account_id,
                                                         grant.product_ids, reference.path,
@@ -830,13 +920,42 @@ class LocalAgent:
                 session_id = str(uuid.UUID(session_id))
             except (ValueError, TypeError) as exc:
                 raise AgentError(503, "WORKER_INVALID_SESSION", "ไม่สามารถเริ่ม AI LIVE") from exc
-            self._sessions[session_id] = _Session(session_id, grant.owner_id, grant.expires_at,
-                account_id=grant.account_id, product_ids=tuple(grant.product_ids), started_at=int(self._now() * 1000))
-        return self._view(token, origin)
+            # Revoke/exit may race slow model preparation. Stop the newly-created
+            # owned room instead of admitting it after its authorization changed.
+            with self._lock:
+                revoked = (self._closing or authorization_generation != self._authorization_generation
+                           or grant.expires_at <= self._now())
+                if not revoked:
+                    if session_id in self._sessions:
+                        raise AgentError(503, "WORKER_INVALID_SESSION", "ไม่สามารถเริ่ม AI LIVE")
+                    self._sessions[session_id] = _Session(session_id, grant.owner_id, grant.expires_at,
+                        account_id=grant.account_id, product_ids=tuple(grant.product_ids), started_at=int(self._now() * 1000))
+            if revoked:
+                try:
+                    self._worker.stop_session(grant.owner_id, session_id)
+                except Exception as exc:
+                    with self._lock:
+                        self._sessions[session_id] = _Session(session_id, grant.owner_id, grant.expires_at,
+                            state="STOPPING" if getattr(exc, "code", None) == "WORKER_STOP_PENDING" else "ERROR",
+                            account_id=grant.account_id, product_ids=tuple(grant.product_ids), started_at=int(self._now() * 1000))
+                raise AgentError(403, "DEVICE_REVOKED", "เครื่องนี้ไม่ได้รับอนุญาตให้ LIVE")
+            # The worker copied the bounded reference into its own room storage.
+            # Ephemeral browser uploads should not consume the next room's quota.
+            with self._lock:
+                self._references.pop(presenter_id, None)
+            reference.path.unlink(missing_ok=True)
+        finally:
+            with self._lock:
+                self._starting.discard(reservation)
+        result = self._view(token, origin)
+        result.update({"sessionId": session_id, "activeAccountId": grant.account_id,
+                       "currentProductId": grant.product_ids[0] if grant.product_ids else None,
+                       "sessionStartedAt": self._sessions[session_id].started_at})
+        return result
 
     def pause(self, token: str, origin: str, session_id: str) -> dict[str, object]:
         session = self._owned_session(token, origin, session_id)
-        with self._lock:
+        with session.operation_lock:
             if session.state != "BUSY":
                 raise AgentError(409, "SESSION_NOT_RUNNING", "AI LIVE ไม่ได้กำลังทำงาน")
             self._worker.pause_session(session.owner_id, session_id)
@@ -845,7 +964,7 @@ class LocalAgent:
 
     def resume(self, token: str, origin: str, session_id: str) -> dict[str, object]:
         session = self._owned_session(token, origin, session_id)
-        with self._lock:
+        with session.operation_lock:
             if session.state != "PAUSED":
                 raise AgentError(409, "SESSION_NOT_PAUSED", "AI LIVE ไม่ได้หยุดชั่วคราว")
             if not self._validated or not self._assessment().compatible:
@@ -857,7 +976,7 @@ class LocalAgent:
     def stop(self, token: str, origin: str, session_id: str) -> dict[str, object]:
         # Deliberately no entitlement, version, hardware, or grant-expiry check.
         session = self._owned_session(token, origin, session_id)
-        with self._lock:
+        with session.operation_lock:
             if session.state != "STOPPED":
                 session.state = "STOPPING"
                 try:
@@ -873,7 +992,7 @@ class LocalAgent:
 
     def recover(self, token: str, origin: str, session_id: str) -> dict[str, object]:
         session = self._owned_session(token, origin, session_id)
-        with self._lock:
+        with session.operation_lock:
             if session.state != "ERROR" or session.recovery_attempts >= 1:
                 raise AgentError(409, "RECOVERY_UNAVAILABLE", "ไม่สามารถกู้คืน AI LIVE")
             if (session.grant_expires_at <= self._now() or not self._validated
@@ -895,6 +1014,9 @@ class LocalAgent:
                 session.state = "ERROR"
 
     def close(self) -> None:
+        with self._lock:
+            self._closing = True
+            self._authorization_generation += 1
         self._component_cancel.set()
         if self._components is not None:
             self._components.cancel()

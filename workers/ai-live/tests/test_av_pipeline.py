@@ -41,6 +41,23 @@ class AVPipelineTests(unittest.TestCase):
             stream.on_failure = Mock()
             return stream, encoder, provider
 
+    def test_pause_ai_preserves_stream_and_rejects_cancelled_generation_after_resume(self):
+        stream, encoder, provider = self.media()
+        original_generation = stream.speech_generation
+        stream.pause_speech()
+        encoder.cancel_pending_audio.assert_called_once_with()
+        self.assertFalse(stream.push_audio(b"pending speech"))
+        self.assertFalse(stream.push_frame(b"cancelled inference"))
+        self.assertFalse(stream.accepts_speech_generation(original_generation))
+        stream.resume_speech()
+        self.assertFalse(stream.accepts_speech_generation(original_generation))
+        self.assertTrue(stream.accepts_speech_generation(stream.speech_generation))
+        stream.push_audio(b"new speech")
+        encoder.push_audio.assert_called_once_with(b"new speech", allow_partial=False)
+        provider.stop.assert_not_called()
+        encoder.stop.assert_not_called()
+        self.assertFalse(stream._stop.is_set())
+
     def test_failed_destination_stops_media_and_marks_original_session_failed(self):
         stream, encoder, provider = self.media()
         provider.health.return_value = {"status": "FAILED", "healthy": False}
