@@ -7,10 +7,10 @@ const row: SnapshotRecord = { id: "record", tiktok_account_id: "account", video_
 const ids = new Set(["account"]);
 describe("observed POST/LIVE learning boundary", () => {
   it("reads actual POST observations once and retains creative/script/hook references", () => {
-    const input = { ...row, creative_project_id: "creative", script_id: "script", creative_angle_id: "angle" };
+    const input = { ...row, published_at: "2026-10-06T11:00:00.000Z", creative_project_id: "creative", script_id: "script", creative_angle_id: "angle" };
     const events = observedPostEvents("owner", ids, [input, input, { ...row, source: "MOCK" }, { ...row, tiktok_account_id: "other" }]);
     expect(events).toHaveLength(1);
-    expect(events[0]).toMatchObject({ source: "POST", creativeReference: "creative", scriptReference: "script", hookReference: "angle", units: null, measurement: "CUMULATIVE_SNAPSHOT" });
+    expect(events[0]).toMatchObject({ source: "POST", creativeReference: "creative", scriptReference: "script", hookReference: "angle", clipReference: "v", postingTime: input.published_at, units: null, measurement: "CUMULATIVE_SNAPSHOT" });
     expect(events[0].liveDurationSeconds).toBeNull();
   });
   it("refuses wrong owners, wrong devices' account sets and development observations", () => {

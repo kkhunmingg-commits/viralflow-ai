@@ -12,6 +12,12 @@ export interface ExecutionClaim {
   runId: string;
   accountId: string;
   mode: EffectiveAutoMode;
+  /** Captured by the account-scoped durable claim; legacy runs default to AUTO. */
+  postingMode?: "AUTO" | "DRAFT" | "EXPORT";
+  runDate?: string;
+  scheduledFor?: string | null;
+  /** Daily rank is stable across separate one-item schedule runs. */
+  slotOrdinal?: number;
   itemIndex: number;
   dailyTarget: number;
   attempt: number;

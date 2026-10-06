@@ -17,7 +17,8 @@ import { recordAutoLearning } from "@/features/analytics/auto-learning";
 import { assignmentDate } from "@/features/assignments/planner";
 import type { VideoAnalyticsObservation } from "@/features/analytics/provider";
 import type { FrameVisionProvider } from "@/features/video/frame-verification";
-import { autoPublishMode, autoVideoQualityOutcome } from "./execution-policy";
+import { accountPostingMode, autoVideoQualityOutcome } from "./execution-policy";
+import { ensurePostOutput, executionPostingMode, exportContentGate, updatePostOutput } from "./post-outputs";
 import { stableAutoKey } from "./engine";
 import type { ExecutionClaim, ExecutionPorts, StageOutcome } from "./processor";
 
@@ -47,14 +48,18 @@ export interface AutoExecutionBoundaries {
 }
 
 export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: AutoExecutionBoundaries = {}): ExecutionPorts {
-  const publishing = new TikTokPublishingService(admin, boundaries.publishingProvider);
+  // Export must work without instantiating an unavailable TikTok adapter.
+  let publishingService: TikTokPublishingService | undefined;
+  const publishing = () => publishingService ??= new TikTokPublishingService(admin, boundaries.publishingProvider);
+  const realPublishingConfigured = () => serverEnv.tiktokPublishingRealMode && (boundaries.publishingProvider
+    ? boundaries.publishingProvider.name === "tiktok" : serverEnv.tiktokPublishingProvider === "official");
   return {
     async FIND_OPPORTUNITY(claim) {
       const { data, error } = await admin.from("product_assignments").select("id,product_id,effective_mode,status")
         .eq("owner_id", claim.ownerId).eq("tiktok_account_id", claim.accountId)
-        .eq("assignment_date", assignmentDate(new Date().toISOString()))
+        .eq("assignment_date", claim.runDate ?? assignmentDate(new Date().toISOString()))
         .in("status", ["CANDIDATE", "SELECTED", "USED"])
-        .eq("rank_for_account", claim.itemIndex).maybeSingle();
+        .eq("rank_for_account", claim.slotOrdinal ?? claim.itemIndex).maybeSingle();
       must(error, "auto_assignment_read_failed");
       if (!data) return wait("WAITING_FOR_DATA", "ASSIGNMENT_REQUIRED");
       if (data.effective_mode !== claim.mode) return wait("BLOCKED", "MODE_MISMATCH");
@@ -127,11 +132,19 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       return autoVideoQualityOutcome(data);
     },
     async COMPLIANCE_CHECK(claim) {
+      const postingMode = await executionPostingMode(admin, claim);
       const videoId = id(claim, "videoId");
       let gate = await getLatestVideoGate(admin, claim.ownerId, videoId);
       if (!gate.eligibility) {
         await runPrePublishGate(admin, claim.ownerId, "master", videoId, false);
         gate = await getLatestVideoGate(admin, claim.ownerId, videoId);
+      }
+      if (postingMode === "EXPORT") {
+        if (exportContentGate(gate)) return { kind: "ADVANCE", evidence: { postingMode, eligibilityStatus: "EXPORT_CONTENT_PASSED" } };
+        if (gate.compliance?.overall_status === "REJECT" || ["REJECT", "TOO_SIMILAR"].includes(String(gate.originality?.originality_status))) {
+          return { kind: "SKIP_ITEM", reason: "EXPORT_CONTENT_REJECTED" };
+        }
+        return wait("WAITING_FOR_APPROVAL", "COMPLIANCE_REVIEW");
       }
       const status = String(gate.eligibility?.final_status ?? "ACCOUNT_BLOCKED");
       if (["REJECT", "REGENERATE"].includes(status)) return { kind: "SKIP_ITEM", reason: `COMPLIANCE_${status}` };
@@ -142,81 +155,137 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       return { kind: "ADVANCE", evidence: { eligibilityStatus: status, complianceCheckId: gate.eligibility?.id } };
     },
     async QUEUE_PUBLISH(claim) {
+      const postingMode = await executionPostingMode(admin, claim);
+      if (postingMode === "EXPORT") {
+        const output = await ensurePostOutput(admin, claim, postingMode);
+        return { kind: "ADVANCE", evidence: { outputId: output.id, postingMode, publishStatus: "READY" } };
+      }
       const account = await admin.from("tiktok_accounts")
-        .select("is_mock,authorization_status,audit_status,direct_post_status,granted_scopes")
+        .select("is_mock,authorization_status,audit_status,direct_post_status,upload_status,granted_scopes")
         .eq("owner_id", claim.ownerId).eq("id", claim.accountId).maybeSingle();
       must(account.error, "auto_publish_account_read_failed");
       if (!account.data) throw new Error("auto_publish_account_missing");
-      const publishMode = autoPublishMode(account.data, process.env.NODE_ENV === "development");
-      if (!publishMode) return wait("WAITING_FOR_DATA", "DIRECT_POST_APPROVAL_REQUIRED");
-      const queued = await publishing.queueVideo({
+      const publishMode = accountPostingMode(account.data, postingMode, process.env.NODE_ENV === "development", serverEnv.tiktokVideoUploadApproved);
+      if (!publishMode || publishMode === "EXPORT") return wait("WAITING_FOR_APPROVAL", postingMode === "DRAFT" ? "DRAFT_CAPABILITY_REQUIRED" : "DIRECT_POST_APPROVAL_REQUIRED");
+      if (!account.data.is_mock && (!realPublishingConfigured()
+        || (postingMode === "AUTO" && !serverEnv.tiktokVideoPublishApproved))) {
+        return wait("WAITING_FOR_APPROVAL", "PUBLISHING_NOT_APPROVED");
+      }
+      const queued = await publishing().queueVideo({
         ownerId: claim.ownerId, accountId: claim.accountId, videoId: id(claim, "videoId"),
-        videoKind: "MASTER", publishMode,
+        videoKind: "MASTER", publishMode, scheduledFor: claim.scheduledFor ?? undefined,
         idempotencyKey: stableAutoKey(claim.runId, claim.accountId, claim.itemIndex, "QUEUE_PUBLISH"),
       });
-      return { kind: "ADVANCE", evidence: { queueId: queued.id, publishMode } };
+      const output = await ensurePostOutput(admin, claim, postingMode, queued.id);
+      return { kind: "ADVANCE", evidence: { queueId: queued.id, outputId: output.id, publishMode, postingMode } };
     },
     async PUBLISH(claim) {
+      const postingMode = await executionPostingMode(admin, claim);
+      if (postingMode === "EXPORT") {
+        const output = await ensurePostOutput(admin, claim, postingMode);
+        return { kind: "ADVANCE", evidence: { outputId: output.id, publishStatus: "READY", postingMode } };
+      }
       const queueId = id(claim, "queueId");
-      const { data, error } = await admin.from("publishing_queue").select("id,status,external_state,consent_id,provider_publish_id,publish_mode")
-        .eq("owner_id", claim.ownerId).eq("id", queueId).maybeSingle();
+      const { data, error } = await admin.from("publishing_queue").select("id,status,external_state,consent_id,provider_publish_id,publish_mode,scheduled_for,completed_at")
+        .eq("owner_id", claim.ownerId).eq("tiktok_account_id", claim.accountId).eq("video_id", id(claim, "videoId")).eq("id", queueId).maybeSingle();
       must(error, "auto_publish_read_failed");
       if (!data) throw new Error("auto_publish_queue_missing");
-      if (data.publish_mode !== "DIRECT_POST" && !(process.env.NODE_ENV === "development" && data.publish_mode === "DRAFT_UPLOAD")) {
-        return wait("WAITING_FOR_DATA", "DIRECT_POST_REQUIRED");
+      if ((postingMode === "AUTO" && data.publish_mode !== "DIRECT_POST" && !(process.env.NODE_ENV === "development" && data.publish_mode === "DRAFT_UPLOAD"))
+        || (postingMode === "DRAFT" && data.publish_mode !== "DRAFT_UPLOAD")) {
+        return wait("WAITING_FOR_APPROVAL", "POSTING_MODE_MISMATCH");
       }
-      if (["PUBLISHED", "DRAFT_DELIVERED"].includes(data.status)) return { kind: "ADVANCE", evidence: { publishStatus: data.status } };
+      const terminal = async (status: string, completedAt?: string | null): Promise<StageOutcome> => {
+        await updatePostOutput(admin, claim, status === "PUBLISHED" ? "PUBLISHED" : "DRAFT_UPLOADED", completedAt);
+        return { kind: "ADVANCE", evidence: { publishStatus: status, postingMode } };
+      };
+      const polls = Number.isSafeInteger(claim.checkpoint.publishPollCount) && Number(claim.checkpoint.publishPollCount) >= 0
+        ? Number(claim.checkpoint.publishPollCount) : 0;
+      const started = typeof claim.checkpoint.publishPollingStartedAt === "string"
+        && Number.isFinite(Date.parse(claim.checkpoint.publishPollingStartedAt))
+        ? claim.checkpoint.publishPollingStartedAt : new Date().toISOString();
+      const pollLimitReached = polls >= 24 || Date.now() - Date.parse(started) >= 2 * 3600_000;
+      const pending: StageOutcome = { kind: "WAIT", state: "WAITING_FOR_DATA", reason: "PUBLISH_RESULT_PENDING",
+        evidence: { publishPollCount: polls + 1, publishPollingStartedAt: started } };
+      const pollingReview: StageOutcome = { kind: "RECONCILE", reason: "PUBLISH_RESULT_UNCONFIRMED",
+        evidence: { queueId, publishPollCount: polls, publishPollingStartedAt: started } };
+      if (["PUBLISHED", "DRAFT_DELIVERED"].includes(data.status)) return terminal(data.status, data.completed_at);
       if (data.provider_publish_id) {
+        if (pollLimitReached) return pollingReview;
         try {
-          const refreshed = await publishing.fetchPublishStatus(claim.ownerId, queueId);
+          const refreshed = await publishing().fetchPublishStatus(claim.ownerId, queueId);
           if (["FAILED", "REJECTED", "CANCELLED"].includes(refreshed.status)) {
+            await updatePostOutput(admin, claim, "FAILED");
             return { kind: "SKIP_ITEM", reason: `PUBLISH_${refreshed.status}` };
           }
           return ["DRAFT_DELIVERED", "PUBLISHED"].includes(refreshed.status)
-            ? { kind: "ADVANCE", evidence: { publishStatus: refreshed.status } }
-            : wait("WAITING_FOR_DATA", "PUBLISH_RESULT_PENDING");
+            ? terminal(refreshed.status, (refreshed as unknown as { completed_at?: string | null }).completed_at)
+            : pending;
         } catch {
-          return wait("WAITING_FOR_DATA", "PUBLISH_RESULT_PENDING");
+          return pending;
         }
       }
       if (data.status === "WAITING_FOR_RECONCILIATION" || data.external_state === "SUBMITTED_UNKNOWN") {
         return { kind: "RECONCILE", reason: "RECONCILIATION_REQUIRED", evidence: { queueId } };
       }
       if (data.status === "WAITING_FOR_SLOT") return wait("WAITING_FOR_SLOT", "PUBLISH_CAP");
-      if (["REJECTED", "FAILED", "CANCELLED"].includes(data.status)) return { kind: "SKIP_ITEM", reason: `PUBLISH_${data.status}` };
+      if (["REJECTED", "FAILED", "CANCELLED"].includes(data.status)) {
+        await updatePostOutput(admin, claim, "FAILED");
+        return { kind: "SKIP_ITEM", reason: `PUBLISH_${data.status}` };
+      }
       if (data.status === "DRAFT") {
-        const prepared = await publishing.preparePublish(claim.ownerId, queueId);
+        const prepared = await publishing().preparePublish(claim.ownerId, queueId);
         if (prepared.status === "WAITING_FOR_SLOT") return wait("WAITING_FOR_SLOT", "PUBLISH_CAP");
         if (prepared.status === "REJECTED") return { kind: "SKIP_ITEM", reason: "PUBLISH_GATE_REJECTED" };
       }
-      if (!data.consent_id) return wait("WAITING_FOR_APPROVAL", "CONSENT");
+      if (!data.consent_id) {
+        await updatePostOutput(admin, claim, "REVIEW_REQUIRED");
+        return wait("WAITING_FOR_APPROVAL", "CONSENT");
+      }
+      if (data.scheduled_for && Date.parse(data.scheduled_for) > Date.now()) {
+        await updatePostOutput(admin, claim, "SCHEDULED");
+        return wait("WAITING_FOR_SLOT", "SCHEDULE_NOT_DUE");
+      }
       if (!await runIsActive(admin, claim)) return wait("WAITING_FOR_APPROVAL", "RUN_NOT_ACTIVE");
+      const capability = await admin.from("tiktok_accounts").select("is_mock,authorization_status,audit_status,direct_post_status,upload_status,granted_scopes")
+        .eq("owner_id", claim.ownerId).eq("id", claim.accountId).maybeSingle();
+      must(capability.error, "auto_publish_capability_read_failed");
+      if (!capability.data || !accountPostingMode(capability.data, postingMode, process.env.NODE_ENV === "development", serverEnv.tiktokVideoUploadApproved)
+        || (!capability.data.is_mock && (!realPublishingConfigured() || postingMode === "AUTO" && !serverEnv.tiktokVideoPublishApproved))) {
+        return wait("WAITING_FOR_APPROVAL", "PUBLISHING_NOT_APPROVED");
+      }
       const result = data.publish_mode === "DIRECT_POST"
-        ? await publishing.directPost(claim.ownerId, queueId)
-        : await publishing.uploadDraft(claim.ownerId, queueId);
+        ? await publishing().directPost(claim.ownerId, queueId)
+        : await publishing().uploadDraft(claim.ownerId, queueId);
       if (["DRAFT_DELIVERED", "PUBLISHED"].includes(result.status)) {
-        return { kind: "ADVANCE", evidence: { publishStatus: result.status } };
+        return terminal(result.status, (result as unknown as { completed_at?: string | null }).completed_at);
       }
       if (result.provider_publish_id) {
+        if (pollLimitReached) return pollingReview;
         try {
-          const refreshed = await publishing.fetchPublishStatus(claim.ownerId, queueId);
+          const refreshed = await publishing().fetchPublishStatus(claim.ownerId, queueId);
           if (["FAILED", "REJECTED", "CANCELLED"].includes(refreshed.status)) {
+            await updatePostOutput(admin, claim, "FAILED");
             return { kind: "SKIP_ITEM", reason: `PUBLISH_${refreshed.status}` };
           }
           if (["DRAFT_DELIVERED", "PUBLISHED"].includes(refreshed.status)) {
-            return { kind: "ADVANCE", evidence: { publishStatus: refreshed.status } };
+            return terminal(refreshed.status, (refreshed as unknown as { completed_at?: string | null }).completed_at);
           }
         } catch {
           // The provider operation ID is durable; a later poll must not resubmit it.
-          return wait("WAITING_FOR_DATA", "PUBLISH_RESULT_PENDING");
+          return pending;
         }
       }
       if (result.status === "WAITING_FOR_RECONCILIATION" || result.external_state === "SUBMITTED_UNKNOWN") {
         return { kind: "RECONCILE", reason: "RECONCILIATION_REQUIRED", evidence: { queueId } };
       }
-      return wait("WAITING_FOR_DATA", "PUBLISH_RESULT_PENDING");
+      return pending;
     },
     async COLLECT_ANALYTICS(claim) {
+      const postingMode = await executionPostingMode(admin, claim);
+      if (postingMode === "EXPORT" || claim.checkpoint.publishStatus === "DRAFT_DELIVERED") {
+        if (postingMode === "DRAFT") await updatePostOutput(admin, claim, "WAITING_FOR_USER");
+        return { kind: "ADVANCE", evidence: { analyticsDeferred: true, postingMode } };
+      }
       const videoId = id(claim, "videoId");
       if (serverEnv.tiktokAnalyticsProvider === "official" || boundaries.analyticsIngestion) {
         const ingested = await (boundaries.analyticsIngestion ?? createProductionAnalyticsIngestion(admin)).collect({
@@ -225,13 +294,13 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
         });
         return ingested.status === "READY"
           ? { kind: "ADVANCE", evidence: { winnerScoreId: ingested.winnerScoreId, winnerDecision: ingested.winnerDecision } }
-          : wait("WAITING_FOR_DATA", ingested.reason);
+          : { kind: "ADVANCE", evidence: { analyticsDeferred: true, analyticsReason: ingested.reason } };
       }
       const account = await admin.from("tiktok_accounts").select("is_mock")
         .eq("owner_id", claim.ownerId).eq("id", claim.accountId).maybeSingle();
       must(account.error, "auto_analytics_account_read_failed");
       if (!account.data?.is_mock || process.env.NODE_ENV !== "development") {
-        return wait("WAITING_FOR_PROVIDER", "ANALYTICS_PROVIDER_UNAVAILABLE");
+        return { kind: "ADVANCE", evidence: { analyticsDeferred: true, analyticsReason: "ANALYTICS_PROVIDER_UNAVAILABLE" } };
       }
       const existing = await admin.from("winner_scores").select("id,decision,confidence,final_score")
         .eq("owner_id", claim.ownerId).eq("tiktok_account_id", claim.accountId)
@@ -259,6 +328,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       return { kind: "ADVANCE", evidence: { winnerScoreId: saved.winnerScoreId, winnerDecision: result.decision } };
     },
     async LEARN(claim) {
+      if (claim.checkpoint.analyticsDeferred === true) return { kind: "ADVANCE", evidence: { learningDeferred: true } };
       const saved = await recordAutoLearning(admin, { ownerId: claim.ownerId, accountId: claim.accountId,
         winnerScoreId: id(claim, "winnerScoreId"), productId: id(claim, "productId"), mode: claim.mode });
       return saved ? { kind: "ADVANCE", evidence: saved } : wait("WAITING_FOR_DATA", "WINNER_SCORE_MISSING");

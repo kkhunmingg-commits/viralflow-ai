@@ -7,7 +7,9 @@ vi.mock("@/app/(app)/post/actions", () => ({
   startCustomerPostAction: async () => ({ ok: true, message: "" }),
   stopCustomerPostAction: async () => ({ ok: true, message: "" }),
   retryCustomerPostAction: async () => ({ ok: true, message: "" }),
+  saveCustomerPostScheduleAction: async () => ({ ok: true, message: "" }),
 }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 
 import { HomeOverview } from "./home-overview";
 import { PostOverview } from "./post-overview";
@@ -59,15 +61,17 @@ describe("customer Home and POST", () => {
     const b = account("account-b", "Bob", { canStart: false, connected: false, postStatus: "ต้องเชื่อมบัญชีใหม่", actionRequired: { label: "ต้องเชื่อม TikTok บัญชีนี้ใหม่", href: "/accounts/account-b" } });
     const html = renderToStaticMarkup(<PostOverview data={overview([a, b])} requestKeys={{ "account-a": "request-a", "account-b": "request-b" }} />);
     expect(html).toContain('name="accountId" value="account-a"'); expect(html).toContain('name="accountId" value="account-b"');
-    expect(html).toContain('value="DRAFT" disabled=""'); expect(html).toContain('value="EXPORT" disabled=""');
+    expect(html).toContain('value="DRAFT"'); expect(html).toContain('value="EXPORT"');
+    expect(html).toContain("จะรอสิทธิ์เผยแพร่");
     expect(html).toContain("ต้องเชื่อม TikTok บัญชีนี้ใหม่");
     expect(html.match(/class="customer-primary-button customer-start-button" disabled=""/g)).toHaveLength(1);
-    expect(html).toContain("3"); expect(html).toContain("1 / 5 คลิป");
+    expect(html).toContain("3 / 5 คลิป");
     expect(visibleText(html)).not.toMatch(/account-a|account-b|request-a|request-b|scope|provider|Supabase|FFmpeg|queue_id|open_id|raw JSON/);
   });
-  it("does not offer per-account STOP for a shared run", () => {
+  it("scopes STOP to the chosen account without trusting a browser run ID", () => {
     const html = renderToStaticMarkup(<PostOverview data={overview([account("account-a", "Alice", { activeRunId: "shared-run", canStop: true, isSingleAccountRun: false })])} requestKeys={{ "account-a": "request-a" }} />);
-    expect(html).not.toContain('class="customer-stop-button"');
+    expect(html).toContain('class="customer-stop-button"');
+    expect(html).not.toContain('name="runId"');
   });
   it("keeps START visible before metrics and collapses every account's settings by default", () => {
     const data = overview(Array.from({ length: 10 }, (_, index) => account(`account-${index}`, `บัญชี ${index + 1}`)));
@@ -76,8 +80,8 @@ describe("customer Home and POST", () => {
     expect(html).not.toMatch(/<details[^>]*open/);
     expect(html.match(/class="customer-primary-button customer-start-button"/g)).toHaveLength(10);
     const firstCard = html.slice(html.indexOf('class="customer-account-card customer-post-account-card"'));
-    expect(firstCard.indexOf("START AUTO")).toBeLessThan(firstCard.indexOf('class="customer-post-settings"'));
-    expect(firstCard.indexOf("START AUTO")).toBeLessThan(firstCard.indexOf('class="customer-post-counts"'));
+    expect(firstCard.indexOf("START")).toBeLessThan(firstCard.indexOf('class="customer-post-settings"'));
+    expect(firstCard.indexOf("START")).toBeLessThan(firstCard.indexOf('class="customer-post-counts"'));
   });
   it("drills into only the supplied account's clips and enables Retry only when authorized", () => {
     const html = renderToStaticMarkup(<PostAccountDetail requestKey="request-b" data={{ account: account("account-b", "Bob"), period: "today", updatedAt: "2026-10-06T03:00:00Z", clips: [
@@ -85,6 +89,17 @@ describe("customer Home and POST", () => {
     ] }} />);
     expect(html).toContain("สินค้า B"); expect(html).not.toContain("Alice"); expect(html).not.toContain("ลองอีกครั้ง");
     expect(visibleText(html)).not.toMatch(/queue-b|clip-b|account-b|request-b|MuseTalk|CUDA|API|model|provider/);
+  });
+  it("offers real video, review and EXPORT controls without showing internal locators", () => {
+    const html = renderToStaticMarkup(<PostAccountDetail requestKey="request-b" data={{ account: account("account-b", "Bob"), period: "today", updatedAt: "2026-10-06T03:00:00Z", clips: [
+      { currency: null, key: "private-clip-locator", title: "สินค้า B", product: "สินค้า B", thumbnail: null, status: "พร้อมโพสต์", scheduledAt: null, postedAt: null,
+        views: null, sales: null, canRetry: false, queueId: null, caption: "คำบรรยายที่ตรวจแล้ว", hashtags: ["สินค้า"], videoUrl: "/api/post/clips/opaque/video?kind=MASTER", downloadUrl: "/api/post/outputs/opaque/download" },
+      { currency: null, key: "review-locator", title: "คลิปที่รอตรวจ", product: null, thumbnail: null, status: "ต้องตรวจสอบ", scheduledAt: null, postedAt: null,
+        views: null, sales: null, canRetry: false, queueId: null, reviewRequired: true, reviewUrl: "/api/post/outputs/opaque/review" },
+    ] }} />);
+    expect(html).toContain("<video"); expect(html).toContain('preload="none"'); expect(html).toContain("ดาวน์โหลดไปโพสต์"); expect(html).toContain("ตรวจและยืนยันคลิป");
+    expect(html).toContain("คำบรรยายที่ตรวจแล้ว");
+    expect(visibleText(html)).not.toMatch(/private-clip-locator|review-locator|opaque|API|provider|model|fal|raw JSON/);
   });
   it("keeps the main surfaces responsive without a horizontal grid or forced card width", () => {
     const css = readFileSync(new URL("./customer-control-center.css", import.meta.url), "utf8");

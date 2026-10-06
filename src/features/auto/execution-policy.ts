@@ -6,7 +6,20 @@ type PublishAccount = {
   audit_status: string;
   direct_post_status: string;
   granted_scopes: unknown;
+  upload_status?: string;
 };
+
+export type PostingMode = "AUTO" | "DRAFT" | "EXPORT";
+
+/** A saved mode does not grant platform permissions or production approval. */
+export function accountPostingMode(account: PublishAccount, mode: PostingMode, development: boolean, uploadApproved = false) {
+  if (mode === "EXPORT") return "EXPORT" as const;
+  if (mode === "AUTO") return autoPublishMode(account, development);
+  if (account.is_mock) return development ? "DRAFT_UPLOAD" as const : null;
+  return uploadApproved && account.authorization_status === "authorized"
+    && account.upload_status === "READY" && Array.isArray(account.granted_scopes)
+    && account.granted_scopes.includes("video.upload") ? "DRAFT_UPLOAD" as const : null;
+}
 
 export function autoPublishMode(account: PublishAccount, development: boolean) {
   if (account.is_mock) return development ? "DRAFT_UPLOAD" as const : null;

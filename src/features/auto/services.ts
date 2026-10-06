@@ -7,14 +7,14 @@ import { serverEnv } from "@/lib/server-env";
 import { falAutoModeAvailability } from "@/features/video/provider-routing";
 import { realProviderAllowedForAccount } from "./operator";
 
-const ACTIVE = ["STARTING", "RUNNING", "PAUSED", "RETRY_PENDING"];
+export const ACTIVE_AUTO_ACCOUNT_STATES = ["STARTING", "RUNNING", "PAUSED", "WAITING_FOR_DATA", "WAITING_FOR_APPROVAL", "WAITING_FOR_SLOT", "WAITING_FOR_PROVIDER", "WAITING_FOR_RECONCILIATION", "RETRY_PENDING", "BLOCKED"];
 const AUTO_RUN_VERSION = "full-auto-mode-v1";
 
 export async function getAutoOverview(client: SupabaseClient, owner: string, page = 1) {
   const { from, to } = operationalWindow(page);
   const [runs, active, states, actions, failures] = await Promise.all([
     client.from("auto_runs").select("*").eq("owner_id", owner).order("updated_at", { ascending: false }).order("id", { ascending: false }).range(from, to),
-    client.from("auto_runs").select("*").eq("owner_id", owner).in("state", ACTIVE).order("updated_at", { ascending: false }).limit(1).maybeSingle(),
+    client.from("auto_runs").select("*").eq("owner_id", owner).in("state", ACTIVE_AUTO_ACCOUNT_STATES).order("updated_at", { ascending: false }).limit(100),
     client.from("auto_account_states").select("*").eq("owner_id", owner).order("priority", { ascending: false }),
     client.from("auto_actions").select("*").eq("owner_id", owner).order("created_at", { ascending: false }).limit(100),
     client.from("auto_failures").select("*").eq("owner_id", owner).order("created_at", { ascending: false }).limit(100),
@@ -26,7 +26,8 @@ export async function getAutoOverview(client: SupabaseClient, owner: string, pag
   const latest = page === 1 ? null : await client.from("auto_runs").select("*").eq("owner_id", owner).order("updated_at", { ascending: false }).limit(50);
   if (latest?.error) throw new Error(latest.error.message);
   const summaryRuns = latest ? (latest.data ?? []) as AutoRun[] : runRows;
-  return { runs: runRows, page, hasMore: runPage.hasMore, states: stateRows, actions: actions.data ?? [], failures: failures.data ?? [], activeRun: active.data as AutoRun | null, summary: summarizeAuto(summaryRuns, stateRows, actions.data ?? []) };
+  const activeRuns = (active.data ?? []) as AutoRun[];
+  return { runs: runRows, page, hasMore: runPage.hasMore, states: stateRows, actions: actions.data ?? [], failures: failures.data ?? [], activeRuns, activeRun: activeRuns[0] ?? null, summary: summarizeAuto(summaryRuns, stateRows, actions.data ?? []) };
 }
 
 export async function getAutoRun(client: SupabaseClient, owner: string, id: string) {
@@ -60,11 +61,17 @@ export function summarizeAuto(runs: AutoRun[], states: AutoAccountState[], actio
   };
 }
 
-export interface OperatorSelection { accountId: string; mode: "AUTO" | "GROWTH" | "AFFILIATE"; dailyTarget: number; dailyBudgetUsd: number }
+export interface OperatorSelection { accountId: string; mode: "AUTO" | "GROWTH" | "AFFILIATE"; dailyTarget: number; dailyBudgetUsd: number; postingMode?: "AUTO" | "DRAFT" | "EXPORT"; scheduleSlotKey?: string; runDate?: string }
+
+export function accountReadyForGeneration(account: { account_status: string; authorization_status: string }, postingMode: OperatorSelection["postingMode"] = "AUTO") {
+  // Export needs no TikTok transport, but known safety restrictions still block it.
+  if (postingMode === "EXPORT") return ["active", "disconnected", "unknown"].includes(account.account_status);
+  return account.account_status === "active" && account.authorization_status === "authorized";
+}
 
 export async function createAutoRun(admin: SupabaseClient, owner: string, requestKey: string, selection?: OperatorSelection) {
-  const date = new Date().toISOString().slice(0, 10);
-  const key = stableAutoKey(owner, date, requestKey, AUTO_RUN_VERSION);
+  const date = selection?.runDate ?? new Date().toISOString().slice(0, 10);
+  const key = stableAutoKey(owner, selection?.accountId ?? "legacy-single-account", date, requestKey, AUTO_RUN_VERSION);
   let accountQuery = admin.from("tiktok_accounts")
     .select("id,is_mock,mode,effective_mode,authorization_status,account_status,daily_post_target,daily_post_hard_limit,max_cost_per_video_usd,daily_video_budget_usd,monthly_video_budget_usd")
     .eq("owner_id", owner);
@@ -72,6 +79,7 @@ export async function createAutoRun(admin: SupabaseClient, owner: string, reques
   const accounts = await accountQuery;
   if (accounts.error) throw new Error(accounts.error.message);
   if (selection && accounts.data?.length !== 1) throw new Error("account_not_found");
+  if (!selection && accounts.data?.length !== 1) throw new Error("account_selection_required");
   if (selection && (!Number.isInteger(selection.dailyTarget) || selection.dailyTarget < 1 || selection.dailyTarget > 20 || !Number.isFinite(selection.dailyBudgetUsd) || selection.dailyBudgetUsd < 0 || selection.dailyBudgetUsd > 1000)) throw new Error("invalid_operator_selection");
   const providerGate = falAutoModeAvailability({ keyPresent: Boolean(serverEnv.falKey), state: serverEnv.falWanProviderState });
   const providerAvailable = providerGate.providerAvailable;
@@ -86,7 +94,7 @@ export async function createAutoRun(admin: SupabaseClient, owner: string, reques
     const plan = planAccount({
       id: account.id, requestedMode, commerceReady: account.effective_mode === "AFFILIATE" && !account.is_mock, providerAvailable: sandbox || realProviderAllowedForAccount(providerAvailable, account.is_mock),
       providerBudgetAvailable: Number(account.max_cost_per_video_usd) > 0 && Number(account.monthly_video_budget_usd) > 0 && dailyBudgetUsd > 0 && dailyBudgetUsd <= Number(account.daily_video_budget_usd),
-      analyticsFresh: true, accountHealthy: account.account_status === "active" && account.authorization_status === "authorized", consent: false, deferConsentUntilPublish: true,
+      analyticsFresh: true, accountHealthy: accountReadyForGeneration(account, selection?.postingMode), consent: false, deferConsentUntilPublish: true,
       publishRemaining: account.daily_post_hard_limit, desiredCandidates: Math.max(15, dailyTarget), desiredPosts: dailyTarget,
       priority: 100 - index, nextGrowthAction: "WAIT_FOR_DATA", affiliateDecision: "WATCH",
     });
@@ -95,6 +103,8 @@ export async function createAutoRun(admin: SupabaseClient, owner: string, reques
       desiredCandidates: Math.max(15, dailyTarget), desiredPosts: dailyTarget,
       maxDailyCostUsd: dailyBudgetUsd, generationCapacity: plan.generationCapacity, publishCapacity: plan.publishCapacity,
       priority: 100 - index, actionKey: stableAutoKey(key, plan.accountId, plan.nextAction),
+      postingMode: selection?.postingMode ?? "AUTO",
+      ...(selection?.scheduleSlotKey ? { scheduleSlotKey: selection.scheduleSlotKey } : {}),
     };
   });
   const result = await admin.rpc(selection ? "create_operator_auto_run_atomic" : "create_auto_run_atomic", {

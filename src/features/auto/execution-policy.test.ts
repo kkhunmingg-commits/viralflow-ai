@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { autoPublishMode, autoVideoQualityOutcome } from "./execution-policy";
+import { accountPostingMode, autoPublishMode, autoVideoQualityOutcome } from "./execution-policy";
 
 describe("Auto production gates", () => {
   const directReady = { is_mock: false, authorization_status: "authorized", audit_status: "AUDITED",
@@ -25,5 +25,15 @@ describe("Auto production gates", () => {
         kind: "WAIT", state: "WAITING_FOR_DATA", reason: "VISUAL_VERIFICATION_PENDING" });
     expect(autoVideoQualityOutcome({ ...ready, quality_status: "REJECT",
       quality_explanation_json: { visualVerificationStatus: "FAIL" } })).toMatchObject({ kind: "SKIP_ITEM" });
+  });
+
+  it("requires separately granted and approved draft capability without widening OAuth scopes", () => {
+    const draft = { ...directReady, granted_scopes: ["video.upload"], upload_status: "READY" };
+    expect(accountPostingMode(draft, "DRAFT", false, true)).toBe("DRAFT_UPLOAD");
+    expect(accountPostingMode(draft, "DRAFT", false, false)).toBeNull();
+    expect(accountPostingMode({ ...draft, granted_scopes: ["video.publish"] }, "DRAFT", false, true)).toBeNull();
+    expect(accountPostingMode({ ...draft, upload_status: "NOT_APPROVED" }, "DRAFT", false, true)).toBeNull();
+    expect(accountPostingMode({ ...draft, authorization_status: "revoked" }, "DRAFT", false, true)).toBeNull();
+    expect(accountPostingMode({ ...draft, authorization_status: "revoked" }, "EXPORT", false)).toBe("EXPORT");
   });
 });

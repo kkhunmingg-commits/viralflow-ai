@@ -9,6 +9,8 @@ export const performanceEventSchema = z.object({
   eventKey: z.string().min(1).max(250), ownerId: z.string().min(1).max(100), accountId: z.string().min(1).max(100),
   productId: z.string().min(1).max(100).nullable(), source: z.enum(["POST", "LIVE"]),
   creativeReference: z.string().max(100).nullable(), scriptReference: z.string().max(100).nullable(), hookReference: z.string().max(100).nullable(),
+  clipReference: z.string().min(1).max(100).nullable().optional(),
+  postingTime: z.iso.datetime({ offset: true }).nullable().optional(),
   timestamp: z.iso.datetime({ offset: true }), evidence: z.enum(["OBSERVED", "INTERNAL_TEST"]),
   // Existing POST snapshots are cumulative. Consumers must calculate deltas, not add every sample.
   measurement: z.enum(["CUMULATIVE_SNAPSHOT", "SESSION_TOTAL"]),
@@ -38,7 +40,8 @@ export function observedPostEvents(ownerId: string, accountIds: ReadonlySet<stri
     const event = validatePerformanceEvent({
       eventKey: `POST:${row.source}:${row.id}`, ownerId, accountId: row.tiktok_account_id, productId: row.product_id,
       source: "POST", creativeReference: row.creative_project_id ?? null, scriptReference: row.script_id ?? null,
-      hookReference: row.creative_angle_id ?? null, timestamp: row.source_snapshot_at, evidence: "OBSERVED",
+      hookReference: row.creative_angle_id ?? null, clipReference: row.video_id,
+      postingTime: row.published_at, timestamp: row.source_snapshot_at, evidence: "OBSERVED",
       measurement: "CUMULATIVE_SNAPSHOT", views: observedNumber(row.views), comments: observedNumber(row.comments),
       clicks: observedNumber(row.clicks), units: observedNumber(row.items_sold), sales: currency ? observedNumber(row.gmv) : null,
       commission: currency ? observedNumber(row.commission) : null, currency, audienceQuestions: [], liveDurationSeconds: null,

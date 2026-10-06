@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapCustomerOverview, mapCustomerPostAccount, periodMetrics, customerPeriod, periodBounds } from "./customer-mapping";
+import { mapCustomerOverview, mapCustomerPostAccount, periodMetrics, customerPeriod, periodBounds, accountPeriodBounds } from "./customer-mapping";
 import type { CustomerDataRecords, SnapshotRecord } from "./customer-mapping";
 
 const now = new Date("2026-10-06T12:00:00.000Z");
@@ -61,8 +61,8 @@ describe("owner-projected multi-account customer data", () => {
       created_at: now.toISOString(), retry_count: 1, max_retries: 2, provider_publish_id: null, external_state: "FAILED_RETRYABLE" }];
     const view = mapCustomerOverview(data, "today", now);
     expect(view.accounts[0].canStop).toBe(true); expect(view.accounts[1].canStop).toBe(false);
-    expect(view.accounts[1].canStart).toBe(false);
-    expect(view.accounts[1].activeRunId).toBeNull();
+    expect(view.accounts[1].canStart).toBe(true);
+    expect(view.accounts[1].hasActiveRun).toBe(false);
     expect(view.accounts[0].today.failed).toBe(1);
     expect(mapCustomerPostAccount(data, "B", "today", now, true)?.clips).toEqual([]);
     expect(mapCustomerPostAccount(data, "A", "today", now, true)?.clips[0].canRetry).toBe(true);
@@ -86,5 +86,53 @@ describe("owner-projected multi-account customer data", () => {
     const data = records(); Object.assign(data.accounts[0], { access_token: "DO_NOT_SEND", open_id: "PRIVATE", provider: "internal" });
     const json = JSON.stringify(mapCustomerOverview(data, "today", now));
     expect(json).not.toMatch(/DO_NOT_SEND|PRIVATE|open_id|access_token|provider/);
+  });
+  it("shows two independent active runs without one account masking another", () => {
+    const data = records();
+    data.runs = ["A", "B"].map(id => ({ id: `run-${id}`, state: "RUNNING", run_date: "2026-10-06", updated_at: now.toISOString() }));
+    data.states = ["A", "B"].map(id => ({ auto_run_id: `run-${id}`, tiktok_account_id: id, state: "RUNNING", current_step: id === "A" ? "GENERATE_VIDEO" : "PUBLISH", desired_daily_posts: 5, blockers_json: [], updated_at: now.toISOString() }));
+    const view = mapCustomerOverview(data, "today", now);
+    expect(view.accounts.map(row => row.hasActiveRun)).toEqual([true, true]);
+    expect(JSON.stringify(view)).not.toMatch(/run-A|run-B|activeRunId|isSingleAccountRun/);
+    expect(view.accounts.every(row => row.canStop && !row.canStart)).toBe(true);
+    expect(view.accounts.map(row => row.currentActivity)).toEqual(["กำลังสร้างวิดีโอ", "กำลังเตรียมโพสต์"]);
+  });
+  it("resets each account's generated and posted counters on its own timezone, excluding failed/rejected", () => {
+    const data = records(), at = new Date("2026-10-06T18:00:00Z");
+    data.schedules = ["A", "B"].map(id => ({ tiktok_account_id: id, posting_mode: "EXPORT", creative_mode: "AUTO", clips_per_day: 7,
+      active_start: 540, active_end: 1320, timezone: id === "A" ? "Asia/Bangkok" : "UTC", min_spacing_minutes: 60, allowed_days: [0, 1, 2, 3, 4, 5, 6], enabled: true, daily_budget_usd: 1, next_due_at: null }));
+    for (const account of ["A", "B"]) for (const [index, completed] of ["2026-10-06T04:00:00Z", "2026-10-06T17:30:00Z"].entries()) {
+      const id = `${account}-${index}`;
+      data.masters.push({ id, tiktok_account_id: account, product_id: null, status: "READY", created_at: completed, storage_path: null });
+      data.jobs.push({ id, master_video_id: id, video_variation_id: null, status: "COMPLETED", completed_at: completed });
+      data.queues.push({ id, tiktok_account_id: account, video_id: id, video_kind: "MASTER", status: "PUBLISHED", scheduled_for: null, published_at: completed,
+        created_at: completed, retry_count: 0, max_retries: 2, provider_publish_id: "hidden-publish", external_state: "CONFIRMED" });
+    }
+    data.queues.push({ ...data.queues[0], id: "failed", video_id: "failed", status: "FAILED", published_at: "2026-10-06T17:45:00Z" });
+    const view = mapCustomerOverview(data, "today", at);
+    expect(view.accounts.map(row => row.today.generated)).toEqual([1, 2]);
+    expect(view.accounts.map(row => row.today.published)).toEqual([1, 2]);
+    expect(view.accounts.map(row => row.target)).toEqual([7, 7]);
+  });
+  it("combines output and queue state without duplicate ready clips and allows EXPORT without TikTok posting", () => {
+    const data = records(); data.accounts[0].authorization_status = "revoked";
+    data.schedules = [{ tiktok_account_id: "A", posting_mode: "EXPORT", creative_mode: "AUTO", clips_per_day: 5, active_start: 540, active_end: 1320, timezone: "UTC", min_spacing_minutes: 60, allowed_days: [1], enabled: false, daily_budget_usd: 1, next_due_at: null }];
+    data.masters = [{ id: "video", tiktok_account_id: "A", product_id: "product", status: "READY", created_at: now.toISOString(), storage_path: "owner/A/masters/video/final.mp4" }];
+    data.outputs = [{ id: "output", tiktok_account_id: "A", video_id: "video", publishing_queue_id: null, posting_mode: "EXPORT", status: "READY", caption: "คำบรรยายสินค้า", hashtags_json: ["สินค้า"], product_reference_json: { title: "สินค้า" }, suggested_post_at: null, created_at: now.toISOString() }];
+    const account = mapCustomerOverview(data, "today", now).accounts[0];
+    expect(account.canStart).toBe(true); expect(account.actionRequired).toBeNull(); expect(account.today.ready).toBe(1);
+    const clip = mapCustomerPostAccount(data, "A", "today", now)!.clips[0];
+    expect(clip.caption).toBe("คำบรรยายสินค้า"); expect(clip.videoUrl).toContain("/api/post/clips/");
+    expect(clip.downloadUrl).toBe("/api/post/outputs/output/download");
+    expect(JSON.stringify(clip)).not.toContain("storage_path");
+  });
+  it("uses local account days for clip detail and honors a real 25-hour daylight-saving day", () => {
+    const autumn = accountPeriodBounds("today", "America/New_York", new Date("2026-11-01T18:00:00Z"));
+    expect(autumn.start).toBe("2026-11-01T04:00:00.000Z"); expect(autumn.end).toBe("2026-11-02T05:00:00.000Z");
+    const data = records();
+    data.schedules = [{ tiktok_account_id: "A", posting_mode: "EXPORT", creative_mode: "AUTO", clips_per_day: 5, active_start: 540, active_end: 1320, timezone: "Asia/Bangkok", min_spacing_minutes: 60, allowed_days: [1], enabled: false, daily_budget_usd: 1, next_due_at: null }];
+    data.masters = [{ id: "new-day", tiktok_account_id: "A", product_id: null, status: "READY", created_at: "2026-10-06T17:30:00Z", storage_path: null },
+      { id: "yesterday", tiktok_account_id: "A", product_id: null, status: "READY", created_at: "2026-10-06T04:00:00Z", storage_path: null }];
+    expect(mapCustomerPostAccount(data, "A", "today", new Date("2026-10-06T18:00:00Z"))!.clips.map(clip => clip.key)).toEqual(["MASTER:new-day"]);
   });
 });
