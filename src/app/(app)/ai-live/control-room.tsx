@@ -20,7 +20,7 @@ export interface CustomerLiveRoomObservation {
 }
 type RoomDraft = { title: string; category: string; durationMinutes: string; productIds: string[]; presenterName: string | null; reference: File | null };
 const readinessNames: Record<LiveReadinessKey, string> = {
-  image: "ภาพ", audio: "เสียง", brain: "AI", products: "สินค้า", connection: "การเชื่อมต่อ", backupVoice: "เสียงสำรอง",
+  image: "ภาพ", audio: "เสียง", brain: "AI", presenter: "คน LIVE", products: "สินค้า", connection: "การเชื่อมต่อ", backupVoice: "เสียงสำรอง",
 };
 const emptyDraft: RoomDraft = { title: "", category: "", durationMinutes: "", productIds: [], presenterName: null, reference: null };
 

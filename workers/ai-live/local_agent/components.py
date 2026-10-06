@@ -1,4 +1,4 @@
-"""Signed, resumable managed runtime/model delivery; no execution or licensing.
+"""Signed, resumable managed runtime/model delivery with local AI license gates.
 
 Only the installed trust roots and pinned public release origin supply authority.
 Partial archives are never runtime roots. Both required components activate as
@@ -94,6 +94,8 @@ def _version(value: object) -> tuple[int, ...]:
 def _release_identity(payload: dict[str, object]) -> str:
     """Renewing a signature lifetime cannot change the immutable artifacts."""
     content = {key: payload[key] for key in ("v", "releaseVersion", "profiles")}
+    if "localModels" in payload:
+        content["localModels"] = payload["localModels"]
     return hashlib.sha256(canonical_json(content)).hexdigest()
 
 
@@ -342,7 +344,8 @@ class BootstrapManager:
             raise SecurityError("COMPONENT_MANIFEST_INVALID")
         payload = verify_signed_envelope(signed, self.public_key_pem, trusted_keys=self.trusted_keys,
             retired_key_ids=self.retired_key_ids, verifier=self.verifier)
-        if (set(payload) != {"v", "releaseVersion", "issuedAt", "expiresAt", "profiles"}
+        if (set(payload) not in ({"v", "releaseVersion", "issuedAt", "expiresAt", "profiles"},
+                                {"v", "releaseVersion", "issuedAt", "expiresAt", "profiles", "localModels"})
                 or type(payload["v"]) is not int or payload["v"] != 1
                 or type(payload["issuedAt"]) is not int or type(payload["expiresAt"]) is not int
                 or payload["issuedAt"] > self.now() + 30 or check_expiry and payload["expiresAt"] <= self.now()
@@ -395,6 +398,17 @@ class BootstrapManager:
                 total += item["sizeBytes"] + item["expandedBytes"]
             if total > MAX_PROFILE_BYTES or names != REQUIRED_COMPONENTS:
                 raise SecurityError("COMPONENT_MANIFEST_INVALID")
+        from .model_manager import CATALOG_PATH, validate_catalog
+        catalogs = payload.get("localModels", {})
+        if not isinstance(catalogs, dict) or not set(catalogs).issubset(payload["profiles"]):
+            raise SecurityError("LOCAL_MODEL_CATALOG_INVALID")
+        for profile, items in payload["profiles"].items():
+            files = {name: file for item in items for name, file in item["files"].items()}
+            if (CATALOG_PATH in files) != (profile in catalogs):
+                raise SecurityError("LOCAL_MODEL_SIGNED_CATALOG_REQUIRED")
+            if profile in catalogs:
+                # Reject NC/unclear licenses and unsigned hashes BEFORE download.
+                validate_catalog(catalogs[profile], files)
         return json.loads(canonical_json(payload))
 
     def fetch_manifest(self, url: str) -> dict[str, object]:
@@ -509,6 +523,7 @@ class BootstrapManager:
             for name, file in files.items():
                 if _hash_file(_safe(release / name, self.root), self._cancel) != file["sha256"]:
                     raise SecurityError("COMPONENT_INTEGRITY_FAILED")
+            self._verify_local_models(release, files)
             if self._catalog()[2] != fingerprint:
                 raise SecurityError("COMPONENT_INTEGRITY_FAILED")
             self._stamp = fingerprint
@@ -522,6 +537,15 @@ class BootstrapManager:
             if self.manifest:
                 self.state = "REPAIR_REQUIRED"
             return False
+
+    def _verify_local_models(self, release: Path, files: dict) -> None:
+        from .model_manager import CATALOG_PATH, verify_installed_catalog
+        verify_installed_catalog(release, files)
+        if CATALOG_PATH in files:
+            installed = json.loads(_safe(release / CATALOG_PATH, self.root).read_bytes())
+            signed = self._validate_manifest(json.loads(_safe(release / "release-manifest.json", self.root).read_bytes()), check_expiry=False)
+            if installed != signed.get("localModels", {}).get(self.profile):
+                raise SecurityError("LOCAL_MODEL_CATALOG_MISMATCH")
 
     def runtime_root(self) -> Path | None:
         if self._stamp is None or not self.manifest or self.manifest["expiresAt"] <= self.now():
@@ -718,6 +742,7 @@ class BootstrapManager:
             # Validate the complete staged catalog before touching the active
             # pointer. A failed transaction cannot supersede the old release.
             final_root, final_files, stamp = self._catalog(record)
+            self._verify_local_models(final_root, final_files)
             with self._activation_lock:
                 if cancelled.is_set():
                     raise SecurityError("COMPONENT_DOWNLOAD_INTERRUPTED")
@@ -797,3 +822,7 @@ def remove_managed_components(root: Path) -> None:
         if exc.code in {"COMPONENT_ROOT_UNMANAGED", "COMPONENT_PATH_INVALID"}:
             return
         raise
+    # OS uninstall only, after its managed integration has been stopped. Repair
+    # and release rollback never touch active mutable inference state.
+    from local_llama_runtime import cleanup_local_brain_state
+    cleanup_local_brain_state(Path(root).parent)

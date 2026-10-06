@@ -154,6 +154,16 @@ def stage_worker(source: Path, target: Path) -> None:
                 or plan.get("automatic_download") is not False):
             raise ValueError("Invalid renderer dependency planning manifest")
         shutil.copyfile(candidates, target / candidates.name)
+    for name, expected_format in (("local-brain-candidates.json", "viralflow-local-brain-candidates-v1"),
+                                  ("local-tts-candidates.json", "viralflow-local-tts-research-v1")):
+        planning = source / name
+        if planning.exists():
+            if planning.is_symlink() or not planning.is_file() or planning.stat().st_size > 256 * 1024:
+                raise ValueError("Invalid local AI planning manifest")
+            value = json.loads(planning.read_bytes())
+            if value.get("format") != expected_format:
+                raise ValueError("Invalid local AI planning manifest")
+            shutil.copyfile(planning, target / name)
     # LocalAgent's public package imports updater, which imports delivery.
     # Include that small library without any installer GUI/build entry points.
     for name in ("__init__.py", "delivery.py"):
@@ -196,6 +206,13 @@ def archive_item(stage: Path, output: Path, *, name: str, version: str,
             or len(version) > 32 or not re.fullmatch(VERSION_PATTERN, version)):
         raise ValueError("Invalid managed component identity")
     origin = trusted_origin(origin)[0]
+    if name == "models":
+        catalog = stage / "models" / "local-ai" / "catalog.json"
+        if catalog.exists():
+            from local_agent.model_manager import validate_catalog
+            if catalog.is_symlink() or catalog.stat().st_size > 512 * 1024:
+                raise ValueError("Local AI model catalog is invalid")
+            validate_catalog(json.loads(catalog.read_bytes()))
     output.mkdir(parents=True, exist_ok=True)
     temporary = output / (name + ".zip.new")
     if temporary.exists():
@@ -245,6 +262,8 @@ def main() -> None:
     parser.add_argument("--ffmpeg", type=Path, required=True)
     parser.add_argument("--models-source", type=Path, required=True,
                         help="Directory containing musetalk/ and any configured voice assets")
+    parser.add_argument("--llama-runtime", type=Path,
+                        help="Publisher verified llama.cpp Windows runtime directory including license notices")
     parser.add_argument("--stage", type=Path, required=True, help="New publisher workspace staging directory")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--release-version", required=True)
@@ -260,6 +279,14 @@ def main() -> None:
     stage_python(args.python_source, runtime)
     install_locked_wheels(args.wheelhouse, args.requirements_lock, runtime)
     stage_worker(WORKER, runtime_stage / "worker")
+    if args.llama_runtime:
+        if (not (args.llama_runtime / "llama-server.exe").is_file()
+                or not any(args.llama_runtime.glob("LICENSE*"))):
+            raise ValueError("Managed local brain runtime and redistribution notices are required")
+        for source, relative in _files(args.llama_runtime):
+            destination = runtime / "llama" / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, destination)
     for source in (args.ffmpeg, args.ffmpeg.with_name(args.ffmpeg.name + ".LICENSE"),
                    args.ffmpeg.with_name(args.ffmpeg.name + ".README")):
         if not source.is_file() or source.is_symlink():
@@ -276,8 +303,20 @@ def main() -> None:
     items = [archive_item(stage, args.output, name=name, version=args.release_version,
                           profile=args.profile, origin=args.origin)
              for stage, name in ((runtime_stage, "runtime"), (model_stage, "models"))]
+    catalog_path = model_stage / "models" / "local-ai" / "catalog.json"
+    local_models = {}
+    if catalog_path.exists():
+        from local_agent.model_manager import verify_installed_catalog
+        # Models and runtime are separate archives but one atomic signed release.
+        files = {name: file for item in items for name, file in item["files"].items()}
+        catalog = json.loads(catalog_path.read_bytes())
+        from local_agent.model_manager import validate_catalog
+        validate_catalog(catalog, files)
+        # Each archive already hashes the actual bytes; metadata must match it.
+        verify_installed_catalog(model_stage, files)
+        local_models = {args.profile: catalog}
     print(json.dumps({"profile": args.profile, "items": items, "signed": False,
-                      "realtimeValidated": False}, sort_keys=True))
+                      "localModels": local_models, "realtimeValidated": False}, sort_keys=True))
 
 
 if __name__ == "__main__":

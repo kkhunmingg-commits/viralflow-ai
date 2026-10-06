@@ -60,6 +60,15 @@ class OwnedWorker:
     def health(self):
         return {"ready": True}
 
+    def sync_product_context(self, owner, account, products):
+        self.calls.append(("sync_product_context", owner, account, products))
+
+    def prepare_room(self, owner, account, products, reference, microphone):
+        if products != (PRODUCT,) or not isinstance(reference, Path):
+            raise AgentError(422, "INVALID_SESSION", "private invalid warmup")
+        self.calls.append(("prepare_room", owner, account, products, reference, microphone))
+        return {"ready": True, "warmup_passed": True}
+
     def start_session(self, owner, account, products, reference, microphone):
         if account != ACCOUNT or products != (PRODUCT,) or not isinstance(reference, Path):
             raise AgentError(400, "INVALID_SESSION", "private invalid setup")
@@ -302,6 +311,50 @@ class ManagedRuntimeTests(unittest.TestCase):
         self.assertTrue(worker.closed)
         self.assertTrue(self.processes[0].stdin.closed)
         self.assertTrue(self.processes[0].stdout.closed)
+
+    def test_selected_warmup_uses_the_same_child_and_converts_reference_before_start(self):
+        bridge = self.make_bridge()
+        products = [{"productId": PRODUCT, "name": "fixture", "version": "1", "facts": {}}]
+        bridge.sync_product_context(OWNER, ACCOUNT, products)
+        result = bridge.prepare_room(OWNER, ACCOUNT, (PRODUCT,), self.reference, None)
+        self.assertTrue(result["warmup_passed"])
+        process = self.processes[0]
+        self.assertEqual(process.worker.calls[0], ("sync_product_context", OWNER, ACCOUNT, products))
+        self.assertEqual(process.worker.calls[1], ("prepare_room", OWNER, ACCOUNT, (PRODUCT,), self.reference, None))
+        self.start(bridge)
+        self.assertEqual(len(self.processes), 1)
+        self.assertIs(bridge._rooms[(OWNER, SESSION)], bridge._probe)
+        changed = [{"productId": PRODUCT, "name": "fixture", "version": "2", "facts": {"price": 990}}]
+        bridge.sync_product_context(OWNER, ACCOUNT, changed)
+        self.assertEqual(process.worker.calls[-1], ("sync_product_context", OWNER, ACCOUNT, changed))
+        self.assertEqual(len(self.processes), 1)
+        process.worker.health = lambda: {"ready": False, "code": "LOCAL_BRAIN_NOT_READY"}
+        self.assertFalse(bridge.health()["ready"], "Parent must not retain stale warmup health")
+
+    def test_close_during_owned_child_warmup_is_bounded(self):
+        bridge = self.make_bridge()
+        bridge.health()
+        process = self.processes[0]
+        process.stdin.hang_method = "prepare_room"
+        errors = []
+        def warm():
+            try:
+                bridge._probe.prepare_room(OWNER, ACCOUNT, (PRODUCT,), self.reference)
+            except AgentError as error:
+                errors.append(error.code)
+        thread = threading.Thread(target=warm)
+        thread.start()
+        import time
+        deadline = time.monotonic() + 1
+        while not any(b'"prepare_room"' in raw for raw in process.stdin.writes) and time.monotonic() < deadline:
+            time.sleep(0.01)
+        started = time.monotonic()
+        bridge.close()
+        thread.join(1)
+        self.assertLess(time.monotonic() - started, 2)
+        self.assertFalse(thread.is_alive())
+        self.assertTrue(process.killed)
+        self.assertTrue(errors)
 
     def test_owner_and_session_denials_are_redacted_and_do_not_leak_frames(self):
         bridge = self.make_bridge()

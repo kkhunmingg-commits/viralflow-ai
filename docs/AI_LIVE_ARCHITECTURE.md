@@ -1,5 +1,11 @@
 # AI LIVE — Local GPU architecture
 
+## Local-first AI runtime — สถานะล่าสุด
+
+เพิ่ม Brain/TTS บนเครื่องเข้ากับ Local Agent, LiveRoom, interrupt/resume และ encoder เดิม ดู [Local-first runtime](AI_LIVE_LOCAL_FIRST_RUNTIME.md) สำหรับ flow, signed product context, installer/license gates, resource profiles และ all-stage warmup ผล CPU Brain เป็น inference จริง ส่วน TTS ยังเป็น `LOCAL_TTS_MODEL_PENDING` เพราะ RAM/voice acceptance ไม่พร้อม จึงยังไม่ถือว่า LIVE-1 หรือ production realtime ผ่าน
+
+หลักฐานเสียงระบบปฏิบัติการ/RTMP ในเอกสารเดิมด้านล่างเป็น proof ของรุ่นก่อน ไม่ใช่ผลยืนยัน Local TTS ปัจจุบัน ไม่มี silent fallback ไปเสียงนั้นใน local-first customer path ไม่มีการเปิด production validation flags หรือเปลี่ยน TikTok integration
+
 ## Digital Human foundation — รุ่น 0.5.0
 
 งานต่อจาก Direct Streaming Core `9b29cda6f984b45f0372f598679fac0a92686607` และเก็บจุดย้อนกลับด้วย tag `ai-live-direct-stream-core-9b29cda` บน branch `feature/ai-live` ไม่มี merge/deploy Production และไม่เปลี่ยน TikTok OAuth/scopes/config หรือ Affiliate AUTO

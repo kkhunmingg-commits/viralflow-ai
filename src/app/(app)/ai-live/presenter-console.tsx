@@ -279,7 +279,14 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
   async function checkMachine() {
     if (action) return;
     setAction("check"); setError(null); setNotice(null);
-    try { await requestMachine((client, signal) => machine?.paired ? client.checkHardware(signal) : client.discover(signal)); }
+    try { await requestMachine(async (client, signal) => {
+      const result = machine?.paired ? await client.checkHardware(signal) : await client.discover(signal);
+      if (result.deviceAuthorized && presenter && accountSelectionReady && productSelectionReady) {
+        await client.prepareAI(signal, { accountId: selectedAccount, productIds: selectedProductIds,
+          presenter, microphoneId: microphoneReady ? "default" : null });
+      }
+      return client.snapshot();
+    }); }
     catch { if (mountedRef.current) setError("ตรวจสอบเครื่องไม่สำเร็จ กรุณาลองอีกครั้ง"); }
     finally { if (mountedRef.current) setAction(null); }
   }
@@ -461,6 +468,12 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
     <div className="ai-live-grid">
       <section className="ai-live-panel ai-live-setup" aria-label="เตรียม AI LIVE">
         <div className="ai-live-panel-title"><h2>เตรียมไลฟ์</h2></div>
+        <ul className="ai-live-ready-checks" aria-label="ความพร้อมของ AI">
+          {(["brain", "voice", "presenter"] as const).map((key) => <li key={key}>
+            <strong>{key === "brain" ? "AI" : key === "voice" ? "เสียง" : "คน LIVE"}</strong>
+            <span>{machine?.aiReadiness?.[key] === "READY" ? "พร้อม" : "กำลังเตรียม"}</span>
+          </li>)}
+        </ul>
         <label className="ai-live-field">บัญชี TikTok
           <select value={selectedAccount} disabled={!!action} onChange={(event) => { setInternalAccount(event.target.value); onAccountChange?.(event.target.value); }}>
             <option value="">เลือกบัญชี</option>

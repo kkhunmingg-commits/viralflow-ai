@@ -19,6 +19,7 @@ BODY_DEADLINE_SECONDS = 10
 SESSION_ROUTE = re.compile(r"^/v1/sessions/([0-9a-fA-F-]{36})/(pause|resume|stop|recover)$")
 FRAME_ROUTE = re.compile(r"^/v1/sessions/([0-9a-fA-F-]{36})/frame$")
 PRESENTER_ROUTE = re.compile(r"^/v1/presenters/([0-9a-f-]{36})/(reference|delete)$")
+AI_SESSION_ROUTE = re.compile(r"^/v1/sessions/([0-9a-fA-F-]{36})/(ai-status|comment|speech)$")
 
 
 class AgentHTTPServer(ThreadingHTTPServer):
@@ -197,6 +198,23 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json(200, agent.status(token, origin), origin)
             elif method == "GET" and self.path == "/v1/rooms":
                 self._send_json(200, agent.rooms(token, origin), origin)
+            elif method == "POST" and self.path == "/v1/ai/product-context":
+                request = self._json_body(128 * 1024)
+                if set(request) != {"context"}:
+                    raise AgentError(400, "INVALID_CONTEXT_REQUEST", "ข้อมูลไม่ถูกต้อง")
+                self._send_json(200, agent.sync_product_context(token, origin, request["context"]), origin)
+            elif method == "POST" and self.path == "/v1/ai/warmup":
+                selection = self._json_body()
+                self._send_json(202, agent.warmup_ai(token, origin, selection or None), origin)
+            elif (match := AI_SESSION_ROUTE.fullmatch(self.path)):
+                session_id, action = match.groups()
+                if method == "GET" and action == "ai-status":
+                    self._send_json(200, agent.ai_status(token, origin, session_id), origin)
+                elif method == "POST" and action in ("comment", "speech"):
+                    request = self._json_body()
+                    self._send_json(202, getattr(agent, "submit_comment" if action == "comment" else "queue_speech")(token, origin, session_id, request), origin)
+                else:
+                    raise AgentError(404, "NOT_FOUND", "ไม่พบคำสั่ง")
             elif method == "GET" and self.path == "/v1/hardware":
                 self._send_json(200, agent.hardware(token, origin), origin)
             elif method == "GET" and self.path == "/v1/components/status":

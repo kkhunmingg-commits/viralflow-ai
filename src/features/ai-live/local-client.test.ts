@@ -65,7 +65,7 @@ describe("AI LIVE customer projection", () => {
       diagnostics: { secret: "private-token", command: "launch.exe --unsafe" },
       reasons: ["driver_internal_error:CUDA", "ไม่พบการ์ดจอที่รองรับ"],
     }, true);
-    expect(Object.keys(view).sort()).toEqual(["canStart", "capacity", "customerStream", "deviceAuthorized", "deviceRegistered", "deviceStatus", "membershipStatus", "message", "paired", "reasons", "rooms", "sessionActive", "state", "updateCanApply", "updateCanRepair", "updateStatus"]);
+    expect(Object.keys(view).sort()).toEqual(["aiReadiness", "canStart", "capacity", "customerStream", "deviceAuthorized", "deviceRegistered", "deviceStatus", "membershipStatus", "message", "paired", "reasons", "rooms", "sessionActive", "state", "updateCanApply", "updateCanRepair", "updateStatus"]);
     expect(view.reasons).toContain("ไม่พบการ์ดจอที่รองรับ");
     expect(view.reasons).toContain("ต้องตรวจสอบความพร้อมของเครื่องเพิ่มเติม");
     expect(JSON.stringify(view)).not.toMatch(/Python|CUDA|8766|private-token|launch\.exe|driver_internal_error/);
@@ -154,6 +154,30 @@ describe("customer release and membership bridge", () => {
 });
 
 describe("browser to local companion boundary", () => {
+  it("warms the selected room using signed server facts and the paired local reference only", async () => {
+    const context = { payload: { purpose: "AI_LIVE_PRODUCT_CONTEXT", products: [] }, signature: "signed-context" };
+    const { mock, fetcher } = responseSequence(
+      { token, expiresAt: nowSeconds + 300, deviceId }, { ...ready, deviceAuthorized: true },
+      { device: { authorized: true }, entitled: true }, context, { synced: true },
+      { presenterId: sessionId }, { preparing: true },
+    );
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    const presenter = new File(["test-reference"], "presenter.jpg", { type: "image/jpeg" });
+    await client.prepareAI(undefined, { accountId, productIds: [productId], presenter, microphoneId: null });
+    expect(mock.mock.calls[3][0]).toBe("/api/ai-live/product-context");
+    expect(JSON.parse(mock.mock.calls[3][1]?.body as string)).toEqual({ deviceId, accountId, productIds: [productId] });
+    assertLoopbackCall(mock.mock.calls[4], "/v1/ai/product-context", true);
+    expect(JSON.parse(mock.mock.calls[4][1]?.body as string)).toEqual({ context });
+    assertLoopbackCall(mock.mock.calls[5], "/v1/references", true);
+    expect(mock.mock.calls[5][1]?.body).toBe(presenter);
+    assertLoopbackCall(mock.mock.calls[6], "/v1/ai/warmup", true);
+    expect(JSON.parse(mock.mock.calls[6][1]?.body as string)).toEqual({ accountId, productIds: [productId], presenterId: sessionId, microphoneId: null });
+    expect(client.snapshot().canStart).toBe(false);
+    expect(JSON.stringify(client.snapshot())).not.toContain("signed-context");
+    client.dispose();
+  });
+
   it("reports an absent companion without a cloud or mock fallback", async () => {
     const { mock, fetcher } = responseSequence(new Error("connection refused"));
     const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);

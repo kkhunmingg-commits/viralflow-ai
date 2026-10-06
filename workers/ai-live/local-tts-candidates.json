@@ -1,0 +1,286 @@
+{
+  "format": "viralflow-local-tts-research-v1",
+  "reviewed_at": "2026-10-06",
+  "purpose": "Research and verified artifact evidence only; never an install catalog or shipping approval.",
+  "production_status": "LOCAL_TTS_MODEL_PENDING",
+  "production_default": "PendingLocalTTSProvider",
+  "hash_policy": "Hashes are null for artifacts not downloaded and verified. The VoxCPM2 artifact hashes were computed from actual downloaded bytes at the pinned official revision.",
+  "candidates": [
+    {
+      "model_id": "voxcpm2",
+      "kind": "TTS",
+      "version": "32279effe8c19989596f05d353d1447f51d9e915",
+      "source": "https://huggingface.co/openbmb/VoxCPM2",
+      "code_source": "https://github.com/OpenBMB/VoxCPM",
+      "code_version": "voxcpm-2.0.3",
+      "code_license": "Apache-2.0",
+      "weights_license": "Apache-2.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "attribution": [
+        "Copyright OpenBMB. Preserve Apache-2.0 LICENSE, copyright and applicable NOTICE; identify modifications."
+      ],
+      "relative_path": "models/voxcpm2",
+      "sha256": "f7f964cfa9da23653baec6e6f7750719977ad944ed9f95fe52fe3a620506891d",
+      "size_bytes": 4580080592,
+      "artifacts": [
+        {
+          "relative_path": "models/voxcpm2/README.md",
+          "sha256": "c18d2ffbfb2f0aec770481c967842aee6c200cde65f6b033efd892a849986fda",
+          "size_bytes": 7939
+        },
+        {
+          "relative_path": "models/voxcpm2/audiovae.pth",
+          "sha256": "94b5d51e107e0507d4acc976cfdadb64edd6fd06d1f751dadbf2fd1594274bf1",
+          "size_bytes": 376951122
+        },
+        {
+          "relative_path": "models/voxcpm2/config.json",
+          "sha256": "405f0dcd92f7feba6011ed4eac5c8d4f74cba9712f07fd5cfa3063bbdd95402c",
+          "size_bytes": 4336
+        },
+        {
+          "relative_path": "models/voxcpm2/model.safetensors",
+          "sha256": "f7f964cfa9da23653baec6e6f7750719977ad944ed9f95fe52fe3a620506891d",
+          "size_bytes": 4580080592
+        },
+        {
+          "relative_path": "models/voxcpm2/special_tokens_map.json",
+          "sha256": "068594063e37662c02b21acf42ebb334ef6a74fb810e68a2368f88f08351de76",
+          "size_bytes": 1632
+        },
+        {
+          "relative_path": "models/voxcpm2/tokenization_voxcpm2.py",
+          "sha256": "84489ea32b6ee0cae22ed5480cacb6df85c46624c3119be9a2021c3649a12729",
+          "size_bytes": 2895
+        },
+        {
+          "relative_path": "models/voxcpm2/tokenizer.json",
+          "sha256": "f8984687e4a92a3503d521396d454b7d68e9fdaab2a0288eb3536c7c1aa4bc20",
+          "size_bytes": 3676772
+        },
+        {
+          "relative_path": "models/voxcpm2/tokenizer_config.json",
+          "sha256": "e78a3ebb48a0b9437efd1823b6b726c823da89e49dd8bcc90c02419d9baa772b",
+          "size_bytes": 5059
+        },
+        {
+          "relative_path": "models/voxcpm2/LICENSE.txt",
+          "sha256": "4f10acc209addacfad28293315c74c4cd648f771ee1263a748f1781d1e0265e4",
+          "size_bytes": 11298
+        }
+      ],
+      "requires_gpu": false,
+      "minimum_ram_gb": 8,
+      "minimum_vram_gb": 0,
+      "profile": "voxcpm2",
+      "thai_supported": true,
+      "artifact_bytes_verified": true,
+      "commercial_license_status": "ALLOWED_WITH_ATTRIBUTION",
+      "production_approved": false,
+      "runtime_dependency_audit_complete": false,
+      "cpu_proof_status": "LOCAL_TTS_CPU_MEMORY_PENDING",
+      "quality_owner_review_status": "OWNER_REVIEW_PENDING",
+      "license_sources": [
+        "https://huggingface.co/openbmb/VoxCPM2",
+        "https://github.com/OpenBMB/VoxCPM/blob/main/LICENSE"
+      ],
+      "blockers": [
+        "available CPU RAM below loader/activation margin",
+        "full runtime/native dependency license audit",
+        "actual Thai PCM benchmark and owner ratings",
+        "presenter/encoder contention and streaming soak",
+        "signed installation artifacts and production acceptance"
+      ]
+    },
+    {
+      "model_id": "piper-th-th-tsync2-medium",
+      "version": "main-reviewed-2026-10-06",
+      "source": "https://huggingface.co/rhasspy/piper-voices/blob/main/th/th_TH/tsync2/medium/MODEL_CARD",
+      "code_source": "https://github.com/OHF-Voice/piper1-gpl",
+      "code_license": "GPL-3.0",
+      "weights_license": "CC-BY-NC-SA-3.0",
+      "commercial_allowed": false,
+      "redistribution_allowed": false,
+      "attribution": [
+        "NECTEC TSync2 corpus; per-voice card specifies non-commercial CC BY-NC-SA 3.0."
+      ],
+      "sha256": null,
+      "size_bytes": null,
+      "relative_path": "models/piper-th-tsync2",
+      "artifacts": [],
+      "thai_supported": true,
+      "production_approved": false,
+      "status": "NOT_SHIPPABLE",
+      "reason": "The repository MIT header is not this voice's license. The Thai voice card explicitly identifies a non-commercial dataset license. Current Piper runtime also has separate GPL obligations."
+    },
+    {
+      "model_id": "thonburian-tts",
+      "version": "main-reviewed-2026-10-06",
+      "source": "https://huggingface.co/biodatlab/ThonburianTTS",
+      "code_source": "https://github.com/SWivid/F5-TTS",
+      "code_license": "MIT",
+      "weights_license": "CC-BY-NC-SA-4.0",
+      "commercial_allowed": false,
+      "redistribution_allowed": false,
+      "attribution": [
+        "Looloo Technology and Biomedical and Data Lab, Mahidol University; model card citation and CC BY-NC-SA 4.0."
+      ],
+      "sha256": null,
+      "size_bytes": null,
+      "relative_path": "models/thonburian-tts",
+      "artifacts": [],
+      "thai_supported": true,
+      "production_approved": false,
+      "status": "NOT_SHIPPABLE",
+      "reason": "Upstream F5 implementation is MIT, but these Thai pretrained weights are explicitly non-commercial. Any separately modified wrapper still needs its own audit."
+    },
+    {
+      "model_id": "wayu-paxa-tts-edge",
+      "version": "main-reviewed-2026-10-06",
+      "source": "https://huggingface.co/wayu-ai/wayu-paxa-tts-edge",
+      "code_source": "https://github.com/wayu-research/wayu-tts-inference",
+      "code_license": "Apache-2.0",
+      "weights_license": "CC-BY-NC-4.0",
+      "commercial_allowed": false,
+      "redistribution_allowed": false,
+      "attribution": [
+        "Wayu Research; retain model citation and CC BY-NC 4.0 attribution for research use only."
+      ],
+      "sha256": null,
+      "size_bytes": null,
+      "relative_path": "models/wayu-paxa-edge",
+      "artifacts": [],
+      "thai_supported": true,
+      "production_approved": false,
+      "status": "NOT_SHIPPABLE",
+      "reason": "The CPU-friendly Thai/English research release has non-commercial weights. Its commercial cloud service does not grant rights to redistribute these local weights."
+    },
+    {
+      "model_id": "f5-tts-base",
+      "version": "F5TTS-v1-Base-reviewed-2026-10-06",
+      "source": "https://huggingface.co/SWivid/F5-TTS",
+      "code_source": "https://github.com/SWivid/F5-TTS",
+      "code_license": "MIT",
+      "weights_license": "CC-BY-NC-4.0",
+      "commercial_allowed": false,
+      "redistribution_allowed": false,
+      "attribution": [
+        "F5-TTS authors; MIT implementation copyright and separately CC BY-NC 4.0 pretrained weights."
+      ],
+      "sha256": null,
+      "size_bytes": null,
+      "relative_path": "models/f5-tts-base",
+      "artifacts": [],
+      "thai_supported": false,
+      "production_approved": false,
+      "status": "NOT_SHIPPABLE",
+      "reason": "Permissive implementation cannot remove the pretrained weights' non-commercial restriction."
+    },
+    {
+      "model_id": "vizintzor-f5-tts-thai",
+      "version": "main-reviewed-2026-10-06",
+      "source": "https://huggingface.co/VIZINTZOR/F5-TTS-THAI",
+      "code_source": "https://github.com/SWivid/F5-TTS",
+      "code_license": "MIT",
+      "weights_license": "CC-BY-4.0-declared-with-unresolved-base-rights",
+      "commercial_allowed": false,
+      "redistribution_allowed": false,
+      "attribution": [
+        "VIZINTZOR; declared CC BY 4.0, with SWivid/F5-TTS base model identified in the model card."
+      ],
+      "sha256": null,
+      "size_bytes": null,
+      "relative_path": "models/vizintzor-f5-thai",
+      "artifacts": [],
+      "thai_supported": true,
+      "production_approved": false,
+      "status": "NOT_SHIPPABLE",
+      "reason": "Card declares CC BY 4.0 but identifies the upstream NC F5-TTS base. An unrestricted training-from-scratch/base-rights chain has not been demonstrated; uploader license label alone is insufficient."
+    },
+    {
+      "model_id": "siang-voxcpm2-thai-lora",
+      "version": "main-reviewed-2026-10-06",
+      "source": "https://huggingface.co/dubbing-ai/SiangTTS-VoxCPM2-Thai-LoRA",
+      "code_source": "https://github.com/dubbing-ai/VoxCPM-thai",
+      "code_license": "Apache-2.0",
+      "weights_license": "CC-BY-SA-4.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "attribution": [
+        "SiangTTS/dubbing-ai; preserve CC BY-SA 4.0 attribution and share-alike adapter obligations; separately Apache-2.0 VoxCPM2 base."
+      ],
+      "sha256": null,
+      "size_bytes": null,
+      "relative_path": "models/siang-voxcpm2-thai",
+      "artifacts": [],
+      "thai_supported": true,
+      "production_approved": false,
+      "status": "SHARE_ALIKE_REVIEW_PENDING",
+      "reason": "Commercial use is explicitly allowed with share-alike. The current signed installer license allowlist has not approved that distribution policy; adapter bytes, obligations and performance remain unverified. This is not an NC rejection."
+    },
+    {
+      "model_id": "qwen3-tts-0.6b-base",
+      "version": "Qwen3-TTS-12Hz-0.6B-Base",
+      "source": "https://huggingface.co/Qwen/Qwen3-TTS-12Hz-0.6B-Base",
+      "code_source": "https://github.com/QwenLM/Qwen3-TTS",
+      "code_license": "Apache-2.0",
+      "weights_license": "Apache-2.0",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "attribution": [
+        "Qwen/Alibaba Cloud; preserve Apache-2.0 LICENSE/NOTICE and model attribution."
+      ],
+      "sha256": null,
+      "size_bytes": null,
+      "relative_path": "models/qwen3-tts-06b",
+      "artifacts": [],
+      "thai_supported": false,
+      "production_approved": false,
+      "status": "THAI_UNSUPPORTED",
+      "reason": "Official model card's ten supported languages do not include Thai. Commercial permission does not establish Thai speech quality."
+    },
+    {
+      "model_id": "chatterbox-multilingual-v3",
+      "version": "V3-reviewed-2026-10-06",
+      "source": "https://huggingface.co/ResembleAI/chatterbox",
+      "code_source": "https://github.com/resemble-ai/chatterbox",
+      "code_license": "MIT",
+      "weights_license": "MIT",
+      "commercial_allowed": true,
+      "redistribution_allowed": true,
+      "attribution": [
+        "Copyright 2025 Resemble AI; preserve MIT copyright and license notice."
+      ],
+      "sha256": null,
+      "size_bytes": null,
+      "relative_path": "models/chatterbox-v3",
+      "artifacts": [],
+      "thai_supported": false,
+      "production_approved": false,
+      "status": "THAI_UNSUPPORTED",
+      "reason": "The official supported-language list has no Thai; no Thai quality proof or approved Thai adapter exists in this release."
+    },
+    {
+      "model_id": "fish-audio-s2-pro",
+      "version": "S2-Pro-reviewed-2026-10-06",
+      "source": "https://huggingface.co/fishaudio/s2-pro",
+      "code_source": "https://github.com/fishaudio/fish-speech/blob/main/LICENSE",
+      "code_license": "LicenseRef-Fish-Audio-Research-License",
+      "weights_license": "LicenseRef-Fish-Audio-Research-License",
+      "commercial_allowed": false,
+      "redistribution_allowed": false,
+      "attribution": [
+        "Fish Audio/39 AI, INC.; research license terms do not grant commercial rights."
+      ],
+      "sha256": null,
+      "size_bytes": null,
+      "relative_path": "models/fish-s2-pro",
+      "artifacts": [],
+      "thai_supported": true,
+      "production_approved": false,
+      "status": "NOT_SHIPPABLE",
+      "reason": "Current official model card and code license require a separate written commercial license. No such agreement is available in this task; no service or token was used."
+    }
+  ]
+}

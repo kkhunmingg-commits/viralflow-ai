@@ -13,6 +13,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from local_agent.agent import AgentError, REALTIME_VALIDATED, WorkerBoundary
 from local_agent.live_worker import LocalWorkerBoundary
 from local_agent.security import SecurityError
+from local_brain import LocalBrainProvider, PendingLocalBrainRuntime
+from local_tts import ManagedLocalTTSProvider, PendingLocalTTSProvider
 
 REFERENCE = bytes.fromhex("ffd8ffc0000b080002000201011100ffd9")
 
@@ -35,6 +37,7 @@ class InferenceFixture:
 
     def prepare(self, path, fps):
         assert path.read_bytes() == REFERENCE and fps == 25
+        self.prepare_calls = getattr(self, "prepare_calls", 0) + 1
 
     def render_pcm16_chunk(self, pcm):
         yield REFERENCE
@@ -110,6 +113,57 @@ class MicrophoneFixture:
         self.closed = True
 
 
+class BrainModelFixture:
+    """Only the native local model boundary is substituted, not orchestration."""
+    def health(self):
+        return {"ready": True}
+
+    def warmup(self, **_kwargs):
+        return self.health()
+
+    def close(self):
+        pass
+
+
+class SpeechModelFixture:
+    fingerprint = "unit-native-voice"
+
+    def health(self):
+        return {"ready": True}
+
+    def stream_sentence(self, text, stop):
+        if not stop.is_set():
+            yield b"\x01\x00" * 160
+
+    def close(self):
+        pass
+
+
+class WarmupEncoderFixture:
+    """Native encoder boundary. Warmup must submit real generated frame/PCM."""
+    def __init__(self, config, output):
+        self.frame = self.audio = None
+        self.started = self.disposed = False
+
+    def start(self):
+        self.started = True
+
+    def push_frame(self, frame, timestamp):
+        assert self.started and frame == REFERENCE and timestamp == 0
+        self.frame = frame
+
+    def push_audio(self, pcm, timestamp):
+        assert self.started and pcm and any(pcm) and timestamp == 0
+        self.audio = pcm
+
+    def dispose(self):
+        self.disposed = True
+
+    def metrics(self):
+        return {"error": None, "encoded_bytes": 100 if self.frame and self.audio else 0,
+                "audio_encoded": bool(self.audio)}
+
+
 class LocalLiveWorkerTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -119,6 +173,12 @@ class LocalLiveWorkerTests(unittest.TestCase):
         self.reference.write_bytes(REFERENCE)
 
     def worker(self, credentials=None, **kwargs):
+        encoder = patch("local_agent.live_worker.InternalAVEncoder", WarmupEncoderFixture)
+        encoder.start()
+        self.addCleanup(encoder.stop)
+        kwargs.setdefault("ai_provider_factory", lambda scope, store:
+            (LocalBrainProvider(BrainModelFixture(), store),
+             ManagedLocalTTSProvider(SpeechModelFixture(), context_id=scope.room_id)))
         worker = LocalWorkerBoundary(self.root / "worker", credentials or Credentials(),
             engine_factory=InferenceFixture, provider_factory=ProviderFixture,
             stream_factory=MediaFixture, capability_probe=lambda: {"ready": True}, **kwargs)
@@ -126,12 +186,36 @@ class LocalLiveWorkerTests(unittest.TestCase):
         return worker
 
     def start(self, worker, microphone=None):
+        self.prepare(worker, "account", ("product",), microphone)
         session_id = worker.start_session("owner", "account", ("product",), self.reference, microphone)
         deadline = time.monotonic() + 2
         while worker.store.get_session("owner", session_id).status == "STARTING" and time.monotonic() < deadline:
             time.sleep(0.01)
         self.assertEqual(worker.store.get_session("owner", session_id).status, "RUNNING")
         return session_id
+
+    def prepare(self, worker, account, products, microphone=None):
+        worker.sync_product_context("owner", account, [{"productId": product, "name": "สินค้าทดสอบ",
+            "version": "unit-v1", "facts": {"price": 1290}} for product in products])
+        worker.prepare_room("owner", account, products, self.reference, microphone)
+
+    def test_signed_context_updates_only_matching_live_room_and_prepared_room(self):
+        worker = self.worker()
+        first = self.start(worker)
+        self.prepare(worker, "account-b", ("product-b",))
+        ai_a = worker._sessions[first].ai
+        ai_b = worker._prepared[("owner", "account-b")]["ai"]
+        worker.sync_product_context("owner", "account", [{"productId": "product", "name": "สินค้า",
+            "version": "unit-v2", "facts": {"price": 990}}])
+        self.assertEqual(ai_a.product_store.fetch(ai_a.scope, "product").facts["price"], 990)
+        self.assertEqual(ai_b.product_store.fetch(ai_b.scope, "product-b").facts["price"], 1290)
+        worker.sync_product_context("owner", "account-b", [{"productId": "product-b", "name": "สินค้า B",
+            "version": "unit-v2", "facts": {"price": 100}}])
+        self.assertEqual(ai_b.product_store.fetch(ai_b.scope, "product-b").facts["price"], 100)
+        with self.assertRaises(AgentError):
+            worker.sync_product_context("owner", "account", [{"productId": "different", "name": "อื่น",
+                "version": "v1", "facts": {}}])
+        self.assertEqual(ai_a.product_store.fetch(ai_a.scope, "product").facts["price"], 990)
 
     def test_actual_worker_boundary_connects_inputs_pause_resume_stop_and_owner(self):
         worker = self.worker()
@@ -179,9 +263,60 @@ class LocalLiveWorkerTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "STREAM_OWNER_MISMATCH")
         self.assertEqual(len(worker.store.references), 0)
 
+    def test_selected_warmup_reuses_actual_engine_and_comment_pcm_path(self):
+        worker = self.worker()
+        self.prepare(worker, "account", ("product",))
+        prepared = worker._prepared[("owner", "account")]
+        engine, ai = prepared["engine"], prepared["ai"]
+        session_id = worker.start_session("owner", "account", ("product",), self.reference, None)
+        record = worker._sessions[session_id]
+        self.assertIs(record.ai, ai)
+        self.assertIs(record.store.get_session("owner", session_id).engine, engine)
+        self.assertEqual(engine.engine.prepare_calls, 1, "Start must reuse selected model/reference warmup")
+        deadline = time.monotonic() + 1
+        while record.store.get_session("owner", session_id).status != "RUNNING" and time.monotonic() < deadline:
+            time.sleep(0.01)
+        reply = worker.submit_comment("owner", session_id, {"commentId": "real-comment", "viewerId": "viewer",
+            "text": "ราคาเท่าไหร่", "createdAtMs": 1000})
+        self.assertEqual(reply, {"accepted": True})
+        deadline = time.monotonic() + 1
+        while not record.stream.audio and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertTrue(record.stream.audio)
+        self.assertIn("1,290", worker.session_ai_status("owner", session_id)["currentResponse"])
+        for operation in (worker.session_ai_status,):
+            with self.assertRaises(AgentError) as caught:
+                operation("other-owner", session_id)
+            self.assertEqual(caught.exception.code, "SESSION_NOT_FOUND")
+
+    def test_missing_commercial_voice_blocks_selected_warmup_without_native_presenter(self):
+        created = []
+        def engine():
+            created.append(True)
+            return InferenceFixture()
+        worker = self.worker(ai_provider_factory=lambda scope, store:
+            (LocalBrainProvider(BrainModelFixture(), store), PendingLocalTTSProvider()))
+        worker._engine_factory = engine
+        worker.sync_product_context("owner", "account", [{"productId": "product", "name": "สินค้า", "version": "1", "facts": {}}])
+        with self.assertRaises(AgentError) as caught:
+            worker.prepare_room("owner", "account", ("product",), self.reference)
+        self.assertEqual(caught.exception.code, "LOCAL_TTS_MODEL_PENDING")
+        self.assertEqual(created, [], "No presenter or transport can start with a pending voice")
+        self.assertEqual(worker._prepared, {})
+        self.assertEqual(len(worker.store.sessions), 0)
+
+    def test_missing_local_models_never_silently_enable_live(self):
+        worker = self.worker(ai_provider_factory=lambda scope, store:
+            (LocalBrainProvider(PendingLocalBrainRuntime(), store), PendingLocalTTSProvider()))
+        self.assertFalse(worker.warmup()["ready"])
+        self.assertFalse(worker.health()["brain_ready"])
+        self.assertFalse(worker.health()["tts_ready"])
+        self.assertEqual(len(worker.store.sessions), 0)
+
     def test_two_accounts_have_distinct_real_room_resources_and_pause_keeps_stream_alive(self):
         worker = self.worker(microphone_factory=MicrophoneFixture)
         first = self.start(worker, "default")
+        self.prepare(worker, "account-b", ("product-b",), "default")
         second = worker.start_session("owner", "account-b", ("product-b",), self.reference, "default")
         a, b = worker._sessions[first], worker._sessions[second]
         deadline = time.monotonic() + 2
@@ -213,7 +348,8 @@ class LocalLiveWorkerTests(unittest.TestCase):
     def test_watchdog_failure_does_not_stop_or_contaminate_another_room(self):
         worker = self.worker()
         first = self.start(worker)
-        second = worker.start_session("owner", "account-b", (), self.reference, None)
+        self.prepare(worker, "account-b", ("product-b",))
+        second = worker.start_session("owner", "account-b", ("product-b",), self.reference, None)
         a, b = worker._sessions[first], worker._sessions[second]
         deadline = time.monotonic() + 2
         while b.store.get_session("owner", second).status == "STARTING" and time.monotonic() < deadline:
@@ -288,6 +424,10 @@ class LocalLiveWorkerTests(unittest.TestCase):
 
         class SlowNativeFixture(InferenceFixture):
             def render_pcm16_chunk(self, pcm):
+                if not getattr(self, "warmed", False):
+                    self.warmed = True
+                    yield REFERENCE
+                    return
                 entered.set()
                 release.wait(5)
                 yield REFERENCE
@@ -315,6 +455,38 @@ class LocalLiveWorkerTests(unittest.TestCase):
         worker.stop_session("owner", session_id)
         self.assertTrue(worker.session_metrics("owner", session_id)["resources_released"])
         self.assertEqual(len(worker.store.references), 0)
+
+    def test_prepared_renderer_preserves_native_interrupt_for_stop(self):
+        entered = threading.Event()
+        released = threading.Event()
+
+        class InterruptibleNativeFixture(InferenceFixture):
+            def render_pcm16_chunk(self, pcm):
+                if not getattr(self, "warmed", False):
+                    self.warmed = True
+                    yield REFERENCE
+                    return
+                entered.set()
+                released.wait(2)
+                yield REFERENCE
+
+            def interrupt(self):
+                self.interrupted = True
+                released.set()
+
+        worker = self.worker(stop_timeout_seconds=0.5)
+        worker._engine_factory = InterruptibleNativeFixture
+        session_id = self.start(worker)
+        prepared = worker.store.get_session("owner", session_id).engine
+        worker.push_audio("owner", session_id, b"\x01\x00" * 1600)
+        self.assertTrue(entered.wait(1))
+        try:
+            worker.stop_session("owner", session_id)
+            self.assertTrue(prepared.engine.interrupted)
+            self.assertTrue(worker.session_metrics("owner", session_id)["resources_released"])
+            self.assertTrue(prepared.engine.closed)
+        finally:
+            released.set()
 
     def test_pending_inference_without_frame_progress_degrades_connection_quality(self):
         worker = self.worker()

@@ -7,6 +7,7 @@ grant and its release gate before invoking this boundary.
 from __future__ import annotations
 
 import os
+import hashlib
 import queue
 import subprocess
 import threading
@@ -16,16 +17,41 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from av_encoder import EncoderConfig, resolve_ffmpeg_path
+from av_encoder import EncoderConfig, InternalAVEncoder, resolve_ffmpeg_path
 from capabilities import inspect_capabilities
 from direct_stream import StreamError, TikTokLiveProvider
 from engine import make_engine
 from provider_config import dev_fallback_enabled
 from worker_core import LiveError, LiveStore, MAX_AUDIO_BYTES, MAX_REFERENCE_BYTES
+from local_ai_session import LocalAISession, LocalAIError
+from local_brain import BrainScope, InMemoryProductStore, LocalBrainProvider, PendingLocalBrainRuntime, ProductSnapshot
+from local_tts import PendingLocalTTSProvider
+from local_llama_runtime import physical_memory_mib
 
 from .agent import AgentError
 from .security import SecurityError
 from .stream_credentials import StreamCredentialStore
+from .resource_manager import LocalResourceManager, select_profile
+
+
+class _PreparedEngine:
+    def __init__(self, engine, digest, fps):
+        self.engine, self.digest, self.fps = engine, digest, fps
+
+    def prepare(self, reference, fps):
+        if fps != self.fps or hashlib.sha256(Path(reference).read_bytes()).hexdigest() != self.digest:
+            raise RuntimeError("PRESENTER_WARMUP_REQUIRED")
+
+    def render_pcm16_chunk(self, pcm):
+        return self.engine.render_pcm16_chunk(pcm)
+
+    def interrupt(self):
+        interrupt = getattr(self.engine, "interrupt", None)
+        if callable(interrupt):
+            interrupt()
+
+    def close(self):
+        self.engine.close()
 
 
 @dataclass
@@ -48,6 +74,7 @@ class _LocalSession:
     microphone_thread: threading.Thread | None = None
     microphone_drops: int = 0
     microphone_error: bool = False
+    ai: LocalAISession | None = None
 
 
 class LocalWorkerBoundary:
@@ -58,6 +85,8 @@ class LocalWorkerBoundary:
                  stream_factory: Callable | None = None,
                  store_factory: Callable = LiveStore,
                  microphone_factory: Callable | None = None,
+                 ai_provider_factory: Callable | None = None,
+                 resource_manager=None,
                  stop_timeout_seconds: float = 15):
         self.data_dir = Path(data_dir)
         self._credentials = credential_store
@@ -67,6 +96,12 @@ class LocalWorkerBoundary:
         self._stream_factory = stream_factory
         self._microphone_factory = microphone_factory
         self._store_factory = store_factory
+        self._ai_provider_factory = ai_provider_factory or (lambda scope, products:
+            (LocalBrainProvider(PendingLocalBrainRuntime(), products), PendingLocalTTSProvider()))
+        self._product_contexts: dict[tuple[str, str], list[dict[str, object]]] = {}
+        self._ai_probe: LocalAISession | None = None
+        self._prepared = {}
+        self._resources = resource_manager or LocalResourceManager(select_profile(physical_memory_mib()[0] / 1024, None))
         if not 0 < stop_timeout_seconds <= 30:
             raise ValueError("Stop timeout must be positive and at most 30 seconds")
         self._stop_timeout_seconds = stop_timeout_seconds
@@ -123,13 +158,127 @@ class LocalWorkerBoundary:
                         codec_ready = result.returncode == 0 and b"libx264" in result.stdout
                     self._capability_cache = {"ready": capability.get("ready") is True and codec_ready,
                         "code": "READY" if capability.get("ready") is True and codec_ready else "WORKER_NOT_VALIDATED",
-                        "encoder_ready": codec_ready, "presenter_ready": capability.get("ready") is True,
+                        "encoder_ready": False, "presenter_ready": False,
                         "dev_fallback": capability.get("dev_fallback") is True}
                 except Exception:
                     self._capability_cache = {"ready": False, "code": "WORKER_NOT_VALIDATED",
                                               "encoder_ready": False, "presenter_ready": False}
                 self._capability_at = now
-            return dict(self._capability_cache)
+            result = dict(self._capability_cache)
+            live_ai = next((record.ai for record in self._sessions.values() if not record.stopped and record.ai), None)
+            probe = live_ai or self._ai_probe
+            ai = probe.health() if probe else {"ready": False, "brain_ready": False, "tts_ready": False, "warmup_passed": False}
+            result.update({key: ai.get(key) is True for key in ("brain_ready", "tts_ready", "warmup_passed")})
+            prepared = any(item["ready"] for item in self._prepared.values()) or live_ai is not None
+            result["presenter_ready"] = result["encoder_ready"] = prepared
+            result["warmup_passed"] = result["warmup_passed"] and prepared
+            result["ready"] = result["ready"] and ai.get("ready") is True and prepared
+            if ai.get("ready") is not True:
+                result["code"] = ai.get("code", "LOCAL_AI_WARMUP_REQUIRED")
+            return result
+
+    def _make_ai(self, owner_id, account_id, room_id, product_ids, emit_pcm, interrupt_audio):
+        store = InMemoryProductStore()
+        scope = BrainScope(owner_id, account_id, room_id)
+        brain, voice = self._ai_provider_factory(scope, store)
+        return LocalAISession(scope, brain, voice, store, emit_pcm, product_ids=tuple(product_ids),
+                              interrupt_audio=interrupt_audio, resource_manager=self._resources)
+
+    def warmup(self) -> dict[str, object]:
+        # Selection/reference are required for genuine presenter/encoder warmup.
+        return self.health()
+
+    def prepare_room(self, owner_id, account_id, product_ids, presenter_path, microphone_id=None):
+        path = Path(presenter_path)
+        if path.is_symlink() or not path.is_file() or not 0 < path.stat().st_size <= MAX_REFERENCE_BYTES:
+            raise self._error("PRESENTER_NOT_FOUND", 404)
+        products = self._product_contexts.get((owner_id, account_id))
+        if products is None or {product["productId"] for product in products} != set(product_ids):
+            raise self._error("LOCAL_PRODUCT_CONTEXT_REQUIRED", 409)
+        with self._lock:
+            if (self._closed or any(not record.cleanup_complete and record.owner_id == owner_id
+                    and record.account_id == account_id for record in self._sessions.values())
+                    or any(record.owner_id == owner_id and record.account_id == account_id
+                           for record in self._pending.values())):
+                raise self._error("SESSION_BUSY", 409)
+            old = self._prepared.pop((owner_id, account_id), None)
+        if old:
+            old["ai"].stop(); old["engine"].close()
+        ai = self._make_ai(owner_id, account_id, str(uuid.uuid4()), product_ids, lambda _pcm: None, lambda: None)
+        engine = encoder = None
+        output = self.data_dir / "warmup" / (str(uuid.uuid4()) + ".mp4")
+        try:
+            ai.sync_products(products)
+            readiness = ai.warmup()
+            if readiness.get("ready") is not True:
+                raise self._error(readiness.get("code", "LOCAL_AI_WARMUP_REQUIRED"))
+            pcm = bytearray()
+            for chunk in ai.tts.stream_text("ยินดีต้อนรับค่ะ", "presenter-warmup"):
+                pcm.extend(chunk.pcm16)
+                if len(pcm) >= 16000: break
+            if not pcm or not any(pcm): raise RuntimeError("LOCAL_TTS_MODEL_PENDING")
+            fps = 2 if dev_fallback_enabled() else self.encoder_config.fps
+            engine = self._engine_factory()
+            engine.prepare(path, fps)
+            frames = iter(engine.render_pcm16_chunk(bytes(pcm[:32000])))
+            try: frame = next(frames)
+            finally:
+                close = getattr(frames, "close", None)
+                if callable(close): close()
+            if not isinstance(frame, bytes) or not frame.startswith(b"\xff\xd8") or not frame.endswith(b"\xff\xd9"):
+                raise RuntimeError("PRESENTER_WARMUP_FAILED")
+            encoder = InternalAVEncoder(self.encoder_config, output)
+            encoder.start(); encoder.push_frame(frame, 0); encoder.push_audio(bytes(pcm[:32000]), 0)
+            deadline = time.monotonic() + 5
+            while time.monotonic() < deadline:
+                observed = encoder.metrics()
+                if observed["error"] or (observed["encoded_bytes"] > 0 and observed["audio_encoded"]):
+                    break
+                time.sleep(0.05)
+            encoder.dispose()
+            metrics = encoder.metrics()
+            if metrics["error"] or metrics["encoded_bytes"] <= 0 or not metrics["audio_encoded"]:
+                raise RuntimeError("ENCODER_WARMUP_FAILED")
+            with self._lock:
+                self._prepared[(owner_id, account_id)] = {"ready": True, "ai": ai,
+                    "engine": _PreparedEngine(engine, hashlib.sha256(path.read_bytes()).hexdigest(), fps),
+                    "product_ids": tuple(product_ids)}
+                self._ai_probe = ai
+            return self.health()
+        except Exception as exc:
+            ai.stop()
+            if engine: engine.close()
+            raise self._error(getattr(exc, "code", "LOCAL_AI_WARMUP_FAILED")) from None
+        finally:
+            if encoder: encoder.dispose()
+            output.unlink(missing_ok=True)
+
+    def sync_product_context(self, owner_id: str, account_id: str, products: list[dict[str, object]]) -> None:
+        # This inherited-pipe method is called only after LocalAgent verifies the
+        # signed server product envelope. It is never a raw browser fact source.
+        if not isinstance(products, list) or not 1 <= len(products) <= 10:
+            raise self._error("LOCAL_PRODUCT_CONTEXT_INVALID", 422)
+        try:
+            scope = BrainScope(owner_id, account_id, "context-validation")
+            checked = [ProductSnapshot(scope, product["productId"], product["name"], product["version"], product["facts"])
+                for product in products if isinstance(product, dict) and set(product) == {"productId", "name", "version", "facts"}]
+            if len(checked) != len(products) or len({product.product_id for product in checked}) != len(products):
+                raise ValueError
+        except Exception:
+            raise self._error("LOCAL_PRODUCT_CONTEXT_INVALID", 422) from None
+        import copy
+        with self._lock:
+            key = (owner_id, account_id)
+            if key not in self._product_contexts and len(self._product_contexts) >= 10:
+                raise self._error("ROOM_CAPACITY_REACHED", 409)
+            targets = ([self._prepared[key]["ai"]] if key in self._prepared else []) + [record.ai
+                for record in self._sessions.values() if not record.stopped and record.owner_id == owner_id
+                and record.account_id == account_id and record.ai]
+            if any(set(ai.product_ids) != {product.product_id for product in checked} for ai in targets):
+                raise self._error("LOCAL_PRODUCT_SCOPE_MISMATCH", 409)
+            for ai in targets:
+                ai.sync_products(copy.deepcopy(products))
+            self._product_contexts[key] = copy.deepcopy(products)
 
     def _owned(self, owner_id: str, session_id: str) -> _LocalSession:
         with self._lock:
@@ -178,13 +327,29 @@ class LocalWorkerBoundary:
                 credentials.clear()
                 reference = room_store.save_reference(owner_id, image, media_type)
                 record = _LocalSession(owner_id, account_id, tuple(product_ids), reference, provider, room_store)
+                products = self._product_contexts.get((owner_id, account_id))
+                if products is None or {product["productId"] for product in products} != set(product_ids):
+                    raise self._error("LOCAL_PRODUCT_CONTEXT_REQUIRED", 409)
+                prepared = self._prepared.get((owner_id, account_id))
+                if not prepared or prepared["product_ids"] != tuple(product_ids):
+                    raise self._error("LOCAL_AI_WARMUP_REQUIRED", 409)
+                prepared["engine"].prepare(path, 2 if dev_fallback_enabled() else self.encoder_config.fps)
+                engine = prepared["engine"]
+                self._prepared.pop((owner_id, account_id))
+                record.ai = prepared["ai"]
+                record.ai.bind_output(lambda pcm: self.push_audio(owner_id, record.session_id, pcm),
+                                      lambda: self._interrupt_room_audio(record))
+                record.ai.sync_products(products)
+                ai_health = record.ai.health()
+                if ai_health.get("ready") is not True:
+                    raise self._error(ai_health.get("code", "LOCAL_AI_WARMUP_REQUIRED"))
                 self._pending[room_key] = record
-                engine = self._engine_factory()
                 inference_fps = 2 if dev_fallback_enabled() else self.encoder_config.fps
                 session_id, _ = room_store.start_session(owner_id, reference, inference_fps, engine)
                 record.session_id = session_id
                 self._sessions[session_id] = record
                 self._pending.pop(room_key, None)
+                record.ai.start()
                 if microphone_id == "default":
                     self._start_microphone(record)
                 # Bound retained stopped records, matching LiveStore's history.
@@ -208,6 +373,8 @@ class LocalWorkerBoundary:
                     if provider:
                         provider.dispose()
                     if record:
+                        if record.ai:
+                            record.ai.stop()
                         self._remove_reference(record)
                     room_store.close()
                     if room_store is not self.store:
@@ -219,6 +386,45 @@ class LocalWorkerBoundary:
                 raise self._error("WORKER_START_FAILED") from None
             finally:
                 credentials.clear()
+
+    @staticmethod
+    def _interrupt_room_audio(record: _LocalSession) -> None:
+        if not record.session_id:
+            return
+        session = record.store.get_session(record.owner_id, record.session_id)
+        with session.lock:
+            while not session.audio.empty():
+                try:
+                    session.audio.get_nowait()
+                except queue.Empty:
+                    break
+            interrupt = getattr(record.stream, "interrupt_speech", None)
+            if callable(interrupt):
+                interrupt()
+            else:
+                # Existing AVSessionStream invalidates speech generation on
+                # pause; immediately resume the SAME encoder/transport clock.
+                pause, resume = getattr(record.stream, "pause_speech", None), getattr(record.stream, "resume_speech", None)
+                if callable(pause) and callable(resume):
+                    pause()
+                    if not record.paused:
+                        resume()
+
+    def submit_comment(self, owner_id: str, session_id: str, comment: dict[str, object]) -> dict[str, object]:
+        record = self._owned(owner_id, session_id)
+        if record.stopped or not record.ai:
+            raise self._error("SESSION_NOT_RUNNING", 409)
+        return record.ai.submit_comment(comment)
+
+    def queue_speech(self, owner_id: str, session_id: str, speech: dict[str, object]) -> dict[str, object]:
+        record = self._owned(owner_id, session_id)
+        if record.stopped or not record.ai or not isinstance(speech, dict) or set(speech) != {"id", "text", "productId"}:
+            raise self._error("INVALID_SPEECH_REQUEST", 422)
+        return {"accepted": record.ai.queue_speech(speech["id"], speech["text"], product_id=speech["productId"])}
+
+    def session_ai_status(self, owner_id: str, session_id: str) -> dict[str, object]:
+        record = self._owned(owner_id, session_id)
+        return record.ai.snapshot() if record.ai else {"readiness": {"ready": False}}
 
     def push_audio(self, owner_id: str, session_id: str, pcm16: bytes) -> int:
         record = self._owned(owner_id, session_id)
@@ -244,7 +450,7 @@ class LocalWorkerBoundary:
                 raise self._error("MICROPHONE_UNAVAILABLE") from None
 
         def callback(indata, _frames, _timestamp, status) -> None:
-            if record.microphone_stop.is_set() or record.paused:
+            if record.microphone_stop.is_set() or record.paused or (record.ai and record.ai.speaking):
                 return
             if status:
                 record.microphone_drops += 1
@@ -307,6 +513,8 @@ class LocalWorkerBoundary:
             if record.stopped:
                 raise self._error("SESSION_NOT_RUNNING", 409)
             record.paused = True
+            if record.ai:
+                record.ai.pause()
             session = record.store.get_session(owner_id, session_id)
             while not session.audio.empty():
                 try:
@@ -326,6 +534,8 @@ class LocalWorkerBoundary:
             resume_speech = getattr(record.stream, "resume_speech", None)
             if callable(resume_speech):
                 resume_speech()
+            if record.ai:
+                record.ai.resume()
 
     def _remove_reference(self, record: _LocalSession) -> None:
         with record.store.lock:
@@ -341,6 +551,12 @@ class LocalWorkerBoundary:
             record.stopped = True
         deadline = time.monotonic() + self._stop_timeout_seconds
         self._stop_microphone(record)
+        ai_pending = False
+        if record.ai:
+            try:
+                record.ai.stop(timeout_seconds=max(0, deadline - time.monotonic()))
+            except LocalAIError:
+                ai_pending = True
         try:
             record.store.stop_session(owner_id, session_id)
         finally:
@@ -352,7 +568,7 @@ class LocalWorkerBoundary:
                 session.thread.join(timeout=max(0, deadline - time.monotonic()))
         # Retain the reference and permit Stop to retry while native inference
         # finishes. The caller must not claim that every resource is released.
-        if session.thread and session.thread.is_alive():
+        if ai_pending or (session.thread and session.thread.is_alive()):
             raise self._error("WORKER_STOP_PENDING", 409)
         self._remove_reference(record)
         record.cleanup_complete = True
@@ -419,7 +635,14 @@ class LocalWorkerBoundary:
     def close(self) -> None:
         with self._lock:
             records = list(self._sessions.values())
+            prepared = list(self._prepared.values())
+            self._prepared.clear()
             self._closed = True
+        for item in prepared:
+            try:
+                item["ai"].stop()
+            finally:
+                item["engine"].close()
         for record in records:
             try:
                 self.stop_session(record.owner_id, record.session_id)
@@ -428,3 +651,6 @@ class LocalWorkerBoundary:
                     raise
         for store in self._stores:
             store.close()
+        if self._ai_probe:
+            self._ai_probe.stop()
+        self._product_contexts.clear()

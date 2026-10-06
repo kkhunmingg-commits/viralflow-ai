@@ -154,6 +154,17 @@ class _ManagedRoomProcess:
             self._reader = threading.Thread(target=self._read, args=(process, self._responses), daemon=True, name="managed-presenter-response")
             self._reader.start()
             config = {"root": str(self.app_root), "componentRoot": str(root), "profile": self.components.profile}
+            catalog = getattr(self.components, "_catalog", None)
+            if callable(catalog):
+                from .model_manager import verify_installed_catalog, CATALOG_PATH
+                checked_root, files, _ = catalog()
+                if checked_root != root:
+                    raise ValueError
+                records = verify_installed_catalog(root, files)
+                model_paths = {artifact.relative_path for record in records for artifact in record.artifacts}
+                if records:
+                    model_paths.add(CATALOG_PATH)
+                config["localModelFiles"] = {path: files[path] for path in model_paths}
             if self._room_id is not None:
                 config["roomId"] = self._room_id
             self._send(process, json.dumps(config).encode() + b"\n")
@@ -224,6 +235,25 @@ class _ManagedRoomProcess:
         self._has_started_session = True
         return result
 
+    def warmup(self):
+        return self._call("warmup", timeout_seconds=max(self._timeout, 120))
+
+    def prepare_room(self, owner, account, products, reference, microphone=None):
+        return self._call("prepare_room", owner, account, list(products), str(reference), microphone,
+                          timeout_seconds=max(self._timeout, 120))
+
+    def sync_product_context(self, owner, account, products):
+        return self._call("sync_product_context", owner, account, products)
+
+    def submit_comment(self, owner, session, comment):
+        return self._call("submit_comment", owner, session, comment)
+
+    def queue_speech(self, owner, session, speech):
+        return self._call("queue_speech", owner, session, speech)
+
+    def session_ai_status(self, owner, session):
+        return self._call("session_ai_status", owner, session)
+
     def pause_session(self, owner, session):
         return self._call("pause_session", owner, session)
 
@@ -270,15 +300,23 @@ class _ManagedRoomProcess:
             self._lock.release()
 
     def close(self):
-        with self._lock:
+        if not self._lock.acquire(timeout=0.25):
+            # Bound shutdown even while the owned child is loading a model.
+            # No other room's process or credentials can be affected here.
+            self._closed = True
+            self._terminate()
+            return
+        try:
             try:
                 if self._process is not None and self._process.poll() is None:
-                    self._call("close")
+                    self._call("close", timeout_seconds=min(self._timeout, 3))
             except AgentError:
                 pass
             finally:
                 self._terminate()
                 self._closed = True
+        finally:
+            self._lock.release()
 
 
 class ManagedRuntimeWorker:
@@ -301,6 +339,10 @@ class ManagedRuntimeWorker:
         self._lock = threading.RLock()
         self._closed = False
         self._health_cached = {"ready": False}
+        self._warming = False
+        self._contexts = {}
+        self._prepared = {}
+        self._preparing = {}
 
     def _new_process(self):
         return _ManagedRoomProcess(self.app_root, self.components,
@@ -321,12 +363,18 @@ class ManagedRuntimeWorker:
         with self._lock:
             if self._closed:
                 return {"ready": False, "status": "WORKER_UNAVAILABLE"}
-            # Reuse an existing healthy process for inspection. A failed room is
-            # inspected separately through its session and never silently restarted.
-            probe = self._probe
-            if self._probe_claimed:
-                return dict(self._health_cached)
-        result = probe.health()
+            # Poll the actual prepared/live child; past warmup is not a current
+            # health signal after a native model dies. Do not wait behind loading.
+            if self._pending or self._warming:
+                return {"ready": False, "status": "LOCAL_AI_WARMUP_REQUIRED"}
+            probe = next(iter(self._prepared.values()), None) or next((process for route, process
+                in self._rooms.items() if route not in self._stopped), None) or self._probe
+        if not probe._lock.acquire(blocking=False):
+            return {"ready": False, "status": "LOCAL_AI_WARMUP_REQUIRED"}
+        try:
+            result = probe.health()
+        finally:
+            probe._lock.release()
         with self._lock:
             self._health_cached = dict(result)
         return result
@@ -341,9 +389,12 @@ class ManagedRuntimeWorker:
             if len(self._accounts) + len(self._pending) >= 10:
                 raise AgentError(409, "ROOM_CAPACITY_REACHED", "ใช้จำนวนห้องครบแล้ว")
             self._pending.add(key)
-            process = self._new_process() if self._probe_claimed else self._probe
+            process = self._prepared.pop(key, None) or (self._new_process() if self._probe_claimed else self._probe)
             self._probe_claimed = True
         try:
+            context = self._contexts.get(key)
+            if context is not None:
+                process.sync_product_context(owner_id, account_id, context)
             session_id = process.start_session(owner_id, account_id, product_ids, presenter_path, microphone_id)
             try:
                 if not isinstance(session_id, str) or str(uuid.UUID(session_id)) != session_id.lower():
@@ -370,6 +421,82 @@ class ManagedRuntimeWorker:
         finally:
             with self._lock:
                 self._pending.discard(key)
+
+    def warmup(self):
+        with self._lock:
+            if self._closed or self._probe_claimed:
+                return dict(self._health_cached)
+            if self._warming:
+                return dict(self._health_cached)
+            probe = self._probe
+            self._warming = True
+        try:
+            result = probe.warmup()
+            with self._lock:
+                self._health_cached = dict(result)
+            return result
+        finally:
+            with self._lock:
+                self._warming = False
+
+    def sync_product_context(self, owner, account, products):
+        import copy
+        with self._lock:
+            if (owner, account) not in self._contexts and len(self._contexts) >= 10:
+                raise AgentError(409, "ROOM_CAPACITY_REACHED", "ใช้จำนวนห้องครบแล้ว")
+            if (owner, account) in self._pending:
+                raise AgentError(409, "SESSION_BUSY", "กรุณารอการเตรียมเครื่องให้เสร็จ")
+            prepared = self._prepared.get((owner, account))
+            route = self._accounts.get((owner, account))
+            active = self._rooms.get(route) if route else None
+            for process in {child for child in (prepared, active) if child is not None}:
+                process.sync_product_context(owner, account, products)
+            self._contexts[(owner, account)] = copy.deepcopy(products)
+
+    def prepare_room(self, owner, account, products, reference, microphone=None):
+        key = (owner, account)
+        with self._lock:
+            if self._closed or key in self._accounts or key in self._pending:
+                raise AgentError(409, "SESSION_BUSY", "บัญชีนี้กำลัง LIVE อยู่")
+            if key not in self._prepared and len(self._prepared) + len(self._accounts) >= 10:
+                raise AgentError(409, "ROOM_CAPACITY_REACHED", "ใช้จำนวนห้องครบแล้ว")
+            process = self._prepared.get(key) or (self._new_process() if self._probe_claimed else self._probe)
+            self._probe_claimed = True
+            self._pending.add(key)
+            self._preparing[key] = process
+        try:
+            context = self._contexts.get(key)
+            if context is None:
+                raise AgentError(409, "LOCAL_PRODUCT_CONTEXT_REQUIRED", "กรุณาเตรียมสินค้าใหม่")
+            process.sync_product_context(owner, account, context)
+            result = process.prepare_room(owner, account, products, reference, microphone)
+            with self._lock:
+                if self._closed:
+                    raise AgentError(503, "WORKER_UNAVAILABLE", "กรุณาเปิด ViralFlow ใหม่")
+                self._prepared[key] = process
+                self._health_cached = dict(result)
+            return result
+        except Exception:
+            process.close()
+            with self._lock:
+                self._prepared.pop(key, None)
+                self._health_cached = {"ready": False}
+                if process is self._probe:
+                    self._probe, self._probe_claimed = self._new_process(), False
+            raise
+        finally:
+            with self._lock:
+                self._pending.discard(key)
+                self._preparing.pop(key, None)
+
+    def submit_comment(self, owner, session, comment):
+        return self._owned(owner, session).submit_comment(owner, session, comment)
+
+    def queue_speech(self, owner, session, speech):
+        return self._owned(owner, session).queue_speech(owner, session, speech)
+
+    def session_ai_status(self, owner, session):
+        return self._owned(owner, session).session_ai_status(owner, session)
 
     def pause_session(self, owner, session):
         return self._owned(owner, session).pause_session(owner, session)
@@ -418,6 +545,6 @@ class ManagedRuntimeWorker:
     def close(self):
         with self._lock:
             self._closed = True
-            children = set(self._rooms.values()) | {self._probe}
+            children = set(self._rooms.values()) | set(self._prepared.values()) | set(self._preparing.values()) | {self._probe}
         for process in children:
             process.close()

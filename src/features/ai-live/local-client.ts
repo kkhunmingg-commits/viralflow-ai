@@ -5,6 +5,12 @@ export type { LocalMachineView } from "./local-contract";
 const AGENT_ORIGIN = "http://127.0.0.1:8766";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Json = Record<string, unknown>;
+interface StartLocalLive {
+  accountId: string;
+  productIds: string[];
+  presenter: File;
+  microphoneId: string | null;
+}
 export interface LocalPresenterCard {
   id: string; name: string; voiceLabel: string; assignedAccountIds: string[];
   status: "READY" | "SETUP_REQUIRED"; hasReference: boolean; consentConfirmed: boolean; updatedAt: number;
@@ -41,12 +47,13 @@ export class LocalLiveClient {
   constructor(private readonly fetcher: typeof fetch = fetch, private readonly now: () => number = Date.now) {}
 
   snapshot(): LocalMachineView { return { ...this.current, reasons: [...this.current.reasons],
+    ...(this.current.aiReadiness ? { aiReadiness: { ...this.current.aiReadiness } } : {}),
     ...(this.current.rooms ? { rooms: this.current.rooms.map((room) => ({ ...room, customerStream: { ...room.customerStream } })) } : {}),
     ...(this.current.capacity ? { capacity: { ...this.current.capacity } } : {}),
     ...(this.current.components ? { components: { ...this.current.components } } : {}) }; }
 
   private async request(path: string, options: RequestInit = {}, signal?: AbortSignal, authenticated = true): Promise<Json> {
-    if (!/^\/v1\/(discovery|pair|renew|status|rooms|hardware|challenge|references|presenters|presenters\/[0-9a-f-]{36}\/delete|stream\/setup|components\/(prepare|status)|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/(stop|pause|resume))$/.test(path)) {
+    if (!/^\/v1\/(discovery|pair|renew|status|rooms|hardware|challenge|references|presenters|presenters\/[0-9a-f-]{36}\/delete|ai\/(warmup|product-context)|stream\/setup|components\/(prepare|status)|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/(stop|pause|resume|comment|speech|ai-status))$/.test(path)) {
       throw new Error("ไม่สามารถทำรายการนี้ได้");
     }
     if (authenticated && (!this.token || this.tokenExpiresAt <= this.now() / 1000)) {
@@ -125,7 +132,7 @@ export class LocalLiveClient {
   }
 
   private async cloudRequest(path: string, options: RequestInit = {}, signal?: AbortSignal): Promise<Json> {
-    if (!/^\/api\/ai-live\/(entitlement|updates\/manifest|local-grant|devices\/(challenge|register|[0-9a-f-]{36}))$/.test(path)) throw new Error("ไม่สามารถทำรายการนี้ได้");
+    if (!/^\/api\/ai-live\/(entitlement|updates\/manifest|local-grant|product-context|devices\/(challenge|register|[0-9a-f-]{36}))$/.test(path)) throw new Error("ไม่สามารถทำรายการนี้ได้");
     const controller = new AbortController();
     this.requests.add(controller);
     const timer = setTimeout(() => controller.abort(), 8_000);
@@ -224,6 +231,31 @@ export class LocalLiveClient {
     return this.snapshot();
   }
 
+  async prepareAI(signal?: AbortSignal, input?: StartLocalLive): Promise<LocalMachineView> {
+    if (!this.current.deviceAuthorized || !this.token || !this.deviceId) throw new Error("กรุณาอนุญาตเครื่องนี้ก่อน");
+    let selection: Record<string, unknown> = {};
+    if (input) {
+      if (!uuid.test(input.accountId) || !input.productIds.length || input.productIds.length > 10
+        || input.productIds.some((id) => !uuid.test(id)) || !["image/jpeg", "image/png"].includes(input.presenter.type)
+        || !input.presenter.size || input.presenter.size > 4 * 1024 * 1024) throw new Error("กรุณาเลือกบัญชี สินค้า และคน LIVE");
+      const context = await this.cloudRequest("/api/ai-live/product-context", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceId: this.deviceId, accountId: input.accountId, productIds: input.productIds }),
+      }, signal);
+      await this.request("/v1/ai/product-context", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ context }) }, signal);
+      const reference = await this.request("/v1/references", {
+        method: "POST", headers: { "Content-Type": input.presenter.type }, body: input.presenter,
+      }, signal);
+      if (typeof reference.presenterId !== "string" || !uuid.test(reference.presenterId)) throw new Error("เตรียมคน LIVE ไม่สำเร็จ");
+      selection = { accountId: input.accountId, productIds: input.productIds,
+        presenterId: reference.presenterId, microphoneId: input.microphoneId };
+    }
+    await this.request("/v1/ai/warmup", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(selection) }, signal);
+    return this.snapshot();
+  }
+
   async registerDevice(signal?: AbortSignal): Promise<LocalMachineView> {
     if (!this.token || !this.deviceId || this.current.state === "UPDATE_REQUIRED") throw new Error("กรุณาเชื่อมส่วนเสริมรุ่นปัจจุบันก่อน");
     const challenge = await this.cloudRequest("/api/ai-live/devices/challenge", {
@@ -319,6 +351,12 @@ export class LocalLiveClient {
       body: JSON.stringify({ deviceId: this.deviceId, challenge: challenge.challenge, deviceProof: challenge.deviceProof,
         accountId: input.accountId, productIds: input.productIds }),
     }, signal);
+    const context = await this.cloudRequest("/api/ai-live/product-context", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deviceId: this.deviceId, accountId: input.accountId, productIds: input.productIds }),
+    }, signal);
+    await this.request("/v1/ai/product-context", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ context }) }, signal);
     const reference = await this.request("/v1/references", {
       method: "POST", headers: { "Content-Type": input.presenter.type }, body: input.presenter,
     }, signal);
@@ -364,6 +402,26 @@ export class LocalLiveClient {
   async resumeAccount(accountId: string, signal?: AbortSignal): Promise<LocalMachineView> {
     return this.changeAccountSession(accountId, "resume", signal);
   }
+  async roomAIStatus(accountId: string, signal?: AbortSignal): Promise<{ available: boolean; lastComment: string | null; currentResponse: string | null; activity: string[] }> {
+    const value = await this.request(`/v1/sessions/${this.accountSession(accountId)}/ai-status`, {}, signal);
+    const text = (value: unknown) => typeof value === "string" && value.length <= 1000 ? value : null;
+    const events = new Set(["กำลังตอบผู้ชม", "กำลังพูด", "หยุดตอบผู้ชมชั่วคราว", "ตอบผู้ชมต่อ"]);
+    return { available: value.available === true, lastComment: text(value.lastComment), currentResponse: text(value.currentResponse),
+      activity: Array.isArray(value.activity) ? value.activity.filter((event): event is string => typeof event === "string" && events.has(event)).slice(-10) : [] };
+  }
+  async submitComment(accountId: string, comment: { commentId: string; viewerId: string; text: string; createdAtMs: number }, signal?: AbortSignal): Promise<boolean> {
+    const result = await this.request(`/v1/sessions/${this.accountSession(accountId)}/comment`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(comment),
+    }, signal);
+    return result.accepted === true;
+  }
+  async speakAccount(accountId: string, input: { id: string; text: string; productId: string | null }, signal?: AbortSignal): Promise<boolean> {
+    const result = await this.request(`/v1/sessions/${this.accountSession(accountId)}/speech`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input),
+    }, signal);
+    return result.accepted === true;
+  }
+
   private async changeAccountSession(accountId: string, action: "pause" | "resume", signal?: AbortSignal): Promise<LocalMachineView> {
     const sessionId = this.accountSession(accountId);
     this.acceptStatus(await this.request(`/v1/sessions/${sessionId}/${action}`, {

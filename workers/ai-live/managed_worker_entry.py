@@ -16,7 +16,30 @@ WORKER = Path(__file__).resolve().parent
 sys.path.insert(0, str(WORKER))
 MAX_MESSAGE = 6 * 1024 * 1024
 METHODS = {"health", "start_session", "pause_session", "resume_session", "stop_session",
-           "recover_session", "push_audio", "preview_frame", "customer_stream", "close"}
+           "recover_session", "push_audio", "preview_frame", "customer_stream", "close", "warmup",
+           "sync_product_context", "submit_comment", "queue_speech", "session_ai_status", "prepare_room"}
+
+
+class _TrustedChildComponents:
+    """Fixed-root catalog attested by our parent over its inherited private pipe."""
+    def __init__(self, root: Path, files: dict):
+        from local_agent.components import _relative
+        if not isinstance(files, dict) or len(files) > 10000:
+            raise ValueError("INVALID_RUNTIME_CONFIG")
+        for path, value in files.items():
+            _relative(path)
+            if (not isinstance(value, dict) or set(value) != {"sha256", "sizeBytes"}
+                    or not isinstance(value["sha256"], str) or len(value["sha256"]) != 64
+                    or any(char not in "0123456789abcdef" for char in value["sha256"])
+                    or type(value["sizeBytes"]) is not int or not 0 < value["sizeBytes"] <= 64 * 1024 ** 3):
+                raise ValueError("INVALID_RUNTIME_CONFIG")
+        self.root, self.files = root, files
+
+    def runtime_root(self):
+        return self.root
+
+    def _catalog(self):
+        return self.root, self.files, {}
 
 
 def serve(source, destination, *, worker_factory=None) -> None:
@@ -26,7 +49,8 @@ def serve(source, destination, *, worker_factory=None) -> None:
         if len(first) > MAX_MESSAGE:
             raise ValueError("INVALID_RUNTIME_REQUEST")
         config = json.loads(first)
-        if not isinstance(config, dict) or set(config) not in ({"root", "profile", "componentRoot"}, {"root", "profile", "componentRoot", "roomId"}):
+        if (not isinstance(config, dict) or not {"root", "profile", "componentRoot"}.issubset(config)
+                or not set(config).issubset({"root", "profile", "componentRoot", "roomId", "localModelFiles"})):
             raise ValueError("INVALID_RUNTIME_CONFIG")
         room_id = config.get("roomId")
         if room_id is not None and (not isinstance(room_id, str) or str(uuid.UUID(room_id)) != room_id):
@@ -61,8 +85,20 @@ def serve(source, destination, *, worker_factory=None) -> None:
                     for value in _sounddevice_data.__path__]
             from local_agent.live_worker import LocalWorkerBoundary
             from local_agent.stream_credentials import StreamCredentialStore
+            from local_brain import make_managed_local_brain, LocalBrainProvider, PendingLocalBrainRuntime
+            from local_tts import make_managed_local_tts
+            from local_agent.security import SecurityError
+            components = _TrustedChildComponents(component_root, config.get("localModelFiles", {}))
+            def local_providers(scope, product_store):
+                try:
+                    brain = make_managed_local_brain(components, product_store)
+                except SecurityError as exc:
+                    if exc.code not in ("LOCAL_BRAIN_MODEL_PENDING", "LOCAL_RUNTIME_MODEL_PENDING"):
+                        raise
+                    brain = LocalBrainProvider(PendingLocalBrainRuntime(), product_store)
+                return brain, make_managed_local_tts(components, context_id="/".join(vars(scope).values()))
             worker_root = root / "worker" / "isolated" / room_id if room_id else root / "worker"
-            worker = LocalWorkerBoundary(worker_root, StreamCredentialStore(root / "live-credentials"))
+            worker = LocalWorkerBoundary(worker_root, StreamCredentialStore(root / "live-credentials"), ai_provider_factory=local_providers)
         else:
             worker = worker_factory(root, profile, component_root)
         destination.write(b'{"ready":true}\n')
@@ -81,10 +117,10 @@ def serve(source, destination, *, worker_factory=None) -> None:
                         or request["method"] not in METHODS or not isinstance(request["args"], list)):
                     raise ValueError("INVALID_RUNTIME_REQUEST")
                 method, args = request["method"], request["args"]
-                expected = 0 if method in ("health", "close") else 5 if method == "start_session" else 3 if method == "push_audio" else 2
+                expected = 0 if method in ("health", "close", "warmup") else 5 if method in ("start_session", "prepare_room") else 3 if method in ("push_audio", "sync_product_context", "submit_comment", "queue_speech") else 2
                 if len(args) != expected:
                     raise ValueError("INVALID_RUNTIME_REQUEST")
-                if method == "start_session":
+                if method in ("start_session", "prepare_room"):
                     if (not all(isinstance(value, str) for value in (args[0], args[1], args[3]))
                             or not isinstance(args[2], list) or not 0 < len(args[2]) <= 100
                             or any(not isinstance(value, str) for value in args[2])
@@ -95,6 +131,10 @@ def serve(source, destination, *, worker_factory=None) -> None:
                     if not all(isinstance(value, str) for value in args):
                         raise ValueError("INVALID_RUNTIME_REQUEST")
                     args[2] = base64.b64decode(args[2], validate=True)
+                elif method in ("sync_product_context", "submit_comment", "queue_speech"):
+                    if (not all(isinstance(value, str) and 0 < len(value) <= 128 for value in args[:2])
+                            or not isinstance(args[2], list if method == "sync_product_context" else dict)):
+                        raise ValueError("INVALID_RUNTIME_REQUEST")
                 elif expected == 2 and not all(isinstance(value, str) for value in args):
                     raise ValueError("INVALID_RUNTIME_REQUEST")
                 value = getattr(worker, method)(*args)

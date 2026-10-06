@@ -1,8 +1,8 @@
 import type { LocalMachineView, LocalRoomCapacity } from "./local-contract";
 import { customerLiveStatus } from "./customer-stream-status";
 
-export type LiveReadinessKey = "image" | "audio" | "brain" | "products" | "connection" | "backupVoice";
-export type ReadinessState = "READY" | "WAITING" | "UNAVAILABLE";
+export type LiveReadinessKey = "image" | "audio" | "brain" | "presenter" | "products" | "connection" | "backupVoice";
+export type ReadinessState = "READY" | "WAITING" | "PREPARING" | "UNAVAILABLE";
 export interface CustomerRoomRuntime {
   accountId: string;
   status: string;
@@ -41,7 +41,8 @@ export function customerRoomRuntime(input: {
 }): CustomerRoomRuntime {
   const machine = machineForAccount(input.machine, input.accountId);
   const ready = !!machine?.canStart && machine.deviceAuthorized && machine.capacity?.status === "VERIFIED"
-    && machine.capacity.canStartAnotherRoom;
+    && machine.capacity.canStartAnotherRoom && Object.values(machine.aiReadiness ?? {}).length === 4
+    && Object.values(machine.aiReadiness ?? {}).every((state) => state === "READY");
   const canManagePresenters = !!machine?.paired && machine.deviceAuthorized && machine.membershipStatus === "SUPPORTED"
     && !["UPDATE_REQUIRED", "OFFLINE", "ERROR"].includes(machine.state);
   return {
@@ -60,8 +61,9 @@ export function customerRoomRuntime(input: {
       paused: room.state === "PAUSED", currentProductId: room.currentProductId, sessionStartedAt: room.sessionStartedAt })) ?? [],
     readiness: {
       image: input.imageReady ? "READY" : "WAITING",
-      audio: input.microphoneReady ? "READY" : "WAITING",
-      brain: ready ? "READY" : "UNAVAILABLE",
+      audio: machine?.aiReadiness?.voice ?? "UNAVAILABLE",
+      brain: machine?.aiReadiness?.brain ?? "UNAVAILABLE",
+      presenter: machine?.aiReadiness?.presenter ?? "UNAVAILABLE",
       products: input.productsReady ? "READY" : "WAITING",
       connection: ready ? "READY" : "UNAVAILABLE",
       backupVoice: "UNAVAILABLE",
@@ -76,5 +78,5 @@ export function customerMetric(value: number | null | undefined, suffix = ""): s
 }
 
 export function readinessLabel(state: ReadinessState): string {
-  return state === "READY" ? "พร้อม" : state === "WAITING" ? "ต้องเลือกก่อน" : "รอความพร้อม";
+  return state === "READY" ? "พร้อม" : state === "WAITING" ? "ต้องเลือกก่อน" : state === "PREPARING" ? "กำลังเตรียม" : "รอความพร้อม";
 }

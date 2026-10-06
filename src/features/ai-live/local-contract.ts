@@ -34,6 +34,7 @@ export function projectLocalComponents(value: unknown): LocalComponentsView {
     message: componentMessages[state] };
 }
 export interface LocalMachineView {
+  aiReadiness?: LocalAIReadiness;
   rooms?: LocalRoomView[];
   capacity?: LocalRoomCapacity;
   activeAccountId?: string;
@@ -56,6 +57,18 @@ export interface LocalMachineView {
   updateStatus: "CURRENT" | "AVAILABLE" | "UPDATING" | "RESTART_REQUIRED" | "REQUIRED" | "NOT_CONFIGURED" | "ROLLED_BACK";
   updateCanApply: boolean;
   updateCanRepair: boolean;
+}
+export interface LocalAIReadiness {
+  brain: "READY" | "PREPARING" | "UNAVAILABLE";
+  voice: "READY" | "PREPARING" | "UNAVAILABLE";
+  presenter: "READY" | "PREPARING" | "UNAVAILABLE";
+  encoder: "READY" | "PREPARING" | "UNAVAILABLE";
+}
+export function projectLocalAIReadiness(value: unknown): LocalAIReadiness {
+  const data = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const state = (key: string): LocalAIReadiness["brain"] => data[key] === "READY" ? "READY"
+    : data[key] === "PREPARING" ? "PREPARING" : "UNAVAILABLE";
+  return { brain: state("brain"), voice: state("voice"), presenter: state("presenter"), encoder: state("encoder") };
 }
 /** Opaque routing identifiers remain inside the authenticated bridge, never customer labels. */
 export interface LocalRoomView {
@@ -145,6 +158,7 @@ export function projectLocalMachine(value: unknown, paired: boolean): LocalMachi
   if (paired) {
     result.rooms = projectLocalRooms(data.rooms);
     result.capacity = projectLocalCapacity(data.capacity);
+    result.aiReadiness = projectLocalAIReadiness(data.aiReadiness);
   }
   if (paired && result.sessionActive) {
     const identifier = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

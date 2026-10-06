@@ -15,7 +15,7 @@ from typing import Callable, Protocol, runtime_checkable
 from worker_core import LiveError, image_dimensions
 
 from .hardware import HardwareAssessment, HardwareSnapshot, HardwareTiers, assess_hardware, inspect_hardware
-from .security import Grant, PairingStore, SecurityError, verify_device_message, verify_ed25519, verify_grant
+from .security import Grant, PairingStore, SecurityError, verify_device_message, verify_ed25519, verify_grant, verify_signed_envelope
 from .device_identity import DeviceIdentity
 from .updater import SafeUpdater
 from .stream_credentials import StreamCredentialStore
@@ -195,6 +195,9 @@ class LocalAgent:
         self._component_manifest_url = component_manifest_url
         self._component_thread: threading.Thread | None = None
         self._component_cancel = threading.Event()
+        self._ai_warmup_thread: threading.Thread | None = None
+        self._ai_warming = False
+        self._product_contexts: dict[tuple[str, str], tuple[float, tuple[str, ...]]] = {}
         self._used_registration_challenges: dict[str, int] = {}
         if device_identity is not None and device_identity.device_id != config.device_id:
             raise ValueError("Device identity does not match the installed configuration")
@@ -514,6 +517,135 @@ class LocalAgent:
     def rooms(self, token: str, origin: str) -> dict[str, object]:
         return self._view(token, origin)
 
+    def sync_product_context(self, token: str, origin: str, signed: object) -> dict[str, object]:
+        """Account products come only from the existing authenticated cloud data.
+
+        A customer cannot supply facts, another owner/account or a model path.
+        Verified snapshots survive temporary cloud disconnection in active rooms.
+        Starting a new room still requires a fresh signed context and lease.
+        """
+        self.authenticate(token, origin)
+        try:
+            certificate = self._authorized_device(token, origin)
+            payload = verify_signed_envelope(signed, self.config.grant_public_key_pem,
+                verifier=self._grant_signature_verifier, trusted_keys=self.config.trusted_keys,
+                retired_key_ids=self.config.retired_key_ids)
+            required = {"v", "purpose", "ownerId", "deviceId", "accountId", "productIds", "products", "issuedAt", "expiresAt", "versions"}
+            if (set(payload) != required or type(payload["v"]) is not int or payload["v"] != 1
+                    or payload["purpose"] != "AI_LIVE_PRODUCT_CONTEXT" or payload["versions"] != VERSIONS
+                    or payload["ownerId"] != certificate["ownerId"] or payload["deviceId"] != self.config.device_id):
+                raise SecurityError("LOCAL_PRODUCT_SCOPE_MISMATCH")
+            account = str(uuid.UUID(payload["accountId"]))
+            products = payload["productIds"]
+            if (not isinstance(products, list) or not 1 <= len(products) <= 10
+                    or len(set(products)) != len(products) or any(str(uuid.UUID(value)) != value for value in products)
+                    or not isinstance(payload["products"], list) or len(payload["products"]) != len(products)
+                    or {product.get("productId") for product in payload["products"] if isinstance(product, dict)} != set(products)
+                    or type(payload["issuedAt"]) is not int or type(payload["expiresAt"]) is not int
+                    or not 0 < payload["expiresAt"] - payload["issuedAt"] <= 120
+                    or payload["issuedAt"] > self._now() + 30 or payload["expiresAt"] <= self._now()):
+                raise SecurityError("LOCAL_PRODUCT_CONTEXT_INVALID")
+            sync = getattr(self._worker, "sync_product_context", None)
+            if not callable(sync):
+                raise AgentError(503, "LOCAL_AI_UNAVAILABLE", "AI ยังอยู่ระหว่างเตรียมพร้อม")
+            sync(certificate["ownerId"], account, payload["products"])
+            with self._lock:
+                key = (certificate["ownerId"], account)
+                if key not in self._product_contexts and len(self._product_contexts) >= 10:
+                    raise AgentError(409, "ROOM_CAPACITY_REACHED", "ใช้จำนวนห้องครบแล้ว")
+                self._product_contexts[key] = (payload["expiresAt"], tuple(products))
+        except SecurityError as exc:
+            raise self._safe_error(exc) from None
+        except (ValueError, TypeError, KeyError, AttributeError):
+            raise AgentError(422, "LOCAL_PRODUCT_CONTEXT_INVALID", "ตรวจสอบข้อมูลสินค้าไม่สำเร็จ") from None
+        return {"synced": True}
+
+    def warmup_ai(self, token: str, origin: str, selection: dict | None = None) -> dict[str, object]:
+        self.authenticate(token, origin)
+        try:
+            certificate = self._authorized_device(token, origin)
+        except SecurityError as exc:
+            raise self._safe_error(exc) from None
+        warmup = getattr(self._worker, "warmup", None)
+        arguments = ()
+        if selection is not None:
+            if (not isinstance(selection, dict)
+                    or set(selection) != {"accountId", "productIds", "presenterId", "microphoneId"}
+                    or not isinstance(selection["accountId"], str)
+                    or not isinstance(selection["presenterId"], str)
+                    or not isinstance(selection["productIds"], list)
+                    or not 1 <= len(selection["productIds"]) <= 10
+                    or any(not isinstance(value, str) for value in selection["productIds"])):
+                raise AgentError(422, "LOCAL_AI_WARMUP_REQUIRED", "กรุณาเลือกบัญชี สินค้า และคน LIVE")
+            owner, account = certificate["ownerId"], selection["accountId"]
+            context = self._product_contexts.get((owner, account))
+            reference = self._references.get(selection["presenterId"])
+            if (not context or context[0] <= self._now() or tuple(selection["productIds"]) != context[1]
+                    or not reference or reference.token != token or selection["microphoneId"] not in (None, "default")):
+                raise AgentError(403, "LOCAL_AI_SELECTION_NOT_ALLOWED", "กรุณาเตรียมข้อมูลบัญชีใหม่")
+            reference.owner_id = owner
+            warmup = getattr(self._worker, "prepare_room", None)
+            arguments = (owner, account, tuple(selection["productIds"]), reference.path, selection["microphoneId"])
+        if not callable(warmup):
+            raise AgentError(503, "LOCAL_AI_UNAVAILABLE", "AI ยังอยู่ระหว่างเตรียมพร้อม")
+        with self._lock:
+            if self._closing:
+                raise AgentError(503, "WORKER_UNAVAILABLE", "กรุณาเปิด ViralFlow ใหม่")
+            if self._ai_warming:
+                return {"preparing": True}
+            self._ai_warming = True
+            def execute():
+                try:
+                    warmup(*arguments)
+                except Exception:
+                    pass  # raw native errors remain in local diagnostics
+                finally:
+                    with self._lock:
+                        self._ai_warming = False
+            self._ai_warmup_thread = threading.Thread(target=execute, name="viralflow-local-ai-warmup", daemon=True)
+            self._ai_warmup_thread.start()
+        return {"preparing": True}
+
+    def ai_status(self, token: str, origin: str, session_id: str) -> dict[str, object]:
+        session = self._owned_session(token, origin, session_id)
+        observe = getattr(self._worker, "session_ai_status", None)
+        if not callable(observe):
+            return {"available": False, "lastComment": None, "currentResponse": None, "activity": []}
+        value = observe(session.owner_id, session_id)
+        safe_text = lambda text: text if isinstance(text, str) and 0 < len(text) <= 1000 else None
+        return {"available": value.get("readiness", {}).get("ready") is True,
+                "lastComment": safe_text(value.get("lastComment")), "currentResponse": safe_text(value.get("currentResponse")),
+                "activity": [text for text in value.get("activity", []) if text in
+                             {"กำลังตอบผู้ชม", "กำลังพูด", "หยุดตอบผู้ชมชั่วคราว", "ตอบผู้ชมต่อ"}][-10:]}
+
+    def submit_comment(self, token: str, origin: str, session_id: str, comment: dict[str, object]) -> dict[str, object]:
+        session = self._owned_session(token, origin, session_id)
+        try:
+            self._authorized_device(token, origin)
+        except SecurityError as exc:
+            raise self._safe_error(exc) from None
+        with session.operation_lock:
+            if session.state not in ("BUSY", "PAUSED"):
+                raise AgentError(409, "SESSION_NOT_RUNNING", "ห้อง LIVE ไม่ได้กำลังทำงาน")
+            submit = getattr(self._worker, "submit_comment", None)
+            if not callable(submit):
+                raise AgentError(503, "LOCAL_AI_UNAVAILABLE", "AI ยังอยู่ระหว่างเตรียมพร้อม")
+            return submit(session.owner_id, session_id, comment)
+
+    def queue_speech(self, token: str, origin: str, session_id: str, speech: dict[str, object]) -> dict[str, object]:
+        session = self._owned_session(token, origin, session_id)
+        try:
+            self._authorized_device(token, origin)
+        except SecurityError as exc:
+            raise self._safe_error(exc) from None
+        with session.operation_lock:
+            if session.state not in ("BUSY", "PAUSED"):
+                raise AgentError(409, "SESSION_NOT_RUNNING", "ห้อง LIVE ไม่ได้กำลังทำงาน")
+            queue = getattr(self._worker, "queue_speech", None)
+            if not callable(queue):
+                raise AgentError(503, "LOCAL_AI_UNAVAILABLE", "AI ยังอยู่ระหว่างเตรียมพร้อม")
+            return queue(session.owner_id, session_id, speech)
+
     def _components_view(self, *, authorized: bool = False) -> dict[str, object]:
         """Only progress and customer-safe states cross the loopback boundary."""
         if self._components is None:
@@ -629,7 +761,8 @@ class LocalAgent:
             authorized = True
         except SecurityError:
             authorized = False
-        worker_ready = authorized and self._worker.health().get("ready") is True
+        worker_health = self._worker.health() if authorized else {}
+        worker_ready = authorized and worker_health.get("ready") is True
         update = self._current_update_status()
         if active:
             state, message, reasons = active.state, "AI LIVE กำลังทำงาน" if active.state == "BUSY" else "AI LIVE หยุดชั่วคราว", []
@@ -656,6 +789,10 @@ class LocalAgent:
             "machineReady": hardware.compatible,
             "capacity": self._room_capacity(owner_id),
             "rooms": self._room_views(owner_id),
+            "aiReadiness": {"brain": "READY" if worker_health.get("brain_ready") is True else "PREPARING",
+                            "voice": "READY" if worker_health.get("tts_ready") is True else "PREPARING",
+                            "presenter": "READY" if worker_health.get("presenter_ready") is True and worker_health.get("warmup_passed") is True else "PREPARING",
+                            "encoder": "READY" if worker_health.get("encoder_ready") is True and worker_health.get("warmup_passed") is True else "PREPARING"},
         }
         result["canStart"] = (authorized and self._validated and worker_ready and hardware.compatible
             and update not in ("UPDATING", "RESTART_REQUIRED", "REQUIRED", "UPDATE_REQUIRED")
@@ -865,6 +1002,10 @@ class LocalAgent:
             raise AgentError(403, "GRANT_SCOPE_MISMATCH", "บัญชีหรือสินค้าไม่ได้รับอนุญาต") from exc
         if selected_account != grant.account_id or selected_products != grant.product_ids:
             raise AgentError(403, "GRANT_SCOPE_MISMATCH", "บัญชีหรือสินค้าไม่ได้รับอนุญาต")
+        if callable(getattr(self._worker, "sync_product_context", None)):
+            context = self._product_contexts.get((grant.owner_id, grant.account_id))
+            if context is None or context[0] <= self._now() or context[1] != grant.product_ids:
+                raise AgentError(409, "LOCAL_PRODUCT_CONTEXT_REQUIRED", "กรุณาตรวจสอบข้อมูลสินค้าอีกครั้ง")
         microphone_id = body.get("microphoneId")
         if microphone_id not in (None, "default"):
             raise AgentError(422, "MICROPHONE_NOT_ALLOWED", "ไม่พบไมโครโฟนที่เลือก")
@@ -1018,6 +1159,7 @@ class LocalAgent:
             self._closing = True
             self._authorization_generation += 1
         self._component_cancel.set()
+        self._product_contexts.clear()
         if self._components is not None:
             self._components.cancel()
         if self._component_thread is not None and self._component_thread is not threading.current_thread():

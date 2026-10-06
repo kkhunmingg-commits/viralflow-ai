@@ -1,0 +1,203 @@
+{
+  "status": "PASS",
+  "production_realtime_validated": false,
+  "profile": "CPU_DEV",
+  "model": "Qwen3-4B-Q4_K_M",
+  "model_bytes": 2497280256,
+  "model_sha256": "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5",
+  "runtime": "llama.cpp b11438 cbb7d52ec",
+  "threads": 8,
+  "hardware": {
+    "processor": "AMD64 Family 25 Model 116 Stepping 1, AuthenticAMD",
+    "physical_cores": 8,
+    "logical_cores": 16,
+    "ram_total_bytes": 16863055872,
+    "ram_available_before_bytes": 4541321216
+  },
+  "real_llm_samples": [
+    {
+      "case": "thai_greeting",
+      "comment": "สวัสดีค่ะ",
+      "text": "ราคา 1,290 บาท จำนวนเหลือ 7 ชิ้น ขนาด S, M, L ตัวเลือกสี ดำ, ขาว",
+      "latency_ms": 3296.9999999622814,
+      "first_token_ms": 968.9999999827705,
+      "completion_tokens": 40,
+      "tokens_per_second": 16.691739942691694
+    },
+    {
+      "case": "product_price",
+      "comment": "เสื้อตัวนี้ราคาเท่าไหร่",
+      "text": "1,290 บาท",
+      "latency_ms": 1437.000000034459,
+      "first_token_ms": 1092.9999999934807,
+      "completion_tokens": 7,
+      "tokens_per_second": 17.3751379151572
+    },
+    {
+      "case": "stock",
+      "comment": "มีของเหลือกี่ชิ้น",
+      "text": "มีของเหลือ 7 ชิ้น",
+      "latency_ms": 1671.9999999622814,
+      "first_token_ms": 1016.0000000032596,
+      "completion_tokens": 13,
+      "tokens_per_second": 18.069622254546772
+    },
+    {
+      "case": "unknown_product_fact",
+      "comment": "สินค้ากันน้ำไหม",
+      "text": "ไม่ทราบข้อมูลการกันน้ำ",
+      "latency_ms": 1641.0000000032596,
+      "first_token_ms": 1031.0000000172295,
+      "completion_tokens": 12,
+      "tokens_per_second": 17.91743969559899
+    },
+    {
+      "case": "mixed_thai_english",
+      "comment": "มี size M สีอะไรบ้าง",
+      "text": "ขาว",
+      "latency_ms": 1047.000000020489,
+      "first_token_ms": 983.9999999967404,
+      "completion_tokens": 2,
+      "tokens_per_second": 19.312102894884223
+    },
+    {
+      "case": "general_chat",
+      "comment": "ขอบคุณที่คุยเป็นเพื่อนนะ",
+      "text": "ไม่เป็นไรครับ ถ้ามีคำถามเพิ่มเติมหรือต้องการข้อมูลเพิ่มเติมเกี่ยวกับสินค้า แจ้งได้นะครับ 😊",
+      "latency_ms": 4156.0000000172295,
+      "first_token_ms": 1031.0000000172295,
+      "completion_tokens": 55,
+      "tokens_per_second": 17.263079420075616
+    }
+  ],
+  "production_router_samples": [
+    {
+      "case": "thai_greeting",
+      "comment": "สวัสดีค่ะ",
+      "text": "สวัสดีค่ะ ยินดีต้อนรับเข้าร้านนะคะ",
+      "intent": "greeting",
+      "source": "template",
+      "context_hash": "d1b6560eb685e3d0bc67a1e0e5168009ff798957ebef98bc6f2a658a359829a5",
+      "cache_hit": false,
+      "latency_ms": 16.00000000325963,
+      "first_token_ms": null,
+      "tokens_per_second": null,
+      "completion_tokens": 0,
+      "gesture_intent": "greeting"
+    },
+    {
+      "case": "product_price",
+      "comment": "เสื้อตัวนี้ราคาเท่าไหร่",
+      "text": "ราคาสินค้าตอนนี้ 1,290 บาทค่ะ",
+      "intent": "price",
+      "source": "authoritative_product",
+      "context_hash": "dc0225161479669326f47f756690484efa56d78bf27d3c70e8bd25f611fb7c0c",
+      "cache_hit": false,
+      "latency_ms": 0.0,
+      "first_token_ms": null,
+      "tokens_per_second": null,
+      "completion_tokens": 0,
+      "gesture_intent": "neutral"
+    },
+    {
+      "case": "stock",
+      "comment": "มีของเหลือกี่ชิ้น",
+      "text": "มีสินค้าเหลือ 7 ชิ้นค่ะ",
+      "intent": "stock",
+      "source": "authoritative_product",
+      "context_hash": "ed3fec3635883037db077bb344b3dd32e575cc6eb6706aa8b1a5b1e0d995374b",
+      "cache_hit": false,
+      "latency_ms": 0.0,
+      "first_token_ms": null,
+      "tokens_per_second": null,
+      "completion_tokens": 0,
+      "gesture_intent": "neutral"
+    },
+    {
+      "case": "unknown_product_fact",
+      "comment": "สินค้ากันน้ำไหม",
+      "text": "ยังไม่พบข้อมูลนี้ในข้อมูลสินค้าของร้านค่ะ",
+      "intent": "product_question",
+      "source": "authoritative_product",
+      "context_hash": "2c71db1398bb20cac37afc9deafb595518b7f7813c8544710f529903cb6e6c41",
+      "cache_hit": false,
+      "latency_ms": 0.0,
+      "first_token_ms": null,
+      "tokens_per_second": null,
+      "completion_tokens": 0,
+      "gesture_intent": "neutral"
+    },
+    {
+      "case": "mixed_thai_english",
+      "comment": "มี size M สีอะไรบ้าง",
+      "text": "มีสี ดำ, ขาว ค่ะ มีขนาด S, M, L ค่ะ",
+      "intent": "size_color",
+      "source": "authoritative_product",
+      "context_hash": "2db607084ac45eb08020cef4121b1d7029d48151af8996c67812b62d62394a92",
+      "cache_hit": false,
+      "latency_ms": 0.0,
+      "first_token_ms": null,
+      "tokens_per_second": null,
+      "completion_tokens": 0,
+      "gesture_intent": "neutral"
+    },
+    {
+      "case": "general_chat",
+      "comment": "ขอบคุณที่คุยเป็นเพื่อนนะ",
+      "text": "ขอบคุณที่คุยเป็นเพื่อนนะคะ",
+      "intent": "general_chat",
+      "source": "local_llm",
+      "context_hash": "be09b07600144a034cc89e4a3e8b024b6fe915a8a14d89d73cf6a915c7ed2ab3",
+      "cache_hit": false,
+      "latency_ms": 3343.9999999827705,
+      "first_token_ms": 2389.999999955762,
+      "tokens_per_second": 15.844863992969106,
+      "completion_tokens": 16,
+      "gesture_intent": "neutral"
+    }
+  ],
+  "failures": [],
+  "startup_ms_including_hash_verification": 6032.000000006519,
+  "loaded_not_warmed": {
+    "ready": false,
+    "loaded": true,
+    "provider": "local",
+    "code": "LOCAL_BRAIN_NOT_READY",
+    "profile": "qwen3-4b-q4_k_m",
+    "gpu_layers": 0
+  },
+  "warmup_ms": 640.0000000139698,
+  "health_after_warmup": {
+    "ready": true,
+    "loaded": true,
+    "provider": "local",
+    "code": "READY",
+    "profile": "qwen3-4b-q4_k_m",
+    "gpu_layers": 0
+  },
+  "interruption": {
+    "code": "LOCAL_BRAIN_CANCELLED",
+    "latency_ms": 295.99999997299165
+  },
+  "timeout": {
+    "code": "LOCAL_BRAIN_TIMEOUT",
+    "latency_ms": 63.000000023748726
+  },
+  "summary": {
+    "samples": 6,
+    "latency_p50_ms": 1656.4999999827705,
+    "latency_p95_ms": 3941.2500000034925,
+    "first_token_p50_ms": 1023.5000000102445,
+    "first_token_p95_ms": 1077.499999999418,
+    "tokens_per_second_median": 17.646288805378095
+  },
+  "runtime_peak_rss_bytes": 4763901952,
+  "health_after_close": {
+    "ready": false,
+    "loaded": false,
+    "provider": "local",
+    "code": "LOCAL_BRAIN_NOT_READY",
+    "profile": "qwen3-4b-q4_k_m",
+    "gpu_layers": 0
+  }
+}
