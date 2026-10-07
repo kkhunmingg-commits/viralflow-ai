@@ -11,7 +11,10 @@ vi.mock("server-only", () => ({}));
 const enabled = process.env.POST_SCHEDULER_REMOTE_PROOF === "1";
 const markerPrefix = "post-remote-proof";
 type Row = Record<string, unknown>;
-interface OwnerFixture { id: string; email: string; password: string; accounts: string[]; marker: string }
+interface OwnerFixture {
+  id: string; email: string; password: string; accounts: string[]; marker: string;
+  client?: SupabaseClient; accessToken?: string; refreshToken?: string;
+}
 interface TickResult {
   mode: string; status: string; claimedJobs: number; recoveredJobs?: number;
   skippedDuplicate: number; queuedAccounts?: number; failures: number; nextRun?: string;
@@ -22,6 +25,7 @@ interface ProofReport {
   safeTerminal: "WAITING_FOR_PROVIDER"; safeReason: "SAFE_EXECUTION_BOUNDARY";
   internalStageCompleted: boolean; safeBoundaries: string[]; boundedFailureAttempts: number;
   staleExecutionRecovered: boolean; staleSlotRecovered: boolean; ownerRls: boolean;
+  ownerWriteAllowed: boolean; crossOwnerWriteDenied: boolean; sessionsRevoked: boolean;
   crossOwnerDenied: boolean; anonDenied: boolean; timezoneVerified: boolean;
   nextDayVerified: boolean; generatedOutputs: number; paidCalls: number; tiktokCalls: number;
   blockedExternalAttempts: number; cleanup: "VERIFIED";
@@ -70,6 +74,9 @@ async function removeFixture(client: SupabaseClient, fixture: OwnerFixture) {
   if (user.error || user.data.user?.user_metadata.post_remote_proof !== fixture.marker) {
     throw new Error("cleanup_owner_marker_mismatch");
   }
+  // Revoke refresh sessions before deletion. JWTs are stateless, so logout
+  // alone is not evidence that an existing access token instantly expires.
+  const revoked = fixture.accessToken ? await client.auth.admin.signOut(fixture.accessToken, "global") : null;
   let deleted = await client.auth.admin.deleteUser(fixture.id);
   if (deleted.error) {
     // Bound every cleanup write to a user created by this invocation. Deleting
@@ -85,13 +92,24 @@ async function removeFixture(client: SupabaseClient, fixture: OwnerFixture) {
   if (deleted.error) throw new Error(`cleanup_auth:${deleted.error.code ?? "failed"}`);
   for (const table of ["tiktok_accounts", "post_account_schedules", "post_schedule_slots", "post_outputs",
     "auto_runs", "auto_account_states", "auto_checkpoints", "auto_failures", "auto_run_steps",
-    "creative_projects", "products", "product_assignments", "generation_jobs", "publishing_queue"]) {
+    "auto_actions", "creative_projects", "creative_angles", "creative_generations", "scripts",
+    "products", "product_assignments", "account_product_scores", "generation_jobs", "publishing_queue"]) {
     expect(await rows(client, table, fixture.id), `cleanup_${table}`).toHaveLength(0);
   }
   const profile = await client.from("profiles").select("id").eq("id", fixture.id);
   expect(requireData(profile.data, profile.error, "cleanup_profile")).toHaveLength(0);
   const auth = await client.auth.admin.getUserById(fixture.id);
   expect(auth.data.user).toBeNull();
+  if (fixture.client && fixture.refreshToken && fixture.accessToken) {
+    const refreshed = await fixture.client.auth.refreshSession({ refresh_token: fixture.refreshToken });
+    expect(refreshed.error).not.toBeNull();
+    expect(refreshed.data.session).toBeNull();
+    const deletedUser = await fixture.client.auth.getUser(fixture.accessToken);
+    expect(deletedUser.data.user).toBeNull();
+    expect(deletedUser.error).not.toBeNull();
+    await fixture.client.auth.signOut({ scope: "local" });
+  }
+  if (revoked?.error) throw new Error(`cleanup_session:${revoked.error.code ?? "failed"}`);
 }
 
 /** Called only by the explicit opt-in test/credential runner, never an app route. */
@@ -218,7 +236,28 @@ export async function runPostRemoteSchedulerProof(): Promise<ProofReport> {
       const client = createClient(url, publicKey, options);
       const signedIn = await client.auth.signInWithPassword({ email: fixture.email, password: fixture.password });
       requireData(signedIn.data.user, signedIn.error, "sign_in_test_owner");
+      const session = requireData(signedIn.data.session, signedIn.error, "test_owner_session");
+      fixture.client = client;
+      fixture.accessToken = session.access_token;
+      fixture.refreshToken = session.refresh_token;
       clients.push(client);
+    }
+    for (const [index, client] of clients.entries()) {
+      const own = fixtures[index], other = fixtures[1 - index];
+      const ownName = `${own.marker}-owner-edit`;
+      const updated = await client.from("profiles").update({ display_name: ownName })
+        .eq("id", own.id).select("id,display_name");
+      expect(requireData(updated.data, updated.error, "owner_profile_write")).toEqual([{ id: own.id, display_name: ownName }]);
+      const persisted = await admin.from("profiles").select("display_name").eq("id", own.id).single();
+      expect(requireData(persisted.data, persisted.error, "owner_profile_persisted").display_name).toBe(ownName);
+      const before = await admin.from("profiles").select("display_name").eq("id", other.id).single();
+      const otherName = requireData(before.data, before.error, "cross_owner_before").display_name;
+      // RLS may filter UPDATE to zero rows without returning an error.
+      const crossWrite = await client.from("profiles").update({ display_name: `${own.marker}-forbidden` })
+        .eq("id", other.id).select("id");
+      expect(crossWrite.data ?? []).toHaveLength(0);
+      const after = await admin.from("profiles").select("display_name").eq("id", other.id).single();
+      expect(requireData(after.data, after.error, "cross_owner_after").display_name).toBe(otherName);
     }
     for (const [index, client] of clients.entries()) {
       expect(await rows(client, "post_account_schedules", fixtures[index].id)).toHaveLength(4);
@@ -228,6 +267,9 @@ export async function runPostRemoteSchedulerProof(): Promise<ProofReport> {
       const write = await client.from("post_account_schedules").update({ enabled: false })
         .eq("owner_id", fixtures[index].id).eq("tiktok_account_id", fixtures[index].accounts[0]);
       expect(write.error).not.toBeNull();
+      const crossScheduleWrite = await client.from("post_account_schedules").update({ enabled: false })
+        .eq("owner_id", fixtures[1 - index].id).eq("tiktok_account_id", fixtures[1 - index].accounts[0]);
+      expect(crossScheduleWrite.error).not.toBeNull();
       const denied = await client.rpc("tick_post_account_automation", { p_now: tickTime, p_limit: 3, p_owner_id: fixtures[index].id });
       expect(denied.error).not.toBeNull();
       const privateHealth = await client.rpc("get_post_scheduler_health");
@@ -236,6 +278,8 @@ export async function runPostRemoteSchedulerProof(): Promise<ProofReport> {
     const anon = createClient(url, publicKey, options);
     const anonRows = await anon.from("post_account_schedules").select("*").eq("owner_id", fixtures[0].id);
     expect(anonRows.data ?? []).toHaveLength(0);
+    const anonWrite = await anon.from("profiles").update({ display_name: "forbidden-anon" }).eq("id", fixtures[0].id);
+    expect(anonWrite.error).not.toBeNull();
     expect((await anon.rpc("tick_post_account_automation", { p_now: tickTime, p_limit: 3, p_owner_id: fixtures[0].id })).error).not.toBeNull();
     const wrongOwner = await admin.rpc("control_post_account", { p_owner_id: fixtures[0].id,
       p_account_id: fixtures[1].accounts[0], p_action: "STOP" });
@@ -327,7 +371,8 @@ export async function runPostRemoteSchedulerProof(): Promise<ProofReport> {
       if (expiredBackoff.error) throw new Error(`fixture_retry_clock:${expiredBackoff.error.code}`);
     }
     failAssignment = null;
-    const failures = (await rows(admin, "auto_failures", fixture.id)).filter(row => row.tiktok_account_id === accountA);
+    const failures = (await rows(admin, "auto_failures", fixture.id)).filter(row => row.tiktok_account_id === accountA)
+      .sort((a, b) => Number(a.retry_count) - Number(b.retry_count));
     expect(failures).toHaveLength(3); expect(failures.map(row => row.retryable)).toEqual([true, true, false]);
     expect(safeStateSnapshot(await accountState(admin, fixture.id, accountB))).toEqual(otherBefore);
     await stopAccountPost(admin, fixture.id, accountA);
@@ -396,11 +441,16 @@ export async function runPostRemoteSchedulerProof(): Promise<ProofReport> {
       maximumConcurrentLeases: 3, queuedLeaseRequests: 1, safeTerminal: "WAITING_FOR_PROVIDER", safeReason: "SAFE_EXECUTION_BOUNDARY",
       internalStageCompleted: true, safeBoundaries: boundaries, boundedFailureAttempts: failures.length,
       staleExecutionRecovered: true, staleSlotRecovered: true, ownerRls: true, crossOwnerDenied: true,
+      ownerWriteAllowed: true, crossOwnerWriteDenied: true, sessionsRevoked: true,
       anonDenied: true, timezoneVerified: true, nextDayVerified: true, generatedOutputs: outputs,
       paidCalls, tiktokCalls, blockedExternalAttempts };
   } finally {
     failAssignment = null;
     const cleanup = await Promise.allSettled(fixtures.map(fixture => removeFixture(admin, fixture)));
+    for (const fixture of fixtures) {
+      fixture.client?.auth.stopAutoRefresh();
+      fixture.password = ""; fixture.accessToken = ""; fixture.refreshToken = ""; fixture.client = undefined;
+    }
     vi.unstubAllGlobals();
     const failures = cleanup.filter(result => result.status === "rejected");
     if (failures.length) throw new AggregateError(failures.map(result => result.reason), "remote_proof_fixture_cleanup_failed");
@@ -414,5 +464,5 @@ describe.runIf(enabled)("remote Supabase POST scheduler SAFE proof", () => {
     const report = await runPostRemoteSchedulerProof();
     // This report contains only counts/statuses. No keys, sessions or tokens.
     console.info("POST_REMOTE_PROOF", JSON.stringify(report));
-  }, 240_000);
+  }, 360_000);
 });
