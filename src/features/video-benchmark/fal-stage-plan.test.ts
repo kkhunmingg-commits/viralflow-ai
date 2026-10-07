@@ -18,4 +18,8 @@ describe("minimal fal comparison stage",()=>{
   });
   it("permits the remaining products only after real first-sample review",()=>{expect(selectFalStageFixtures({...base,allFixtures:true,priorSamples:[sample],reviews:{[sample.id]:review}})).toEqual(fixtures)});
   it("requires every selected model to pass before another product is paid",()=>{expect(()=>selectFalStageFixtures({...base,models:[...models,"fal_wan_2_6_flash"],allFixtures:true,priorSamples:[sample],reviews:{[sample.id]:review}})).toThrow(/commercial review/)});
+  it("permits an explicitly authorized three-product matrix without inventing first-sample scores",()=>{
+    expect(selectFalStageFixtures({...base,matrix:true})).toEqual(fixtures);
+    expect(()=>selectFalStageFixtures({...base,matrix:true,fixtures:fixtures.slice(0,2)})).toThrow(/three shared product/);
+  });
 });

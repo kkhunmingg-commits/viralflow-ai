@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -65,7 +66,7 @@ describe("durable benchmark spend journal", () => {
     } finally { await writer.close(); }
   });
 
-  it.each(["image", "prompt", "endpoint", "resolution", "cost", "repeat"])("refuses changed %s input after a terminal attempt", async changed => {
+  it.each(["image", "prompt", "endpoint", "resolution", "repeat"])("refuses changed %s input after a terminal attempt", async changed => {
     const writer = await BenchmarkJournal.acquire(directory);
     await writer.checkInput(sample().id, candidate, fixture, 1);
     await writer.save(sample());
@@ -75,12 +76,44 @@ describe("durable benchmark spend journal", () => {
       if (changed === "image") await writeFile(fixture.imagePath, "different product image");
       const updatedCandidate = { ...candidate,
         ...(changed === "endpoint" ? { apiModel: "changed-endpoint" } : {}),
-        ...(changed === "resolution" ? { resolution: "1080p" } : {}),
-        ...(changed === "cost" ? { expectedCostUsd: .3 } : {}) };
+        ...(changed === "resolution" ? { resolution: "1080p" } : {}) };
       const updatedFixture = { ...fixture, ...(changed === "prompt" ? { prompt: "Different motion" } : {}) };
       await expect(reader.checkInput(sample().id, updatedCandidate, updatedFixture, changed === "repeat" ? 2 : 1))
         .rejects.toThrow(/input changed/);
     } finally { await reader.close(); }
+  });
+
+  it("allows a refreshed quote while preserving the original paid liability", async () => {
+    const writer=await BenchmarkJournal.acquire(directory);
+    await writer.checkInput(sample().id,candidate,fixture,1);await writer.save(sample());await writer.close();
+    const reader=await BenchmarkJournal.acquire(directory);
+    try{
+      await expect(reader.checkInput(sample().id,{...candidate,expectedCostUsd:.3},fixture,1)).resolves.toBeUndefined();
+      expect(reader.samples[0].expectedCostUsd).toBe(.2);
+    }finally{await reader.close()}
+  });
+
+  it("migrates an older quote-inclusive fingerprint using its original reservation", async () => {
+    const bytes=await readFile(fixture.imagePath),row=sample();
+    const legacy=createHash("sha256").update(bytes).update(JSON.stringify({prompt:fixture.prompt,endpoint:candidate.apiModel,resolution:candidate.resolution,cost:row.expectedCostUsd,repeat:1})).digest("hex");
+    await writeFile(join(directory,"benchmark-journal.json"),JSON.stringify({version:1,samples:[row],fingerprints:{[row.id]:legacy}}));
+    const reader=await BenchmarkJournal.acquire(directory);
+    try{
+      await expect(reader.checkInput(row.id,{...candidate,expectedCostUsd:.3},fixture,1)).resolves.toBeUndefined();
+      await reader.save(reader.samples[0]);
+      const durable=JSON.parse(await readFile(join(directory,"benchmark-journal.json"),"utf8"));
+      expect(durable.fingerprints[row.id]===legacy).toBe(false);expect(durable.samples[0].expectedCostUsd).toBe(.2);
+    }finally{await reader.close()}
+  });
+
+  it("allows only an exclusive recovery reader to reconcile pending attempts", async () => {
+    const writer=await BenchmarkJournal.acquire(directory);await writer.save(sample({submissionState:"SUBMITTED"}));await writer.close();
+    const recovery=await BenchmarkJournal.acquire(directory,[],{recoveryOnly:true});
+    try{
+      expect(recovery.samples[0].submissionState).toBe("SUBMITTED");
+      await expect(BenchmarkJournal.acquire(directory,[],{recoveryOnly:true})).rejects.toMatchObject({code:"EEXIST"});
+    }finally{await recovery.close()}
+    await expect(BenchmarkJournal.acquire(directory)).rejects.toThrow(/reconciliation/);
   });
 
   it("merges completed history without dropping an existing failed liability", async () => {

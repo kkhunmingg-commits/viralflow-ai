@@ -1,4 +1,5 @@
 import type {RenderedVideo,VideoProvider,VideoRenderInput} from "../video/types";
+import type {FalModelSettings} from "../video/fal-models";
 
 export const VIDEO_PROVIDER_BENCHMARK_VERSION="video-provider-benchmark-v1";
 export const AUTOMATED_QUALITY_THRESHOLD=85;
@@ -26,8 +27,9 @@ export interface BenchmarkFixture {
   renderInput:VideoRenderInput;
 }
 export interface RemoteVideoRequest {fixture:BenchmarkFixture;candidate:BenchmarkCandidate;seed:number;outputPath:string;onSubmitted?:(requestId:string)=>Promise<void>}
+export interface RemoteVideoRecoveryRequest {taskId:string;outputPath:string}
 export interface RemoteVideoResult {taskId:string;provider:string;model:string;outputPath:string;costUsd:number;latencyMs:number;remoteUrl:string;retryCount?:number;queueTimeMs?:number|null;generationTimeMs?:number|null;recordedCostUsd?:number|null;costBasis?:"ESTIMATED"|"PROVIDER_RECORDED"}
-export interface RealVideoProvider extends VideoProvider {generate(input:RemoteVideoRequest):Promise<RemoteVideoResult>}
+export interface RealVideoProvider extends VideoProvider {generate(input:RemoteVideoRequest):Promise<RemoteVideoResult>;retrieve?(input:RemoteVideoRecoveryRequest):Promise<RemoteVideoResult>;getSettings?():FalModelSettings}
 export interface TechnicalEvaluation {passed:boolean;score:number;checks:{duration:boolean;portrait:boolean;resolution:boolean;videoCodec:boolean;frameRate:boolean;nonEmpty:boolean};media:RenderedVideo}
 export interface HumanScores {productIdentity:number;motionNaturalness:number;artifactControl:number;commercialSuitability:number;promptAdherence:number;visualAttractiveness:number;flowStatus:HumanQualityStatus}
 export interface BenchmarkSample {
@@ -51,10 +53,17 @@ export interface BenchmarkSample {
   status:"PLANNED"|"COMPLETED"|"FAILED"|"NOT_RUN"|"SKIPPED"|"MANUAL_BENCHMARK_ONLY";
   queueTimeMs?:number|null;
   generationTimeMs?:number|null;
+  recoveryLatencyMs?:number|null;
   recordedCostUsd?:number|null;
   costBasis?:"ESTIMATED"|"PROVIDER_RECORDED";
   retryCount?:number;
   remoteUrl?:string|null;
+  endpoint?:string;
+  nativeSettings?:FalModelSettings;
+  plannedSourcePath?:string;
+  plannedOutputPath?:string;
+  sourceMedia?:RenderedVideo;
+  normalizedMedia?:RenderedVideo|null;
   // A durable liability is written before the only paid submission.
   submissionState?:"NOT_SUBMITTED"|"ATTEMPT_RESERVED"|"SUBMITTED"|"TERMINAL"|"UNKNOWN";
   generationCount:number;

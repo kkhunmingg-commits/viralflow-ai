@@ -4,11 +4,12 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BenchmarkJournal } from "./journal";
 import { runVideoProviderBenchmark, type RunBenchmarkInput } from "./runner";
+import { ProviderGenerationError } from "./runway-provider";
 import type { BenchmarkCandidate, BenchmarkFixture, BenchmarkSample, RemoteVideoRequest } from "./types";
 
-const mock = vi.hoisted(() => ({ generate: vi.fn(), normalize: vi.fn() }));
+const mock = vi.hoisted(() => ({ generate: vi.fn(), retrieve: vi.fn(), construct: vi.fn(), normalize: vi.fn() }));
 vi.mock("./direct-providers", () => {
-  class Provider { generate = mock.generate; }
+  class Provider { constructor(...args:unknown[]){mock.construct(...args)} generate = mock.generate; retrieve = mock.retrieve; }
   return { FalWan22TurboProvider: Provider, PixVerseProvider: Provider, TikTokSymphonyProvider: Provider };
 });
 vi.mock("./provider-normalization", () => ({ normalizeProviderBenchmarkClip: mock.normalize }));
@@ -38,6 +39,10 @@ beforeEach(async () => {
       latencyMs: 1000, remoteUrl: "https://example.invalid/test.mp4", retryCount: 0 };
   });
   mock.normalize.mockResolvedValue({ source: media, normalized: media, outputPath: "test.mp4", reason: null });
+  mock.retrieve.mockImplementation(async ({taskId,outputPath}:{taskId:string;outputPath:string}) => ({
+    taskId,provider:"fal",model:candidate.apiModel,outputPath,costUsd:.16,latencyMs:1000,
+    remoteUrl:"https://example.invalid/recovered.mp4",retryCount:0,
+  }));
 });
 afterEach(async () => { await rm(directory, { recursive: true, force: true }); });
 
@@ -60,13 +65,17 @@ describe("benchmark paid-call safety with provider/network boundaries mocked", (
   it("rejects a fresh forecast above the five-dollar hard maximum before any provider call", async () => {
     await expect(runVideoProviderBenchmark({ ...input, budgetCapUsd: 100,
       candidates: [{ ...candidate, expectedCostUsd: 5.01 }] })).rejects.toThrow(/exceeds benchmark cap 5.00/);
-    expect(mock.generate).not.toHaveBeenCalled();
+    expect(mock.generate).toHaveBeenCalledTimes(0);
   });
 
   it("writes durable liability before its one paid submission and records the accepted request", async () => {
     mock.generate.mockImplementationOnce(async (request: RemoteVideoRequest) => {
       const pending = JSON.parse(await readFile(join(directory, "benchmark-journal.json"), "utf8"));
       expect(pending.samples[0]).toMatchObject({ submissionState: "ATTEMPT_RESERVED", generationCount: 1, actualCostUsd: .2, taskId: null });
+      expect(pending.samples[0]).toMatchObject({inputPath:fixture.imagePath,endpoint:candidate.apiModel,
+        nativeSettings:{model:candidate.apiModel,numFrames:193,framesPerSecond:24},
+        plannedSourcePath:join(directory,"fal_ltx_distilled-product-1-source.mp4"),
+        plannedOutputPath:join(directory,"fal_ltx_distilled-product-1.mp4")});
       await request.onSubmitted?.("accepted-request");
       const submitted = JSON.parse(await readFile(join(directory, "benchmark-journal.json"), "utf8"));
       expect(submitted.samples[0]).toMatchObject({ submissionState: "SUBMITTED", taskId: "accepted-request" });
@@ -92,21 +101,84 @@ describe("benchmark paid-call safety with provider/network boundaries mocked", (
     await history(sample({ status }));
     const report = await runVideoProviderBenchmark(input);
     expect(report.samples[0].status).toBe(status);
-    expect(mock.generate).not.toHaveBeenCalled();
+    expect(mock.generate).toHaveBeenCalledTimes(0);
   });
 
   it("refuses changed product input on resume without paying again", async () => {
     await history(sample({ status: "COMPLETED" }));
     await writeFile(fixture.imagePath, "different product image bytes");
     await expect(runVideoProviderBenchmark(input)).rejects.toThrow(/input changed/);
-    expect(mock.generate).not.toHaveBeenCalled();
+    expect(mock.generate).toHaveBeenCalledTimes(0);
+  });
+
+  it("reuses a terminal attempt after a live quote changes without changing its original reserve", async () => {
+    await history(sample({status:"COMPLETED"}));
+    const report=await runVideoProviderBenchmark({...input,candidates:[{...candidate,expectedCostUsd:.3}]});
+    expect(report.samples[0]).toMatchObject({expectedCostUsd:.2,actualCostUsd:.2,status:"COMPLETED"});
+    expect(mock.generate).toHaveBeenCalledTimes(0);
+  });
+
+  it("recovers a saved request with original settings and reserve, with zero additional paid calls", async () => {
+    mock.generate.mockImplementationOnce(async (request:RemoteVideoRequest)=>{
+      await request.onSubmitted?.("pending-request");throw new Error("status request unavailable");
+    });
+    await runVideoProviderBenchmark(input);
+    mock.generate.mockClear();mock.construct.mockClear();
+    const second:BenchmarkCandidate={...candidate,id:"fal_ltx_2_3_fast",apiModel:"fal-ai/ltx-2.3/image-to-video/fast"};
+    const report=await runVideoProviderBenchmark({...input,execute:false,recoverOnly:true,candidates:[{...candidate,expectedCostUsd:.4},second]});
+    expect(mock.generate).toHaveBeenCalledTimes(0);expect(mock.retrieve).toHaveBeenCalledOnce();
+    expect(mock.retrieve).toHaveBeenCalledWith({taskId:"pending-request",outputPath:join(directory,"fal_ltx_distilled-product-1-source.mp4")});
+    expect(mock.construct.mock.calls[0][2]).toMatchObject({settings:{model:candidate.apiModel,numFrames:193,framesPerSecond:24}});
+    expect(report.samples[0]).toMatchObject({status:"COMPLETED",submissionState:"TERMINAL",generationCount:1,expectedCostUsd:.2,actualCostUsd:.2,latencyMs:null,recoveryLatencyMs:1000});
+    expect(report.samples[1]).toMatchObject({status:"SKIPPED",generationCount:0});
+    await expect(runVideoProviderBenchmark(input)).resolves.toMatchObject({samples:[{status:"COMPLETED"}]});
+    expect(mock.generate).toHaveBeenCalledTimes(0);
+  });
+
+  it("keeps a lost submission response unresolved during recovery and never substitutes a new request", async () => {
+    mock.generate.mockRejectedValueOnce(new Error("lost response"));await runVideoProviderBenchmark(input);
+    mock.generate.mockClear();
+    const report=await runVideoProviderBenchmark({...input,execute:false,recoverOnly:true});
+    expect(report.samples[0]).toMatchObject({submissionState:"UNKNOWN",taskId:null,generationCount:1,expectedCostUsd:.2});
+    expect(mock.generate).toHaveBeenCalledTimes(0);expect(mock.retrieve).toHaveBeenCalledTimes(0);
+    await expect(runVideoProviderBenchmark(input)).rejects.toThrow(/reconciliation/);
+  });
+
+  it("rejects paid execution combined with recovery before any provider boundary", async () => {
+    await expect(runVideoProviderBenchmark({...input,recoverOnly:true})).rejects.toThrow(/cannot enable paid/);
+    expect(mock.generate).toHaveBeenCalledTimes(0);expect(mock.retrieve).toHaveBeenCalledTimes(0);
+  });
+
+  it("requires original native settings before recovering a legacy pending sample", async () => {
+    await history(sample({submissionState:"SUBMITTED"}));
+    await expect(runVideoProviderBenchmark({...input,execute:false,recoverOnly:true})).rejects.toThrow(/original endpoint/);
+    expect(mock.generate).toHaveBeenCalledTimes(0);expect(mock.retrieve).toHaveBeenCalledTimes(0);
+  });
+
+  it("retains a higher observed bill durably before halting later generations", async () => {
+    mock.generate.mockResolvedValueOnce({taskId:"over-reserve",provider:"fal",model:candidate.apiModel,
+      outputPath:"test.mp4",costUsd:.3,recordedCostUsd:.35,costBasis:"PROVIDER_RECORDED",latencyMs:1000,remoteUrl:"https://example.invalid/result.mp4"});
+    const second:BenchmarkCandidate={...candidate,id:"fal_kling_2_5_standard"};
+    const report=await runVideoProviderBenchmark({...input,candidates:[candidate,second]});
+    const durable=JSON.parse(await readFile(join(directory,"benchmark-journal.json"),"utf8"));
+    expect(durable.samples[0]).toMatchObject({actualCostUsd:.3,recordedCostUsd:.35,costBasis:"PROVIDER_RECORDED",taskId:"over-reserve",submissionState:"TERMINAL",status:"FAILED",sourcePath:join(directory,"fal_ltx_distilled-product-1-source.mp4")});
+    expect(report.samples[1]).toMatchObject({status:"SKIPPED",generationCount:0});
+    expect(mock.generate).toHaveBeenCalledOnce();
+  });
+
+  it("retains confirmed terminal failure liability and permits a distinct request within budget", async () => {
+    mock.generate.mockRejectedValueOnce(new ProviderGenerationError("confirmed failure","failed-request",.2,true));
+    const second:BenchmarkCandidate={...candidate,id:"fal_kling_2_5_standard",apiModel:"fal-ai/kling-video/v2.5-turbo/standard/image-to-video"};
+    const report=await runVideoProviderBenchmark({...input,candidates:[candidate,second]});
+    expect(report.samples[0]).toMatchObject({status:"FAILED",submissionState:"TERMINAL",actualCostUsd:.2});
+    expect(report.samples[1].status).toBe("COMPLETED");expect(mock.generate).toHaveBeenCalledTimes(2);
   });
 
   it("includes prior failed liability when deciding whether another clip fits the cap", async () => {
     await history(sample({ id: "older-paid-generation", actualCostUsd: 4.9, expectedCostUsd: 4.9 }));
     const report = await runVideoProviderBenchmark(input);
     expect(report.samples[0]).toMatchObject({ status: "SKIPPED", generationCount: 0 });
-    expect(mock.generate).not.toHaveBeenCalled();
+    expect(mock.generate).toHaveBeenCalledTimes(0);
   });
 
   it.each(["COMPLETED", "FAILED"] as const)("keeps the authenticated reserve when a %s clip only returns a lower estimate", async status => {
@@ -127,7 +199,7 @@ describe("benchmark paid-call safety with provider/network boundaries mocked", (
       recordedCostUsd: null, costBasis: "ESTIMATED" }));
     const report = await runVideoProviderBenchmark({ ...input, budgetCapUsd: .9 });
     expect(report.samples[0]).toMatchObject({ status: "SKIPPED", generationCount: 0 });
-    expect(mock.generate).not.toHaveBeenCalled();
+    expect(mock.generate).toHaveBeenCalledTimes(0);
   });
 
   it("uses a lower provider-recorded bill when deciding whether another clip fits", async () => {

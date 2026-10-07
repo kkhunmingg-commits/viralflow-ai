@@ -1,0 +1,56 @@
+[
+  {
+    "id": "packaging",
+    "label": "Boxed packaging, logo, and readable text",
+    "imagePath": "benchmark-assets/fal-packaging-carton.jpg",
+    "prompt": "Create an eight-second vertical commerce product video from the supplied image. Preserve the exact closed rectangular carton, front/top/right-side panel geometry, cream paper, navy and orange colors, orange diamond logo, VF PANTRY brand, COCOA OAT BITES product name, BOX P-04, 12 PIECES, NET WT 180 g, FICTIONAL TEST PRODUCT, and all visible printed details. Keep the front label legible. Use a slow controlled studio push-in and a very small camera arc that keeps the front and right side visible. Keep the carton stationary on the surface, fully recognizable, physically rigid, and commercially clean. Do not open the box or invent products, claims, text, logos, hands, packaging parts, subtitles, overlays, speech, or music.",
+    "renderInput": {
+      "productTitle": "VF PANTRY COCOA OAT BITES BOX P-04",
+      "hook": "Inspect the carton and printed label",
+      "cta": "Compare logo, text, and panel geometry",
+      "template": "PRODUCT_HERO",
+      "overlay": [],
+      "scenes": [
+        {"start": 0, "end": 2, "visual": "Full closed carton, front and right side visible", "motion": "slow push-in"},
+        {"start": 2, "end": 6, "visual": "Readable logo and front label with rigid panel geometry", "motion": "very small camera arc"},
+        {"start": 6, "end": 8, "visual": "Stable front label hero", "motion": "steady hold"}
+      ]
+    }
+  },
+  {
+    "id": "beauty",
+    "label": "Skincare bottle and separate cap",
+    "imagePath": "benchmark-assets/beauty.jpg",
+    "prompt": "Create an eight-second vertical commerce product video from the supplied image. Preserve the exact bottle shape, ivory and coral colors, exposed pump, separate coral cap to the right, silver band, leaf logo, VF LAB label, SERUM B-01 text, 30 mL text, and all proportions. Use a slow controlled studio push-in with a very small camera arc. Keep the bottle and separate cap stationary on the surface, fully recognizable, physically stable, and commercially clean. Do not operate the pump, move or attach the cap, or invent claims, text, logos, hands, liquid, packaging, product parts, subtitles, overlays, speech, or music.",
+    "renderInput": {
+      "productTitle": "VF LAB SERUM B-01",
+      "hook": "Inspect the bottle, pump, and label",
+      "cta": "Compare silhouette, cap, and printed details",
+      "template": "PRODUCT_HERO",
+      "overlay": [],
+      "scenes": [
+        {"start": 0, "end": 2, "visual": "Bottle and separate cap fully visible", "motion": "slow push-in"},
+        {"start": 2, "end": 6, "visual": "Stable pump, silver band, leaf logo, and readable label", "motion": "very small camera arc"},
+        {"start": 6, "end": 8, "visual": "Front label hero with separate cap", "motion": "steady hold"}
+      ]
+    }
+  },
+  {
+    "id": "gadget-hand",
+    "label": "Gadget with one realistic human hand interaction",
+    "imagePath": "benchmark-assets/gadget.jpg",
+    "prompt": "Create an eight-second vertical commerce product video from the supplied image. Preserve the exact rounded rectangular gadget, charcoal front, pale-blue housing, 08:00 display, three existing physical buttons and their leaf/pause/timer symbols, rotary dial, speaker grille, right-side USB-C port, VF TECH label, G-03 text, and all control positions and proportions. Start with the gadget alone. One anatomically realistic adult right hand enters from the lower right, uses its index finger to physically press only the existing middle pause-symbol button once, releases it, and withdraws fully before the final hero hold. Show natural skin texture, correct finger joints, believable contact, and one small button depression; keep the gadget planted on the surface and its display unchanged at 08:00. Use a steady camera with a subtle initial push-in. Keep the gadget fully recognizable and physically stable. Do not add a second hand, person, face, extra fingers, new controls, specifications, text, logos, ports, product parts, subtitles, overlays, speech, or music.",
+    "renderInput": {
+      "productTitle": "VF TECH G-03",
+      "hook": "Observe one physical button press",
+      "cta": "Compare hand contact and control stability",
+      "template": "PRODUCT_HERO",
+      "overlay": [],
+      "scenes": [
+        {"start": 0, "end": 2, "visual": "Gadget alone with display and all three buttons visible", "motion": "subtle push-in"},
+        {"start": 2, "end": 6, "visual": "One adult right hand presses and releases the middle pause button once", "motion": "steady camera, natural hand contact"},
+        {"start": 6, "end": 8, "visual": "Hand withdrawn; unchanged gadget and 08:00 display", "motion": "steady hold"}
+      ]
+    }
+  }
+]

@@ -5,7 +5,7 @@ import type {BenchmarkCandidate,RealVideoProvider,RemoteVideoRequest} from "./ty
 
 function imageDataUri(path:string){return readFile(path).then(bytes=>{const lower=path.toLowerCase(),mime=lower.endsWith(".png")?"image/png":lower.endsWith(".webp")?"image/webp":lower.endsWith(".jpg")||lower.endsWith(".jpeg")?"image/jpeg":null;if(!mime)throw new Error("Benchmark input must be PNG, JPEG, or WebP");if(bytes.length>5_000_000)throw new Error("Benchmark image exceeds Runway's 5 MB data-URI limit");return `data:${mime};base64,${bytes.toString("base64")}`})}
 async function download(url:string,path:string){const response=await fetch(url);if(!response.ok)throw new Error(`Provider output download failed (${response.status})`);const bytes=Buffer.from(await response.arrayBuffer());if(!bytes.length)throw new Error("Provider returned an empty video");await writeFile(path,bytes)}
-export class ProviderGenerationError extends Error {constructor(message:string,readonly taskId:string|null,readonly costUsd:number){super(message);this.name="ProviderGenerationError"}}
+export class ProviderGenerationError extends Error {constructor(message:string,readonly taskId:string|null,readonly costUsd:number,readonly terminalConfirmed=false){super(message);this.name="ProviderGenerationError"}}
 export class RunwayBenchmarkProvider implements RealVideoProvider {
   readonly provider="runway";
   readonly model:string;

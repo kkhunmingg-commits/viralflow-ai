@@ -6,9 +6,13 @@ import {evaluateCommerce, type CommerceScores} from "./commerce-rubric";
 import {preparePortraitProductReference} from "./provider-normalization";
 import type {BenchmarkFixture, BenchmarkModel, BenchmarkSample} from "./types";
 
-/** Compare one shared reference first; additional products need a reviewed first sample. */
-export function selectFalStageFixtures(input:{fixtures:BenchmarkFixture[];allFixtures:boolean;execute:boolean;models:BenchmarkModel[];priorSamples?:BenchmarkSample[];reviews?:Record<string,CommerceScores>}){
+/** Staged comparison is the default; a separately authorized matrix retains the runner's hard cap and one-attempt guard. */
+export function selectFalStageFixtures(input:{fixtures:BenchmarkFixture[];allFixtures:boolean;execute:boolean;matrix?:boolean;models:BenchmarkModel[];priorSamples?:BenchmarkSample[];reviews?:Record<string,CommerceScores>}){
   if(!input.fixtures.length)throw new Error("A product reference is required");
+  if(input.matrix){
+    if(input.fixtures.length<3)throw new Error("A product matrix requires at least three shared product references");
+    return input.fixtures;
+  }
   const first=input.fixtures[0];
   if(!input.allFixtures)return[first];
   if(input.execute){
