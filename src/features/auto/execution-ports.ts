@@ -21,6 +21,7 @@ import { accountPostingMode, autoVideoQualityOutcome } from "./execution-policy"
 import { ensurePostOutput, executionPostingMode, exportContentGate, updatePostOutput } from "./post-outputs";
 import { stableAutoKey } from "./engine";
 import type { ExecutionClaim, ExecutionPorts, StageOutcome } from "./processor";
+import { getPostAutomationExecutionMode, safeExecutionBoundary } from "./execution-mode";
 
 function id(claim: ExecutionClaim, key: string) {
   const value = claim.checkpoint[key];
@@ -70,6 +71,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       const project = await createProjectFromAssignment(admin, claim.ownerId, assignmentId);
       let detail = await getCreativeProjectDetail(admin, claim.ownerId, project.id);
       if (!detail.scripts.length) {
+        if (await getPostAutomationExecutionMode(admin) === "SAFE") return safeExecutionBoundary("CREATIVE");
         const account = await admin.from("tiktok_accounts").select("is_mock")
           .eq("owner_id", claim.ownerId).eq("id", claim.accountId).maybeSingle();
         must(account.error, "auto_account_read_failed");
@@ -87,6 +89,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       return { kind: "ADVANCE", evidence: { projectId: project.id, scriptId: detail.project.selected_script_id } };
     },
     async GENERATE_VIDEO(claim) {
+      if (await getPostAutomationExecutionMode(admin) === "SAFE") return safeExecutionBoundary("VIDEO");
       const { data: account, error } = await admin.from("tiktok_accounts").select("is_mock")
         .eq("owner_id", claim.ownerId).eq("id", claim.accountId).maybeSingle();
       must(error, "auto_account_read_failed");
@@ -125,6 +128,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
         && explanation && typeof explanation === "object" && "visualVerificationReason" in explanation
         && ["VISION_PROVIDER_UNAVAILABLE", "VISION_PROVIDER_ERROR"].includes(String(explanation.visualVerificationReason))
         && (boundaries.visionProvider || serverEnv.openAIApiKey)) {
+        if (await getPostAutomationExecutionMode(admin) === "SAFE") return safeExecutionBoundary("VISION");
         const verified = await reverifyAutoFalMaster(admin, { ownerId: claim.ownerId,
           accountId: claim.accountId, projectId: id(claim, "projectId"), videoId: data.id }, boundaries.visionProvider);
         return autoVideoQualityOutcome(verified);
@@ -160,6 +164,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
         const output = await ensurePostOutput(admin, claim, postingMode);
         return { kind: "ADVANCE", evidence: { outputId: output.id, postingMode, publishStatus: "READY" } };
       }
+      if (await getPostAutomationExecutionMode(admin) === "SAFE") return safeExecutionBoundary("TIKTOK_QUEUE");
       const account = await admin.from("tiktok_accounts")
         .select("is_mock,authorization_status,audit_status,direct_post_status,upload_status,granted_scopes")
         .eq("owner_id", claim.ownerId).eq("id", claim.accountId).maybeSingle();
@@ -185,6 +190,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
         const output = await ensurePostOutput(admin, claim, postingMode);
         return { kind: "ADVANCE", evidence: { outputId: output.id, publishStatus: "READY", postingMode } };
       }
+      if (await getPostAutomationExecutionMode(admin) === "SAFE") return safeExecutionBoundary("TIKTOK_PUBLISH");
       const queueId = id(claim, "queueId");
       const { data, error } = await admin.from("publishing_queue").select("id,status,external_state,consent_id,provider_publish_id,publish_mode,scheduled_for,completed_at")
         .eq("owner_id", claim.ownerId).eq("tiktok_account_id", claim.accountId).eq("video_id", id(claim, "videoId")).eq("id", queueId).maybeSingle();
@@ -286,6 +292,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
         if (postingMode === "DRAFT") await updatePostOutput(admin, claim, "WAITING_FOR_USER");
         return { kind: "ADVANCE", evidence: { analyticsDeferred: true, postingMode } };
       }
+      if (await getPostAutomationExecutionMode(admin) === "SAFE") return safeExecutionBoundary("ANALYTICS");
       const videoId = id(claim, "videoId");
       if (serverEnv.tiktokAnalyticsProvider === "official" || boundaries.analyticsIngestion) {
         const ingested = await (boundaries.analyticsIngestion ?? createProductionAnalyticsIngestion(admin)).collect({

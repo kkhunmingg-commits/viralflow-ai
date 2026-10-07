@@ -41,6 +41,8 @@ export interface CustomerDataRecords {
   outputs?: Array<{ id: string; tiktok_account_id: string; video_id: string; publishing_queue_id: string | null;
     posting_mode: CustomerPostingMode; status: string; caption: string; hashtags_json: string[];
     product_reference_json: { title?: string; url?: string }; suggested_post_at: string | null; published_at?: string | null; created_at: string }>;
+  scheduleSlots?: Array<{ tiktok_account_id: string; local_date: string; state: string;
+    scheduled_at: string; expires_at: string; next_attempt_at: string | null; auto_run_id?: string | null }>;
   postingAvailability?: CustomerAccount["postingAvailability"];
   availabilityByAccount?: Record<string, CustomerAccount["postingAvailability"]>;
 }
@@ -147,6 +149,20 @@ function activity(step: string) {
   if (/ANALYTICS|LEARN/.test(step)) return "กำลังเก็บผลลัพธ์";
   return "กำลังเตรียมงาน";
 }
+function waitingActivity(state: string) {
+  const messages: Record<string, string> = {
+    WAITING_FOR_PROVIDER: "รอความพร้อมก่อนดำเนินงาน",
+    WAITING_FOR_APPROVAL: "รอคุณตรวจและยืนยัน",
+    WAITING_FOR_DATA: "รอข้อมูลสำหรับงานนี้",
+    WAITING_FOR_SLOT: "รอถึงเวลาที่กำหนด",
+    WAITING_FOR_RECONCILIATION: "รอตรวจผลการดำเนินงาน",
+    RETRY_PENDING: "รอลองดำเนินงานอีกครั้ง",
+    PAUSED: "หยุดชั่วคราว",
+    BLOCKED: "มีปัญหาที่ต้องดำเนินการ",
+    FAILED: "งานล่าสุดไม่สำเร็จ",
+  };
+  return messages[state] ?? null;
+}
 function clipStatus(status: string) {
   if (status === "PUBLISHED") return "โพสต์แล้ว";
   if (["DRAFT_DELIVERED", "DRAFT_UPLOADED", "WAITING_FOR_USER"].includes(status)) return "รอคุณโพสต์";
@@ -162,7 +178,8 @@ function clipStatus(status: string) {
 export function mapCustomerOverview(data: CustomerDataRecords, period: CustomerPeriod, now = new Date()): CustomerOverview {
   const bounds = periodBounds(period, now);
   const accounts = data.accounts.filter((row) => !row.is_mock && !row.hidden_at).map((row): CustomerAccount => {
-    const active = data.runs.find((run) => ACTIVE.has(run.state) && data.states.some((state) => state.auto_run_id === run.id && state.tiktok_account_id === row.id));
+    const active = data.runs.find((run) => ACTIVE.has(run.state) && data.states.some((state) =>
+      state.auto_run_id === run.id && state.tiktok_account_id === row.id && ACTIVE.has(state.state)));
     const runStates = active ? data.states.filter((item) => item.auto_run_id === active.id) : [];
     const schedule = accountSchedule(row, data);
     const accountBounds = accountPeriodBounds(period, schedule.timezone, now);
@@ -174,6 +191,17 @@ export function mapCustomerOverview(data: CustomerDataRecords, period: CustomerP
     const todayMedia = media.filter((item) => isToday(item.created_at));
     const todayQueue = queue.filter((item) => isToday(item.created_at));
     const state = runStates.find((item) => item.tiktok_account_id === row.id);
+    const latestState = [...data.states].filter((item) => item.tiktok_account_id === row.id)
+      .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0];
+    const slots = data.scheduleSlots?.filter((slot) => slot.tiktok_account_id === row.id && slot.local_date === today) ?? [];
+    const dueSlots = schedule.enabled ? slots.filter((slot) => ["PENDING", "CLAIMED"].includes(slot.state)
+      && timestamp(slot.scheduled_at) <= now.getTime() && timestamp(slot.expires_at) > now.getTime()) : [];
+    // Slot finalization uses FAILED for a consumed STOPPED run too. A user's
+    // intentional STOP must not become a customer error or a failed clip.
+    const schedulerFailureCount = slots.filter((slot) => slot.state === "FAILED"
+      && (!slot.auto_run_id || data.runs.find((run) => run.id === slot.auto_run_id)?.state !== "STOPPED")).length;
+    const schedulerQueued = dueSlots.length > 0;
+    const futureSchedule = schedule.enabled && !!schedule.nextRunAt && timestamp(schedule.nextRunAt) > now.getTime();
     const single = Boolean(state && runStates.length === 1);
     const snapshots = data.snapshots.filter((item) => item.tiktok_account_id === row.id);
     const metrics = periodMetrics(snapshots, accountBounds.start, accountBounds.end);
@@ -196,8 +224,11 @@ export function mapCustomerOverview(data: CustomerDataRecords, period: CustomerP
       .map((job) => job.video_variation_id ?? job.master_video_id).filter((id) => media.some((item) => item.id === id)));
     const availability = data.availabilityByAccount?.[row.id] ?? data.postingAvailability;
     const postingBlocked = availability?.[schedule.postingMode]?.available === false;
-    const postStatus = !connected && schedule.postingMode !== "EXPORT" ? "ต้องเชื่อมใหม่" : blocked || postingBlocked ? "ต้องดำเนินการ" : state?.state === "PAUSED" ? "หยุดชั่วคราว"
-      : state ? "กำลังทำงาน" : queue.some((item) => WAITING.has(item.status)) ? "รอโพสต์" : "พร้อมเริ่ม";
+    const waiting = state ? waitingActivity(state.state) : null;
+    const recentFailure = !state && (latestState?.state === "FAILED" || schedulerFailureCount > 0);
+    const postStatus = !connected && schedule.postingMode !== "EXPORT" ? "ต้องเชื่อมใหม่" : postingBlocked ? "ต้องดำเนินการ"
+      : state?.state === "BLOCKED" || recentFailure ? "มีปัญหา" : waiting ?? (state ? "กำลังทำงาน"
+        : schedulerQueued ? "รอเริ่มตามคิว" : queue.some((item) => WAITING.has(item.status)) ? "รอโพสต์" : futureSchedule ? "รอเริ่มตามเวลา" : "พร้อมเริ่ม");
     return {
       id: row.id, name: row.display_name, username: row.username, avatarUrl: customerImage(row.avatar_url), rank: null,
       connected, postStatus, liveStatus: null, mode: row.mode, target: schedule.clipsPerDay,
@@ -211,11 +242,15 @@ export function mapCustomerOverview(data: CustomerDataRecords, period: CustomerP
         waiting: new Set([...queue.filter((item) => item.status === "DRAFT_DELIVERED").map((item) => item.video_id), ...outputs.filter((item) => ["DRAFT_UPLOADED", "WAITING_FOR_USER"].includes(item.status)).map((item) => item.video_id)]).size,
         failed: new Set([...todayMedia.filter((item) => item.status === "FAILED").map((item) => item.id), ...todayQueue.filter((item) => item.status === "FAILED").map((item) => item.video_id), ...outputs.filter((item) => item.status === "FAILED" && isToday(item.created_at)).map((item) => item.video_id)]).size,
         review: new Set([...queue.filter((item) => item.status === "REVIEW_REQUIRED" || item.status === "DRAFT").map((item) => item.video_id), ...outputs.filter((item) => item.status === "REVIEW_REQUIRED").map((item) => item.video_id)]).size },
-      metrics, currentActivity: state ? activity(state.current_step) : "ยังไม่มีงานที่กำลังทำ", nextActivity: next ? "มีโพสต์ที่ตั้งเวลาไว้" : null,
+      metrics, currentActivity: state ? waiting ?? activity(state.current_step)
+        : recentFailure ? "งานล่าสุดไม่สำเร็จ" : schedulerQueued ? "รอเริ่มงานตามคิว" : futureSchedule ? "รอถึงเวลาทำงาน" : "ยังไม่มีงานที่กำลังทำ",
+      nextActivity: next ? "มีโพสต์ที่ตั้งเวลาไว้" : futureSchedule ? "มีงานประจำที่ตั้งเวลาไว้" : null,
       actionRequired: !connected && schedule.postingMode !== "EXPORT" ? { label: "เชื่อม TikTok ใหม่", href: `/accounts/${row.id}` }
         : postingBlocked ? { label: availability?.[schedule.postingMode]?.message ?? "บัญชีนี้ยังไม่พร้อมสำหรับวิธีโพสต์ที่เลือก", href: `/post/${row.id}` }
-        : blocked ? { label: "ตรวจความพร้อมก่อนเริ่มงาน", href: `/post/${row.id}` } : null,
+        : blocked ? { label: "ตรวจความพร้อมก่อนเริ่มงาน", href: `/post/${row.id}` }
+        : recentFailure ? { label: "ตรวจการตั้งเวลาและเริ่มงานอีกครั้ง", href: `/post/${row.id}` } : null,
       nextScheduledPost: next?.scheduled_for ?? null, topProduct: data.products.find((item) => item.id === topId)?.title ?? null,
+      schedulerQueued, scheduleQueueCount: dueSlots.length, schedulerFailureCount,
       hasActiveRun: Boolean(state),
       canStart: (connected || schedule.postingMode === "EXPORT") && !active && row.daily_post_hard_limit > 0,
       canStop: single || schedule.enabled, schedule, postingAvailability: availability,

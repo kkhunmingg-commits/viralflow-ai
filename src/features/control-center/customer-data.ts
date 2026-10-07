@@ -24,7 +24,10 @@ async function ownerRows<T>(client: SupabaseClient, owner: string, table: string
   throw new Error("customer_overview_window_too_large");
 }
 export async function readCustomerRecords(client: SupabaseClient, owner: string, now = new Date()): Promise<CustomerDataRecords> {
-  const [accounts, masters, variations, queues, jobs, products, runs, states, snapshots, schedules, outputs] = await Promise.all([
+  // Every current local account day falls within UTC date +/- one day. The
+  // customer scheduler projection needs no accumulated historical slot rows.
+  const slotsSince = new Date(now.getTime() - 86400_000).toISOString().slice(0, 10);
+  const [accounts, masters, variations, queues, jobs, products, runs, states, snapshots, schedules, outputs, scheduleSlots] = await Promise.all([
     ownerRows<CustomerDataRecords["accounts"][number]>(client, owner, "tiktok_accounts", "id,display_name,username,avatar_url,mode,authorization_status,account_status,daily_post_target,daily_post_hard_limit,daily_video_budget_usd,preferred_categories,is_mock,hidden_at,audit_status,direct_post_status,granted_scopes,upload_status"),
     ownerRows<CustomerDataRecords["masters"][number]>(client, owner, "master_videos", "id,tiktok_account_id,product_id,status,created_at,creative_project_id,selected_script_id,storage_path"),
     ownerRows<CustomerDataRecords["variations"][number]>(client, owner, "video_variations", "id,tiktok_account_id,product_id,status,created_at,creative_project_id,master_video_id,storage_path"),
@@ -37,6 +40,7 @@ export async function readCustomerRecords(client: SupabaseClient, owner: string,
     ownerRows<CustomerDataRecords["snapshots"][number]>(client, owner, "video_analytics_snapshots", "id,tiktok_account_id,video_id,video_kind,product_id,source,source_snapshot_at,published_at,views,comments,clicks,orders,items_sold,gmv,commission,currency,creative_project_id,script_id,creative_angle_id"),
     ownerRows<NonNullable<CustomerDataRecords["schedules"]>[number]>(client, owner, "post_account_schedules", "tiktok_account_id,posting_mode,creative_mode,clips_per_day,active_start,active_end,timezone,min_spacing_minutes,allowed_days,enabled,daily_budget_usd,next_due_at", undefined, undefined, "tiktok_account_id"),
     ownerRows<NonNullable<CustomerDataRecords["outputs"]>[number]>(client, owner, "post_outputs", "id,tiktok_account_id,video_id,publishing_queue_id,posting_mode,status,caption,hashtags_json,product_reference_json,suggested_post_at,published_at,created_at"),
+    ownerRows<NonNullable<CustomerDataRecords["scheduleSlots"]>[number]>(client, owner, "post_schedule_slots", "tiktok_account_id,local_date,state,scheduled_at,expires_at,next_attempt_at,auto_run_id", "local_date", slotsSince, "slot_key"),
   ]);
   runs.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const transportReady = serverEnv.tiktokPublishingProvider === "official" && serverEnv.tiktokPublishingRealMode
@@ -49,8 +53,7 @@ export async function readCustomerRecords(client: SupabaseClient, owner: string,
       DRAFT: { available: draft, message: draft ? null : "บัญชีนี้ยังส่งคลิปไปให้คุณโพสต์ไม่ได้ เลือกดาวน์โหลดไปโพสต์เองได้" },
       EXPORT: { available: true, message: null } }];
   }));
-  void now;
-  return { accounts, masters, variations, queues, jobs, products, runs, states, snapshots, schedules, outputs, availabilityByAccount };
+  return { accounts, masters, variations, queues, jobs, products, runs, states, snapshots, schedules, outputs, scheduleSlots, availabilityByAccount };
 }
 async function authenticatedRecords() {
   const client = await createClient();

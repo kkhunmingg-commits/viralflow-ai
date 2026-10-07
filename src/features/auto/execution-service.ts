@@ -8,6 +8,7 @@ import { processAutoCycle } from "./processor";
 import { falAutoModeAvailability } from "@/features/video/provider-routing";
 import { serverEnv } from "@/lib/server-env";
 import { tickAccountPostSchedules } from "./account-schedule";
+import { getPostAutomationExecutionMode } from "./execution-mode";
 
 export async function runAutoExecutionCycle(admin: SupabaseClient, ownerId: string, runId: string,
   maxSteps = 12, boundaries: AutoExecutionBoundaries = {}) {
@@ -21,8 +22,9 @@ export async function runAutoExecutionCycle(admin: SupabaseClient, ownerId: stri
 export async function runPendingAutoExecution(admin: SupabaseClient, limit = 3) {
   const batchLimit = Math.min(3, Math.max(1, Math.floor(limit)));
   await tickAccountPostSchedules(admin, 10);
+  const safeMode = await getPostAutomationExecutionMode(admin) === "SAFE";
   const providerReady = falAutoModeAvailability({ keyPresent: Boolean(serverEnv.falKey), state: serverEnv.falWanProviderState }).providerAvailable;
-  const states = ["STARTING", "RUNNING", "RETRY_PENDING", "WAITING_FOR_DATA", "WAITING_FOR_SLOT", "WAITING_FOR_APPROVAL", ...(providerReady || process.env.NODE_ENV === "development" ? ["WAITING_FOR_PROVIDER"] : [])];
+  const states = ["STARTING", "RUNNING", "RETRY_PENDING", "WAITING_FOR_DATA", "WAITING_FOR_SLOT", "WAITING_FOR_APPROVAL", ...(safeMode || providerReady || process.env.NODE_ENV === "development" ? ["WAITING_FOR_PROVIDER"] : [])];
   const { data, error } = await admin.from("auto_account_states").select("auto_run_id,owner_id")
     .in("state", states).order("last_execution_scan_at", { ascending: true, nullsFirst: true }).order("tiktok_account_id").limit(batchLimit * 5);
   if (error) throw new Error("auto_execution_scan_failed");

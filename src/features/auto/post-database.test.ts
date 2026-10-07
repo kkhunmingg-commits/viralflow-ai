@@ -7,6 +7,7 @@ it("executes all migrations and account-scoped RPCs in isolated PostgreSQL witho
     { encoding: "utf8", timeout: 30_000, maxBuffer: 100_000 });
   expect(result).toContain('"syntax":"PASS"');
   const summary = JSON.parse(result.trim().split("\n").at(-1)!);
-  expect(summary.databaseCases).toBeGreaterThanOrEqual(42);
+  expect(summary.databaseCases).toBeGreaterThanOrEqual(86);
+  expect(summary.populatedMigrationReplay).toBe("PASS");
   expect(result).toContain('"result":"PASS","networkCalls":0,"paidCalls":0');
 }, 30_000);

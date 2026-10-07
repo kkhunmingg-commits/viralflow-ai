@@ -3,6 +3,7 @@ import { accountReadyForGeneration } from "./services";
 import { planAccount } from "./engine";
 
 vi.mock("@/lib/server-env", () => ({ serverEnv: {} }));
+vi.mock("server-only", () => ({}));
 
 describe("generation health follows the selected posting transport", () => {
   it("plans EXPORT for a disconnected account without requiring TikTok authorization", () => {

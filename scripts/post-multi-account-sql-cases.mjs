@@ -86,4 +86,5 @@ export async function runProof(db,assert) {
   await assert.rejects(()=>db.query("select public.control_post_account($1,$2,'STOP')",[owner,ids[1]]),/permission denied/);checks++;
   await db.exec('reset role');
   console.log(JSON.stringify({databaseCases:checks,result:'PASS',networkCalls:0,paidCalls:0}));
+  return checks;
 }

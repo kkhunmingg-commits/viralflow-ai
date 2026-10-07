@@ -6,7 +6,7 @@ import type { ExecutionClaim } from "./processor";
 
 vi.mock("server-only", () => ({}));
 const config = vi.hoisted(() => ({ tiktokPublishingRealMode: true, tiktokPublishingProvider: "official",
-  tiktokVideoPublishApproved: true, tiktokVideoUploadApproved: true, tiktokAnalyticsProvider: "official" }));
+  tiktokVideoPublishApproved: true, tiktokVideoUploadApproved: true, tiktokAnalyticsProvider: "official", postAutomationExecutionMode: "LIVE" }));
 vi.mock("@/lib/server-env", () => ({ serverEnv: config }));
 vi.mock("@/features/tiktok/services", () => ({ TikTokTokenService: class { async getAccessToken() { return "network-contract-token"; } } }));
 vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
@@ -20,6 +20,7 @@ type Row = Record<string, unknown>;
 function database(tables: Record<string, Row[]>) {
   const download = vi.fn(async () => ({ data: new Blob(["valid-fixture-media"], { type: "video/mp4" }), error: null }));
   const rpc = vi.fn(async (name: string, args: Row) => {
+    if (name === "get_post_automation_execution_mode") return { data: "LIVE", error: null };
     if (name === "transition_publish_queue_atomic") {
       const row = tables.publishing_queue.find(item => item.owner_id === args.p_owner_id && item.id === args.p_queue_id)!;
       Object.assign(row, args.p_patch, { status: args.p_to_status });
@@ -77,11 +78,12 @@ function fixture(mode = "EXPORT") {
   return { tables, claim, ...database(tables) };
 }
 beforeEach(() => { Object.assign(config, { tiktokPublishingRealMode: true, tiktokPublishingProvider: "official",
-  tiktokVideoPublishApproved: true, tiktokVideoUploadApproved: true }); });
+  tiktokVideoPublishApproved: true, tiktokVideoUploadApproved: true, postAutomationExecutionMode: "LIVE" }); });
 
 describe("account POST production boundaries", () => {
   it("finishes EXPORT through the production ports and creates a real downloadable package without a TikTok adapter", async () => {
     config.tiktokPublishingRealMode = false; config.tiktokPublishingProvider = "mock";
+    config.postAutomationExecutionMode = "SAFE";
     const f = fixture(), network = vi.fn(), provider = new OfficialTikTokPublishingProvider(network as typeof fetch);
     f.tables.tiktok_accounts[0].authorization_status = "revoked";
     const ports = createAutoExecutionPorts(f.client, { publishingProvider: provider });
@@ -146,7 +148,8 @@ describe("account POST production boundaries", () => {
     expect(await createAutoExecutionPorts(f.client).QUEUE_PUBLISH(f.claim)).toMatchObject({ kind: "WAIT", reason: "PUBLISHING_NOT_APPROVED" });
     const draft = fixture("DRAFT"); config.tiktokVideoUploadApproved = false;
     expect(await createAutoExecutionPorts(draft.client).QUEUE_PUBLISH(draft.claim)).toMatchObject({ kind: "WAIT", reason: "DRAFT_CAPABILITY_REQUIRED" });
-    expect(f.rpc).not.toHaveBeenCalled(); expect(draft.rpc).not.toHaveBeenCalled();
+    expect(f.rpc.mock.calls.every(([name]) => name === "get_post_automation_execution_mode")).toBe(true);
+    expect(draft.rpc.mock.calls.every(([name]) => name === "get_post_automation_execution_mode")).toBe(true);
   });
   it("does not publish before the account schedule is due and defers immature analytics without fabricating observations", async () => {
     const f = fixture("AUTO");

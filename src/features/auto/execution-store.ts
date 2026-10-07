@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { falAutoModeAvailability } from "@/features/video/provider-routing";
 import { serverEnv } from "@/lib/server-env";
 import type { ExecutionClaim, ExecutionStage, ExecutionStore, StageOutcome } from "./processor";
+import { getPostAutomationExecutionMode } from "./execution-mode";
 
 function must<T>(data: T | null, error: { message: string } | null, code: string): T {
   if (error || data === null) throw new Error(error?.message ?? code);
@@ -29,6 +30,8 @@ export class SupabaseExecutionStore implements ExecutionStore {
     const { data, error } = await this.admin.from("tiktok_accounts").select("is_mock")
       .eq("owner_id", this.ownerId).eq("id", accountId).maybeSingle();
     if (error || !data) throw new Error("auto_execution_account_not_found");
+    // This is readiness to claim orchestration work, never a provider capability assertion.
+    if (await getPostAutomationExecutionMode(this.admin) === "SAFE") return true;
     if (data.is_mock) return process.env.NODE_ENV === "development";
     return falAutoModeAvailability({ keyPresent: Boolean(serverEnv.falKey), state: serverEnv.falWanProviderState }).providerAvailable;
   }

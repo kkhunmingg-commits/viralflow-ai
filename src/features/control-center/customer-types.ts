@@ -22,6 +22,8 @@ export interface CustomerAccount {
   metrics: CustomerMetrics; currentActivity: string; nextActivity: string | null;
   actionRequired: { label: string; href: string } | null;
   nextScheduledPost: string | null; topProduct: string | null;
+  /** Work slots waiting to start, kept separate from videos queued for posting. */
+  schedulerQueued?: boolean; scheduleQueueCount?: number; schedulerFailureCount?: number;
   hasActiveRun?: boolean;
   /** Legacy fixture compatibility only; the current customer projection does not send run locators. */
   activeRunId?: string | null; isSingleAccountRun?: boolean;

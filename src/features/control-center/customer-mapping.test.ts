@@ -135,4 +135,61 @@ describe("owner-projected multi-account customer data", () => {
       { id: "yesterday", tiktok_account_id: "A", product_id: null, status: "READY", created_at: "2026-10-06T04:00:00Z", storage_path: null }];
     expect(mapCustomerPostAccount(data, "A", "today", new Date("2026-10-06T18:00:00Z"))!.clips.map(clip => clip.key)).toEqual(["MASTER:new-day"]);
   });
+  it("reads due scheduler work separately from generated videos and queued publications", () => {
+    const data = records();
+    data.schedules = [{ tiktok_account_id: "A", posting_mode: "EXPORT", creative_mode: "AUTO", clips_per_day: 7,
+      active_start: 540, active_end: 1320, timezone: "Asia/Bangkok", min_spacing_minutes: 60,
+      allowed_days: [0, 1, 2, 3, 4, 5, 6], enabled: true, daily_budget_usd: 1, next_due_at: "2026-10-06T13:00:00Z" }];
+    const slot = { tiktok_account_id: "A", local_date: "2026-10-06", state: "PENDING",
+      scheduled_at: "2026-10-06T11:00:00Z", expires_at: "2026-10-06T15:00:00Z", next_attempt_at: null };
+    data.scheduleSlots = [slot, { ...slot, state: "CLAIMED" }, { ...slot, scheduled_at: "2026-10-06T13:00:00Z" },
+      { ...slot, expires_at: "2026-10-06T11:59:00Z" }, { ...slot, state: "DISABLED" },
+      { ...slot, tiktok_account_id: "B" }, { ...slot, local_date: "2026-10-05" }];
+    const view = mapCustomerOverview(data, "today", now);
+    expect(view.accounts[0]).toMatchObject({ schedulerQueued: true, scheduleQueueCount: 2,
+      postStatus: "รอเริ่มตามคิว", currentActivity: "รอเริ่มงานตามคิว", target: 7 });
+    expect(view.accounts[0].today).toMatchObject({ generated: 0, generating: 0, scheduled: 0, published: 0 });
+    expect(view.accounts[1]).toMatchObject({ schedulerQueued: false, scheduleQueueCount: 0 });
+    const serialized = JSON.stringify(view);
+    expect(serialized).not.toMatch(/PENDING|CLAIMED|next_attempt_at|expires_at|local_date/);
+    data.schedules[0].enabled = false;
+    expect(mapCustomerOverview(data, "today", now).accounts[0].schedulerQueued).toBe(false);
+  });
+  it("shows waiting and failed execution truth without claiming a video is generating", () => {
+    const data = records();
+    data.runs = [{ id: "r", state: "RUNNING", run_date: "2026-10-06", updated_at: now.toISOString() }];
+    data.states = [{ auto_run_id: "r", tiktok_account_id: "A", state: "WAITING_FOR_PROVIDER", current_step: "GENERATE_VIDEO",
+      desired_daily_posts: 5, blockers_json: ["SAFE_EXECUTION_BOUNDARY"], updated_at: now.toISOString() }];
+    const waiting = mapCustomerOverview(data, "today", now).accounts[0];
+    expect(waiting.postStatus).toBe("รอความพร้อมก่อนดำเนินงาน");
+    expect(waiting.currentActivity).toBe("รอความพร้อมก่อนดำเนินงาน");
+    expect(waiting.today.generating).toBe(0); expect(waiting.hasActiveRun).toBe(true);
+    expect(JSON.stringify(waiting)).not.toMatch(/SAFE_EXECUTION_BOUNDARY|WAITING_FOR_PROVIDER|GENERATE_VIDEO/);
+    data.states[0].state = "FAILED"; data.runs[0].state = "FAILED";
+    const failed = mapCustomerOverview(data, "today", now).accounts[0];
+    expect(failed.postStatus).toBe("มีปัญหา"); expect(failed.currentActivity).toBe("งานล่าสุดไม่สำเร็จ");
+    expect(failed.hasActiveRun).toBe(false); expect(failed.canStart).toBe(true);
+    expect(failed.actionRequired?.label).toBe("ตรวจการตั้งเวลาและเริ่มงานอีกครั้ง");
+  });
+  it("does not mark a completed account active because another account in its parent run is running", () => {
+    const data = records();
+    data.runs = [{ id: "shared", state: "RUNNING", run_date: "2026-10-06", updated_at: now.toISOString() }];
+    data.states = ["A", "B"].map(id => ({ auto_run_id: "shared", tiktok_account_id: id,
+      state: id === "A" ? "COMPLETED" : "RUNNING", current_step: "COMPLETE", desired_daily_posts: 5,
+      blockers_json: [], updated_at: now.toISOString() }));
+    const accounts = mapCustomerOverview(data, "today", now).accounts;
+    expect(accounts[0].hasActiveRun).toBe(false); expect(accounts[0].canStart).toBe(true);
+    expect(accounts[1].hasActiveRun).toBe(true); expect(accounts[1].canStart).toBe(false);
+  });
+  it("does not turn an intentionally stopped consumed slot into an error or failed clip", () => {
+    const data = records();
+    data.runs = [{ id: "stopped", state: "STOPPED", run_date: "2026-10-06", updated_at: now.toISOString() }];
+    data.states = [{ auto_run_id: "stopped", tiktok_account_id: "A", state: "STOPPED", current_step: "STOP",
+      desired_daily_posts: 5, blockers_json: [], updated_at: now.toISOString() }];
+    data.scheduleSlots = [{ tiktok_account_id: "A", local_date: "2026-10-06", state: "FAILED",
+      scheduled_at: "2026-10-06T11:00:00Z", expires_at: "2026-10-06T15:00:00Z", next_attempt_at: null, auto_run_id: "stopped" }];
+    const account = mapCustomerOverview(data, "today", now).accounts[0];
+    expect(account.schedulerFailureCount).toBe(0); expect(account.today.failed).toBe(0);
+    expect(account.postStatus).toBe("พร้อมเริ่ม"); expect(account.actionRequired).toBeNull();
+  });
 });

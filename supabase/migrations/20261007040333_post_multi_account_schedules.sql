@@ -1,15 +1,19 @@
 -- Account-scoped POST automation. Existing evidence/history is retained.
 alter table public.auto_runs
-  add column tiktok_account_id uuid,
-  add column posting_mode text not null default 'AUTO' check(posting_mode in ('AUTO','DRAFT','EXPORT')),
-  add column schedule_slot_key text,
-  add constraint auto_runs_account_owner_fk foreign key(owner_id,tiktok_account_id)
-    references public.tiktok_accounts(owner_id,id);
+  add column if not exists tiktok_account_id uuid,
+  add column if not exists posting_mode text not null default 'AUTO' check(posting_mode in ('AUTO','DRAFT','EXPORT')),
+  add column if not exists schedule_slot_key text;
+do $$ begin
+ if not exists(select 1 from pg_catalog.pg_constraint where conrelid='public.auto_runs'::regclass and conname='auto_runs_account_owner_fk') then
+   alter table public.auto_runs add constraint auto_runs_account_owner_fk foreign key(owner_id,tiktok_account_id)
+     references public.tiktok_accounts(owner_id,id);
+ end if;
+end $$;
 
 update public.auto_runs r set tiktok_account_id=s.tiktok_account_id
 from (select auto_run_id,(array_agg(tiktok_account_id))[1] tiktok_account_id
       from public.auto_account_states group by auto_run_id having count(*)=1) s
-where r.id=s.auto_run_id;
+where r.id=s.auto_run_id and r.tiktok_account_id is null;
 -- Terminal legacy parents cannot leave an account reserved forever.
 update public.auto_account_states s set state=r.state
 from public.auto_runs r where r.id=s.auto_run_id and r.owner_id=s.owner_id
@@ -20,18 +24,26 @@ update public.auto_account_states s set checkpoint_version=cp.version
 from (select owner_id,auto_run_id,tiktok_account_id,max(checkpoint_version) version
       from public.auto_checkpoints where tiktok_account_id is not null group by owner_id,auto_run_id,tiktok_account_id) cp
 where s.owner_id=cp.owner_id and s.auto_run_id=cp.auto_run_id and s.tiktok_account_id=cp.tiktok_account_id and s.checkpoint_version<cp.version;
-drop index public.auto_runs_one_active_per_owner_idx;
+-- Stop on inconsistent legacy evidence; never resolve duplicates by deleting data.
+do $$ begin
+ if exists(select 1 from public.auto_account_states where state not in ('COMPLETED','STOPPED','FAILED')
+   group by owner_id,tiktok_account_id having count(*)>1) then
+   raise exception 'post_migration_duplicate_active_account_requires_reconciliation';
+ end if;
+end $$;
 -- Waiting, paused and blocked work keeps its account reservation.
-create unique index auto_account_states_one_active_per_account_idx
+create unique index if not exists auto_account_states_one_active_per_account_idx
   on public.auto_account_states(owner_id,tiktok_account_id)
   where state not in ('COMPLETED','STOPPED','FAILED');
-create unique index auto_runs_one_active_per_account_idx
+create unique index if not exists auto_runs_one_active_per_account_idx
   on public.auto_runs(owner_id,tiktok_account_id)
   where tiktok_account_id is not null and state not in ('COMPLETED','STOPPED','FAILED');
-create unique index auto_runs_schedule_slot_unique_idx on public.auto_runs(owner_id,schedule_slot_key)
+create unique index if not exists auto_runs_schedule_slot_unique_idx on public.auto_runs(owner_id,schedule_slot_key)
   where schedule_slot_key is not null;
-alter table public.auto_account_states add column last_execution_scan_at timestamptz;
-create index auto_accounts_execution_fair_scan_idx on public.auto_account_states(last_execution_scan_at,tiktok_account_id)
+-- Replace the owner-wide constraint only after the account-scoped indexes exist.
+drop index if exists public.auto_runs_one_active_per_owner_idx;
+alter table public.auto_account_states add column if not exists last_execution_scan_at timestamptz;
+create index if not exists auto_accounts_execution_fair_scan_idx on public.auto_account_states(last_execution_scan_at,tiktok_account_id)
  where state not in ('COMPLETED','STOPPED','FAILED','PAUSED','BLOCKED');
 
 create or replace function private.keep_post_run_identity() returns trigger
@@ -43,9 +55,9 @@ begin
    raise exception 'post_run_identity_immutable'; end if;
  return new;
 end $$;
-create trigger auto_runs_post_identity before update on public.auto_runs for each row execute function private.keep_post_run_identity();
+create or replace trigger auto_runs_post_identity before update on public.auto_runs for each row execute function private.keep_post_run_identity();
 
-create table public.post_account_schedules (
+create table if not exists public.post_account_schedules (
  owner_id uuid not null references public.profiles(id), tiktok_account_id uuid not null,
  posting_mode text not null default 'EXPORT' check(posting_mode in ('AUTO','DRAFT','EXPORT')),
  creative_mode text not null default 'AUTO' check(creative_mode in ('AUTO','GROWTH','AFFILIATE')),
@@ -63,11 +75,11 @@ create table public.post_account_schedules (
  check(active_end>active_start),
  check((clips_per_day-1)*min_spacing_minutes < active_end-active_start)
 );
-create index post_schedules_due_idx on public.post_account_schedules(next_due_at,owner_id,tiktok_account_id) where enabled;
-create trigger post_schedules_touch before update on public.post_account_schedules
+create index if not exists post_schedules_due_idx on public.post_account_schedules(next_due_at,owner_id,tiktok_account_id) where enabled;
+create or replace trigger post_schedules_touch before update on public.post_account_schedules
   for each row execute function private.touch_updated_at();
 
-create table public.post_schedule_slots (
+create table if not exists public.post_schedule_slots (
  owner_id uuid not null, tiktok_account_id uuid not null, local_date date not null,
  ordinal integer not null check(ordinal between 1 and 20),
  slot_key text not null, scheduled_at timestamptz not null, expires_at timestamptz not null,
@@ -82,8 +94,8 @@ create table public.post_schedule_slots (
  check(expires_at>scheduled_at),
  check((lease_token is null and lease_expires_at is null) or (lease_token is not null and lease_expires_at is not null))
 );
-create index post_slots_due_idx on public.post_schedule_slots(state,next_attempt_at,scheduled_at);
-create trigger post_slots_touch before update on public.post_schedule_slots
+create index if not exists post_slots_due_idx on public.post_schedule_slots(state,next_attempt_at,scheduled_at);
+create or replace trigger post_slots_touch before update on public.post_schedule_slots
   for each row execute function private.touch_updated_at();
 
 alter table public.post_account_schedules enable row level security;
@@ -91,8 +103,14 @@ alter table public.post_schedule_slots enable row level security;
 revoke all on public.post_account_schedules,public.post_schedule_slots from public,anon,authenticated;
 grant select on public.post_account_schedules,public.post_schedule_slots to authenticated;
 grant select,insert,update,delete on public.post_account_schedules,public.post_schedule_slots to service_role;
-create policy post_schedules_owner_read on public.post_account_schedules for select to authenticated using((select auth.uid())=owner_id);
-create policy post_slots_owner_read on public.post_schedule_slots for select to authenticated using((select auth.uid())=owner_id);
+do $$ begin
+ if not exists(select 1 from pg_catalog.pg_policy where polrelid='public.post_account_schedules'::regclass and polname='post_schedules_owner_read') then
+   create policy post_schedules_owner_read on public.post_account_schedules for select to authenticated using((select auth.uid())=owner_id);
+ end if;
+ if not exists(select 1 from pg_catalog.pg_policy where polrelid='public.post_schedule_slots'::regclass and polname='post_slots_owner_read') then
+   create policy post_slots_owner_read on public.post_schedule_slots for select to authenticated using((select auth.uid())=owner_id);
+ end if;
+end $$;
 
 create or replace function public.create_auto_run_atomic(
  p_owner_id uuid,p_idempotency_key text,p_run_date date,p_video_provider text,p_provider_gate_reason text,p_plans jsonb
@@ -248,7 +266,7 @@ begin
  return v_count;
 end $$;
 
-create table public.post_outputs (
+create table if not exists public.post_outputs (
  id uuid primary key default gen_random_uuid(), owner_id uuid not null references public.profiles(id),
  tiktok_account_id uuid not null, auto_run_id uuid not null, item_index integer not null check(item_index>0),
  video_id uuid not null, product_id uuid not null, publishing_queue_id uuid,
@@ -266,12 +284,16 @@ create table public.post_outputs (
  foreign key(owner_id,product_id) references public.products(owner_id,id),
  foreign key(owner_id,publishing_queue_id) references public.publishing_queue(owner_id,id)
 );
-create index post_outputs_account_recent_idx on public.post_outputs(owner_id,tiktok_account_id,created_at desc);
+create index if not exists post_outputs_account_recent_idx on public.post_outputs(owner_id,tiktok_account_id,created_at desc);
 alter table public.post_outputs enable row level security;
 revoke all on public.post_outputs from public,anon,authenticated;
 grant select on public.post_outputs to authenticated;
 grant select,insert,update on public.post_outputs to service_role;
-create policy post_outputs_owner_read on public.post_outputs for select to authenticated using((select auth.uid())=owner_id);
+do $$ begin
+ if not exists(select 1 from pg_catalog.pg_policy where polrelid='public.post_outputs'::regclass and polname='post_outputs_owner_read') then
+   create policy post_outputs_owner_read on public.post_outputs for select to authenticated using((select auth.uid())=owner_id);
+ end if;
+end $$;
 
 create or replace function private.validate_post_output() returns trigger
 language plpgsql security invoker set search_path='' as $$
@@ -294,8 +316,8 @@ begin
    and tiktok_account_id=new.tiktok_account_id and video_id=new.video_id and status='PUBLISHED') then raise exception 'post_output_publication_not_attested'; end if;
  return new;
 end $$;
-create trigger post_output_scope before insert or update on public.post_outputs for each row execute function private.validate_post_output();
-create trigger post_outputs_touch before update on public.post_outputs for each row execute function private.touch_updated_at();
+create or replace trigger post_output_scope before insert or update on public.post_outputs for each row execute function private.validate_post_output();
+create or replace trigger post_outputs_touch before update on public.post_outputs for each row execute function private.touch_updated_at();
 
 create or replace function private.sync_post_output_publication() returns trigger
 language plpgsql security invoker set search_path='' as $$
@@ -308,7 +330,7 @@ begin
    and status<>'PUBLISHED' and new.status in ('PUBLISHED','DRAFT_DELIVERED','FAILED','CANCELLED');
  return new;
 end $$;
-create trigger publishing_queue_post_result after update of status on public.publishing_queue
+create or replace trigger publishing_queue_post_result after update of status on public.publishing_queue
  for each row when(old.status is distinct from new.status) execute function private.sync_post_output_publication();
 
 create or replace function public.claim_post_schedule_slot(p_owner_id uuid,p_account_id uuid,p_now timestamptz)
@@ -385,8 +407,12 @@ grant execute on function public.upsert_post_account_schedule(uuid,uuid,jsonb),p
  public.settle_post_schedule_slot(uuid,uuid,text,uuid,uuid,boolean),public.reconcile_post_schedule_slots() to service_role;
 
 -- The same production lease RPC is reused; only trusted persisted POST fields are added.
-alter function public.claim_auto_execution_step(uuid,uuid,uuid,text,integer,boolean) set schema private;
-alter function private.claim_auto_execution_step(uuid,uuid,uuid,text,integer,boolean) rename to claim_auto_execution_step_v11f;
+do $$ begin
+ if to_regprocedure('private.claim_auto_execution_step_v11f(uuid,uuid,uuid,text,integer,boolean)') is null then
+   alter function public.claim_auto_execution_step(uuid,uuid,uuid,text,integer,boolean) set schema private;
+   alter function private.claim_auto_execution_step(uuid,uuid,uuid,text,integer,boolean) rename to claim_auto_execution_step_v11f;
+ end if;
+end $$;
 grant usage on schema private to service_role;
 create or replace function public.claim_auto_execution_step(
  p_owner_id uuid,p_run_id uuid,p_account_id uuid,p_worker_id text,p_lease_seconds integer default 900,p_provider_ready boolean default false
@@ -414,7 +440,7 @@ begin
  end if;
  return new;
 end $$;
-create trigger post_account_control_preserved before update on public.auto_account_states
+create or replace trigger post_account_control_preserved before update on public.auto_account_states
  for each row execute function private.keep_post_account_control();
 
 create or replace function private.finish_terminal_post_run() returns trigger
@@ -429,13 +455,17 @@ begin
  end if;
  return new;
 end $$;
-create trigger post_run_terminal after update of state on public.auto_account_states
+create or replace trigger post_run_terminal after update of state on public.auto_account_states
  for each row execute function private.finish_terminal_post_run();
 
 -- Terminal failure now updates the parent too; keep run -> account lock order
 -- consistent with finish/STOP even for a historical multi-account parent.
-alter function public.fail_auto_execution_step(uuid,uuid,uuid,uuid,text,text,boolean,text,text) set schema private;
-alter function private.fail_auto_execution_step(uuid,uuid,uuid,uuid,text,text,boolean,text,text) rename to fail_auto_execution_step_v11f;
+do $$ begin
+ if to_regprocedure('private.fail_auto_execution_step_v11f(uuid,uuid,uuid,uuid,text,text,boolean,text,text)') is null then
+   alter function public.fail_auto_execution_step(uuid,uuid,uuid,uuid,text,text,boolean,text,text) set schema private;
+   alter function private.fail_auto_execution_step(uuid,uuid,uuid,uuid,text,text,boolean,text,text) rename to fail_auto_execution_step_v11f;
+ end if;
+end $$;
 create or replace function public.fail_auto_execution_step(
  p_owner_id uuid,p_run_id uuid,p_account_id uuid,p_lease_token uuid,p_step text,
  p_failure_type text,p_retryable boolean,p_reason text,p_next_state text
@@ -484,12 +514,12 @@ begin
  return jsonb_build_object('previous',v_previous,'state',v_next);
 end $$;
 
-revoke all on function public.claim_auto_execution_step(uuid,uuid,uuid,text,integer,boolean),
+revoke all on function public.create_auto_run_atomic(uuid,text,date,text,text,jsonb),public.claim_auto_execution_step(uuid,uuid,uuid,text,integer,boolean),
  public.transition_auto_run_atomic(uuid,uuid,text),private.claim_auto_execution_step_v11f(uuid,uuid,uuid,text,integer,boolean),
  public.fail_auto_execution_step(uuid,uuid,uuid,uuid,text,text,boolean,text,text),private.fail_auto_execution_step_v11f(uuid,uuid,uuid,uuid,text,text,boolean,text,text),
  private.keep_post_run_identity(),private.validate_post_output(),private.sync_post_output_publication(),
  private.keep_post_account_control(),private.finish_terminal_post_run() from public,anon,authenticated;
-grant execute on function public.claim_auto_execution_step(uuid,uuid,uuid,text,integer,boolean),
+grant execute on function public.create_auto_run_atomic(uuid,text,date,text,text,jsonb),public.claim_auto_execution_step(uuid,uuid,uuid,text,integer,boolean),
  public.transition_auto_run_atomic(uuid,uuid,text),private.claim_auto_execution_step_v11f(uuid,uuid,uuid,text,integer,boolean),
  public.fail_auto_execution_step(uuid,uuid,uuid,uuid,text,text,boolean,text,text),private.fail_auto_execution_step_v11f(uuid,uuid,uuid,uuid,text,text,boolean,text,text),
  private.keep_post_run_identity(),private.validate_post_output(),private.sync_post_output_publication(),
