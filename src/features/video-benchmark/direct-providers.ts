@@ -4,7 +4,7 @@ import {basename} from "node:path";
 import {FalWanProviderError,FalWanVideoProvider} from "../video/fal-wan";
 import type {VideoRenderInput} from "../video/types";
 import {ProviderGenerationError} from "./runway-provider";
-import type {BenchmarkCandidate,RealVideoProvider,RemoteVideoRequest,RemoteVideoResult} from "./types";
+import type {BenchmarkCandidate,RealVideoProvider,RemoteVideoRequest,RemoteVideoRecoveryRequest,RemoteVideoResult} from "./types";
 
 const PIXVERSE_BASE="https://app-api.pixverse.ai/openapi/v2";
 const mimeFor=(path:string)=>path.toLowerCase().endsWith(".png")?"image/png":path.toLowerCase().endsWith(".webp")?"image/webp":"image/jpeg";
@@ -16,10 +16,21 @@ export class FalWan22TurboProvider implements RealVideoProvider {
   readonly provider="fal";readonly model:string;private client:FalWanVideoProvider;
   constructor(private candidate:BenchmarkCandidate,apiKey:string,options:Omit<ConstructorParameters<typeof FalWanVideoProvider>[0],"apiKey">={}){if(!apiKey)throw new Error("FAL_KEY is required only for an explicitly approved live benchmark");this.model=candidate.apiModel;this.client=new FalWanVideoProvider({...options,apiKey,model:candidate.apiModel,durationSeconds:8,resolution:candidate.id==="fal_ltx_2_3_fast"?"1080p":"720p",aspectRatio:"9:16"})}
   async plan(input:VideoRenderInput){return structuredClone(input)}
+  getSettings(){return this.client.getSettings()}
+  private async preserve(result:Awaited<ReturnType<FalWanVideoProvider["retrieve"]>>,outputPath:string,recovery=false):Promise<RemoteVideoResult>{
+    try{await writeFile(outputPath,result.bytes,{flag:"wx"})}
+    catch(error){if(!recovery||(error as NodeJS.ErrnoException).code!=="EEXIST")throw new ProviderGenerationError("Provider source could not be preserved",result.requestId,result.actualCostUsd,true)}
+    return{taskId:result.requestId,provider:this.provider,model:this.model,outputPath,costUsd:result.actualCostUsd,recordedCostUsd:result.recordedCostUsd,costBasis:result.costBasis,queueTimeMs:result.queueTimeMs,generationTimeMs:result.generationTimeMs,latencyMs:result.latencyMs??0,remoteUrl:result.videoUrl,retryCount:result.retryCount};
+  }
   async generate(request:RemoteVideoRequest):Promise<RemoteVideoResult>{
     const started=Date.now(),bytes=await readFile(request.fixture.imagePath);
-    try{const result=await this.client.generate({image:new Blob([bytes],{type:mimeFor(request.fixture.imagePath)}),prompt:request.fixture.prompt,aspectRatio:"9:16",seed:request.seed,maxCostUsd:this.candidate.expectedCostUsd,onSubmitted:request.onSubmitted});await writeFile(request.outputPath,result.bytes);return{taskId:result.requestId,provider:this.provider,model:this.model,outputPath:request.outputPath,costUsd:result.actualCostUsd,recordedCostUsd:result.recordedCostUsd,costBasis:result.costBasis,queueTimeMs:result.queueTimeMs,generationTimeMs:result.generationTimeMs,latencyMs:Date.now()-started,remoteUrl:result.videoUrl,retryCount:result.retryCount}}
-    catch(error){if(error instanceof FalWanProviderError)throw new ProviderGenerationError(error.message,error.requestId,error.actualCostUsd);throw error}
+    try{const result=await this.client.generate({image:new Blob([bytes],{type:mimeFor(request.fixture.imagePath)}),prompt:request.fixture.prompt,aspectRatio:"9:16",seed:request.seed,maxCostUsd:this.candidate.expectedCostUsd,onSubmitted:request.onSubmitted});return{...await this.preserve(result,request.outputPath),latencyMs:Date.now()-started}}
+    catch(error){if(error instanceof FalWanProviderError)throw new ProviderGenerationError(error.message,error.requestId,error.actualCostUsd,error.terminalConfirmed);throw error}
+  }
+  async retrieve(request:RemoteVideoRecoveryRequest):Promise<RemoteVideoResult>{
+    const started=Date.now();
+    try{const result=await this.client.retrieve(request.taskId);return{...await this.preserve(result,request.outputPath,true),latencyMs:Date.now()-started}}
+    catch(error){if(error instanceof FalWanProviderError)throw new ProviderGenerationError(error.message,error.requestId,error.actualCostUsd,error.terminalConfirmed);throw error}
   }
 }
 

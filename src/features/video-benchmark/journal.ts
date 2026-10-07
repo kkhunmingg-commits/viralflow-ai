@@ -11,25 +11,29 @@ export const benchmarkLiability=(sample:BenchmarkSample)=>sample.costBasis==="PR
 export class BenchmarkJournal {
   private state:Journal;
   private constructor(private directory:string,private lock:FileHandle,state:Journal){this.state=state}
-  static async acquire(directory:string,prior:BenchmarkSample[]=[]){
+  static async acquire(directory:string,prior:BenchmarkSample[]=[],options:{recoveryOnly?:boolean}={}){
     const lock=await open(join(directory,"benchmark.lock"),"wx");
     try{
       let state:Journal={version:1,samples:prior,fingerprints:{}};
       try{state=JSON.parse(await readFile(join(directory,"benchmark-journal.json"),"utf8")) as Journal}catch(error){if((error as NodeJS.ErrnoException).code!=="ENOENT")throw error}
       if(state.version!==1||!Array.isArray(state.samples)||!state.fingerprints)throw new Error("Invalid benchmark journal");
-      if(state.samples.some(row=>["ATTEMPT_RESERVED","SUBMITTED","UNKNOWN"].includes(row.submissionState??"")))throw new Error("Prior paid attempt requires provider reconciliation; paid resume blocked");
       const rows=new Map(state.samples.map(row=>[row.id,row]));
       for(const row of prior)if(!rows.has(row.id))rows.set(row.id,row);
       state.samples=[...rows.values()];
-      if(state.samples.some(row=>["ATTEMPT_RESERVED","SUBMITTED","UNKNOWN"].includes(row.submissionState??"")))throw new Error("Prior paid attempt requires provider reconciliation; paid resume blocked");
+      if(!options.recoveryOnly&&state.samples.some(row=>["ATTEMPT_RESERVED","SUBMITTED","UNKNOWN"].includes(row.submissionState??"")))throw new Error("Prior paid attempt requires provider reconciliation; paid resume blocked");
       if(state.samples.some(row=>!Number.isFinite(row.expectedCostUsd)||row.expectedCostUsd<0||!Number.isInteger(row.generationCount)||row.generationCount<0||row.actualCostUsd!==null&&(!Number.isFinite(row.actualCostUsd)||row.actualCostUsd<0)||row.recordedCostUsd!=null&&(!Number.isFinite(row.recordedCostUsd)||row.recordedCostUsd<0)))throw new Error("Invalid benchmark liability; refusing paid execution");
       return new BenchmarkJournal(directory,lock,state);
     }catch(error){await lock.close();await unlink(join(directory,"benchmark.lock"));throw error}
   }
   get samples(){return this.state.samples}
   async checkInput(id:string,candidate:BenchmarkCandidate,fixture:BenchmarkFixture,repeat:number){
-    const hash=createHash("sha256").update(await readFile(fixture.imagePath)).update(JSON.stringify({prompt:fixture.prompt,endpoint:candidate.apiModel,resolution:candidate.resolution,cost:candidate.expectedCostUsd,repeat})).digest("hex");
-    if(this.state.fingerprints[id]&&this.state.fingerprints[id]!==hash)throw new Error("Benchmark input changed; refusing a second paid attempt");
+    const bytes=await readFile(fixture.imagePath),identity={prompt:fixture.prompt,endpoint:candidate.apiModel,resolution:candidate.resolution,repeat};
+    const hash=createHash("sha256").update(bytes).update(JSON.stringify(identity)).digest("hex");
+    const prior=this.state.samples.find(row=>row.id===id);
+    // Older journals hashed the quote as part of request identity. Validate the
+    // old fingerprint against its original reservation, then migrate in place.
+    const legacy=prior&&createHash("sha256").update(bytes).update(JSON.stringify({prompt:fixture.prompt,endpoint:candidate.apiModel,resolution:candidate.resolution,cost:prior.expectedCostUsd,repeat})).digest("hex");
+    if(this.state.fingerprints[id]&&this.state.fingerprints[id]!==hash&&this.state.fingerprints[id]!==legacy)throw new Error("Benchmark input changed; refusing a second paid attempt");
     this.state.fingerprints[id]=hash;
   }
   async save(sample:BenchmarkSample){

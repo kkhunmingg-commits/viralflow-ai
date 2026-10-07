@@ -4,6 +4,7 @@ import { OfficialTikTokPublishingProvider } from "../publishing/provider";
 import type { ExecutionClaim } from "./processor";
 
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/server-env", () => ({ serverEnv: { postAutomationExecutionMode: "LIVE" } }));
 vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://example.supabase.co");
 vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "sb_publishable_phase11f_wiring_fixture");
 const { createAutoExecutionPorts } = await import("./execution-ports");
@@ -20,6 +21,7 @@ describe("Auto production service wiring", () => {
       publishing_queue: [],
     };
     const rpc = vi.fn().mockImplementation(async (name: string, params: Record<string, unknown>) => {
+      if (name === "get_post_automation_execution_mode") return { data: "LIVE", error: null };
       expect(name).toBe("enqueue_publish_atomic");
       return { data: { id: "queue-a", ...params }, error: null };
     });
@@ -40,8 +42,8 @@ describe("Auto production service wiring", () => {
 
     const outcome = await ports.QUEUE_PUBLISH(claim);
     expect(outcome).toMatchObject({ kind: "ADVANCE", evidence: { queueId: "queue-a", publishMode: "DIRECT_POST" } });
-    expect(rpc).toHaveBeenCalledOnce();
-    expect(rpc.mock.calls[0][1]).toMatchObject({ p_owner_id: ownerId, p_tiktok_account_id: accountId,
+    expect(rpc).toHaveBeenCalledTimes(2);
+    expect(rpc.mock.calls[1][1]).toMatchObject({ p_owner_id: ownerId, p_tiktok_account_id: accountId,
       p_video_id: videoId, p_publish_mode: "DIRECT_POST" });
   });
 });

@@ -14,6 +14,7 @@ const exactHostnameList = z.string().min(1).refine((value) => {
 }, "Expected a comma-separated list of exact hostnames");
 
 const serverEnvSchema = z.object({
+  POST_AUTOMATION_EXECUTION_MODE: z.enum(["SAFE", "LIVE"]).default("SAFE"),
   ALLOW_DEV_MOCK_SEED: z.enum(["true", "false"]).default("false"),
   CREATIVE_AI_PROVIDER: z.enum(["mock","openai"]).default("mock"),
   CREATIVE_AI_MODEL: z.string().min(1).default("gpt-5.4-nano"),
@@ -78,6 +79,7 @@ const serverEnvSchema = z.object({
 });
 
 const parsed = serverEnvSchema.safeParse({
+  POST_AUTOMATION_EXECUTION_MODE: process.env.POST_AUTOMATION_EXECUTION_MODE,
   ALLOW_DEV_MOCK_SEED: process.env.ALLOW_DEV_MOCK_SEED,
   CREATIVE_AI_PROVIDER: process.env.CREATIVE_AI_PROVIDER,
   CREATIVE_AI_MODEL: process.env.CREATIVE_AI_MODEL,
@@ -146,6 +148,7 @@ if (parsed.data.TIKTOK_PROVIDER === "official" && deployment.environment !== "de
 }
 
 export const serverEnv = Object.freeze({
+  postAutomationExecutionMode: parsed.data.POST_AUTOMATION_EXECUTION_MODE,
   appEnvironment: deployment.environment,
   appUrl: deployment.appUrl,
   recoveryEnabled: deployment.recoveryEnabled,

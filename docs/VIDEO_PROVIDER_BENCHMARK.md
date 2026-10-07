@@ -1,10 +1,14 @@
 # Real Video AI Provider Benchmark
 
-Updated 5 October 2026. The current task extends the existing harness for an 8–10-second fal-only production comparison. Earlier Stage B/C notes below are historical; the current policy and budgets in this section supersede their routing/forecast assumptions.
+Updated 7 October 2026. The current task extends the existing harness for an 8–10-second fal-only production comparison. Earlier Stage B/C notes below are historical; the current policy and budgets in this section supersede their routing/forecast assumptions.
 
 ## Current results and approvals
 
-**NOT_RUN — FAL_KEY unavailable.** Real generations 0, paid spend $0, outputs 0. Success rate, usable rate, invoice cost and generation latency are not measured. PRIMARY/FALLBACK are not selected from real evidence yet; no model becomes `PRODUCTION_APPROVED` from a dry plan. Original Beauty/Home/Gadget assets remain ignored and unchanged. A real owner Flow reference is optional for commercial/technical evaluation, but required for any Flow-equivalence label.
+**NOT_RUN — BILLING_CONFIRMATION_REQUIRED.** The owner supplied `FAL_KEY` in the ignored local environment; authenticated pricing works, but the read-only account billing request returned HTTP403. No credential is recorded in this document, source, artifacts, or client code. Real generations 0, paid spend $0, outputs 0. Success rate, usable rate, invoice cost and generation latency are not measured. PRIMARY/FALLBACK are not selected from real evidence yet; no model becomes `PRODUCTION_APPROVED` from a dry plan. Original Beauty/Home/Gadget assets remain ignored and unchanged. A real owner Flow reference is optional for commercial/technical evaluation, but required for any Flow-equivalence label.
+
+The current owner-authorized matrix uses three shared fixtures from `benchmarks/fal-commerce-fixtures.json`: a fictional labelled carton, the existing skincare bottle, and the existing gadget with a single human button-press prompt. The carton is reproducible native SVG artwork rasterized locally; no stock or paid image generation is involved. All source JPGs are1254×1254. `scripts/create-fal-benchmark-fixtures.mjs` records creation methods, image/prompt hashes, and integrity under ignored `benchmark-assets/`. Each fixture receives the same reference and prompt across models. No overlays are rendered into outputs.
+
+Selected models are LTX Distilled, LTX Fast, and Wan Flash. The authenticated pricing response confirmed USD rates of0.02,0.06, and0.05 per second respectively. Conservative native-setting reserves total **$3.422502 for nine attempts**, below the authorized **$5 hard cap**. Wan's audio-off discount is an estimate, not a recorded bill. These are forecasts only; invoice cost and usable cost remain unknown until real outputs and billing evidence exist. The current ignored no-cost plan is `.video-benchmark/fal-production-20261007/report.json`.
 
 ## Reviewed candidates (5 October 2026)
 
@@ -23,6 +27,8 @@ Wan2.2Turbo stays implemented but has no documented duration/frame input: it is 
 
 Default `--fal-production` uses the first fixture only across four candidates, sorted by conservative cost. Forecast **$1.560834 reserved**, **$1.310834 minimum estimated**. Only models with a technically and commercially passing first sample can proceed to the other products using `--all-fixtures --resume`. All four models ×3products reserve **$4.682502**. Total hard benchmark cap is **$5**, including failed and unresolved attempts; a configured smaller cap is respected. There are no paid retries, repeat samples, or cross-provider calls.
 
+`--matrix` is a separate explicit opt-in for the owner's three-product comparison. It requires at least three fixtures and retains the same full-forecast, per-request reserve, hard-cap, exclusive-lock, and one-attempt-per-model/fixture guards. It does not invent first-sample scores or permit an automatic second generation.
+
 Before `--execute`, read-only authenticated [pricing](https://fal.ai/docs/platform-apis/v1/models/pricing) and [estimate](https://fal.ai/docs/platform-apis/v1/models/pricing/estimate) calls verify current USD billing units. Missing/ambiguous price, invalid forecast or cap excess stops before paid submit.
 
 The same full-image reference is padded into a hash-addressed720×1280COPY for every model, preserving product packaging. Sources remain unchanged. All models receive the same licensed synthetic product intent; providers lacking an explicit aspect field receive the same portrait reference. Original output remains `*-source.mp4`; normalization creates a separate copy. Native portrait geometry and7.88–10.2s source duration are required, so post-normalization padding cannot disguise a landscape/short source.
@@ -30,6 +36,9 @@ The same full-image reference is padded into a hash-addressed720×1280COPY for e
 ```text
 # No-cost preparation/forecast (does not read .env.local)
 pnpm benchmark:video -- --fal-production --manifest scripts/fixtures/fal-commerce-benchmark.json
+
+# Current authorized three-model / three-product matrix: preparation only
+pnpm benchmark:video -- --fal-production --matrix --manifest benchmarks/fal-commerce-fixtures.json --models fal_ltx_distilled,fal_ltx_2_3_fast,fal_wan_2_6_flash --report .video-benchmark/fal-production-20261007/report.json --output .video-benchmark/fal-production-20261007/outputs
 
 # Owner configures server FAL_KEY, VIDEO_BENCHMARK_ALLOW_PAID=true,
 # VIDEO_BENCHMARK_MAX_USD=5 before explicitly enabling a real run.
@@ -40,11 +49,16 @@ pnpm benchmark:video -- --fal-production --commerce-scores /absolute/path/review
 
 # Only passing models, same journal and cap, remaining two products:
 pnpm benchmark:video -- --fal-production --manifest scripts/fixtures/fal-commerce-benchmark.json --models fal_ltx_distilled,fal_wan_2_6_flash --all-fixtures --execute --resume
+
+# Read-only recovery: same matrix, journal and original provider request IDs
+pnpm benchmark:video -- --fal-production --matrix --manifest benchmarks/fal-commerce-fixtures.json --models fal_ltx_distilled,fal_ltx_2_3_fast,fal_wan_2_6_flash --report .video-benchmark/fal-production-20261007/report.json --output .video-benchmark/fal-production-20261007/outputs --recover --resume
 ```
 
 Last command is illustrative: models must actually pass first-sample review. A no-cost whole-plan forecast may use `--all-fixtures` without `--execute`. All generated files/reviews/journal are under ignored `.video-benchmark/fal-production/`; product images are under ignored `benchmark-assets/`. Never commit credentials or media.
 
-Durable `benchmark-journal.json` records liability before submit and request ID after acceptance. Exclusive lock rejects simultaneous processes. Completed/failed attempts are not resubmitted on resume; changed inputs or any reserved/submitted/unknown liability require reconciliation. Do not remove locks/journal to retry an ambiguous call. Estimates remain reserves unless the provider exposes a valid recorded charge.
+Durable `benchmark-journal.json` records liability, original endpoint/native settings, input path, and planned source/copy paths before submit, then request ID after acceptance. Exclusive lock rejects simultaneous processes. Completed/failed attempts are not resubmitted on paid resume; changed inputs or any reserved/submitted/unknown liability require reconciliation. `--recover --resume` requires a server-only key and positive original cap, uses only read-only retrieval of saved fal request IDs, and cannot submit or upload new references. It skips price re-quoting and restores original settings/reservations. Rows with no request ID remain unresolved. Do not remove locks/journal to retry an ambiguous call. Estimates remain reserves unless the provider exposes a valid recorded charge. Valid charges exceeding the reserve are persisted before the run stops; they must never be hidden by a guard exception.
+
+Only the minimal shared POST execution-mode contract is carried onto this branch: external creative/video/quality/publishing/analytics boundaries require both server `POST_AUTOMATION_EXECUTION_MODE=LIVE` and the existing database mode RPC to return LIVE. Default SAFE, a missing RPC, database errors, or a missing server opt-in remain no-spend. No scheduler, account schema, migrations, TikTok configuration, production flags, or credentials are changed.
 
 ## Quality and metadata
 

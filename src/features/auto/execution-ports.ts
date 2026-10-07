@@ -20,6 +20,7 @@ import type { FrameVisionProvider } from "@/features/video/frame-verification";
 import { autoPublishMode, autoVideoQualityOutcome } from "./execution-policy";
 import { stableAutoKey } from "./engine";
 import type { ExecutionClaim, ExecutionPorts, StageOutcome } from "./processor";
+import { getPostAutomationExecutionMode, safeExecutionBoundary } from "./execution-mode";
 
 function id(claim: ExecutionClaim, key: string) {
   const value = claim.checkpoint[key];
@@ -47,7 +48,8 @@ export interface AutoExecutionBoundaries {
 }
 
 export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: AutoExecutionBoundaries = {}): ExecutionPorts {
-  const publishing = new TikTokPublishingService(admin, boundaries.publishingProvider);
+  let publishingService: TikTokPublishingService | undefined;
+  const publishing = () => publishingService ??= new TikTokPublishingService(admin, boundaries.publishingProvider);
   return {
     async FIND_OPPORTUNITY(claim) {
       const { data, error } = await admin.from("product_assignments").select("id,product_id,effective_mode,status")
@@ -65,6 +67,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       const project = await createProjectFromAssignment(admin, claim.ownerId, assignmentId);
       let detail = await getCreativeProjectDetail(admin, claim.ownerId, project.id);
       if (!detail.scripts.length) {
+        if (await getPostAutomationExecutionMode(admin) === "SAFE") return safeExecutionBoundary("CREATIVE");
         const account = await admin.from("tiktok_accounts").select("is_mock")
           .eq("owner_id", claim.ownerId).eq("id", claim.accountId).maybeSingle();
         must(account.error, "auto_account_read_failed");
@@ -82,6 +85,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       return { kind: "ADVANCE", evidence: { projectId: project.id, scriptId: detail.project.selected_script_id } };
     },
     async GENERATE_VIDEO(claim) {
+      if (await getPostAutomationExecutionMode(admin) === "SAFE") return safeExecutionBoundary("VIDEO");
       const { data: account, error } = await admin.from("tiktok_accounts").select("is_mock")
         .eq("owner_id", claim.ownerId).eq("id", claim.accountId).maybeSingle();
       must(error, "auto_account_read_failed");
@@ -121,6 +125,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
         && explanation && typeof explanation === "object" && "visualVerificationReason" in explanation
         && ["VISION_PROVIDER_UNAVAILABLE", "VISION_PROVIDER_ERROR"].includes(String(explanation.visualVerificationReason))
         && (boundaries.visionProvider || serverEnv.openAIApiKey)) {
+        if (await getPostAutomationExecutionMode(admin) === "SAFE") return safeExecutionBoundary("VISION");
         const verified = await reverifyAutoFalMaster(admin, { ownerId: claim.ownerId,
           accountId: claim.accountId, projectId: id(claim, "projectId"), videoId: data.id }, boundaries.visionProvider);
         return autoVideoQualityOutcome(verified);
@@ -143,6 +148,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       return { kind: "ADVANCE", evidence: { eligibilityStatus: status, complianceCheckId: gate.eligibility?.id } };
     },
     async QUEUE_PUBLISH(claim) {
+      if (await getPostAutomationExecutionMode(admin) === "SAFE") return safeExecutionBoundary("TIKTOK_QUEUE");
       const account = await admin.from("tiktok_accounts")
         .select("is_mock,authorization_status,audit_status,direct_post_status,granted_scopes")
         .eq("owner_id", claim.ownerId).eq("id", claim.accountId).maybeSingle();
@@ -150,7 +156,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       if (!account.data) throw new Error("auto_publish_account_missing");
       const publishMode = autoPublishMode(account.data, process.env.NODE_ENV === "development");
       if (!publishMode) return wait("WAITING_FOR_DATA", "DIRECT_POST_APPROVAL_REQUIRED");
-      const queued = await publishing.queueVideo({
+      const queued = await publishing().queueVideo({
         ownerId: claim.ownerId, accountId: claim.accountId, videoId: id(claim, "videoId"),
         videoKind: "MASTER", publishMode,
         idempotencyKey: stableAutoKey(claim.runId, claim.accountId, claim.itemIndex, "QUEUE_PUBLISH"),
@@ -158,6 +164,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       return { kind: "ADVANCE", evidence: { queueId: queued.id, publishMode } };
     },
     async PUBLISH(claim) {
+      if (await getPostAutomationExecutionMode(admin) === "SAFE") return safeExecutionBoundary("TIKTOK_PUBLISH");
       const queueId = id(claim, "queueId");
       const { data, error } = await admin.from("publishing_queue").select("id,status,external_state,consent_id,provider_publish_id,publish_mode")
         .eq("owner_id", claim.ownerId).eq("id", queueId).maybeSingle();
@@ -169,7 +176,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       if (["PUBLISHED", "DRAFT_DELIVERED"].includes(data.status)) return { kind: "ADVANCE", evidence: { publishStatus: data.status } };
       if (data.provider_publish_id) {
         try {
-          const refreshed = await publishing.fetchPublishStatus(claim.ownerId, queueId);
+          const refreshed = await publishing().fetchPublishStatus(claim.ownerId, queueId);
           if (["FAILED", "REJECTED", "CANCELLED"].includes(refreshed.status)) {
             return { kind: "SKIP_ITEM", reason: `PUBLISH_${refreshed.status}` };
           }
@@ -186,21 +193,21 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       if (data.status === "WAITING_FOR_SLOT") return wait("WAITING_FOR_SLOT", "PUBLISH_CAP");
       if (["REJECTED", "FAILED", "CANCELLED"].includes(data.status)) return { kind: "SKIP_ITEM", reason: `PUBLISH_${data.status}` };
       if (data.status === "DRAFT") {
-        const prepared = await publishing.preparePublish(claim.ownerId, queueId);
+        const prepared = await publishing().preparePublish(claim.ownerId, queueId);
         if (prepared.status === "WAITING_FOR_SLOT") return wait("WAITING_FOR_SLOT", "PUBLISH_CAP");
         if (prepared.status === "REJECTED") return { kind: "SKIP_ITEM", reason: "PUBLISH_GATE_REJECTED" };
       }
       if (!data.consent_id) return wait("WAITING_FOR_APPROVAL", "CONSENT");
       if (!await runIsActive(admin, claim)) return wait("WAITING_FOR_APPROVAL", "RUN_NOT_ACTIVE");
       const result = data.publish_mode === "DIRECT_POST"
-        ? await publishing.directPost(claim.ownerId, queueId)
-        : await publishing.uploadDraft(claim.ownerId, queueId);
+        ? await publishing().directPost(claim.ownerId, queueId)
+        : await publishing().uploadDraft(claim.ownerId, queueId);
       if (["DRAFT_DELIVERED", "PUBLISHED"].includes(result.status)) {
         return { kind: "ADVANCE", evidence: { publishStatus: result.status } };
       }
       if (result.provider_publish_id) {
         try {
-          const refreshed = await publishing.fetchPublishStatus(claim.ownerId, queueId);
+          const refreshed = await publishing().fetchPublishStatus(claim.ownerId, queueId);
           if (["FAILED", "REJECTED", "CANCELLED"].includes(refreshed.status)) {
             return { kind: "SKIP_ITEM", reason: `PUBLISH_${refreshed.status}` };
           }
@@ -218,6 +225,7 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       return wait("WAITING_FOR_DATA", "PUBLISH_RESULT_PENDING");
     },
     async COLLECT_ANALYTICS(claim) {
+      if (await getPostAutomationExecutionMode(admin) === "SAFE") return safeExecutionBoundary("ANALYTICS");
       const videoId = id(claim, "videoId");
       if (serverEnv.tiktokAnalyticsProvider === "official" || boundaries.analyticsIngestion) {
         const ingested = await (boundaries.analyticsIngestion ?? createProductionAnalyticsIngestion(admin)).collect({
