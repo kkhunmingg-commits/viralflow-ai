@@ -13,10 +13,11 @@ import threading
 import time
 from collections import OrderedDict
 from collections.abc import Iterator, Mapping
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Callable, Protocol, runtime_checkable
 
 from thai_speech import NORMALIZER_VERSION, estimate_duration, normalize_thai_speech, sentence_chunks
 from voice import MAX_SPEECH_CHUNK_BYTES, SpeechChunk
+from compliance_speech import ComplianceSpeechError
 
 if TYPE_CHECKING:
     from local_agent.model_manager import VerifiedLocalModel
@@ -86,7 +87,7 @@ class ManagedLocalTTSProvider:
     """
     def __init__(self, backend: PCMBackend, *, context_id: str, voice_pack_id: str = "default",
                  lexicon: Mapping[str, str] | None = None, cache_bytes: int = 8 * 1024 * 1024,
-                 timeout_seconds: float = 30.0):
+                 timeout_seconds: float = 30.0, compliance_authorize: Callable[[str], str] | None = None):
         if (not isinstance(context_id, str) or not context_id or len(context_id) > 300
                 or not isinstance(voice_pack_id, str) or not voice_pack_id or len(voice_pack_id) > 128
                 or type(cache_bytes) is not int or not 0 <= cache_bytes <= 32 * 1024 * 1024
@@ -105,6 +106,22 @@ class ManagedLocalTTSProvider:
         self._cache_limit = cache_bytes
         self._timeout = timeout_seconds
         self._hits = self._misses = 0
+        self._compliance_authorize = compliance_authorize
+
+    def bind_compliance(self, authorize: Callable[[str], str]) -> None:
+        """Trusted room controller binds the shared-engine gate before warmup/start."""
+        with self._lock:
+            if self._busy or self._warmed or self._compliance_authorize is not None:
+                raise RuntimeError("LIVE_COMPLIANCE_ALREADY_BOUND")
+            self._compliance_authorize = authorize
+
+    def _authorize(self, text: str, *, unchanged: bool = False) -> str:
+        if self._compliance_authorize is None:
+            raise ComplianceSpeechError()
+        safe = self._compliance_authorize(text)
+        if not isinstance(safe, str) or not safe.strip() or (unchanged and safe != text):
+            raise ComplianceSpeechError("LIVE_COMPLIANCE_BINDING_INVALID")
+        return safe
 
     def _active(self, generation: int, stop: threading.Event) -> bool:
         with self._lock:
@@ -131,6 +148,9 @@ class ManagedLocalTTSProvider:
         normalized = normalize_thai_speech(text, lexicon=self.lexicon)
         if not isinstance(utterance_id, str) or not utterance_id or len(utterance_id) > 128:
             raise ValueError("INVALID_SPEECH_REQUEST")
+        # Normalization/lexicon may affect spoken meaning. Check the exact full
+        # utterance BEFORE segmentation, native synthesis or audio-cache access.
+        normalized = self._authorize(normalized)
         with self._lock:
             if self._cancelled:
                 raise RuntimeError("SPEECH_CANCELLED")
@@ -182,6 +202,9 @@ class ManagedLocalTTSProvider:
                                 if not self._active(generation, stop):
                                     return
                                 chunk = SpeechChunk(fragment, utterance_id)
+                            self._authorize(normalized, unchanged=True)
+                            if not self._active(generation, stop):
+                                return
                             chunks.append(fragment)
                             yield chunk
                     if cached is None and self._active(generation, stop):

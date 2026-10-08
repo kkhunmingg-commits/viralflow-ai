@@ -1,5 +1,6 @@
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
+import { assertScriptCompliance, checkFinalMedia, commerceScope, scriptContent } from "../compliance-brain/server-runtime";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -183,6 +184,7 @@ async function persistMaster(admin: SupabaseClient, request: AutoFalRequest, job
     estimated_cost_usd: result.estimatedCostUsd, status: quality.status === "REJECT" ? "FAILED" : "READY" };
   const master = await admin.from("master_videos").upsert(row, { onConflict: "owner_id,creative_project_id" }).select("*").single();
   if (master.error || !master.data) throw new Error("auto_fal_master_write_failed");
+  await checkFinalMedia(admin, commerceScope(request.ownerId,String(source.product.id),request.accountId,String(source.product.category_key)),videoPath,scriptContent(source.script),"POST_GENERATION");
   const updated = await admin.from("generation_jobs").update({ master_video_id: master.data.id,
     status: "COMPLETED", output_json: { masterId: master.data.id, storagePath: videoPath,
       sourcePath, providerRequestId: result.requestId, quality }, completed_at: new Date().toISOString() })
@@ -208,6 +210,7 @@ export async function generateAutoFalMaster(admin: SupabaseClient, request: Auto
     readOne(admin, "tiktok_accounts", request.ownerId, request.accountId),
   ]);
   if (angle.policy_status !== "SAFE" || script.status === "REJECTED" || account.is_mock) throw new Error("auto_fal_creative_not_safe");
+  await assertScriptCompliance(admin,commerceScope(request.ownerId,String(product.id),request.accountId,String(product.category_key)),script);
   const prior = await existingMaster(admin, request);
   if ((prior?.status === "READY" || prior?.status === "APPROVED") && prior.quality_status === "PASS") return prior;
   if (prior?.status === "READY" && prior.quality_status === "RETRY") {
@@ -234,6 +237,7 @@ export async function generateAutoFalMaster(admin: SupabaseClient, request: Auto
   try {
     const paid = await submitAutoFalWithBudget({ ledger, reservation, provider, image, prompt: prompt({ product, script }),
       beforeSubmit: async () => {
+        await assertScriptCompliance(admin,commerceScope(request.ownerId,String(product.id),request.accountId,String(product.category_key)),script);
         const active = await admin.from("auto_runs").select("state")
           .eq("owner_id", request.ownerId).eq("id", request.runId).maybeSingle();
         if (active.error || active.data?.state !== "RUNNING") throw new PaidProviderNotSubmittedError("auto_run_not_active");

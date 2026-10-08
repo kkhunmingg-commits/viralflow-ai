@@ -548,7 +548,14 @@ class LocalAgent:
             sync = getattr(self._worker, "sync_product_context", None)
             if not callable(sync):
                 raise AgentError(503, "LOCAL_AI_UNAVAILABLE", "AI ยังอยู่ระหว่างเตรียมพร้อม")
-            sync(certificate["ownerId"], account, payload["products"])
+            # Preserve original server signature for the independent shared
+            # compliance authority. Product facts alone never authorize speech.
+            compliance_sync = getattr(self._worker, "sync_compliance_context", None)
+            if callable(compliance_sync):
+                compliance_sync(certificate["ownerId"], account, signed)
+            product_facts = [{name: product[name] for name in ("productId", "name", "version", "facts")}
+                             for product in payload["products"]]
+            sync(certificate["ownerId"], account, product_facts)
             with self._lock:
                 key = (certificate["ownerId"], account)
                 if key not in self._product_contexts and len(self._product_contexts) >= 10:

@@ -14,11 +14,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from local_ai_session import LocalAISession, LocalAIError
+from local_ai_session import LocalAISession, LocalAIError, _Speech
 from local_brain import BrainScope, InMemoryProductStore, LocalBrainProvider, PendingLocalBrainRuntime
 from local_llama_runtime import BrainRuntimeError, LlamaGeneration
 from local_tts import ManagedLocalTTSProvider, PendingLocalTTSProvider
 from local_agent.resource_manager import LocalResourceManager, LocalAIProfile
+from compliance_boundary_fixture import ApprovedDecisionBoundary
+from compliance_speech import ComplianceSpeechError
 
 
 class NativeModelBoundary:
@@ -95,20 +97,86 @@ def wait_until(predicate, seconds=2):
 
 class LocalAISessionTests(unittest.TestCase):
     def session(self, *, account="account-a", price=1290, runtime=None, voice=None, pending=False,
-                brain_timeout=0.3, pace=False, resources=None):
+                brain_timeout=0.3, pace=False, resources=None, compliance_transport=None, lexicon=None):
         scope = BrainScope("owner", account, "room-" + account)
         store = InMemoryProductStore()
         runtime = runtime or NativeModelBoundary()
         voice = voice or NativeVoiceBoundary()
         brain = LocalBrainProvider(runtime, store)
-        tts = PendingLocalTTSProvider() if pending else ManagedLocalTTSProvider(voice, context_id=scope.room_id)
+        tts = PendingLocalTTSProvider() if pending else ManagedLocalTTSProvider(voice, context_id=scope.room_id, lexicon=lexicon)
         output = []
         session = LocalAISession(scope, brain, tts, store, lambda pcm: output.append(pcm),
             product_ids=("product",), brain_timeout_seconds=brain_timeout, pace_audio=pace,
-            resource_manager=resources)
+            resource_manager=resources, compliance_transport=compliance_transport or ApprovedDecisionBoundary())
         session.sync_products([{"productId": "product", "name": "สินค้าทดสอบ", "version": "unit-v1", "facts": {"price": price}}])
         self.addCleanup(lambda: session.stop())
         return session, output, runtime, voice
+
+    def test_tts_normalization_cannot_change_the_approved_sentence_before_synthesis(self):
+        class Authority(ApprovedDecisionBoundary):
+            def __init__(self):
+                self.checked = []
+
+            def authorize(self, request, **kwargs):
+                self.checked.append(request["text"])
+                decision = super().authorize(request, **kwargs)
+                if "unsafe" in request["text"]:
+                    decision.update(allowed=False, finalStatus="REVIEW_REQUIRED")
+                return decision
+
+        authority = Authority()
+        session, output, _native, voice = self.session(compliance_transport=authority,
+            lexicon={"safe": "unsafe", "A": "safe"})
+        with self.assertRaisesRegex(ComplianceSpeechError, "LIVE_COMPLIANCE_BINDING_INVALID"):
+            session._speak(_Speech("dictionary", "A", 20, "SCRIPT", None, 1))
+        self.assertEqual(authority.checked, ["safe"])
+        self.assertEqual(voice.calls, [], "Unapproved normalized speech must not reach native synthesis")
+        self.assertEqual(output, [])
+
+    def test_policy_refusal_after_first_pcm_stops_remaining_audio(self):
+        class Authority(ApprovedDecisionBoundary):
+            allowed = True
+
+            def authorize(self, request, **kwargs):
+                decision = super().authorize(request, **kwargs)
+                if not self.allowed:
+                    decision.update(allowed=False, finalStatus="REVIEW_REQUIRED")
+                return decision
+
+        authority = Authority()
+        session, output, _native, voice = self.session(compliance_transport=authority)
+
+        def emit(pcm):
+            output.append(pcm)
+            authority.allowed = False
+
+        session._emit_pcm = emit
+        with self.assertRaisesRegex(ComplianceSpeechError, "LIVE_COMPLIANCE_REFUSED"):
+            session._speak(_Speech("revoked", "สคริปต์ปลอดภัย", 20, "SCRIPT", None, 1))
+        self.assertEqual(len(output), 1)
+        self.assertEqual(len(voice.calls), 1)
+
+    def test_refused_timeout_filler_records_failure_without_killing_scheduler(self):
+        class Authority(ApprovedDecisionBoundary):
+            allowed = True
+
+            def authorize(self, request, **kwargs):
+                decision = super().authorize(request, **kwargs)
+                if not self.allowed:
+                    decision.update(allowed=False, finalStatus="REVIEW_REQUIRED")
+                return decision
+
+        authority = Authority()
+        session, output, _native, _voice = self.session(runtime=NativeModelBoundary(delay=0.3),
+            brain_timeout=0.03, compliance_transport=authority)
+        self.assertTrue(session.warmup()["ready"])
+        session.start()
+        authority.allowed = False
+        session.submit_comment(self.comment("ขอบคุณที่มาไลฟ์วันนี้"))
+        self.assertTrue(wait_until(lambda: session.health()["code"] == "LIVE_COMPLIANCE_REFUSED"))
+        self.assertFalse(session.health()["ready"])
+        self.assertTrue(session._thread.is_alive())
+        self.assertEqual(output, [])
 
     def comment(self, text, key="comment", viewer="viewer"):
         return {"commentId": key, "viewerId": viewer, "text": text, "createdAtMs": 1000}
@@ -268,13 +336,20 @@ class LocalAISessionTests(unittest.TestCase):
 
     def test_stuck_native_inference_is_quarantined_and_stop_is_honest(self):
         released = threading.Event()
+        class ClosingAuthority(ApprovedDecisionBoundary):
+            closed = False
+
+            def close(self):
+                self.closed = True
+
         class NonCooperativeNative(NativeModelBoundary):
             def generate(self, *_args, **_kwargs):
                 self.calls += 1
                 released.wait(5)
                 return LlamaGeneration("ขอบคุณที่แวะมาคุยกันค่ะ", 0, None, 1, None)
         native = NonCooperativeNative()
-        session, _output, _, _ = self.session(runtime=native, brain_timeout=0.02)
+        authority = ClosingAuthority()
+        session, _output, _, _ = self.session(runtime=native, brain_timeout=0.02, compliance_transport=authority)
         session.warmup(); session.start()
         session.submit_comment(self.comment("ขอบคุณที่มาไลฟ์วันนี้", "first", "first"))
         self.assertTrue(wait_until(lambda: session.snapshot()["readiness"]["code"] == "LOCAL_AI_NATIVE_STOP_PENDING"))
@@ -285,6 +360,7 @@ class LocalAISessionTests(unittest.TestCase):
             with self.assertRaises(LocalAIError) as caught:
                 session.stop(timeout_seconds=0.02)
             self.assertEqual(caught.exception.code, "LOCAL_AI_NATIVE_STOP_PENDING")
+            self.assertTrue(authority.closed, "Room authority must close even while native cleanup is pending")
         finally:
             released.set()
         session.stop(timeout_seconds=1)

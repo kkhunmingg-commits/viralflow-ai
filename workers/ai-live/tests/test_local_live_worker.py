@@ -173,12 +173,14 @@ class LocalLiveWorkerTests(unittest.TestCase):
         self.reference.write_bytes(REFERENCE)
 
     def worker(self, credentials=None, **kwargs):
+        from compliance_boundary_fixture import ApprovedDecisionBoundary
         encoder = patch("local_agent.live_worker.InternalAVEncoder", WarmupEncoderFixture)
         encoder.start()
         self.addCleanup(encoder.stop)
         kwargs.setdefault("ai_provider_factory", lambda scope, store:
             (LocalBrainProvider(BrainModelFixture(), store),
              ManagedLocalTTSProvider(SpeechModelFixture(), context_id=scope.room_id)))
+        kwargs.setdefault("compliance_transport_factory", lambda _scope, _store: ApprovedDecisionBoundary())
         worker = LocalWorkerBoundary(self.root / "worker", credentials or Credentials(),
             engine_factory=InferenceFixture, provider_factory=ProviderFixture,
             stream_factory=MediaFixture, capability_probe=lambda: {"ready": True}, **kwargs)

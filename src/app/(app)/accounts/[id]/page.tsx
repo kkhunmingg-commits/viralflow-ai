@@ -7,6 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { DisconnectTikTokButton } from "../disconnect-tiktok-button";
 import { presentAccount } from "../account-presentation";
 import "../accounts.css";
+import {AccountSafetyCard} from "@/components/customer-control-center/account-safety";
+import {loadOwnerAccountSafety} from "@/features/compliance-brain/store";
 
 export const metadata: Metadata = { title: "บัญชี TikTok" };
 
@@ -20,6 +22,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
 
   const connection = presentAccount(account).connection;
   const disconnected = account.connection_status === "DISCONNECTED" || ["revoked", "disconnected"].includes(account.authorization_status);
+  const safety=await loadOwnerAccountSafety(supabase,userData.user.id,[account.id]);
   return <div className="accounts-page account-customer-detail">
     <Link className="accounts-detail-link" href="/accounts">← กลับไปบัญชีทั้งหมด</Link>
     <header className="accounts-hero"><div className="accounts-hero-copy"><p className="accounts-overline">บัญชีของคุณ</p>
@@ -39,5 +42,6 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         <Link className="accounts-detail-link" href={`/auto?account=${account.id}`}>ไปหน้า Home →</Link>
       </div>
     </section>
+    <AccountSafetyCard summary={safety[account.id]} />
   </div>;
 }

@@ -16,6 +16,7 @@ from typing import Callable
 
 from local_brain import BrainRequest, BrainScope, InMemoryProductStore, ProductSnapshot
 from voice import SpeechChunk
+from compliance_speech import LocalSpeechGate, ComplianceSpeechError
 
 
 class LocalAIError(RuntimeError):
@@ -34,28 +35,30 @@ class SafetyVoiceBuffer:
     def __init__(self, max_seconds: int = 120):
         if type(max_seconds) is not int or not 1 <= max_seconds <= 600:
             raise ValueError("INVALID_SAFETY_CAPACITY")
-        self._clips: deque[tuple[str | None, bytearray]] = deque()
+        self._clips: deque[tuple[str | None, str, bytearray]] = deque()
         self._maximum = max_seconds * 32_000
         self._lock = threading.Lock()
         self.activations = self.consumed_bytes = 0
 
-    def prepare(self, chunks: list[SpeechChunk], product_id: str | None = None) -> None:
-        if not chunks or any(not isinstance(chunk, SpeechChunk) for chunk in chunks):
+    def prepare(self, chunks: list[SpeechChunk], product_id: str | None = None, *, transcript: str) -> None:
+        if not transcript.strip() or not chunks or any(not isinstance(chunk, SpeechChunk) for chunk in chunks):
             raise LocalAIError("INVALID_SAFETY_VOICE_PCM")
         pcm = bytearray(b"".join(chunk.pcm16 for chunk in chunks))
         if not pcm or not any(pcm):
             raise LocalAIError("INVALID_SAFETY_VOICE_PCM")
         with self._lock:
-            if len(pcm) + sum(len(clip) for _, clip in self._clips) > self._maximum:
+            if len(pcm) + sum(len(clip) for _, _, clip in self._clips) > self._maximum:
                 raise LocalAIError("SAFETY_VOICE_CAPACITY")
-            self._clips.append((product_id, pcm))
+            self._clips.append((product_id, transcript, pcm))
 
-    def take(self, product_id: str | None) -> bytes | None:
+    def take(self, product_id: str | None, authorize: Callable[[str, str | None], str]) -> bytes | None:
         with self._lock:
             for entry in tuple(self._clips):
-                bound, pcm = entry
+                bound, transcript, pcm = entry
                 if bound is not None and bound != product_id:
                     continue
+                if authorize(transcript, bound) != transcript:
+                    raise ComplianceSpeechError("LIVE_COMPLIANCE_BINDING_INVALID")
                 result = bytes(pcm[:16_000])  # at most half a second
                 del pcm[:len(result)]
                 if not pcm:
@@ -66,13 +69,13 @@ class SafetyVoiceBuffer:
 
     def clear(self) -> None:
         with self._lock:
-            for _, clip in self._clips:
+            for _, _, clip in self._clips:
                 clip[:] = b"\0" * len(clip)
             self._clips.clear()
 
     def metrics(self) -> dict[str, object]:
         with self._lock:
-            return {"remaining_seconds": sum(len(clip) for _, clip in self._clips) / 32_000,
+            return {"remaining_seconds": sum(len(clip) for _, _, clip in self._clips) / 32_000,
                     "fallback_activations": self.activations,
                     "consumed_seconds": self.consumed_bytes / 32_000}
 
@@ -112,7 +115,8 @@ class LocalAISession:
                  interrupt_audio: Callable[[], None] = lambda: None,
                  gesture_intent: Callable[[str], None] = lambda _intent: None,
                  brain_timeout_seconds: float = 3, speech_timeout_seconds: float = 30,
-                 pace_audio: bool = True, resource_manager=None):
+                 pace_audio: bool = True, resource_manager=None, compliance_transport=None,
+                 compliance_timeout_seconds: float = 1):
         if not 0.01 <= brain_timeout_seconds <= 30 or not 0.01 <= speech_timeout_seconds <= 120:
             raise ValueError("INVALID_LOCAL_AI_DEADLINE")
         self.scope, self.brain, self.tts, self.product_store = scope, brain, tts, product_store
@@ -121,6 +125,13 @@ class LocalAISession:
         self._emit_pcm, self._interrupt_audio, self._gesture = emit_pcm, interrupt_audio, gesture_intent
         self._brain_timeout, self._speech_timeout, self._pace = brain_timeout_seconds, speech_timeout_seconds, pace_audio
         self._resources = resource_manager
+        self.compliance = LocalSpeechGate(compliance_transport, timeout_seconds=compliance_timeout_seconds)
+        self._tts_whole_text: str | None = None
+        self._tts_sentence_text: str | None = None
+        self._tts_product_id: str | None = None
+        bind_compliance = getattr(tts, "bind_compliance", None)
+        if bind_compliance is not None:
+            bind_compliance(self._authorize_tts)
         self.safety = SafetyVoiceBuffer()
         self._condition = threading.Condition(threading.RLock())
         self._comments: list[tuple[int, int, str, str]] = []
@@ -168,6 +179,11 @@ class LocalAISession:
         self._warmed = False
         self._error = "LOCAL_AI_WARMUP_REQUIRED"
         self.safety.clear()
+        try:
+            filler = self._authorize_text("ขอสักครู่นะคะ กำลังตรวจสอบข้อมูลให้ค่ะ", None)
+        except ComplianceSpeechError:
+            self._error = "LIVE_COMPLIANCE_UNAVAILABLE"
+            return self.health()
         brain = self.brain.warmup(timeout_seconds=30)
         voice = self.tts.warmup()
         self._warmed = brain.get("ready") is True and voice.get("ready") is True
@@ -175,8 +191,8 @@ class LocalAISession:
             self._error = "LOCAL_TTS_MODEL_PENDING" if voice.get("ready") is not True else "LOCAL_BRAIN_NOT_READY"
             return self.health()
         # Generic, finite filler only. Failed preparation never substitutes audio.
-        prepared = list(self.tts.stream_text("ขอสักครู่นะคะ กำลังตรวจสอบข้อมูลให้ค่ะ", "warmup-safety"))
-        self.safety.prepare(prepared)
+        prepared = list(self.tts.stream_text(filler, "warmup-safety"))
+        self.safety.prepare(prepared, transcript=filler)
         self._error = None
         return self.health()
 
@@ -195,15 +211,38 @@ class LocalAISession:
     def health(self) -> dict[str, object]:
         brain_ready = self.brain.health().get("ready") is True
         voice_ready = self.tts.health().get("ready") is True
-        if self._warmed and not (brain_ready and voice_ready):
+        compliance_ready = self.compliance.health().get("ready") is True
+        if self._warmed and not (brain_ready and voice_ready and compliance_ready):
             self._warmed = False
-        code = (self._error or ("LOCAL_BRAIN_NOT_READY" if not brain_ready else
+        code = (self._error or ("LIVE_COMPLIANCE_UNAVAILABLE" if not compliance_ready else "LOCAL_BRAIN_NOT_READY" if not brain_ready else
                 "LOCAL_TTS_MODEL_PENDING" if not voice_ready else
                 "LOCAL_AI_WARMUP_REQUIRED" if not self._warmed else "READY"))
-        return {"ready": self._warmed and brain_ready and voice_ready and not self._stop.is_set() and self._error is None,
+        return {"ready": self._warmed and brain_ready and voice_ready and compliance_ready and not self._stop.is_set() and self._error is None,
                 "brain_ready": brain_ready, "tts_ready": voice_ready,
                 "warmup_passed": self._warmed, "code": code,
                 "local": True, "requires_api_key": False}
+
+    def _context_version(self, product_id: str | None) -> str:
+        snapshot = self.product_store.fetch(self.scope, product_id) if product_id else None
+        return snapshot.version if snapshot else "GENERIC" if product_id is None else "UNKNOWN"
+
+    def _authorize_text(self, text: str, product_id: str | None, *, unchanged: bool = False) -> str:
+        return self.compliance.authorize(text, self.scope, product_id, self._context_version(product_id),
+            cancel_event=self._cancel, unchanged=unchanged).text
+
+    def _authorize_tts(self, text: str) -> str:
+        # The full utterance was normalized/checked before its sentence boundary.
+        # Cached audio and resumed sentences still recheck that whole context.
+        # The provider must synthesize that exact approved sentence: a second
+        # normalization/lexicon pass cannot silently change spoken meaning.
+        if self._tts_sentence_text is not None and text != self._tts_sentence_text:
+            raise ComplianceSpeechError("LIVE_COMPLIANCE_BINDING_INVALID")
+        self._authorize_text(self._tts_whole_text or text, self._tts_product_id, unchanged=True)
+        return text
+
+    def _safe_audio(self) -> bytes | None:
+        return self.safety.take(self.current_product_id,
+            lambda text, product_id: self._authorize_text(text, product_id, unchanged=True))
 
     def start(self) -> None:
         with self._condition:
@@ -319,7 +358,7 @@ class LocalAISession:
                 raise LocalAIError("LOCAL_AI_INTERRUPTED" if interrupted else "LOCAL_BRAIN_TIMEOUT")
             # Half-second wait tick, matching existing LivePipeline safety semantics.
             if deadline - time.monotonic() < self._brain_timeout - 0.5:
-                fallback = self.safety.take(self.current_product_id)
+                fallback = self._safe_audio()
                 if fallback:
                     if not activated:
                         self.safety.activations += 1
@@ -330,12 +369,19 @@ class LocalAISession:
         return result[0]
 
     def _speak(self, request: _Speech) -> None:
-        from thai_speech import sentence_chunks
+        from thai_speech import sentence_chunks, normalize_thai_speech
+        whole = normalize_thai_speech(request.text, lexicon=getattr(self.tts, "lexicon", None))
+        safe = self._authorize_text(whole, request.product_id)
+        if safe != whole and request.sentence_index:
+            raise ComplianceSpeechError("LIVE_COMPLIANCE_BINDING_INVALID")
+        request.text = safe
+        self._tts_whole_text, self._tts_product_id = safe, request.product_id
         sentences = sentence_chunks(request.text)
         deadline = time.monotonic() + self._speech_timeout
         self._gesture(request.gesture)
         for index in range(request.sentence_index, len(sentences)):
             request.sentence_index = index
+            self._tts_sentence_text = sentences[index]
             with self._admit("TTS", self._cancel, min(30, self._speech_timeout)):
                 for chunk in self.tts.stream_text(sentences[index], request.key + ":" + str(index)):
                     if time.monotonic() >= deadline:
@@ -343,8 +389,10 @@ class LocalAISession:
                         raise LocalAIError("LOCAL_TTS_TIMEOUT")
                     if not isinstance(chunk, SpeechChunk):
                         raise LocalAIError("INVALID_SPEECH_CHUNK")
+                    self._authorize_text(request.text, request.product_id, unchanged=True)
                     self._output(chunk.pcm16)
             request.sentence_index = index + 1
+        self._tts_whole_text, self._tts_sentence_text, self._tts_product_id = None, None, None
 
     def _run(self) -> None:
         while not self._stop.is_set():
@@ -375,28 +423,42 @@ class LocalAISession:
                     self._last_comment = active.text
                     self._events.append("กำลังตอบผู้ชม")
                     reply = self._answer(active.text)
-                    active.text, active.gesture = reply.text, reply.gesture_intent
-                    self._response = reply.text
+                    try:
+                        text = self._authorize_text(reply.text, active.product_id)
+                    except ComplianceSpeechError as error:
+                        if error.code != "LIVE_COMPLIANCE_REFUSED":
+                            raise
+                        text = self._authorize_text("ฉันยังไม่มีข้อมูลที่ยืนยันเรื่องนี้ จึงไม่ขอกล่าวอ้างเพิ่มเติม", active.product_id)
+                        self._events.append("ปรับคำตอบเพื่อความปลอดภัย")
+                    active.text, active.gesture = text, reply.gesture_intent
+                    self._response = text
                     self._replies += 1
                 self._events.append("กำลังพูด")
                 self._speak(active)
             except Exception as error:
                 code = getattr(error, "code", str(error))
-                if self._cancel.is_set() and active.source == "SCRIPT" and not self._stop.is_set():
+                if self._cancel.is_set() and active.source == "SCRIPT" and not self._stop.is_set() and not isinstance(error, ComplianceSpeechError):
                     with self._condition:
                         self._speech.append(active)  # resume at current sentence, no overlapping PCM
                 elif code in ("LOCAL_BRAIN_TIMEOUT", "LOCAL_BRAIN_CANCELLED") and not self._paused and not self._stop.is_set():
                     if self._error != "LOCAL_AI_NATIVE_STOP_PENDING":
                         self._cancel = threading.Event()
-                        fallback = self.safety.take(self.current_product_id)
-                        if fallback:
-                            self.safety.activations += 1
-                            self._output(fallback)
+                        try:
+                            fallback = self._safe_audio()
+                            if fallback:
+                                self.safety.activations += 1
+                                self._output(fallback)
+                        except ComplianceSpeechError as fallback_error:
+                            self._error = (fallback_error.code if fallback_error.code in (
+                                "LIVE_COMPLIANCE_REFUSED", "LIVE_COMPLIANCE_BINDING_INVALID")
+                                else "LIVE_COMPLIANCE_UNAVAILABLE")
                 elif code != "LOCAL_AI_INTERRUPTED":
-                    self._error = code if code in ("LOCAL_TTS_MODEL_PENDING", "LOCAL_TTS_TIMEOUT", "LOCAL_AI_NATIVE_STOP_PENDING") else "LOCAL_AI_RESPONSE_FAILED"
+                    self._error = code if code in ("LOCAL_TTS_MODEL_PENDING", "LOCAL_TTS_TIMEOUT", "LOCAL_AI_NATIVE_STOP_PENDING",
+                        "LIVE_COMPLIANCE_UNAVAILABLE", "LIVE_COMPLIANCE_REFUSED", "LIVE_COMPLIANCE_BINDING_INVALID") else "LOCAL_AI_RESPONSE_FAILED"
             finally:
                 with self._condition:
                     self._active = None
+                self._tts_whole_text, self._tts_sentence_text, self._tts_product_id = None, None, None
                 self._gesture("neutral")
 
     def snapshot(self) -> dict[str, object]:
@@ -418,6 +480,9 @@ class LocalAISession:
             self._comments.clear()
             self._speech.clear()
             self._condition.notify_all()
+        # The compliance child belongs to this room. Release it even when a
+        # noncooperative native model subsequently prevents complete cleanup.
+        self.compliance.close()
         self.tts.cancel()
         self.brain.close()
         for thread in (self._thread, self._native_thread):

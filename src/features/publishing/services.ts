@@ -274,7 +274,9 @@ export class TikTokPublishingService {
     if (queue.status !== "APPROVED" && queue.status !== "QUEUED" && queue.status !== "RETRYING") throw new PublishingError("queue_not_approved");
     if(queue.shoppable_content_intent_id)await assertShoppableIntentReady(this.admin,ownerId,queue.shoppable_content_intent_id);
     const { account, video, asset } = await this.accountAndMedia(queue, expectedMode === "DIRECT_POST");
-    const gate = await runPrePublishGate(this.admin, ownerId, queue.video_kind === "MASTER" ? "master" : "variation", queue.video_id, true);
+    const { source, media } = await this.mediaSource(queue, string(video.storage_path), string(asset.mime_type));
+    const gate = await runPrePublishGate(this.admin, ownerId, queue.video_kind === "MASTER" ? "master" : "variation", queue.video_id, true,
+      {caption:queue.caption_snapshot,isAigc:queue.is_aigc,deliveryMedia:media});
     if (gate.eligibility.finalStatus !== "READY_TO_PUBLISH") throw new PublishingError(`phase_6c_${gate.eligibility.finalStatus.toLowerCase()}`);
     const capacity = await this.capacity(queue);
     if (capacity.remaining <= 0) return this.transition(queue, "WAITING_FOR_SLOT", { scheduled_for: deterministicNextDaySlot(queue.id) }, "SYSTEM", "EFFECTIVE_CAP_REACHED");
@@ -289,7 +291,16 @@ export class TikTokPublishingService {
       throw new PublishingError(error instanceof Error ? error.message : "publishing_permission_not_ready");
     }
 
-    const { source, media } = await this.mediaSource(queue, string(video.storage_path), string(asset.mime_type));
+    const checkedQueue=queue;
+    const checkedSettingsHash=consentHash(this.settings(queue));
+    const assertCheckedSnapshot=(candidate:PublishQueueRow)=>{
+      if(candidate.id!==checkedQueue.id||candidate.owner_id!==checkedQueue.owner_id
+        ||candidate.tiktok_account_id!==checkedQueue.tiktok_account_id||candidate.video_id!==checkedQueue.video_id
+        ||candidate.video_kind!==checkedQueue.video_kind||candidate.publish_mode!==checkedQueue.publish_mode
+        ||candidate.source_method!==checkedQueue.source_method||candidate.pull_from_url!==checkedQueue.pull_from_url
+        ||candidate.consent_id!==checkedQueue.consent_id||consentHash(this.settings(candidate))!==checkedSettingsHash)
+        throw new PublishingError("compliance_snapshot_changed");
+    };
     const accessToken = await this.accessToken(queue);
     const claim = await this.admin.rpc("claim_publish_operation", {
       p_owner_id: ownerId,
@@ -314,11 +325,15 @@ export class TikTokPublishingService {
     const attemptId = claimed.attemptId;
     let submissionStarted = false;
     try {
+      // A concurrent approval cannot replace the content, consent or media checked above.
+      assertCheckedSnapshot(queue);
       const begun = await this.admin.rpc("begin_publish_submission", {
         p_owner_id: ownerId, p_queue_id: queue.id, p_lease_token: leaseToken,
       });
       if (begun.error || !begun.data) throw new PublishingError("publish_lease_lost");
       submissionStarted = true;
+      queue=begun.data as PublishQueueRow;
+      assertCheckedSnapshot(queue);
       const initialized = expectedMode === "DIRECT_POST"
         ? await this.provider.directPost(accessToken, this.settings(queue), source)
         : await this.provider.uploadDraft(accessToken, source);

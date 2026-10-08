@@ -8,6 +8,8 @@ import { MockAIProvider,OpenAIProvider,generateValidated } from "./providers";
 import { scoreCreativeConcept } from "./scoring";
 import { CREATIVE_SCORE_VERSION,PROMPT_VERSION,type CreativeProjectRow } from "./types";
 import { canStartCreativeProject,nextProjectStatus } from "./lifecycle";
+import { commerceScope, generationConstraints, evaluateProductionCompliance } from "../compliance-brain/server-runtime";
+import { passesCompliance } from "../compliance-brain/gates";
 
 async function one(client:SupabaseClient,table:string,owner:string,id:string){
   const {data,error}=await client.from(table).select("*").eq("owner_id",owner).eq("id",id).maybeSingle();
@@ -57,13 +59,35 @@ function providerFor(context:Awaited<ReturnType<typeof loadCreativeContext>>["co
   return new MockAIProvider(context);
 }
 export async function generateCreativeProject(client:SupabaseClient,owner:string,projectId:string,options:{forceMock?:boolean;forAutoWorker?:boolean}={}){
-  const {project,context}=await loadCreativeContext(client,owner,projectId),provider=providerFor(context,options.forceMock),generationId=randomUUID(),prompt=buildCreativePrompt(context);
+  const {project,context}=await loadCreativeContext(client,owner,projectId);
+  const scope=commerceScope(owner,project.product_id,project.tiktok_account_id,context.product.category);
+  context.complianceConstraints=await generationConstraints(client,scope);
+  const provider=providerFor(context,options.forceMock),generationId=randomUUID(),prompt=buildCreativePrompt(context);
   const generatingStatus=nextProjectStatus(project.status,"GENERATE");
   const generating=await client.from("creative_projects").update({status:generatingStatus}).eq("owner_id",owner).eq("id",projectId);
   if(generating.error)throw new Error(generating.error.message);
   try{
     const {result,output}=await generateValidated(provider,prompt);
     const scored=output.concepts.map((concept,index)=>scoreCreativeConcept(concept,context,output.concepts.slice(0,index)));
+    for(const item of scored){
+      const concept=item.concept;
+      const checked=await evaluateProductionCompliance(client,{scope,stage:"PRE_GENERATION",content:{hook:concept.hook,
+        script:concept.voiceScript,cta:concept.cta,caption:concept.caption,hashtags:concept.hashtags,
+        onScreenText:concept.overlayText.map(overlay=>overlay.text),visibleClaims:[concept.coreMessage,concept.visualStrategy]}},true);
+      if(!passesCompliance(checked.decision)){
+        item.riskStatus=checked.decision.status==="BLOCK"?"REJECT":"REVIEW";
+        item.riskReasons.push("COMPLIANCE_REVIEW_REQUIRED");
+      }else if(checked.decision.rewrites.length){
+        // Apply the rescanned text, not the original unsafe draft.
+        concept.hook=checked.input.content.hook??"";concept.voiceScript=checked.input.content.script??"";
+        concept.cta=checked.input.content.cta??"";concept.caption=checked.input.content.caption??"";
+        concept.hashtags=checked.input.content.hashtags??[];concept.overlayText=[];
+        // A rewrite cannot silently authorize an unchanged visual/scene plan.
+        item.riskStatus="REVIEW";item.riskReasons.push("COMPLIANCE_VISUAL_PLAN_REVIEW_REQUIRED");
+      }else{
+        item.riskStatus="SAFE";item.riskReasons=[];
+      }
+    }
     const angleIds=scored.map(()=>randomUUID());
     const angles=scored.map((s,index)=>({id:angleIds[index],owner_id:owner,creative_project_id:projectId,angle_type:s.concept.angleType,title:s.concept.title,hook:s.concept.hook,core_message:s.concept.coreMessage,cta_strategy:s.concept.cta,visual_strategy:s.concept.visualStrategy,score:s.score,confidence:s.confidence,policy_status:s.riskStatus,score_explanation_json:{...s.explanation,riskReasons:s.riskReasons},is_selected:false,created_at:new Date().toISOString()}));
     const scripts=scored.map((s,index)=>({id:randomUUID(),owner_id:owner,creative_project_id:projectId,creative_angle_id:angleIds[index],duration_seconds:8,hook_text:s.concept.hook,voice_script:s.concept.voiceScript,overlay_text_json:s.concept.overlayText,scene_plan_json:s.concept.scenePlan,cta_text:s.concept.cta,caption:s.concept.caption,hashtags_json:s.concept.hashtags,language:"th",status:s.riskStatus==="REJECT"?"REJECTED":"DRAFT",version:CREATIVE_SCORE_VERSION,created_at:new Date().toISOString(),updated_at:new Date().toISOString()}));

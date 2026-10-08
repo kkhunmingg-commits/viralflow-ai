@@ -86,6 +86,7 @@ class LocalWorkerBoundary:
                  store_factory: Callable = LiveStore,
                  microphone_factory: Callable | None = None,
                  ai_provider_factory: Callable | None = None,
+                 compliance_transport_factory: Callable | None = None,
                  resource_manager=None,
                  stop_timeout_seconds: float = 15):
         self.data_dir = Path(data_dir)
@@ -98,7 +99,9 @@ class LocalWorkerBoundary:
         self._store_factory = store_factory
         self._ai_provider_factory = ai_provider_factory or (lambda scope, products:
             (LocalBrainProvider(PendingLocalBrainRuntime(), products), PendingLocalTTSProvider()))
+        self._compliance_transport_factory = compliance_transport_factory
         self._product_contexts: dict[tuple[str, str], list[dict[str, object]]] = {}
+        self._compliance_contexts: dict[tuple[str, str], object] = {}
         self._ai_probe: LocalAISession | None = None
         self._prepared = {}
         self._resources = resource_manager or LocalResourceManager(select_profile(physical_memory_mib()[0] / 1024, None))
@@ -181,8 +184,38 @@ class LocalWorkerBoundary:
         store = InMemoryProductStore()
         scope = BrainScope(owner_id, account_id, room_id)
         brain, voice = self._ai_provider_factory(scope, store)
+        authority = self._compliance_transport_factory(scope, store) if self._compliance_transport_factory else None
+        signed = self._compliance_contexts.get((owner_id, account_id))
+        sync = getattr(authority, "sync_context", None)
+        if signed is not None and callable(sync):
+            sync(signed)
         return LocalAISession(scope, brain, voice, store, emit_pcm, product_ids=tuple(product_ids),
-                              interrupt_audio=interrupt_audio, resource_manager=self._resources)
+                              interrupt_audio=interrupt_audio, resource_manager=self._resources,
+                              compliance_transport=authority)
+
+    def sync_compliance_context(self, owner_id, account_id, signed):
+        # Only called through the existing authenticated agent/inherited pipe.
+        # The managed TypeScript authority independently verifies the envelope.
+        import copy
+        if (not isinstance(signed, dict) or not isinstance(signed.get("payload"), dict)
+                or signed["payload"].get("ownerId") != owner_id
+                or signed["payload"].get("accountId") != account_id):
+            raise self._error("LOCAL_PRODUCT_SCOPE_MISMATCH", 422)
+        key = (owner_id, account_id)
+        with self._lock:
+            if key not in self._compliance_contexts and len(self._compliance_contexts) >= 10:
+                raise self._error("ROOM_CAPACITY_REACHED", 409)
+            targets = ([self._prepared[key]["ai"]] if key in self._prepared else []) + [record.ai
+                for record in self._sessions.values() if not record.stopped and record.owner_id == owner_id
+                and record.account_id == account_id and record.ai]
+            for ai in targets:
+                # Context refresh interrupts any stale utterance before replacing
+                # decision authority; the subsequent facts sync replaces its queue.
+                ai.tts.interrupt()
+                sync = getattr(ai.compliance.transport, "sync_context", None)
+                if callable(sync):
+                    sync(signed)
+            self._compliance_contexts[key] = copy.deepcopy(signed)
 
     def warmup(self) -> dict[str, object]:
         # Selection/reference are required for genuine presenter/encoder warmup.
@@ -654,3 +687,4 @@ class LocalWorkerBoundary:
         if self._ai_probe:
             self._ai_probe.stop()
         self._product_contexts.clear()
+        self._compliance_contexts.clear()

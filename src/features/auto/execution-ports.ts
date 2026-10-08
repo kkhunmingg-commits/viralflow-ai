@@ -138,11 +138,9 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
     async COMPLIANCE_CHECK(claim) {
       const postingMode = await executionPostingMode(admin, claim);
       const videoId = id(claim, "videoId");
-      let gate = await getLatestVideoGate(admin, claim.ownerId, videoId);
-      if (!gate.eligibility) {
-        await runPrePublishGate(admin, claim.ownerId, "master", videoId, false);
-        gate = await getLatestVideoGate(admin, claim.ownerId, videoId);
-      }
+      // Stored eligibility is history, not authority for a changed policy, claim or media asset.
+      await runPrePublishGate(admin, claim.ownerId, "master", videoId, false);
+      const gate = await getLatestVideoGate(admin, claim.ownerId, videoId);
       if (postingMode === "EXPORT") {
         if (exportContentGate(gate)) return { kind: "ADVANCE", evidence: { postingMode, eligibilityStatus: "EXPORT_CONTENT_PASSED" } };
         if (gate.compliance?.overall_status === "REJECT" || ["REJECT", "TOO_SIMILAR"].includes(String(gate.originality?.originality_status))) {

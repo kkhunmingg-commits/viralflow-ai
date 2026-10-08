@@ -7,6 +7,8 @@ import { SafetyVoiceBuffer, SAFETY_VOICE_CATEGORIES } from "./safety-voice-buffe
 import { LivePolicyGuard, type LivePolicyConfiguration } from "./live-policy";
 import { unifiedAccountPerformance } from "./analytics-contract";
 import type { LiveSessionSnapshot } from "./session-controller";
+// Only the decision-service transport is substituted in these scheduler tests.
+const compliance = { authorize: async (text: string) => ({ allowed: true, text }) };
 
 function pack(ownerId = "owner-a"): PresenterPack {
   return { id: "presenter-a", ownerId, name: "คน LIVE หนึ่ง", identity: {
@@ -28,7 +30,7 @@ function resources(): LiveRoomResources {
     save: async (snapshot) => { records.set(snapshot.id, structuredClone(snapshot)); } },
     brain: new RuleBasedLiveBrain(), voice: { async *streamText() { yield new Uint8Array([1, 2]); },
       interrupt: vi.fn(async () => {}), cancel: vi.fn(async () => {}) }, presenterAudio: { pushAudioChunk: vi.fn(async () => {}) },
-    encoder: {}, stream: {}, safetyVoice: new SafetyVoiceBuffer(), allowMock: true };
+    encoder: {}, stream: {}, safetyVoice: new SafetyVoiceBuffer({ compliance }), compliance, allowMock: true };
 }
 const policy: ConcurrentLivePolicy = { platformMaxRooms: 3, regionMaxRooms: { TH: 3 }, accountMaxRooms: 1,
   deviceCapacity: { status: "VERIFIED_CAPACITY", maxRooms: 3, renderer: "fixture-boundary-only", measuredAtMs: 1, benchmarkEvidenceId: "test-fixture" } };
@@ -198,7 +200,7 @@ describe("speech interruption and real safety audio", () => {
       else yield new Uint8Array([9, 10]);
     }, interrupt: vi.fn(async () => {}), cancel: vi.fn(async () => {}) };
     const gestures = { onIntent: vi.fn(async () => {}), neutral: vi.fn(async () => {}) };
-    const scheduler = new LiveSpeechScheduler({ voice, gestures, presenterAudio: { pushAudioChunk: async (_session, chunk) => {
+    const scheduler = new LiveSpeechScheduler({ voice, gestures, compliance, presenterAudio: { pushAudioChunk: async (_session, chunk) => {
       activeSends += 1; maximum = Math.max(maximum, activeSends); sent.push(chunk[0]);
       if (chunk[0] === 1) { firstAudio.resolve(); await release.promise; }
       activeSends -= 1;
@@ -223,13 +225,13 @@ describe("speech interruption and real safety audio", () => {
 
   it("prepares all 7 categories using a real voice boundary, isolates products and consumes PCM without silent loops", async () => {
     let now = 0;
-    const buffer = new SafetyVoiceBuffer({ now: () => now, maxSeconds: 1 });
+    const buffer = new SafetyVoiceBuffer({ now: () => now, maxSeconds: 1, compliance });
     const voice = { async *streamText() { yield new Uint8Array([1, 0, 2, 0]); }, interrupt: async () => {}, cancel: async () => {} };
     expect(await buffer.prepareFromVoice(SAFETY_VOICE_CATEGORIES.map((category) => ({ id: category, category, productId: category === "FILLER" ? null : "product-a", text: "ข้อความที่ตรวจแล้ว" })),
       voice, { signal: new AbortController().signal })).toBe(7);
-    const input = buffer.take("CTA", "product-b");
+    const input = await buffer.take("CTA", "product-b");
     expect(input).toEqual(new Uint8Array([1, 0, 2, 0])); // generic filler, never product A's CTA
-    expect(buffer.take("CTA", "product-b")).toBeNull();
+    expect(await buffer.take("CTA", "product-b")).toBeNull();
     buffer.activate(); buffer.markWaiting(); now = 500; buffer.markAudio();
     expect(buffer.metrics()).toMatchObject({ preparedClips: 6, consumedSeconds: 4 / 32_000, fallbackActivations: 1, deadAirMs: 500 });
     expect(() => buffer.prepare({ id: "fake", category: "FILLER", productId: null, provenance: "RECORDED", pcm16: new Uint8Array(16), sampleRate: 16_000, channels: 1 })).toThrow("invalid_safety_voice_pcm");
@@ -237,11 +239,11 @@ describe("speech interruption and real safety audio", () => {
   });
 
   it("uses only prepared PCM on voice failure and returns to normal interaction without creating a replacement session", async () => {
-    const buffer = new SafetyVoiceBuffer();
-    buffer.prepare({ id: "backup", category: "FILLER", productId: null, provenance: "RECORDED", pcm16: new Uint8Array([11, 12]), sampleRate: 16_000, channels: 1 });
+    const buffer = new SafetyVoiceBuffer({ compliance });
+    buffer.prepare({ id: "backup", category: "FILLER", productId: null, provenance: "RECORDED", transcript: "ขอสักครู่ค่ะ", pcm16: new Uint8Array([11, 12]), sampleRate: 16_000, channels: 1 });
     let fail = true; const sent: number[] = [];
     const voice = { async *streamText() { if (fail) throw new Error("network_timeout"); yield new Uint8Array([21, 22]); }, interrupt: vi.fn(async () => {}), cancel: vi.fn(async () => {}) };
-    const scheduler = new LiveSpeechScheduler({ voice, buffer, presenterAudio: { pushAudioChunk: async (_id, chunk) => { sent.push(chunk[0]); } } });
+    const scheduler = new LiveSpeechScheduler({ voice, buffer, compliance, presenterAudio: { pushAudioChunk: async (_id, chunk) => { sent.push(chunk[0]); } } });
     scheduler.enqueue({ id: "question-1", text: "Reply", source: "COMMENT", priority: 80, productId: "p", intent: "PRODUCT" });
     expect(await scheduler.runNext("session")).toMatchObject({ status: "BUFFERED", audioChunks: 1 });
     fail = false;
@@ -257,7 +259,7 @@ describe("speech interruption and real safety audio", () => {
     const answer = defer<Awaited<ReturnType<RuleBasedLiveBrain["decide"]>>>();
     const owned = resources();
     owned.brain.decide = () => answer.promise;
-    owned.safetyVoice.prepare({ id: "filler", category: "FILLER", productId: null, provenance: "RECORDED", pcm16: new Uint8Array([11, 12]), sampleRate: 16_000, channels: 1 });
+    owned.safetyVoice.prepare({ id: "filler", category: "FILLER", productId: null, provenance: "RECORDED", transcript: "ขอสักครู่ค่ะ", pcm16: new Uint8Array([11, 12]), sampleRate: 16_000, channels: 1 });
     const room = new LiveRoomRegistry(policy, () => owned).create(selection("a"));
     await room.start("owner-a");
     const receive = room.receiveComment("owner-a", { commentId: "slow", viewerId: "v", text: "hello", createdAtMs: Date.now() });
@@ -275,10 +277,10 @@ describe("speech interruption and real safety audio", () => {
   it("covers slow streaming TTS with finite prepared voice chunks and continues with real interactive PCM", async () => {
     vi.useFakeTimers();
     const ready = defer<void>(); const sent: number[] = [];
-    const buffer = new SafetyVoiceBuffer();
+    const buffer = new SafetyVoiceBuffer({ compliance });
     const pcm = new Uint8Array(32_000); pcm.fill(11);
-    buffer.prepare({ id: "finite", category: "FILLER", productId: null, provenance: "RECORDED", pcm16: pcm, sampleRate: 16_000, channels: 1 });
-    const scheduler = new LiveSpeechScheduler({ buffer, timeoutMs: 5_000,
+    buffer.prepare({ id: "finite", category: "FILLER", productId: null, provenance: "RECORDED", transcript: "ขอสักครู่ค่ะ", pcm16: pcm, sampleRate: 16_000, channels: 1 });
+    const scheduler = new LiveSpeechScheduler({ buffer, compliance, timeoutMs: 5_000,
       voice: { async *streamText() { await ready.promise; yield new Uint8Array([21, 22]); }, interrupt: async () => {}, cancel: async () => {} },
       presenterAudio: { pushAudioChunk: async (_id, chunk) => { sent.push(chunk[0]); } } });
     scheduler.enqueue({ id: "slow", text: "reply", priority: 80, source: "COMMENT", productId: "p", intent: "PRODUCT" });
@@ -294,7 +296,7 @@ describe("speech interruption and real safety audio", () => {
 
   it("bounds a stalled encoder/audio boundary and fails closed rather than overlapping a new voice", async () => {
     vi.useFakeTimers();
-    const scheduler = new LiveSpeechScheduler({ voice: { async *streamText() { yield new Uint8Array([1, 2]); }, interrupt: async () => {}, cancel: async () => {} },
+    const scheduler = new LiveSpeechScheduler({ compliance, voice: { async *streamText() { yield new Uint8Array([1, 2]); }, interrupt: async () => {}, cancel: async () => {} },
       presenterAudio: { pushAudioChunk: () => new Promise(() => {}) }, timeoutMs: 100 });
     scheduler.enqueue({ id: "one", text: "one", priority: 80, source: "COMMENT", productId: null, intent: "GENERAL" });
     const execution = expect(scheduler.runNext("session")).rejects.toThrow("presenter_audio_timeout");

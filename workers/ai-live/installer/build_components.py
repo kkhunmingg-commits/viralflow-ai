@@ -176,6 +176,47 @@ def stage_worker(source: Path, target: Path) -> None:
         raise ValueError("Fixed managed worker entry is missing")
 
 
+def stage_compliance_runtime(node_source: Path, bundle: Path, trust_file: Path, runtime: Path, worker: Path) -> None:
+    """Publisher-supplied Node/engine and PUBLIC pins enter the existing signed release.
+
+    This never downloads or activates a policy, creates keys, or accepts secrets.
+    An absent bundle/policy is an explicit LIVE readiness blocker.
+    """
+    executable = node_source / "node.exe"
+    notices = [path for path in node_source.glob("LICENSE*") if path.is_file()]
+    if (not executable.is_file() or executable.is_symlink() or not notices
+            or not bundle.is_file() or bundle.is_symlink() or not 0 < bundle.stat().st_size <= 10 * 1024 * 1024
+            or not trust_file.is_file() or trust_file.is_symlink() or trust_file.stat().st_size > 64 * 1024):
+        raise ValueError("Publisher Node runtime, notices, bundled engine and public trust artifact are required")
+    trust = json.loads(trust_file.read_bytes())
+    if (not isinstance(trust, dict) or trust.get("format") != "viralflow-compliance-trust-v1"
+            or not {"format", "contextPublicKeys", "policyPublicKeys"}.issubset(trust)
+            or not set(trust).issubset({"format", "contextPublicKeys", "policyPublicKeys", "legacyContextPublicKey"})):
+        raise ValueError("Invalid compliance PUBLIC trust artifact")
+    from cryptography.hazmat.primitives.serialization import load_pem_public_key
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+    for name in ("contextPublicKeys", "policyPublicKeys"):
+        ring = trust[name]
+        if (not isinstance(ring, dict) or not 1 <= len(ring) <= 8
+                or any(not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9._-]{1,128}", key) for key in ring)):
+            raise ValueError("Invalid compliance PUBLIC trust ring")
+        for pem in ring.values():
+            if (not isinstance(pem, str) or len(pem) > 4096
+                    or not isinstance(load_pem_public_key(pem.encode()), Ed25519PublicKey)):
+                raise ValueError("Only Ed25519 PUBLIC keys may be packaged")
+    if "legacyContextPublicKey" in trust and (not isinstance(trust["legacyContextPublicKey"], str)
+            or not isinstance(load_pem_public_key(trust["legacyContextPublicKey"].encode()), Ed25519PublicKey)):
+        raise ValueError("Only Ed25519 PUBLIC context key may be packaged")
+    runtime.mkdir(parents=True, exist_ok=True); worker.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(executable, runtime / "node.exe")
+    for notice in notices:
+        if notice.is_symlink():
+            raise ValueError("Runtime notices must be regular files")
+        shutil.copyfile(notice, runtime / ("NODE-" + notice.name))
+    shutil.copyfile(bundle, worker / "compliance-local-bridge.cjs")
+    shutil.copyfile(trust_file, worker / "compliance-trust.json")
+
+
 def check_runtime(runtime: Path) -> None:
     # Locate dependencies without importing their native GPU/ML modules or
     # opening devices. Actual performance/driver validation remains separate.
@@ -264,6 +305,9 @@ def main() -> None:
                         help="Directory containing musetalk/ and any configured voice assets")
     parser.add_argument("--llama-runtime", type=Path,
                         help="Publisher verified llama.cpp Windows runtime directory including license notices")
+    parser.add_argument("--compliance-node-runtime", type=Path)
+    parser.add_argument("--compliance-bundle", type=Path)
+    parser.add_argument("--compliance-public-trust", type=Path)
     parser.add_argument("--stage", type=Path, required=True, help="New publisher workspace staging directory")
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--release-version", required=True)
@@ -279,6 +323,11 @@ def main() -> None:
     stage_python(args.python_source, runtime)
     install_locked_wheels(args.wheelhouse, args.requirements_lock, runtime)
     stage_worker(WORKER, runtime_stage / "worker")
+    compliance_inputs = (args.compliance_node_runtime, args.compliance_bundle, args.compliance_public_trust)
+    if any(compliance_inputs):
+        if not all(compliance_inputs):
+            raise ValueError("All three managed compliance artifacts are required together")
+        stage_compliance_runtime(*compliance_inputs, runtime, runtime_stage / "worker")
     if args.llama_runtime:
         if (not (args.llama_runtime / "llama-server.exe").is_file()
                 or not any(args.llama_runtime.glob("LICENSE*"))):

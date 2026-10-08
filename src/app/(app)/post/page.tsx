@@ -5,6 +5,7 @@ import { PostOverview } from "@/components/customer-control-center/post-overview
 import { customerPeriod } from "@/components/customer-control-center/presentation";
 import { AutoRefresh } from "../auto/auto-refresh";
 import "@/components/customer-control-center/customer-control-center.css";
+import {getCustomerAccountSafety} from "@/features/compliance-brain/customer-data";
 
 export const metadata: Metadata = { title: "POST" };
 
@@ -12,5 +13,6 @@ export default async function PostPage({ searchParams }: { searchParams: Promise
   const { period } = await searchParams;
   const data = await getCustomerOverview(customerPeriod(period));
   const requestKeys = Object.fromEntries(data.accounts.map((account) => [account.id, randomUUID()]));
-  return <><AutoRefresh /><PostOverview data={data} requestKeys={requestKeys} /></>;
+  const safetyByAccount=await getCustomerAccountSafety(data.accounts.map(account=>account.id));
+  return <><AutoRefresh /><PostOverview data={data} requestKeys={requestKeys} safetyByAccount={safetyByAccount} /></>;
 }

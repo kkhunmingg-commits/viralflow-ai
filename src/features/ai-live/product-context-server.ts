@@ -5,6 +5,7 @@ import { liveDeviceStatus } from "./device-registry";
 import { LOCAL_LEASE_VERSIONS, readLocalEntitlement } from "./local-license";
 import { ownsAvailableLiveSelection } from "./local-license-server";
 import { signLiveEnvelope, type LiveSigningConfiguration } from "./server-config";
+import { loadProductLedger } from "../compliance-brain/store";
 
 export const productContextRequestSchema = z.strictObject({
   deviceId: z.uuid(), accountId: z.uuid(), productIds: z.array(z.uuid()).min(1).max(10),
@@ -48,12 +49,19 @@ export async function issueLiveProductContext(input: {
   if (error || !Array.isArray(data) || data.length !== input.request.productIds.length) return null;
   const rows = data.map((row) => productRow.safeParse(row));
   if (rows.some((row) => !row.success)) return null;
-  const products = rows.map((parsed) => {
+  const products = await Promise.all(rows.map(async (parsed) => {
     if (!parsed.success) throw new Error("product_context_invalid");
     const row = parsed.data;
     if (row.owner_id !== input.ownerId || !input.request.productIds.includes(row.id)) throw new Error("product_context_invalid");
-    return { productId: row.id, name: row.title.slice(0, 160), version: row.updated_at, facts: projectLiveProductFacts(row) };
-  });
+    // Store metadata remains presentation context, never evidence for an advertising claim.
+    // Only the server-verified ClaimLedger travels to the local compliance authority.
+    const ledger = await loadProductLedger(input.client as SupabaseClient, input.ownerId, row.id).catch(() => null);
+    const compliance = ledger ? { platform: "TIKTOK_SHOP", country: "TH", region: "TH", category: "UNKNOWN",
+      claims: ledger.claims.filter(claim => claim.verified && claim.allowedChannels.includes("LIVE")),
+      evidence: ledger.evidence.filter(evidence => evidence.verified) } : null;
+    return { productId: row.id, name: row.title.slice(0, 160), version: row.updated_at,
+      facts: projectLiveProductFacts(row), compliance };
+  }));
   if (new Set(products.map((row) => row.productId)).size !== products.length) return null;
   // Database reads may take time. Recheck entitlement immediately before signing.
   const issuedAt = input.nowSeconds ?? Math.floor(Date.now() / 1000);

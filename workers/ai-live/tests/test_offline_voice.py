@@ -24,7 +24,7 @@ class OfflineVoiceTests(unittest.TestCase):
     @unittest.skipUnless(os.name == 'nt', 'Windows voice interface')
     def test_invalid_input_and_cancel_do_not_spawn_speech(self):
         with patch.dict(os.environ, {'AI_LIVE_DEV_FALLBACK': 'true', 'PRESENTER_PROVIDER': 'dev_fallback'}, clear=True), tempfile.TemporaryDirectory() as directory:
-            voice = WindowsOfflineVoice(Path(directory))
+            voice = WindowsOfflineVoice(Path(directory), compliance_authorize=lambda text: text)
             for text in ('', ' ' * 5, 'x' * 1001):
                 with self.assertRaisesRegex(ValueError, 'INVALID_SPEECH_REQUEST'):
                     list(voice.stream_text(text, 'utterance'))
@@ -37,7 +37,7 @@ class OfflineVoiceTests(unittest.TestCase):
     @unittest.skipUnless(os.name == 'nt' and os.getenv('AI_LIVE_TEST_REAL_VOICE') == 'true', 'Opt-in real Windows speech, requires native speech permission')
     def test_real_thai_speech_and_resource_cleanup(self):
         with patch.dict(os.environ, {'AI_LIVE_DEV_FALLBACK': 'true', 'PRESENTER_PROVIDER': 'dev_fallback', 'APP_ENV': 'development', 'NODE_ENV': 'development'}), tempfile.TemporaryDirectory() as directory:
-            voice = WindowsOfflineVoice(Path(directory))
+            voice = WindowsOfflineVoice(Path(directory), compliance_authorize=lambda text: text)
             chunks = list(voice.stream_text('สวัสดีค่ะ กำลังทดสอบเสียงจริง', 'real-thai'))
             self.assertTrue(chunks)
             self.assertTrue(all(0 < len(chunk.pcm16) <= 32000 and len(chunk.pcm16) % 2 == 0 for chunk in chunks))

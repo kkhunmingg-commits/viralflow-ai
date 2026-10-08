@@ -17,7 +17,7 @@ sys.path.insert(0, str(WORKER))
 MAX_MESSAGE = 6 * 1024 * 1024
 METHODS = {"health", "start_session", "pause_session", "resume_session", "stop_session",
            "recover_session", "push_audio", "preview_frame", "customer_stream", "close", "warmup",
-           "sync_product_context", "submit_comment", "queue_speech", "session_ai_status", "prepare_room"}
+           "sync_product_context", "sync_compliance_context", "submit_comment", "queue_speech", "session_ai_status", "prepare_room"}
 
 
 class _TrustedChildComponents:
@@ -88,6 +88,7 @@ def serve(source, destination, *, worker_factory=None) -> None:
             from local_brain import make_managed_local_brain, LocalBrainProvider, PendingLocalBrainRuntime
             from local_tts import make_managed_local_tts
             from local_agent.security import SecurityError
+            from compliance_node_transport import managed_compliance_factory
             components = _TrustedChildComponents(component_root, config.get("localModelFiles", {}))
             def local_providers(scope, product_store):
                 try:
@@ -98,7 +99,8 @@ def serve(source, destination, *, worker_factory=None) -> None:
                     brain = LocalBrainProvider(PendingLocalBrainRuntime(), product_store)
                 return brain, make_managed_local_tts(components, context_id="/".join(vars(scope).values()))
             worker_root = root / "worker" / "isolated" / room_id if room_id else root / "worker"
-            worker = LocalWorkerBoundary(worker_root, StreamCredentialStore(root / "live-credentials"), ai_provider_factory=local_providers)
+            worker = LocalWorkerBoundary(worker_root, StreamCredentialStore(root / "live-credentials"),
+                ai_provider_factory=local_providers, compliance_transport_factory=managed_compliance_factory(root, components))
         else:
             worker = worker_factory(root, profile, component_root)
         destination.write(b'{"ready":true}\n')
@@ -117,7 +119,7 @@ def serve(source, destination, *, worker_factory=None) -> None:
                         or request["method"] not in METHODS or not isinstance(request["args"], list)):
                     raise ValueError("INVALID_RUNTIME_REQUEST")
                 method, args = request["method"], request["args"]
-                expected = 0 if method in ("health", "close", "warmup") else 5 if method in ("start_session", "prepare_room") else 3 if method in ("push_audio", "sync_product_context", "submit_comment", "queue_speech") else 2
+                expected = 0 if method in ("health", "close", "warmup") else 5 if method in ("start_session", "prepare_room") else 3 if method in ("push_audio", "sync_product_context", "sync_compliance_context", "submit_comment", "queue_speech") else 2
                 if len(args) != expected:
                     raise ValueError("INVALID_RUNTIME_REQUEST")
                 if method in ("start_session", "prepare_room"):
@@ -131,7 +133,7 @@ def serve(source, destination, *, worker_factory=None) -> None:
                     if not all(isinstance(value, str) for value in args):
                         raise ValueError("INVALID_RUNTIME_REQUEST")
                     args[2] = base64.b64decode(args[2], validate=True)
-                elif method in ("sync_product_context", "submit_comment", "queue_speech"):
+                elif method in ("sync_product_context", "sync_compliance_context", "submit_comment", "queue_speech"):
                     if (not all(isinstance(value, str) and 0 < len(value) <= 128 for value in args[:2])
                             or not isinstance(args[2], list if method == "sync_product_context" else dict)):
                         raise ValueError("INVALID_RUNTIME_REQUEST")

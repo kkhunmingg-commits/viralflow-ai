@@ -2,6 +2,7 @@ import type { LiveIntent } from "./domain";
 import type { PresenterAudioPort, VoiceProvider } from "./live-pipeline";
 import { SafetyVoiceBuffer, type SafetyVoiceCategory } from "./safety-voice-buffer";
 import { liveDeadline, liveWaitTick } from "./live-timeout";
+import { authorizeSpeech, SpeechComplianceError, type SpeechCompliancePort } from "./compliance-speech";
 
 export const LIVE_SPEECH_PRIORITY = { SAFETY: 100, PRODUCT_QUESTION: 80, PURCHASE: 70, GREETING: 50, GENERAL: 30, FILLER: 10 } as const;
 export type LiveSpeechSource = "COMMENT" | "SCRIPT" | "MANUAL";
@@ -44,6 +45,7 @@ export class LiveSpeechScheduler {
   private interruptions = 0;
   private interruption: Promise<void> | null = null;
   private safetyPlaying = false;
+  private safetyAbort: AbortController | null = null;
   private audioBoundaryFailed = false;
   private outputSettled: Promise<void> | null = null;
   private outputGeneration = 0;
@@ -56,6 +58,8 @@ export class LiveSpeechScheduler {
     maxQueue?: number;
     timeoutMs?: number;
     now?: () => number;
+    compliance?: SpeechCompliancePort;
+    complianceTimeoutMs?: number;
   }) {}
 
   get busy(): boolean { return this.active !== null || this.safetyPlaying; }
@@ -88,6 +92,7 @@ export class LiveSpeechScheduler {
   /** Only the owner controller calls this after the runtime acknowledged idempotent resource release. */
   confirmStopped(): void {
     this.active?.abort.abort();
+    this.safetyAbort?.abort();
     this.active = null;
     this.queue = [];
     this.audioBoundaryFailed = false;
@@ -96,6 +101,7 @@ export class LiveSpeechScheduler {
 
   async interrupt(resumeScript = true): Promise<void> {
     if (this.interruption) return this.interruption;
+    this.safetyAbort?.abort();
     const active = this.active;
     if (!active) { if (this.outputSettled) await this.outputSettled; return; }
     active.abort.abort();
@@ -115,14 +121,16 @@ export class LiveSpeechScheduler {
     if (this.audioBoundaryFailed) throw new Error("presenter_audio_recovery_required");
     if (this.busy || this.paused || !this.deps.buffer) return { status: "IDLE", audioChunks: 0 };
     this.safetyPlaying = true;
+    const abort = new AbortController();
+    this.safetyAbort = abort;
     try {
-      const chunk = this.deps.buffer.take(category, productId);
+      const chunk = await this.deps.buffer.take(category, productId, 0.5, abort.signal);
       if (!chunk) { this.deps.buffer.markWaiting(); return { status: "IDLE", audioChunks: 0 }; }
       if (!continuation) this.deps.buffer.activate();
-      await this.pushAudio(sessionId, chunk);
+      await this.pushAudio(sessionId, chunk, undefined, abort.signal);
       this.deps.buffer.markAudio();
       return { status: "BUFFERED", audioChunks: 1 };
-    } finally { this.safetyPlaying = false; }
+    } finally { this.safetyPlaying = false; if (this.safetyAbort === abort) this.safetyAbort = null; }
   }
 
   async runNext(sessionId: string): Promise<SpeechRunResult> {
@@ -140,6 +148,15 @@ export class LiveSpeechScheduler {
     let buffered = false;
     this.deps.buffer?.markWaiting();
     try {
+      // Check the complete utterance before splitting it; a sentence fragment must
+      // never lose the unsafe claim's condition/context. Recheck resumed scripts.
+      const authorized = await authorizeSpeech(this.deps.compliance, request.text, abort.signal,
+        this.deps.complianceTimeoutMs ?? 1_000);
+      if (authorized !== request.text) {
+        if (request.segment > 0 || request.prepared) throw new SpeechComplianceError();
+        request.text = authorized;
+        request.segments = request.source === "SCRIPT" ? sentenceSegments(authorized) : [authorized];
+      }
       if (this.deps.gestures) await liveDeadline(this.deps.gestures.onIntent({ intent: request.intent, source: request.source, emphasis: /[!！]/u.test(request.text) }), this.deps.timeoutMs ?? 10_000, abort.signal);
       while (request.segment < request.segments.length && !abort.signal.aborted) {
         active.utteranceId = `${request.id}:segment:${request.segment}`;
@@ -148,6 +165,8 @@ export class LiveSpeechScheduler {
           if (!request.prepared) {
             const chunks: Uint8Array[] = [];
             let bytes = 0;
+            await authorizeSpeech(this.deps.compliance, request.text, abort.signal,
+              this.deps.complianceTimeoutMs ?? 1_000, true);
             const iterator = this.deps.voice.streamText(request.segments[request.segment], active.utteranceId, abort.signal)[Symbol.asyncIterator]();
             try {
               while (!abort.signal.aborted) {
@@ -168,13 +187,15 @@ export class LiveSpeechScheduler {
           if (prepared) {
             while (prepared.cursor < prepared.chunks.length && !abort.signal.aborted) {
               const chunk = prepared.chunks[prepared.cursor++];
-              await this.pushAudio(sessionId, chunk);
+              await this.pushAudio(sessionId, chunk, request.text, abort.signal);
               this.deps.buffer?.markAudio();
               audioChunks += 1;
             }
             if (prepared.cursor === prepared.chunks.length) { request.prepared = null; complete = true; }
           }
         } else {
+          await authorizeSpeech(this.deps.compliance, request.text, abort.signal,
+            this.deps.complianceTimeoutMs ?? 1_000, true);
           const iterator = this.deps.voice.streamText(request.segments[request.segment], active.utteranceId, abort.signal)[Symbol.asyncIterator]();
           try {
             while (!abort.signal.aborted) {
@@ -183,7 +204,7 @@ export class LiveSpeechScheduler {
               audioChunks += read.backupChunks;
               if (next.done) { complete = true; break; }
               if (abort.signal.aborted) break;
-              await this.pushAudio(sessionId, next.value);
+              await this.pushAudio(sessionId, next.value, request.text, abort.signal);
               this.deps.buffer?.markAudio();
               audioChunks += 1;
             }
@@ -194,11 +215,19 @@ export class LiveSpeechScheduler {
         if (complete) request.segment += 1;
       }
     } catch (cause) {
+      // A compliance refusal/unavailable authority is never replaced with an
+      // unchecked filler clip. The same shield also guards prepared buffer PCM.
+      if (cause instanceof SpeechComplianceError) {
+        abort.abort();
+        request.source = "COMMENT"; // do not endlessly resume a refused script
+        await this.interrupt(false);
+        throw cause;
+      }
       if (!abort.signal.aborted) {
         if (this.audioBoundaryFailed) throw cause;
         // Never mix delayed TTS output with backup voice. Cancel it before forwarding the buffer.
         await this.interrupt();
-        const fallback = this.deps.buffer?.take("FILLER", request.productId);
+        const fallback = await this.deps.buffer?.take("FILLER", request.productId);
         if (!fallback) throw cause;
         this.deps.buffer!.activate();
         await this.pushAudio(sessionId, fallback);
@@ -215,8 +244,11 @@ export class LiveSpeechScheduler {
     return { status: buffered ? "BUFFERED" : abort.signal.aborted ? "INTERRUPTED" : "COMPLETE", audioChunks, requestId: request.id };
   }
 
-  private async pushAudio(sessionId: string, chunk: Uint8Array): Promise<void> {
+  private async pushAudio(sessionId: string, chunk: Uint8Array, text?: string, signal?: AbortSignal): Promise<void> {
     const generation = this.outputGeneration;
+    if (text !== undefined) await authorizeSpeech(this.deps.compliance, text, signal,
+      this.deps.complianceTimeoutMs ?? 1_000, true);
+    if (signal?.aborted || this.paused || generation !== this.outputGeneration) throw new Error("speech_interrupted");
     const operation = liveDeadline(this.deps.presenterAudio.pushAudioChunk(sessionId, chunk), this.deps.timeoutMs ?? 10_000, undefined, "presenter_audio_timeout");
     this.outputSettled = operation;
     try {
@@ -235,10 +267,10 @@ export class LiveSpeechScheduler {
       const tick = await liveWaitTick(next, 500);
       if (tick.ready) return { result: tick.value, backupChunks };
       if (signal.aborted) throw new Error("speech_interrupted");
-      const chunk = this.deps.buffer.take("FILLER", productId);
+      const chunk = await this.deps.buffer.take("FILLER", productId, 0.5, signal);
       if (!chunk) continue; // The outer deadline still bounds an exhausted buffer; no silent loop/replay.
       if (!activated) { this.deps.buffer.activate(); activated = true; }
-      await this.pushAudio(sessionId, chunk);
+      await this.pushAudio(sessionId, chunk, undefined, signal);
       this.deps.buffer.markAudio();
       backupChunks += 1;
     }

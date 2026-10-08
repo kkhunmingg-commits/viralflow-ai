@@ -15,6 +15,7 @@ import {masterJobKey,nextJobAttempt,variationJobKey,variationRunId} from "./jobs
 import {videoStoragePath} from "./storage";
 import {templateFor,variationPlan} from "./templates";
 import {VIDEO_BUCKET,VIDEO_DURATION_SECONDS,VIDEO_FACTORY_VERSION,type SimilarityMetadata,type VideoBudget,type VideoRenderInput} from "./types";
+import { assertScriptCompliance, checkFinalMedia, commerceScope, scriptContent } from "../compliance-brain/server-runtime";
 
 type Row=Record<string,unknown>;
 async function one(client:SupabaseClient,table:string,owner:string,id:string){
@@ -58,6 +59,7 @@ async function source(client:SupabaseClient,owner:string,projectId:string){
   ]);
   if(!script||!angle||!account||!product)throw new Error("Selected creative source is incomplete");
   if(angle.policy_status!=="SAFE"||script.status==="REJECTED")throw new Error("Creative risk status must be SAFE");
+  await assertScriptCompliance(client,commerceScope(owner,String(product.id),String(account.id),String(product.category_key)),script);
   const input:VideoRenderInput={productTitle:String(product.title),hook:String(script.hook_text),cta:String(script.cta_text),overlay:script.overlay_text_json as VideoRenderInput["overlay"],scenes:script.scene_plan_json as VideoRenderInput["scenes"],template:templateFor(String(angle.angle_type))};
   return {project,script,angle,account,product,input};
 }
@@ -99,6 +101,7 @@ export async function buildMasterVideo(client:SupabaseClient,owner:string,projec
     ];
     const assetResult=await client.from("media_assets").upsert(assets,{onConflict:"owner_id,storage_path"});if(assetResult.error)throw new Error(assetResult.error.message);
     const status=quality.status==="REJECT"?"FAILED":"READY",update=await client.from("master_videos").update({storage_path:videoPath,duration_seconds:rendered.duration,width:rendered.width,height:rendered.height,fps:rendered.fps,quality_score:quality.score,quality_status:quality.status,quality_explanation_json:quality.explanation,status}).eq("owner_id",owner).eq("id",masterId);if(update.error)throw new Error(update.error.message);
+    await checkFinalMedia(client,commerceScope(owner,String(src.product.id),String(src.account.id),String(src.product.category_key)),videoPath,scriptContent(src.script),"POST_GENERATION");
     await recordZeroCost(client,owner,String(job.id));
     await client.from("generation_jobs").update({status:"COMPLETED",output_json:{masterId,storagePath:videoPath,quality,rendered,version:VIDEO_FACTORY_VERSION},completed_at:new Date().toISOString()}).eq("owner_id",owner).eq("id",job.id);
     return {...row,storage_path:videoPath,quality_score:quality.score,quality_status:quality.status,status};
@@ -140,6 +143,7 @@ export async function buildVideoVariation(client:SupabaseClient,owner:string,var
       productVisible:visualVerification.productVisible,ctaVisible:visualVerification.ctaVisible,malformedAssets:false,inheritedRisk:"SAFE"}),path=videoStoragePath(owner,"variations",String(variation.id),"video.mp4"),file=await upload(client,path,rendered.path,"video/mp4");
     await client.from("media_assets").upsert({owner_id:owner,product_id:variation.product_id,creative_project_id:variation.creative_project_id,asset_type:"VIDEO",source_type:"RENDERED",storage_path:path,mime_type:"video/mp4",width:rendered.width,height:rendered.height,duration_seconds:rendered.duration,provider:renderer.provider,model:renderer.model,checksum:file.checksum},{onConflict:"owner_id,storage_path"});
     const status=quality.status==="REJECT"?"FAILED":"READY";await client.from("video_variations").update({generation_job_id:job.id,storage_path:path,quality_score:quality.score,quality_status:quality.status,quality_explanation_json:quality.explanation,status}).eq("owner_id",owner).eq("id",variation.id);
+    await checkFinalMedia(client,commerceScope(owner,String(src.product.id),String(src.account.id),String(src.product.category_key)),path,{...scriptContent(src.script),hook:planData.hook,cta:planData.cta},"POST_GENERATION");
     await recordZeroCost(client,owner,String(job.id));
     await client.from("generation_jobs").update({status:"COMPLETED",output_json:{variationId:variation.id,storagePath:path,quality,rendered},completed_at:new Date().toISOString()}).eq("owner_id",owner).eq("id",job.id);
     return {...variation,generation_job_id:job.id,storage_path:path,quality_score:quality.score,quality_status:quality.status,status};

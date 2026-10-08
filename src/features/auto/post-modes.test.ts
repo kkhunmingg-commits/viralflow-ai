@@ -1,10 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createHash } from "node:crypto";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash,randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { OfficialTikTokPublishingProvider } from "@/features/publishing/provider";
 import type { ExecutionClaim } from "./processor";
+import {createSignedPolicyTestFixture} from "../compliance-brain/policy-test-fixtures";
 
 vi.mock("server-only", () => ({}));
+const authorityBoundary=vi.hoisted(()=>({admin:null as SupabaseClient|null}));
+vi.mock("@/lib/supabase/admin",()=>({createAdminClient:()=>authorityBoundary.admin}));
 const config = vi.hoisted(() => ({ tiktokPublishingRealMode: true, tiktokPublishingProvider: "official",
   tiktokVideoPublishApproved: true, tiktokVideoUploadApproved: true, tiktokAnalyticsProvider: "official", postAutomationExecutionMode: "LIVE" }));
 vi.mock("@/lib/server-env", () => ({ serverEnv: config }));
@@ -21,6 +24,7 @@ function database(tables: Record<string, Row[]>) {
   const download = vi.fn(async () => ({ data: new Blob(["valid-fixture-media"], { type: "video/mp4" }), error: null }));
   const rpc = vi.fn(async (name: string, args: Row) => {
     if (name === "get_post_automation_execution_mode") return { data: "LIVE", error: null };
+    if (name === "record_compliance_brain_decision") return {data:(args.p_decision as Row).id,error:null};
     if (name === "transition_publish_queue_atomic") {
       const row = tables.publishing_queue.find(item => item.owner_id === args.p_owner_id && item.id === args.p_queue_id)!;
       Object.assign(row, args.p_patch, { status: args.p_to_status });
@@ -34,16 +38,22 @@ function database(tables: Record<string, Row[]>) {
     throw new Error(`Unexpected RPC ${name}`);
   });
   const client = { from(table: string) {
-    const filters: Array<(row: Row) => boolean> = []; let patch: Row | null = null;
+    const filters: Array<(row: Row) => boolean> = []; let patch: Row | null = null,ordered:string|null=null,cap=Infinity;
     const result = () => {
-      const rows = (tables[table] ?? []).filter(row => filters.every(test => test(row)));
+      let rows = (tables[table] ?? []).filter(row => filters.every(test => test(row)));
       if (patch) for (const row of rows) Object.assign(row, patch);
+      if(ordered)rows=rows.toSorted((a,b)=>String(b[ordered!]??"").localeCompare(String(a[ordered!]??"")));
+      rows=rows.slice(0,cap);
       return { data: rows, error: null };
     };
-    const query = { select: () => query, order: () => query, limit: () => query,
+    const query = { select: () => query, order: (key:string,options?:{ascending?:boolean}) => {if(options?.ascending===false)ordered=key;return query;},
+      limit: (count:number) => {cap=count;return query;},
       eq: (key: string, value: unknown) => { filters.push(row => row[key] === value); return query; },
+      in: (key:string,values:unknown[]) => {filters.push(row=>values.includes(row[key]));return query;},
+      lte: (key:string,value:string) => {filters.push(row=>String(row[key])<=value);return query;},
       neq: (key: string, value: unknown) => { filters.push(row => row[key] !== value); return query; },
       update: (value: Row) => { patch = value; return query; },
+      insert: (value:Row) => {(tables[table]??=[]).push({id:randomUUID(),created_at:new Date().toISOString(),...value});return query;},
       upsert: async (value: Row) => {
         const found = (tables[table] ?? []).some(row => row.owner_id === value.owner_id && row.auto_run_id === value.auto_run_id && row.tiktok_account_id === value.tiktok_account_id && row.item_index === value.item_index);
         if (!found) (tables[table] ??= []).push({ id: "output-a", ...value });
@@ -79,12 +89,39 @@ function fixture(mode = "EXPORT") {
 }
 beforeEach(() => { Object.assign(config, { tiktokPublishingRealMode: true, tiktokPublishingProvider: "official",
   tiktokVideoPublishApproved: true, tiktokVideoUploadApproved: true, postAutomationExecutionMode: "LIVE" }); });
+afterEach(()=>{vi.unstubAllEnvs();authorityBoundary.admin=null;});
 
 describe("account POST production boundaries", () => {
   it("finishes EXPORT through the production ports and creates a real downloadable package without a TikTok adapter", async () => {
     config.tiktokPublishingRealMode = false; config.tiktokPublishingProvider = "mock";
     config.postAutomationExecutionMode = "SAFE";
     const f = fixture(), network = vi.fn(), provider = new OfficialTikTokPublishingProvider(network as typeof fetch);
+    // Provision genuine signed authority at the database boundary; the production gate is not mocked.
+    const ids=Object.fromEntries(["owner-a","account-a","product-a","video-a","script-a","run-a"].map(key=>[key,randomUUID()]));
+    const remap=(value:unknown):unknown=>typeof value==="string"?Object.entries(ids).reduce((text,[from,to])=>text.replaceAll(from,to),value)
+      :Array.isArray(value)?value.map(remap):value&&typeof value==="object"?Object.fromEntries(Object.entries(value).map(([key,item])=>[key,remap(item)])):value;
+    for(const table of Object.keys(f.tables))f.tables[table]=remap(f.tables[table]) as Row[];
+    f.claim=remap(f.claim) as ExecutionClaim;
+    const signed=createSignedPolicyTestFixture(),evidence=randomUUID(),claimId=randomUUID(),assetHash=createHash("sha256").update("valid-fixture-media").digest("hex");
+    vi.stubEnv("COMPLIANCE_POLICY_PUBLIC_KEYS_JSON",JSON.stringify(Object.fromEntries(Object.entries(signed.trustedKeys)
+      .map(([id,key])=>[id,key.export({format:"pem",type:"spki"}).toString()]))));
+    authorityBoundary.admin=f.client;
+    f.tables.compliance_brain_policy_versions=[{version:signed.payload.version,region:"TH",platform:"TIKTOK_SHOP",country:"TH",
+      status:"ACTIVE",effective_at:"2026-01-01T00:00:00Z",activated_at:"2026-10-07T01:00:00Z",pack_json:signed.signed,checksum:signed.signed.checksum,signature:signed.signed.signature}];
+    f.tables.compliance_brain_claims=[{id:claimId,owner_id:ids["owner-a"],product_id:ids["product-a"],claim_text:"ช่วยเพิ่มความชุ่มชื้น",
+      claim_type:"COSMETIC",source:"verified fixture label",evidence_refs:[evidence],jurisdiction:"TH",expires_at:null,verified:true,allowed_channels:["POST"],conditions:[],aliases:[]}];
+    f.tables.compliance_brain_evidence=[{id:evidence,owner_id:ids["owner-a"],product_id:ids["product-a"],kind:"MEDIA_REVIEW",source_url:"https://example.test/review",
+      source_hash:assetHash,jurisdiction:"TH",verified:true,expires_at:null}];
+    f.tables.compliance_brain_media_reviews=[{owner_id:ids["owner-a"],product_id:ids["product-a"],account_id:ids["account-a"],asset_hash:assetHash,
+      evidence_id:evidence,transcript:"ช่วยเพิ่มความชุ่มชื้น",on_screen_text:[],cover_text:"",visible_claims:[],metadata:[],ai_disclosed:true,
+      coverage_complete:true,reviewed_at:"2026-10-07T01:00:00Z",expires_at:null}];
+    Object.assign(f.tables.products[0],{category_key:"SKINCARE"});
+    Object.assign(f.tables.scripts[0],{hook_text:"ช่วยเพิ่มความชุ่มชื้น",voice_script:"ช่วยเพิ่มความชุ่มชื้น",cta_text:"ตรวจสอบข้อมูลสินค้า",
+      caption:"ช่วยเพิ่มความชุ่มชื้น",hashtags_json:[],overlay_text_json:[],scene_plan_json:[]});
+    const projectId=randomUUID();Object.assign(f.tables.master_videos[0],{creative_project_id:projectId});
+    f.tables.creative_projects=[{id:projectId,owner_id:ids["owner-a"],product_id:ids["product-a"],tiktok_account_id:ids["account-a"],mode:"GROWTH"}];
+    f.tables.creative_angles=[{owner_id:ids["owner-a"],creative_project_id:projectId,is_selected:true,policy_status:"SAFE"}];
+    Object.assign(f.tables.tiktok_accounts[0],{mode:"AUTO",effective_mode:"GROWTH",account_status:"active",daily_post_target:5,daily_post_hard_limit:10});
     f.tables.tiktok_accounts[0].authorization_status = "revoked";
     const ports = createAutoExecutionPorts(f.client, { publishingProvider: provider });
     expect(await ports.COMPLIANCE_CHECK(f.claim)).toMatchObject({ kind: "ADVANCE" });
@@ -94,12 +131,14 @@ describe("account POST production boundaries", () => {
     const analytics = await ports.COLLECT_ANALYTICS(f.claim);
     expect(analytics).toMatchObject({ kind: "ADVANCE", evidence: { analyticsDeferred: true } });
     expect(await ports.LEARN({ ...f.claim, checkpoint: { ...f.claim.checkpoint, analyticsDeferred: true } })).toMatchObject({ kind: "ADVANCE", evidence: { learningDeferred: true } });
-    const zip = await buildAuthorizedPostPackage(f.client, "owner-a", "output-a");
+    const zip = await buildAuthorizedPostPackage(f.client, ids["owner-a"], "output-a");
     expect(zip.readUInt32LE()).toBe(0x04034b50);
-    expect(zip.toString()).toContain("video.mp4"); expect(zip.toString()).toContain("คำบรรยายสินค้า");
+    expect(zip.toString()).toContain("video.mp4"); expect(zip.toString()).toContain("ช่วยเพิ่มความชุ่มชื้น");
     expect(zip.toString()).not.toMatch(/owner-a|account-a|video-a|network-contract-token|storage_path|provider|model/);
+    for(const internalId of Object.values(ids))expect(zip.toString()).not.toContain(internalId);
     expect(f.tables.post_outputs).toHaveLength(1);
-    expect(f.tables.post_outputs[0].status).toBe("READY"); expect(f.rpc).not.toHaveBeenCalled(); expect(network).not.toHaveBeenCalled();
+    expect(f.tables.post_outputs[0].status).toBe("READY"); expect(f.rpc.mock.calls.some(([name])=>name==="record_compliance_brain_decision")).toBe(true);
+    expect(network).not.toHaveBeenCalled();
   });
   it("keeps owner/account isolation and cannot export a rejected or visually unverified clip", async () => {
     const f = fixture(); await ensurePostOutput(f.client, f.claim, "EXPORT");

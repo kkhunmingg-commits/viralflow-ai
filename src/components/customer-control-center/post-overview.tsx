@@ -3,9 +3,11 @@ import type { CustomerAccount, CustomerOverview } from "@/features/control-cente
 import { AccountActionRequired, AccountIdentity, CustomerBadge, CustomerEmptyAccounts, CustomerMetric, PeriodTabs } from "./shared";
 import { PostStartControls, PostStopControl } from "./post-controls";
 import { customerTime, metricText } from "./presentation";
+import {AccountSafetyCard} from "./account-safety";
+import type {AccountSafetySummary} from "@/features/compliance-brain/presentation";
 
-export function PostAccountCard({ account, period, requestKey }: {
-  account: CustomerAccount; period: CustomerOverview["period"]; requestKey: string;
+export function PostAccountCard({ account, period, requestKey, safety }: {
+  account: CustomerAccount; period: CustomerOverview["period"]; requestKey: string;safety?:AccountSafetySummary;
 }) {
   const progress = account.target > 0 ? Math.min(100, account.today.generated / account.target * 100) : 0;
   return <article className="customer-account-card customer-post-account-card">
@@ -32,17 +34,18 @@ export function PostAccountCard({ account, period, requestKey }: {
     <div className="customer-scheduled"><div><span>โพสต์ถัดไป</span><strong>{customerTime(account.nextScheduledPost, true)}</strong></div>
       <div><span>งานประจำครั้งถัดไป</span><strong>{account.schedule?.enabled ? customerTime(account.schedule.nextRunAt, true) : "ยังไม่ได้เปิด"}</strong></div>
       <div><span>สินค้าขายดี</span><strong>{account.topProduct ?? "—"}</strong></div></div>
+    <AccountSafetyCard summary={safety} />
     <Link className="customer-post-detail-link" href={`/post/${account.id}?period=${period}`}>คลิปและผลลัพธ์ของบัญชีนี้ <span aria-hidden="true">→</span></Link>
   </article>;
 }
 
-export function PostOverview({ data, requestKeys }: { data: CustomerOverview; requestKeys: Record<string, string> }) {
+export function PostOverview({ data, requestKeys, safetyByAccount }: { data: CustomerOverview; requestKeys: Record<string, string>;safetyByAccount?:Record<string,AccountSafetySummary> }) {
   return <div className="customer-center customer-post">
     <header className="customer-page-header"><div><p className="customer-eyebrow">สร้างเนื้อหา เติบโตไปด้วยกัน</p><h1>POST</h1><p>แยกงานและผลลัพธ์ของทุกบัญชีอย่างชัดเจน</p></div>
       <div className="customer-header-actions"><PeriodTabs period={data.period} href="/post" /><Link className="customer-text-link" href="/accounts">จัดการบัญชี →</Link></div></header>
     <div className="customer-post-guide"><span aria-hidden="true">✦</span><p>ตั้งเวลาแล้วกด START แต่ละบัญชีทำงานแยกกัน</p><span className="customer-updated">อัปเดต {customerTime(data.updatedAt)}</span></div>
     {data.accounts.length === 0 ? <CustomerEmptyAccounts /> : <div className="customer-account-grid">
-      {data.accounts.map((account) => <PostAccountCard key={account.id} account={account} period={data.period} requestKey={requestKeys[account.id]} />)}
+      {data.accounts.map((account) => <PostAccountCard key={account.id} account={account} period={data.period} requestKey={requestKeys[account.id]} safety={safetyByAccount?.[account.id]} />)}
     </div>}
     <p className="customer-data-note">{data.analyticsNotice}</p>
   </div>;

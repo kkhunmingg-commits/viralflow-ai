@@ -164,6 +164,8 @@ class _ManagedRoomProcess:
                 model_paths = {artifact.relative_path for record in records for artifact in record.artifacts}
                 if records:
                     model_paths.add(CATALOG_PATH)
+                from compliance_node_transport import COMPLIANCE_ARTIFACTS
+                model_paths.update(path for path in COMPLIANCE_ARTIFACTS if path in files)
                 config["localModelFiles"] = {path: files[path] for path in model_paths}
             if self._room_id is not None:
                 config["roomId"] = self._room_id
@@ -244,6 +246,9 @@ class _ManagedRoomProcess:
 
     def sync_product_context(self, owner, account, products):
         return self._call("sync_product_context", owner, account, products)
+
+    def sync_compliance_context(self, owner, account, signed):
+        return self._call("sync_compliance_context", owner, account, signed)
 
     def submit_comment(self, owner, session, comment):
         return self._call("submit_comment", owner, session, comment)
@@ -341,6 +346,7 @@ class ManagedRuntimeWorker:
         self._health_cached = {"ready": False}
         self._warming = False
         self._contexts = {}
+        self._compliance_contexts = {}
         self._prepared = {}
         self._preparing = {}
 
@@ -392,6 +398,9 @@ class ManagedRuntimeWorker:
             process = self._prepared.pop(key, None) or (self._new_process() if self._probe_claimed else self._probe)
             self._probe_claimed = True
         try:
+            compliance_context = self._compliance_contexts.get(key)
+            if compliance_context is not None:
+                process.sync_compliance_context(owner_id, account_id, compliance_context)
             context = self._contexts.get(key)
             if context is not None:
                 process.sync_product_context(owner_id, account_id, context)
@@ -453,6 +462,20 @@ class ManagedRuntimeWorker:
                 process.sync_product_context(owner, account, products)
             self._contexts[(owner, account)] = copy.deepcopy(products)
 
+    def sync_compliance_context(self, owner, account, signed):
+        import copy
+        key = (owner, account)
+        with self._lock:
+            if key not in self._compliance_contexts and len(self._compliance_contexts) >= 10:
+                raise AgentError(409, "ROOM_CAPACITY_REACHED", "ใช้จำนวนห้องครบแล้ว")
+            if key in self._pending:
+                raise AgentError(409, "SESSION_BUSY", "กรุณารอการเตรียมเครื่องให้เสร็จ")
+            route = self._accounts.get(key)
+            for process in {child for child in (self._prepared.get(key), self._rooms.get(route) if route else None)
+                            if child is not None}:
+                process.sync_compliance_context(owner, account, signed)
+            self._compliance_contexts[key] = copy.deepcopy(signed)
+
     def prepare_room(self, owner, account, products, reference, microphone=None):
         key = (owner, account)
         with self._lock:
@@ -468,6 +491,9 @@ class ManagedRuntimeWorker:
             context = self._contexts.get(key)
             if context is None:
                 raise AgentError(409, "LOCAL_PRODUCT_CONTEXT_REQUIRED", "กรุณาเตรียมสินค้าใหม่")
+            compliance_context = self._compliance_contexts.get(key)
+            if compliance_context is not None:
+                process.sync_compliance_context(owner, account, compliance_context)
             process.sync_product_context(owner, account, context)
             result = process.prepare_room(owner, account, products, reference, microphone)
             with self._lock:
@@ -545,6 +571,7 @@ class ManagedRuntimeWorker:
     def close(self):
         with self._lock:
             self._closed = True
+            self._compliance_contexts.clear()
             children = set(self._rooms.values()) | set(self._prepared.values()) | set(self._preparing.values()) | {self._probe}
         for process in children:
             process.close()

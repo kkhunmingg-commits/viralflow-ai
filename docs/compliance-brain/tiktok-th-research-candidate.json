@@ -1,0 +1,451 @@
+{
+  "schemaVersion": 1,
+  "status": "PARSED",
+  "parserOrigin": "AI",
+  "reviewStatus": "HUMAN_REVIEW_PENDING",
+  "platform": "TIKTOK_SHOP",
+  "country": "TH",
+  "region": "TH",
+  "effectiveDate": "UNKNOWN",
+  "sources": [
+    {
+      "id": "content",
+      "title": "TikTok Shop Content Policy",
+      "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=10008418&lang=en",
+      "sourceHash": "6f0ce68653e23bfe0d7a891279095b71045aca19786931d2aa456d8876933161",
+      "publishedAt": "2026-03-16",
+      "effectiveDate": "UNKNOWN",
+      "hashBasis": "NORMALIZED_TEXT_V1",
+      "snapshotLineRange": {
+        "start": 60,
+        "endExclusive": 201
+      },
+      "retrievedDate": "2026-10-07",
+      "snapshotRecordedAt": "2026-10-07T16:37:07Z"
+    },
+    {
+      "id": "beauty",
+      "title": "Misleading Claims (Health & Beauty Products)",
+      "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=10009139&lang=en",
+      "sourceHash": "2dff18664e9b0bb1b2c35bd81e00139c9df7a25cae3eccb5d68075a93a8ec91c",
+      "publishedAt": "2026-09-14",
+      "effectiveDate": "UNKNOWN",
+      "hashBasis": "NORMALIZED_TEXT_V1",
+      "snapshotLineRange": {
+        "start": 44,
+        "endExclusive": 193
+      },
+      "retrievedDate": "2026-10-07",
+      "snapshotRecordedAt": "2026-10-07T16:37:07Z"
+    },
+    {
+      "id": "price",
+      "title": "Misleading Price Claims and Expired Pricing",
+      "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=1637871032354577&lang=en",
+      "sourceHash": "55d3c749510bd61153704cfe601321596cdcbb855e7663b880ff5748a88c2273",
+      "publishedAt": "2026-05-20",
+      "effectiveDate": "UNKNOWN",
+      "hashBasis": "NORMALIZED_TEXT_V1",
+      "snapshotLineRange": {
+        "start": 44,
+        "endExclusive": 140
+      },
+      "retrievedDate": "2026-10-07",
+      "snapshotRecordedAt": "2026-10-07T16:37:07Z"
+    },
+    {
+      "id": "aigc",
+      "title": "AI-Generated Content (AIGC)",
+      "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=6490273266140929&lang=en",
+      "sourceHash": "4a8bd29d31195db30eb753656a652a27933e481ea83b42b345f6c911f8b11ea8",
+      "publishedAt": "2026-08-27",
+      "effectiveDate": "UNKNOWN",
+      "hashBasis": "NORMALIZED_TEXT_V1",
+      "snapshotLineRange": {
+        "start": 44,
+        "endExclusive": 113
+      },
+      "retrievedDate": "2026-10-07",
+      "snapshotRecordedAt": "2026-10-07T16:37:07Z"
+    },
+    {
+      "id": "misleading",
+      "title": "Misleading Content",
+      "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=4881274146408193&lang=en",
+      "sourceHash": "300de7419e7f05840f02673d26281a65ff7cf11a0d8e69d88f2e23879a75fddc",
+      "publishedAt": "2025-12-04",
+      "effectiveDate": "UNKNOWN",
+      "hashBasis": "NORMALIZED_TEXT_V1",
+      "snapshotLineRange": {
+        "start": 44,
+        "endExclusive": 104
+      },
+      "retrievedDate": "2026-10-07",
+      "snapshotRecordedAt": "2026-10-07T16:37:07Z"
+    },
+    {
+      "id": "restricted",
+      "title": "Restricted Products that Require Category Qualification",
+      "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=10015351&lang=en",
+      "sourceHash": "a80a2cd376e41acf10c3e1f65d05a44541f3ef02c21d484d657d389a13c9f8fd",
+      "publishedAt": "2026-07-31",
+      "effectiveDate": "UNKNOWN",
+      "hashBasis": "NORMALIZED_TEXT_V1",
+      "snapshotLineRange": {
+        "start": 64,
+        "endExclusive": 222
+      },
+      "retrievedDate": "2026-10-07",
+      "snapshotRecordedAt": "2026-10-07T16:37:07Z"
+    },
+    {
+      "id": "prohibited",
+      "title": "Prohibited and Unsupported Products",
+      "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=1531423806867201&lang=en",
+      "sourceHash": "1ec658839c0363ccd2a5f790b972159f75ba8d0b378ca505a046b553c36ae842",
+      "publishedAt": "2026-05-08",
+      "effectiveDate": "UNKNOWN",
+      "hashBasis": "NORMALIZED_TEXT_V1",
+      "snapshotLineRange": {
+        "start": 64,
+        "endExclusive": 453
+      },
+      "retrievedDate": "2026-10-07",
+      "snapshotRecordedAt": "2026-10-07T16:37:07Z"
+    },
+    {
+      "id": "medical",
+      "title": "Health & Beauty Sellers & Creators: Campaign Season Policy Tips & Tricks",
+      "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=7907894943336193&lang=en",
+      "sourceHash": "889c380f15e36e4468fbbde1d278e964daf6aaa1ca8e3472d91d00ec9aaef731",
+      "publishedAt": "2026-07-31",
+      "effectiveDate": "UNKNOWN",
+      "hashBasis": "NORMALIZED_TEXT_V1",
+      "snapshotLineRange": {
+        "start": 68,
+        "endExclusive": 220
+      },
+      "retrievedDate": "2026-10-07",
+      "snapshotRecordedAt": "2026-10-07T16:37:07Z"
+    },
+    {
+      "id": "general",
+      "title": "Guide to Avoiding AI-generated Misleading Functionality and Effect Claims for Non-health Products",
+      "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=3208257439319824&lang=en",
+      "sourceHash": "c07db3196adc3bcffe124a3bc1b66afed7eab05c76b0f86f1f631c8153a65737",
+      "publishedAt": "2026-09-17",
+      "effectiveDate": "UNKNOWN",
+      "hashBasis": "NORMALIZED_TEXT_V1",
+      "snapshotLineRange": {
+        "start": 44,
+        "endExclusive": 195
+      },
+      "retrievedDate": "2026-10-07",
+      "snapshotRecordedAt": "2026-10-07T16:37:07Z"
+    }
+  ],
+  "rules": [
+    {
+      "id": "shop.content.coverage",
+      "version": "research.2026.10.07",
+      "sourceIds": [
+        "content"
+      ],
+      "semanticCategories": [
+        "UNKNOWN_FACT",
+        "VISUAL_MISMATCH"
+      ],
+      "obligation": "Review all product-promoting surfaces, including product links, speech, captions, images, video, listing text and LIVE; promotions must describe the actual linked product.",
+      "severity": "HIGH",
+      "recommendedDecision": "REVIEW_REQUIRED",
+      "contentTypes": [
+        "POST",
+        "LIVE"
+      ],
+      "categories": [
+        "*"
+      ],
+      "requiresEvidence": true
+    },
+    {
+      "id": "shop.content.restricted",
+      "version": "research.2026.10.07",
+      "sourceIds": [
+        "content"
+      ],
+      "semanticCategories": [
+        "RESTRICTED_PRODUCT"
+      ],
+      "obligation": "Do not promote prohibited or unsupported products. Check category approval and applicable restrictions before promoting restricted products.",
+      "severity": "CRITICAL",
+      "recommendedDecision": "BLOCK",
+      "contentTypes": [
+        "POST",
+        "LIVE"
+      ],
+      "categories": [
+        "*"
+      ],
+      "requiresEvidence": false
+    },
+    {
+      "id": "shop.beauty.claims",
+      "version": "research.2026.10.07",
+      "sourceIds": [
+        "beauty"
+      ],
+      "semanticCategories": [
+        "MEDICAL_TREATMENT",
+        "DISEASE_PREVENTION",
+        "GUARANTEED_RESULT"
+      ],
+      "obligation": "Do not invent health or beauty effects, disease treatment promises, guaranteed transformations or expanded claims. Claims tied to visible packaging or government advertising approval require verification of the exact claim and its permitted scope.",
+      "severity": "CRITICAL",
+      "recommendedDecision": "REVIEW_REQUIRED",
+      "contentTypes": [
+        "POST",
+        "LIVE"
+      ],
+      "categories": [
+        "*"
+      ],
+      "requiresEvidence": true
+    },
+    {
+      "id": "shop.beauty.effects",
+      "version": "research.2026.10.07",
+      "sourceIds": [
+        "beauty"
+      ],
+      "semanticCategories": [
+        "BODY_MANIPULATION",
+        "FALSE_BEFORE_AFTER",
+        "TIME_BOUND_RESULT"
+      ],
+      "obligation": "Do not fabricate appearance transformations, AI results or misleading beauty-filter demonstrations. Temporary makeup or concealment effects must be clearly cosmetic and accurately shown.",
+      "severity": "HIGH",
+      "recommendedDecision": "REVIEW_REQUIRED",
+      "contentTypes": [
+        "POST",
+        "LIVE"
+      ],
+      "categories": [
+        "*"
+      ],
+      "requiresEvidence": true
+    },
+    {
+      "id": "shop.price.truth",
+      "version": "research.2026.10.07",
+      "sourceIds": [
+        "price"
+      ],
+      "semanticCategories": [
+        "MISLEADING_PRICE"
+      ],
+      "obligation": "Prices, discounts and delivery claims must match the applicable product listing and current promotion. State voucher, eligibility, minimum-spend, bundle and validity conditions; do not invent pricing errors or disguise bundle prices as unrestricted unit prices.",
+      "severity": "HIGH",
+      "recommendedDecision": "REVIEW_REQUIRED",
+      "contentTypes": [
+        "POST",
+        "LIVE"
+      ],
+      "categories": [
+        "*"
+      ],
+      "requiresEvidence": true
+    },
+    {
+      "id": "shop.aigc.disclosure",
+      "version": "research.2026.10.07",
+      "sourceIds": [
+        "aigc"
+      ],
+      "semanticCategories": [
+        "AIGC_DISCLOSURE"
+      ],
+      "obligation": "Apply the required AI-generated-content disclosure and keep generated content consistent with the actual product and other applicable content rules.",
+      "severity": "HIGH",
+      "recommendedDecision": "REVIEW_REQUIRED",
+      "contentTypes": [
+        "POST",
+        "LIVE"
+      ],
+      "categories": [
+        "*"
+      ],
+      "requiresEvidence": true
+    },
+    {
+      "id": "shop.aigc.product",
+      "version": "research.2026.10.07",
+      "sourceIds": [
+        "aigc"
+      ],
+      "semanticCategories": [
+        "VISUAL_MISMATCH",
+        "UNSUPPORTED_FEATURE",
+        "FAKE_TESTIMONIAL",
+        "BODY_MANIPULATION"
+      ],
+      "obligation": "AI media must preserve real product attributes. Do not fabricate product effects, physical transformations or sympathy stories to sell products.",
+      "severity": "HIGH",
+      "recommendedDecision": "REVIEW_REQUIRED",
+      "contentTypes": [
+        "POST",
+        "LIVE"
+      ],
+      "categories": [
+        "*"
+      ],
+      "requiresEvidence": true
+    },
+    {
+      "id": "shop.misleading.facts",
+      "version": "research.2026.10.07",
+      "sourceIds": [
+        "misleading"
+      ],
+      "semanticCategories": [
+        "EXAGGERATED_FUNCTIONALITY",
+        "FAKE_CERTIFICATION",
+        "MISLEADING_COMPARISON",
+        "UNSUPPORTED_SUPERIORITY"
+      ],
+      "obligation": "Do not present impossible or unsupported functions, invented certifications, awards or endorsements, or misleading comparisons. Claims and comparisons must be factual, neutral and supported for the linked product.",
+      "severity": "HIGH",
+      "recommendedDecision": "REVIEW_REQUIRED",
+      "contentTypes": [
+        "POST",
+        "LIVE"
+      ],
+      "categories": [
+        "*"
+      ],
+      "requiresEvidence": true
+    },
+    {
+      "id": "shop.category.approval",
+      "version": "research.2026.10.07",
+      "sourceIds": [
+        "restricted"
+      ],
+      "semanticCategories": [
+        "RESTRICTED_PRODUCT"
+      ],
+      "obligation": "Obtain required category approval and supporting documents before listing, sharing or promoting restricted categories. Infant-formula marketing restrictions require a separate check; category approval does not remove advertising restrictions.",
+      "severity": "CRITICAL",
+      "recommendedDecision": "REVIEW_REQUIRED",
+      "contentTypes": [
+        "POST",
+        "LIVE"
+      ],
+      "categories": [
+        "*"
+      ],
+      "requiresEvidence": true
+    },
+    {
+      "id": "shop.product.prohibited",
+      "version": "research.2026.10.07",
+      "sourceIds": [
+        "prohibited"
+      ],
+      "semanticCategories": [
+        "RESTRICTED_PRODUCT"
+      ],
+      "obligation": "Exclude prohibited and unsupported items, including prohibited weapons, drugs, tobacco, prescription or professional-only medicines and devices, unsafe food, and unsupported weight-management products; apply the specific listed exceptions only after verification.",
+      "severity": "CRITICAL",
+      "recommendedDecision": "BLOCK",
+      "contentTypes": [
+        "POST",
+        "LIVE"
+      ],
+      "categories": [
+        "*"
+      ],
+      "requiresEvidence": false
+    },
+    {
+      "id": "shop.medical.advice",
+      "version": "research.2026.10.07",
+      "sourceIds": [
+        "medical"
+      ],
+      "semanticCategories": [
+        "DIAGNOSIS",
+        "REPLACEMENT_FOR_MEDICAL_CARE",
+        "MEDICAL_TREATMENT",
+        "DISEASE_PREVENTION"
+      ],
+      "obligation": "Do not diagnose illness, promise disease cures or prevention, discourage medical care, or claim that a product replaces treatment. Verify any permitted health or beauty claim against product packaging and regulator-approved advertising scope.",
+      "severity": "CRITICAL",
+      "recommendedDecision": "REVIEW_REQUIRED",
+      "contentTypes": [
+        "POST",
+        "LIVE"
+      ],
+      "categories": [
+        "*"
+      ],
+      "requiresEvidence": true
+    },
+    {
+      "id": "shop.medical.avatars",
+      "version": "research.2026.10.07",
+      "sourceIds": [
+        "medical"
+      ],
+      "semanticCategories": [
+        "FAKE_CERTIFICATION",
+        "BODY_MANIPULATION",
+        "AIGC_DISCLOSURE"
+      ],
+      "obligation": "Do not use AI medical-professional avatars as false authority or misleading beauty effects. Disclose AI content and show current, correct packaging.",
+      "severity": "HIGH",
+      "recommendedDecision": "REVIEW_REQUIRED",
+      "contentTypes": [
+        "POST",
+        "LIVE"
+      ],
+      "categories": [
+        "*"
+      ],
+      "requiresEvidence": true
+    },
+    {
+      "id": "shop.general.pdp",
+      "version": "research.2026.10.07",
+      "sourceIds": [
+        "general"
+      ],
+      "semanticCategories": [
+        "UNKNOWN_FACT",
+        "UNSUPPORTED_FEATURE",
+        "EXAGGERATED_FUNCTIONALITY",
+        "TIME_BOUND_RESULT"
+      ],
+      "obligation": "Use the product detail page as the final source of truth for functions, compatibility, materials, conditions and effect timing. Remove unverified claims rather than inferring them; disclaimers cannot repair a misleading main impression.",
+      "severity": "HIGH",
+      "recommendedDecision": "REVIEW_REQUIRED",
+      "contentTypes": [
+        "POST",
+        "LIVE"
+      ],
+      "categories": [
+        "*"
+      ],
+      "requiresEvidence": true
+    }
+  ],
+  "validation": null,
+  "signature": null,
+  "notes": [
+    "Research intake only; not an active PolicyPackPayload or SignedPolicyPack.",
+    "Hashes cover normalized retrieved article-text snapshots with headings and displayed publication dates; source line markers, navigation, footer and citation decorations are excluded.",
+    "retrievedDate is date precision; snapshotRecordedAt is metadata recording time, not an asserted HTTP response timestamp.",
+    "Article images were not interpreted. Specific exceptions and category approvals require human review against authoritative supporting documents.",
+    "Misleading Content opened page displays 2025-12-04; search index reported 2026-10-07. Opened page date is recorded, effective date remains UNKNOWN.",
+    "Re-fetch official source text through ingestion and verify the snapshot before approving, signing or activating any production pack."
+  ]
+}

@@ -4,9 +4,8 @@ export function buildCreativePrompt(context:CreativeContext) {
   const strategy=context.account.mode==="GROWTH"
     ?"Prioritize scroll stop, curiosity, engagement, follow intent, niche consistency, shares and completion. Do not make commission or shopping the primary objective."
     :"Prioritize product click, CTR, purchase confidence, orders, GMV and honest commission economics. Use a cart/product CTA only when supported.";
-  return `${CREATIVE_SYSTEM_PROMPT}\nMode strategy: ${strategy}\nCompact context:\n${JSON.stringify(context)}\nUse diverse angles, hooks, CTAs and scene structures. Avoid recent hooks/angles in context.`;
+  return `${CREATIVE_SYSTEM_PROMPT}\nMode strategy: ${strategy}\nCompact context:\n${JSON.stringify(context)}\nCompliance constraints have priority over sales, curiosity and performance. Use ONLY allowedClaims as product statements; preserve conditions verbatim. Other product fields are selection context, not authority for claims. Do not invent paraphrases or unsupported hashtags/visual demonstrations. Use diverse angles, hooks, CTAs and scene structures. Avoid recent hooks/angles in context.`;
 }
 export function buildRepairPrompt(prompt:string,error:string) {
   return `${prompt}\nYour prior response failed validation: ${error}. Repair it and return a complete replacement JSON object only.`;
 }
-

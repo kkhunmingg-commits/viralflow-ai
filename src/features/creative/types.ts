@@ -5,6 +5,7 @@ export const PROMPT_VERSION="creative-brain-v1";
 export const CREATIVE_SCORE_VERSION="creative-concept-v1";
 export type RiskStatus="SAFE"|"REVIEW"|"REJECT";
 export interface CreativeContext {
+  complianceConstraints?: {policyVersion:string;allowedClaims:Array<{text:string;conditions:string[]}>;obligations:string[];unknownFacts:string};
   assignment:{id:string;score:number;reason:string};
   account:{id:string;name:string;mode:EffectiveMode;followers:number;preferredCategories:string[]};
   product:{id:string;title:string;category:string;price:number;originalPrice:number|null;commissionRate:number;commissionAmount:number;rating:number|null;reviewCount:number;momentum:number;creativePotential:number};

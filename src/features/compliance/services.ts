@@ -3,6 +3,8 @@ import {runContentComplianceCheck} from "./compliance";
 import {calculateOriginality} from "./originality";
 import {calculateAccountPublishHealth,evaluatePublishEligibility} from "./publishing";
 import type {OriginalityMetadata} from "./types";
+import { checkFinalMedia, commerceScope, scriptContent } from "../compliance-brain/server-runtime";
+import { passesCompliance } from "../compliance-brain/gates";
 
 type Row=Record<string,unknown>;
 async function one(client:SupabaseClient,table:string,owner:string,id:string){
@@ -18,7 +20,8 @@ function latestByVideo<T extends {video_id:string}>(rows:T[]){
   return latest;
 }
 
-export async function runPrePublishGate(client:SupabaseClient,owner:string,kind:"master"|"variation",videoId:string,userApproved=false){
+export async function runPrePublishGate(client:SupabaseClient,owner:string,kind:"master"|"variation",videoId:string,userApproved=false,
+  finalContent?:{caption:string;isAigc:boolean;deliveryMedia?:Blob|null}){
   const video=await one(client,kind==="master"?"master_videos":"video_variations",owner,videoId);
   if(!video)throw new Error("Video not found");
   const master=kind==="master"?video:await one(client,"master_videos",owner,text(video.master_video_id));
@@ -48,6 +51,18 @@ export async function runPrePublishGate(client:SupabaseClient,owner:string,kind:
     provider:text(master.provider),
     provenanceAvailable:Boolean(master.storage_path),
   });
+  const brain=await checkFinalMedia(client,commerceScope(owner,text(product.id),text(account.id),text(product.category_key)),
+    text(video.storage_path),{...scriptContent(script),...(kind==="variation"?{hook:text(video.hook_variant),cta:text(video.cta_variant)}:{}),
+      ...(finalContent?{caption:finalContent.caption}:{})},"FINAL_PUBLISH",finalContent?.isAigc,finalContent?.deliveryMedia);
+  // The shared engine owns claim/policy decisions. Preserve account/mode/provenance checks only.
+  const operationalIssues=new Set(["CTA_MODE_MISMATCH","CART_UNAVAILABLE","UNVERIFIED_SHOP_CLAIM","AFFILIATE_UNAVAILABLE","PROVENANCE_UNAVAILABLE"]);
+  compliance.issues=compliance.issues.filter(issue=>operationalIssues.has(issue.code));
+  compliance.claimStatus=compliance.productTruthStatus=passesCompliance(brain)?"PASS":brain.status==="BLOCK"?"REJECT":"REVIEW";
+  compliance.policyStatus=compliance.claimStatus;
+  compliance.overallStatus=compliance.issues.some(issue=>issue.severity==="REJECT")?"REJECT":compliance.issues.length?"REVIEW":compliance.claimStatus;
+  if(!passesCompliance(brain)){
+    if(brain.status==="BLOCK"||compliance.overallStatus!=="REJECT")compliance.overallStatus=brain.status==="BLOCK"?"REJECT":"REVIEW";
+  }
 
   const [masters,variations,scripts,todayStats,previousHealth]=await Promise.all([
     client.from("master_videos").select("id,tiktok_account_id,product_id,creative_project_id,selected_script_id").eq("owner_id",owner),
@@ -111,7 +126,7 @@ export async function runPrePublishGate(client:SupabaseClient,owner:string,kind:
     blockers_json:health.blockers,
   };
   const [complianceInsert,originalityInsert,healthUpsert,eligibilityInsert]=await Promise.all([
-    client.from("content_compliance_checks").insert({owner_id:owner,video_id:videoId,creative_project_id:master.creative_project_id,tiktok_account_id:master.tiktok_account_id,claim_status:compliance.claimStatus,product_truth_status:compliance.productTruthStatus,aigc_status:compliance.aigcStatus,policy_status:compliance.policyStatus,overall_status:compliance.overallStatus,issues_json:compliance.issues,explanation_json:{version:compliance.version,aigc:compliance.aigc},checked_at:now}),
+    client.from("content_compliance_checks").insert({owner_id:owner,video_id:videoId,creative_project_id:master.creative_project_id,tiktok_account_id:master.tiktok_account_id,claim_status:compliance.claimStatus,product_truth_status:compliance.productTruthStatus,aigc_status:compliance.aigcStatus,policy_status:compliance.policyStatus,overall_status:compliance.overallStatus,issues_json:compliance.issues,explanation_json:{version:compliance.version,aigc:compliance.aigc,complianceDecisionId:brain.id,customerSafety:brain.status},checked_at:now}),
     client.from("originality_checks").insert({owner_id:owner,video_id:videoId,tiktok_account_id:master.tiktok_account_id,same_account_similarity:originality.sameAccountSimilarity,cross_account_similarity:originality.crossAccountSimilarity,hook_similarity:originality.hookSimilarity,scene_similarity:originality.sceneSimilarity,audio_similarity:originality.audioSimilarity,overall_similarity:originality.overallSimilarity,originality_status:originality.status,matched_video_ids_json:originality.matchedVideoIds,explanation_json:{version:originality.version}}),
     client.from("account_publish_health").upsert(healthRow,{onConflict:"owner_id,tiktok_account_id"}),
     client.from("publish_eligibility_checks").insert({owner_id:owner,video_id:videoId,tiktok_account_id:master.tiktok_account_id,compliance_pass:eligibility.compliancePass,originality_pass:eligibility.originalityPass,quality_pass:eligibility.qualityPass,account_health_pass:eligibility.accountHealthPass,creator_limit_pass:eligibility.creatorLimitPass,shop_permission_pass:eligibility.shopPermissionPass,user_approval_required:true,user_approved:userApproved,final_status:eligibility.finalStatus,blockers_json:eligibility.blockers}),

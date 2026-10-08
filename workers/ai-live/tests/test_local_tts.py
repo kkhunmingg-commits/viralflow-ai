@@ -56,7 +56,7 @@ class LocalTTSTests(unittest.TestCase):
 
     def test_pcm_format_sentence_normalization_warmup_and_context_cache(self):
         backend = FixturePCMBackend()
-        provider = ManagedLocalTTSProvider(backend, context_id="room-a/account-a/presenter-a")
+        provider = ManagedLocalTTSProvider(backend, context_id="room-a/account-a/presenter-a", compliance_authorize=lambda text: text)
         self.assertFalse(provider.health()["ready"])
         self.assertTrue(provider.warmup()["ready"])
         chunks = list(provider.stream_text("ราคา 1,290 บาท! ขนาด 250ml.", "u1"))
@@ -67,13 +67,13 @@ class LocalTTSTests(unittest.TestCase):
         self.assertEqual(len(backend.sentences), count)
         self.assertEqual([x.pcm16 for x in chunks], [x.pcm16 for x in repeated])
         self.assertTrue(all(x.utterance_id == "u2" for x in repeated))
-        other = ManagedLocalTTSProvider(backend, context_id="room-b/account-b/presenter-b")
+        other = ManagedLocalTTSProvider(backend, context_id="room-b/account-b/presenter-b", compliance_authorize=lambda text: text)
         list(other.stream_text("ราคา 1,290 บาท!", "other"))
         self.assertGreater(len(backend.sentences), count)
 
     def test_interrupt_no_more_native_compute_or_partial_cache_and_busy(self):
         backend = FixturePCMBackend(pcm=b"\x01\x00" * 100)
-        provider = ManagedLocalTTSProvider(backend, context_id="room")
+        provider = ManagedLocalTTSProvider(backend, context_id="room", compliance_authorize=lambda text: text)
         stream = provider.stream_text("สวัสดีค่ะ", "u")
         next(stream)
         with self.assertRaisesRegex(RuntimeError, "VOICE_BUSY"):
@@ -88,13 +88,13 @@ class LocalTTSTests(unittest.TestCase):
         self.assertEqual(provider.health()["cache_bytes"], 0)
 
     def test_timeout_bad_pcm_and_bounded_cache(self):
-        slow = ManagedLocalTTSProvider(FixturePCMBackend(delay=.06), context_id="room", timeout_seconds=.05)
+        slow = ManagedLocalTTSProvider(FixturePCMBackend(delay=.06), context_id="room", timeout_seconds=.05, compliance_authorize=lambda text: text)
         with self.assertRaisesRegex(RuntimeError, "LOCAL_TTS_TIMEOUT"):
             list(slow.stream_text("สวัสดีค่ะ", "u"))
-        invalid = ManagedLocalTTSProvider(FixturePCMBackend(pcm=b"odd"), context_id="room")
+        invalid = ManagedLocalTTSProvider(FixturePCMBackend(pcm=b"odd"), context_id="room", compliance_authorize=lambda text: text)
         with self.assertRaisesRegex(RuntimeError, "LOCAL_TTS_INVALID_PCM"):
             list(invalid.stream_text("สวัสดีค่ะ", "u"))
-        cached = ManagedLocalTTSProvider(FixturePCMBackend(pcm=b"\x01\x00" * 100), context_id="room", cache_bytes=500)
+        cached = ManagedLocalTTSProvider(FixturePCMBackend(pcm=b"\x01\x00" * 100), context_id="room", cache_bytes=500, compliance_authorize=lambda text: text)
         for text in ("สวัสดีค่ะ", "ราคาเท่าไรคะ", "ส่งฟรีค่ะ"):
             list(cached.stream_text(text, "u"))
         self.assertLessEqual(cached.health()["cache_bytes"], 500)

@@ -1,0 +1,12 @@
+.account-safety{margin-top:18px;padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--white);color:var(--ink)}
+.account-safety-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.account-safety-heading h3{margin:0;font-size:14px;font-weight:700}
+.account-safety-status{font-size:11px;font-weight:650;padding:5px 8px;border-radius:7px;background:color-mix(in srgb,var(--muted) 12%,transparent)}
+.account-safety-status.safe{background:rgba(63,176,121,.18);color:#a7e8c1}.account-safety-status.rewritten{background:rgba(216,164,60,.18);color:#ffdf98}
+.account-safety-status.review{background:rgba(222,137,64,.18);color:#ffd0a3}.account-safety-status.blocked{background:rgba(212,80,104,.18);color:#ffb4bf}
+.account-safety-metrics{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:17px 0 12px}
+.account-safety-metrics div{min-width:0}.account-safety-metrics dt{font-size:11px;color:var(--muted);line-height:1.5}
+.account-safety-metrics dd{margin:4px 0 0;font-size:17px;font-weight:700;line-height:1.4}
+.account-safety-note{margin:7px 0 0;font-size:10px;color:var(--muted);line-height:1.6}
+.account-safety-empty{font-size:12px;margin:14px 0;color:var(--muted)}
+@media(max-width:360px){.account-safety-metrics{grid-template-columns:1fr}}

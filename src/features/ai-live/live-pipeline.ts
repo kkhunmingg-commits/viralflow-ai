@@ -8,6 +8,8 @@ import { LiveSpeechScheduler, type LiveSpeechRequest, type SpeechGesturePort } f
 import { SafetyVoiceBuffer } from "./safety-voice-buffer";
 import { LivePolicyGuard, type LivePolicyInput } from "./live-policy";
 import { liveWaitTick } from "./live-timeout";
+import { authorizeSpeech, SpeechComplianceError, type SpeechCompliancePort } from "./compliance-speech";
+import { SAFE_LIVE_TEMPLATES } from "../compliance-brain/semantic";
 
 /** Network/worker boundary. A real voice adapter must supply audio before LIVE can be enabled. */
 export interface VoiceProvider {
@@ -47,12 +49,16 @@ export class LivePipeline {
     gestures?: SpeechGesturePort;
     policy?: LivePolicyGuard;
     policyIdentity?: Omit<LivePolicyInput, "text" | "productId">;
+    compliance?: SpeechCompliancePort;
+    complianceTimeoutMs?: number;
   }) {
     this.speech = new LiveSpeechScheduler({ voice: deps.voice, presenterAudio: deps.presenterAudio,
-      buffer: deps.safetyVoice, gestures: deps.gestures, timeoutMs: deps.serviceTimeoutMs, now: deps.now });
+      buffer: deps.safetyVoice, gestures: deps.gestures, timeoutMs: deps.serviceTimeoutMs, now: deps.now,
+      compliance: deps.compliance, complianceTimeoutMs: deps.complianceTimeoutMs });
   }
 
   enqueueSpeech(request: LiveSpeechRequest): boolean {
+    if (request.productId !== null && request.productId !== this.deps.controller.current()?.currentProductId) return false;
     if (!this.policyAllows(request.text, request.productId)) return false;
     return this.speech.enqueue(request);
   }
@@ -93,6 +99,19 @@ export class LivePipeline {
         }
       }
       if (this.deps.controller.current()?.state !== "RUNNING") return { type: "NO_ACTION" };
+      try {
+        decision = { ...decision, reply: await authorizeSpeech(this.deps.compliance, decision.reply,
+          abort.signal, this.deps.complianceTimeoutMs ?? 1_000) };
+      } catch (error) {
+        if (!(error instanceof SpeechComplianceError) || error.kind !== "REFUSED") throw error;
+        // This neutral reply contains no product assertion. It still has to pass
+        // the SAME engine; an unavailable shield means silence/recovery.
+        const reply = await authorizeSpeech(this.deps.compliance,
+          SAFE_LIVE_TEMPLATES.unknown, abort.signal, this.deps.complianceTimeoutMs ?? 1_000);
+        decision = { ...decision, reply, intent: "SAFETY",
+          suggestedActions: [{ type: "SPEAK", priority: decision.priority }] };
+        this.deps.controller.events.record("BLOCKED", (this.deps.now ?? Date.now)());
+      }
       if (!this.policyAllows(decision.reply, session.currentProductId)) {
         this.deps.controller.events.record("BLOCKED", (this.deps.now ?? Date.now)());
         return { type: "POLICY_BLOCKED" };

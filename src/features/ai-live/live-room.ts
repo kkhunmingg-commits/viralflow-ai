@@ -6,6 +6,7 @@ import { SafetyVoiceBuffer } from "./safety-voice-buffer";
 import type { SpeechGesturePort } from "./speech-scheduler";
 import type { LivePolicyGuard } from "./live-policy";
 import type { WatchdogProbe } from "./watchdog";
+import type { SpeechCompliancePort } from "./compliance-speech";
 
 export type MeasuredLiveCapacity =
   | { status: "UNVERIFIED_CAPACITY" }
@@ -56,6 +57,7 @@ export interface LiveRoomResources {
   safetyVoice: SafetyVoiceBuffer;
   gestures?: SpeechGesturePort;
   policy?: LivePolicyGuard;
+  compliance?: SpeechCompliancePort;
   sellerRules?: SellerRules;
   allowMock?: boolean;
 }
@@ -102,6 +104,7 @@ export class LiveRoom {
       brain: resources.brain, products: this.products, actions: new ActionQueue({ now: lifecyclePorts.now }), voice: resources.voice,
       presenterAudio: resources.presenterAudio, safetyVoice: resources.safetyVoice, gestures: resources.gestures,
       policy: resources.policy, sellerRules: resources.sellerRules, now: lifecyclePorts.now,
+      compliance: resources.compliance,
       policyIdentity: { representsRealPerson: selection.presenter.identity.representsRealPerson,
         identityConsentConfirmed: selection.presenter.identity.consentConfirmed, impersonationClaim: false } });
   }

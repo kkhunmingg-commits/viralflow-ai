@@ -2,8 +2,10 @@ import Link from "next/link";
 import type { CustomerOverview } from "@/features/control-center/customer-types";
 import { AccountActionRequired, AccountIdentity, CustomerBadge, CustomerEmptyAccounts, CustomerMetric, PeriodTabs } from "./shared";
 import { customerTime, metricText } from "./presentation";
+import {AccountSafetyCard} from "./account-safety";
+import type {AccountSafetySummary} from "@/features/compliance-brain/presentation";
 
-export function HomeOverview({ data, shareAction }: { data: CustomerOverview; shareAction?: React.ReactNode }) {
+export function HomeOverview({ data, shareAction, safetyByAccount }: { data: CustomerOverview; shareAction?: React.ReactNode; safetyByAccount?:Record<string,AccountSafetySummary> }) {
   const needsAttention = data.accounts.filter((account) => account.actionRequired).length;
   return <div className="customer-center customer-home">
     <header className="customer-page-header">
@@ -44,6 +46,7 @@ export function HomeOverview({ data, shareAction }: { data: CustomerOverview; sh
           <div className="customer-account-now"><span className="customer-live-dot" aria-hidden="true" /><div><strong>{account.currentActivity}</strong>
             <p>{account.nextActivity ?? "ยังไม่มีงานถัดไป"}</p></div></div>
           <AccountActionRequired account={account} />
+          <AccountSafetyCard summary={safetyByAccount?.[account.id]} />
           <div className="customer-card-links"><Link className="customer-text-link" href={`/post/${account.id}?period=${data.period}`}>ดูคลิปและจัดการ POST →</Link>
             <Link className="customer-text-link customer-teal-link" href={`/ai-live?account=${account.id}`}>AI LIVE →</Link></div>
         </article>)}

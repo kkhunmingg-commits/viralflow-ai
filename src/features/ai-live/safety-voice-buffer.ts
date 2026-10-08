@@ -1,5 +1,6 @@
 import type { VoiceProvider } from "./live-pipeline";
 import { liveDeadline } from "./live-timeout";
+import { authorizeSpeech, SpeechComplianceError, type SpeechCompliancePort } from "./compliance-speech";
 
 export const SAFETY_VOICE_CATEGORIES = [
   "PRODUCT_INTRO", "FEATURES", "CTA", "FAQ", "FILLER", "ENGAGEMENT", "TRANSITION",
@@ -15,6 +16,8 @@ export interface PreparedSafetyVoice {
   pcm16: Uint8Array;
   sampleRate: 16_000;
   channels: 1;
+  /** Validated transcript of these exact recorded/synthesized samples. Missing means no playback. */
+  transcript?: string;
 }
 
 export interface SafetyVoiceBufferMetrics {
@@ -34,7 +37,8 @@ export class SafetyVoiceBuffer {
   private deadAirTotalMs = 0;
   private readonly maxBytes: number;
 
-  constructor(private readonly options: { maxSeconds?: number; now?: () => number } = {}) {
+  constructor(private readonly options: { maxSeconds?: number; now?: () => number;
+    compliance?: SpeechCompliancePort; complianceTimeoutMs?: number } = {}) {
     const maxSeconds = options.maxSeconds ?? 120;
     if (!Number.isFinite(maxSeconds) || maxSeconds <= 0 || maxSeconds > 600) throw new Error("invalid_safety_voice_capacity");
     this.maxBytes = Math.floor(maxSeconds * 32_000);
@@ -62,7 +66,9 @@ export class SafetyVoiceBuffer {
     let prepared = 0;
     for (const input of inputs) {
       if (!input.text.trim() || input.text.length > 1_000 || options.signal.aborted) throw new Error("invalid_safety_voice_preparation");
-      const iterator = voice.streamText(input.text, input.id, options.signal)[Symbol.asyncIterator]();
+      const safeText = await authorizeSpeech(this.options.compliance, input.text, options.signal,
+        this.options.complianceTimeoutMs ?? 1_000);
+      const iterator = voice.streamText(safeText, input.id, options.signal)[Symbol.asyncIterator]();
       const chunks: Uint8Array[] = [];
       let bytes = 0;
       try {
@@ -77,7 +83,7 @@ export class SafetyVoiceBuffer {
         const pcm16 = new Uint8Array(bytes);
         let offset = 0;
         for (const chunk of chunks) { pcm16.set(chunk, offset); offset += chunk.length; }
-        this.prepare({ ...input, pcm16, sampleRate: 16_000, channels: 1, provenance: "SYNTHESIZED" });
+        this.prepare({ ...input, transcript: safeText, pcm16, sampleRate: 16_000, channels: 1, provenance: "SYNTHESIZED" });
         prepared += 1;
       } catch (error) {
         await liveDeadline(voice.cancel(input.id), timeoutMs);
@@ -91,12 +97,19 @@ export class SafetyVoiceBuffer {
 
   activate(): void { this.activations += 1; }
 
-  take(category: SafetyVoiceCategory, productId: string | null, maxSeconds = 0.5): Uint8Array | null {
+  async take(category: SafetyVoiceCategory, productId: string | null, maxSeconds = 0.5,
+    signal?: AbortSignal): Promise<Uint8Array | null> {
     if (!Number.isFinite(maxSeconds) || maxSeconds <= 0 || maxSeconds > 5) throw new Error("invalid_safety_voice_chunk_duration");
     // Never speak a prepared claim for a different product. Generic recordings have no product ID.
     const clip = this.clips.find((item) => item.category === category && (item.productId === null || item.productId === productId))
       ?? this.clips.find((item) => item.category === "FILLER" && item.productId === null);
     if (!clip) return null;
+    // Old PCM-only clips are deliberately unusable. A policy change or missing
+    // authority cannot disable the shield just because audio was cached earlier.
+    if (!clip.transcript) throw new SpeechComplianceError();
+    await authorizeSpeech(this.options.compliance, clip.transcript, signal,
+      this.options.complianceTimeoutMs ?? 1_000, true);
+    if (!this.clips.includes(clip)) return null; // cleared while the authority was checking
     const bytes = Math.max(2, Math.floor(maxSeconds * 16_000) * 2);
     const end = Math.min(clip.offset + bytes, clip.pcm16.length);
     const result = clip.pcm16.slice(clip.offset, end);

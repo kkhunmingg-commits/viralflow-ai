@@ -3,16 +3,23 @@ import { appendGrowthSnapshot } from "../growth/persistence";
 import { boundedAdjustment, learningDecision } from "./learning";
 import { evidenceHash } from "./scoring";
 import type { AnalyticsMode, WinnerResult } from "./types";
+import { runPrePublishGate } from "../compliance/services";
 
 export async function recordAutoLearning(admin: SupabaseClient, input: {
   ownerId: string; accountId: string; winnerScoreId: string; productId: string; mode: AnalyticsMode;
 }) {
   const score = await admin.from("winner_scores")
-    .select("id,decision,confidence,final_score,evaluated_at,video_snapshot_id")
+    .select("id,decision,confidence,final_score,evaluated_at,video_snapshot_id,video_id,video_kind")
     .eq("owner_id", input.ownerId).eq("tiktok_account_id", input.accountId)
     .eq("id", input.winnerScoreId).maybeSingle();
   if (score.error) throw new Error("auto_learning_read_failed");
   if (!score.data) return null;
+  // Revenue never authorizes an unsafe claim: recheck the exact source under current policy.
+  if(!score.data.video_id)return null;
+  try{
+    const safety=await runPrePublishGate(admin,input.ownerId,score.data.video_kind==="MASTER"?"master":"variation",score.data.video_id);
+    if(safety.compliance.overallStatus!=="PASS")return null;
+  }catch{return null;}
   const decision = learningDecision({ decision: score.data.decision,
     confidence: Number(score.data.confidence) } as WinnerResult);
   const hash = evidenceHash({ winnerScoreId: input.winnerScoreId, decision, productId: input.productId });

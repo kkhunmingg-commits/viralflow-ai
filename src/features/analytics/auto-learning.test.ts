@@ -1,4 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach,describe, expect, it,vi } from "vitest";
+const boundary=vi.hoisted(()=>({gate:vi.fn()}));
+vi.mock("../compliance/services",()=>({runPrePublishGate:boundary.gate}));
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordAutoLearning } from "./auto-learning";
 
@@ -38,7 +40,7 @@ class Query {
 function fixture() {
   const rows: Record<string, Row[]> = {
     winner_scores: [{ id: "winner-1", owner_id: "owner-1", tiktok_account_id: "account-1",
-      video_snapshot_id: "snapshot-1", decision: "SCALE", confidence: .8, final_score: 72,
+      video_snapshot_id: "snapshot-1",video_id:"video-1",video_kind:"MASTER", decision: "SCALE", confidence: .8, final_score: 72,
       evaluated_at: "2026-09-23T10:00:00Z" }],
     learning_decisions: [], growth_account_snapshots: [],
     tiktok_accounts: [{ id: "account-1", owner_id: "owner-1", follower_count: 1000 }],
@@ -49,6 +51,7 @@ const input = { ownerId: "owner-1", accountId: "account-1", winnerScoreId: "winn
   productId: "product-1", mode: "GROWTH" as const };
 
 describe("analytics learning after a resumed Auto step", () => {
+  beforeEach(()=>boundary.gate.mockResolvedValue({compliance:{overallStatus:"PASS"}}));
   it("reuses the exact decision and Growth snapshot after a crash/retry", async () => {
     const { rows, admin } = fixture();
     const first = await recordAutoLearning(admin, input);
@@ -66,5 +69,11 @@ describe("analytics learning after a resumed Auto step", () => {
     expect(affiliate?.learningDecision).toBe("BOOST");
     expect(rows.learning_decisions).toHaveLength(1);
     expect(rows.growth_account_snapshots).toHaveLength(0);
+  });
+  it("never rewards a risky high-revenue winner or unavailable compliance",async()=>{
+    const {rows,admin}=fixture();boundary.gate.mockResolvedValueOnce({compliance:{overallStatus:"REJECT"}});
+    expect(await recordAutoLearning(admin,input)).toBeNull();
+    boundary.gate.mockRejectedValueOnce(new Error("unavailable"));expect(await recordAutoLearning(admin,input)).toBeNull();
+    expect(rows.learning_decisions).toHaveLength(0);expect(rows.growth_account_snapshots).toHaveLength(0);
   });
 });

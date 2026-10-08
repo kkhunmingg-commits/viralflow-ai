@@ -41,6 +41,7 @@ beforeEach(() => {
   rows = {
     ai_live_devices: [{ owner_id: ownerId, device_id: deviceId, revoked_at: null }],
     tiktok_accounts: [{ id: accountId, owner_id: ownerId, is_mock: false, hidden_at: null, authorization_status: "authorized" }],
+    compliance_brain_claims: [], compliance_brain_evidence: [],
     products: [{ id: productId, owner_id: ownerId, title: "สินค้าของร้าน", status: "available", current_price: 1290,
       currency: "THB", updated_at: "2026-10-06T00:00:00Z", provider_metadata: { debug_token: "never emit", live_commerce: { stock: 7, colors: ["ขาว"], shipping: "สองวัน", debug: "never emit" } } }],
   };
@@ -67,6 +68,19 @@ describe("trusted local AI product sync", () => {
     expect(signed.payload.products[0].facts).toEqual({ price: 1290, currency: "THB" });
     rows.products[0].updated_at = "2026-10-06T01:00:00Z";
     expect((await (await POST(request())).json()).payload.products[0].version).toBe("2026-10-06T01:00:00Z");
+  });
+  it("signs only verified LIVE ClaimLedger entries and never promotes unverified store facts", async () => {
+    const evidenceId = "b6f687a7-ced7-46eb-8f8b-a67c314f0cd1", claimId = "5f0cabfb-eefb-49d5-8756-ad52ec0a6338";
+    rows.compliance_brain_evidence = [{ id: evidenceId, owner_id: ownerId, product_id: productId, kind: "PRODUCT_LABEL",
+      source_url: "https://shop.example/label", source_hash: "a".repeat(64), jurisdiction: "TH", verified: true, expires_at: null }];
+    const claim = { id: claimId, owner_id: ownerId, product_id: productId, claim_text: "สินค้ามีสีขาว", claim_type: "FEATURE",
+      source: "product label", evidence_refs: [evidenceId], jurisdiction: "TH", expires_at: null, verified: true,
+      allowed_channels: ["LIVE"], conditions: [], aliases: [] };
+    rows.compliance_brain_claims = [claim, { ...claim, id: deviceId, verified: false }, { ...claim, id: accountId, allowed_channels: ["POST"] }];
+    const signed = await (await POST(request())).json();
+    expect(signed.payload.products[0].compliance).toMatchObject({ platform: "TIKTOK_SHOP", country: "TH",
+      claims: [{ id: claimId, verified: true, text: "สินค้ามีสีขาว" }], evidence: [{ id: evidenceId, verified: true }] });
+    expect(signed.payload.products[0].compliance.claims).toHaveLength(1);
   });
   it("rejects browser-supplied facts, cross origin, missing Auth, expired membership and revoked devices", async () => {
     expect((await POST(request({ deviceId, accountId, productIds: [productId], facts: { price: 1 } }))).status).toBe(400);

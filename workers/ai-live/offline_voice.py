@@ -18,10 +18,11 @@ import threading
 import uuid
 import wave
 from pathlib import Path
-from typing import Iterator
+from typing import Callable, Iterator
 
 from voice import SpeechChunk
 from provider_config import dev_fallback_enabled
+from compliance_speech import ComplianceSpeechError
 
 
 def dev_enabled(environment: dict[str, str] | None = None) -> bool:
@@ -30,7 +31,7 @@ def dev_enabled(environment: dict[str, str] | None = None) -> bool:
 
 
 class WindowsOfflineVoice:
-    def __init__(self, data_dir: Path) -> None:
+    def __init__(self, data_dir: Path, *, compliance_authorize: Callable[[str], str] | None = None) -> None:
         if not dev_enabled():
             raise RuntimeError('DEV_FALLBACK_DISABLED')
         if os.name != 'nt':
@@ -41,6 +42,7 @@ class WindowsOfflineVoice:
         self._process: subprocess.Popen | None = None
         self._cancelled = False
         self._interrupted = threading.Event()
+        self._compliance_authorize = compliance_authorize
 
     def health(self) -> dict[str, object]:
         return {'ready': not self._cancelled and dev_enabled(), 'status': 'DEV_OFFLINE_VOICE'}
@@ -50,6 +52,11 @@ class WindowsOfflineVoice:
             raise RuntimeError('DEV_FALLBACK_DISABLED')
         if not text.strip() or len(text) > 1000 or not utterance_id:
             raise ValueError('INVALID_SPEECH_REQUEST')
+        if self._compliance_authorize is None:
+            raise ComplianceSpeechError()
+        text = self._compliance_authorize(text)
+        if not isinstance(text, str) or not text.strip() or len(text) > 1000:
+            raise ComplianceSpeechError('LIVE_COMPLIANCE_BINDING_INVALID')
         self._interrupted.clear()
         path = self._data_dir / f'{uuid.uuid4()}.wav'
         request_path = path.with_suffix('.json')
@@ -84,6 +91,10 @@ class WindowsOfflineVoice:
                     pcm = audio.readframes(16000)
                     if not pcm:
                         break
+                    if self._compliance_authorize(text) != text:
+                        raise ComplianceSpeechError('LIVE_COMPLIANCE_BINDING_INVALID')
+                    if self._interrupted.is_set():
+                        return
                     yield SpeechChunk(pcm, utterance_id)
         finally:
             if 'process' in locals() and process.poll() is None:

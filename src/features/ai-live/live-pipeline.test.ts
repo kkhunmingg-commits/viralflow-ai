@@ -10,6 +10,8 @@ const products: LiveProduct[] = [
   { id: "product-one", title: "สินค้าทดสอบหนึ่ง", status: "available", current_price: 42, currency: "THB" },
   { id: "product-two", title: "สินค้าทดสอบสอง", status: "available", current_price: 58, currency: "THB" },
 ];
+// Decision-service boundary fixture only; the production scheduler/gates are unchanged.
+const compliance = { authorize: async (text: string) => ({ allowed: true, text }) };
 
 describe("AI LIVE non-GPU pipeline", () => {
   it("runs 30 minutes of virtual comment → brain → product → voice → mock presenter traffic without queue buildup or duplicate actions", async () => {
@@ -48,6 +50,7 @@ describe("AI LIVE non-GPU pipeline", () => {
     const pipeline = new LivePipeline({
       controller, comments, brain: new RuleBasedLiveBrain(), products: productBrain,
       actions, voice, presenterAudio: mockPresenter, now: () => clock,
+      compliance,
     });
 
     expect((await controller.start({
@@ -100,6 +103,7 @@ describe("AI LIVE non-GPU pipeline", () => {
     const pipeline = new LivePipeline({
       controller, comments: new CommentEngine(), brain: new RuleBasedLiveBrain(),
       products: new ProductBrain(products), actions,
+      compliance,
       voice: {
         async *streamText() { speechCalls += 1; yield new Uint8Array([1]); },
         interrupt: async () => {}, cancel: async () => {},
