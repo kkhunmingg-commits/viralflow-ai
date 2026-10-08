@@ -71,4 +71,24 @@ describe("Control Center evidence mapping", () => {
     const feed = mapControlCenterActivity({ steps: [step("s1", "PUBLISH", "COMPLETED", 1, { publishStatus: "DRAFT_DELIVERED" })] });
     expect(feed[0].title).toBe("ขั้นเผยแพร่เสร็จ");
   });
+
+  it("presents completed EXPORT delivery as files rather than TikTok publication", () => {
+    const rows = [step("s1", "QUEUE_PUBLISH", "COMPLETED", 1, { postingMode: "EXPORT" }),
+      step("s2", "PUBLISH", "COMPLETED", 1, { postingMode: "EXPORT", publishStatus: "READY" })];
+    const stages = mapControlCenterStages({ steps: rows, itemIndex: 1 });
+    expect(mapCustomerStages(stages).find(item => item.id === "PUBLISH")).toMatchObject({ label: "ส่งออก", state: "completed" });
+    expect(mapControlCenterActivity({ steps: rows }).map(item => item.title)).toEqual(["ไฟล์ส่งออกพร้อม", "ไฟล์ส่งออกพร้อม"]);
+    expect(mapCustomerStages(mapControlCenterStages({ steps: rows, itemIndex: 2 })).find(item => item.id === "PUBLISH"))
+      .toMatchObject({ label: "โพสต์", state: "waiting" });
+  });
+
+  it("does not claim analytics or learning happened when EXPORT deferred those steps", () => {
+    const feed = mapControlCenterActivity({ steps: [
+      step("s1", "COLLECT_ANALYTICS", "COMPLETED", 1, { analyticsDeferred: true, postingMode: "EXPORT" }),
+      step("s2", "LEARN", "COMPLETED", 1, { learningDeferred: true }),
+    ] });
+    expect(feed.map(item => [item.title, item.state])).toEqual([
+      ["รอผลลัพธ์เพื่อปรับแผน", "waiting"], ["รอผลลัพธ์หลังเผยแพร่", "waiting"],
+    ]);
+  });
 });

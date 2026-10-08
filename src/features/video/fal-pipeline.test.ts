@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,6 +12,7 @@ import { customerVideoStatus } from "./customer-presentation";
 import { autoVideoQualityOutcome } from "../auto/execution-policy";
 import { FAL_BUDGET_GUARD_VERSION } from "./budget-ledger";
 import { videoStoragePath } from "./storage";
+import { createSignedPolicyTestFixture } from "../compliance-brain/policy-test-fixtures";
 
 const config = vi.hoisted(() => ({ falKey: "test-only-fal-credential", falWanProviderState: "PRODUCTION_APPROVED",
   videoFalEnabled: true, videoFalPrimaryModel: "fal-ai/ltxv-13b-098-distilled/image-to-video",
@@ -19,10 +21,14 @@ const config = vi.hoisted(() => ({ falKey: "test-only-fal-credential", falWanPro
   videoFalDailyCapUsd: 5, videoFalDurationSeconds: 8, videoFalResolution: "720p", videoProductImageAllowedHosts: [], openAIApiKey: undefined }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/server-env", () => ({ serverEnv: config }));
+const complianceBoundary = vi.hoisted(() => ({ admin: vi.fn() }));
+vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: complianceBoundary.admin }));
 
 type Row = Record<string, unknown>;
 const owner = "11111111-1111-4111-8111-111111111111";
-const photoPath = videoStoragePath(owner, "products", "product", "photo.jpg"), voicePath = videoStoragePath(owner, "masters", "project", "voice.wav");
+const productId = "22222222-2222-4222-8222-222222222222", accountId = "33333333-3333-4333-8333-333333333333";
+const evidenceId = "77777777-7777-4777-8777-777777777777";
+const photoPath = videoStoragePath(owner, "products", productId, "photo.jpg"), voicePath = videoStoragePath(owner, "masters", "project", "voice.wav");
 let dir: string, photo: Uint8Array, video: Uint8Array, voice: Uint8Array;
 function mediaCommand(args: string[]) {
   return new Promise<void>((resolve, reject) => {
@@ -35,15 +41,28 @@ function mediaCommand(args: string[]) {
 // Only external database/storage and provider boundaries are substituted. Composition,
 // frame extraction, format probing, provider polling, quality and orchestration run unchanged.
 function database(withVoice = true) {
+  const policy = createSignedPolicyTestFixture();
+  vi.stubEnv("COMPLIANCE_POLICY_PUBLIC_KEYS_JSON", JSON.stringify(Object.fromEntries(Object.entries(policy.trustedKeys)
+    .map(([id, key]) => [id, key.export({format: "pem", type: "spki"}).toString()]))));
   const tables: Record<string, Row[]> = {
-    creative_projects: [{ id: "project", owner_id: owner, tiktok_account_id: "account", product_id: "product", selected_script_id: "script", selected_angle_id: "angle" }],
-    scripts: [{ id: "script", owner_id: owner, creative_angle_id: "angle", hook_text: "Test product", cta_text: "View details", status: "READY", overlay_text_json: [], scene_plan_json: [
+    compliance_brain_policy_versions: [{ version: policy.payload.version, platform: "TIKTOK_SHOP", country: "TH", region: "TH",
+      status: "ACTIVE", effective_at: "2026-01-01T00:00:00Z", pack_json: policy.signed,
+      checksum: policy.signed.checksum, signature: policy.signed.signature }],
+    compliance_brain_claims: [{ id: "88888888-8888-4888-8888-888888888888", owner_id: owner, product_id: productId,
+      claim_text: "Test product", claim_type: "PRODUCT_FACT", source: "isolated verified label fixture", evidence_refs: [evidenceId],
+      jurisdiction: "TH", expires_at: null, verified: true, allowed_channels: ["POST"], conditions: [], aliases: [] }],
+    compliance_brain_evidence: [{ id: evidenceId, owner_id: owner, product_id: productId, kind: "PRODUCT_LABEL",
+      source_url: "https://example.test/isolated-label", source_hash: createHash("sha256").update("Test product").digest("hex"),
+      jurisdiction: "TH", verified: true, expires_at: null }],
+    compliance_brain_media_reviews: [],
+    creative_projects: [{ id: "project", owner_id: owner, tiktok_account_id: accountId, product_id: productId, selected_script_id: "script", selected_angle_id: "angle" }],
+    scripts: [{ id: "script", owner_id: owner, creative_angle_id: "angle", hook_text: "Test product", cta_text: "ตรวจสอบข้อมูลสินค้า", status: "READY", overlay_text_json: [], scene_plan_json: [
       { start: 0, end: 2, visual: "hook", motion: "push" }, { start: 2, end: 5, visual: "product", motion: "pan" }, { start: 5, end: 8, visual: "cta", motion: "hold" }] }],
-    creative_angles: [{ id: "angle", owner_id: owner, policy_status: "SAFE" }], products: [{ id: "product", owner_id: owner, title: "Public test fixture" }],
-    tiktok_accounts: [{ id: "account", owner_id: owner, is_mock: false, max_cost_per_video_usd: 1, daily_video_budget_usd: 5, monthly_video_budget_usd: 150 }],
+    creative_angles: [{ id: "angle", owner_id: owner, policy_status: "SAFE" }], products: [{ id: productId, owner_id: owner, title: "Public test fixture", category_key: "HOME" }],
+    tiktok_accounts: [{ id: accountId, owner_id: owner, is_mock: false, max_cost_per_video_usd: 1, daily_video_budget_usd: 5, monthly_video_budget_usd: 150 }],
     auto_runs: [{ id: "run", owner_id: owner, state: "RUNNING", budget_usd: 5, idempotency_key: "test-run-idempotency" }],
     generation_jobs: [], generation_budget_reservations: [], generation_costs: [], master_videos: [], video_variations: [],
-    media_assets: [{ id: "photo", owner_id: owner, product_id: "product", asset_type: "PRODUCT_IMAGE", source_type: "UPLOAD", storage_path: photoPath, mime_type: "image/jpeg" },
+    media_assets: [{ id: "photo", owner_id: owner, product_id: productId, asset_type: "PRODUCT_IMAGE", source_type: "UPLOAD", storage_path: photoPath, mime_type: "image/jpeg" },
       ...(withVoice ? [{ id: "voice", owner_id: owner, creative_project_id: "project", asset_type: "VOICE", source_type: "UPLOAD", storage_path: voicePath, mime_type: "audio/wav" }] : [])],
   };
   const files = new Map<string, Blob>([[photoPath, new Blob([new Uint8Array(photo)], { type: "image/jpeg" })], [voicePath, new Blob([new Uint8Array(voice)], { type: "audio/wav" })]]);
@@ -54,7 +73,7 @@ function database(withVoice = true) {
     select() { return this; } order() { return this; } limit() { return this; }
     eq(key: string, value: unknown) { this.filters.push(row => row[key] === value); return this; }
     neq(key: string, value: unknown) { this.filters.push(row => row[key] !== value); return this; }
-    lte(key: string, value: number) { this.filters.push(row => Number(row[key]) <= value); return this; }
+    lte(key: string, value: number | string) { this.filters.push(row => typeof value === "number" ? Number(row[key]) <= value : String(row[key]) <= value); return this; }
     in(key: string, values: unknown[]) { this.filters.push(row => values.includes(row[key])); return this; }
     insert(value: Row | Row[]) { this.operation = "insert"; this.values = Array.isArray(value) ? value : [value]; return this; }
     update(value: Row) { this.operation = "update"; this.values = [value]; return this; }
@@ -77,6 +96,8 @@ function database(withVoice = true) {
     }
   }
   const rpc = vi.fn(async (name: string, input: Row) => {
+    if (name === "record_compliance_brain_decision") return { data: (input.p_decision as Row).id, error: null };
+    if (name === "read_compliance_brain_learning_observations") return { data: { snapshot_at: new Date().toISOString(), complete: true, observations: [] }, error: null };
     if (name === "fal_budget_guard_version") return { data: FAL_BUDGET_GUARD_VERSION, error: null };
     const hold = tables.generation_budget_reservations.find(row => row.id === input.p_reservation_id);
     if (name === "reserve_generation_budget") {
@@ -113,6 +134,7 @@ function database(withVoice = true) {
     download,
     upload: async (path: string, bytes: Uint8Array) => { files.set(path, new Blob([new Uint8Array(bytes)])); return { error: null }; },
   }) } } as unknown as SupabaseClient;
+  complianceBoundary.admin.mockReturnValue(client);
   return { client, tables, files, rpc, download };
 }
 const assessment = { productVisible: true, ctaVisible: true, checks: { shape: "PASS", colors: "PASS", packaging: "PASS", details: "PASS", deformation: "PASS", visibleText: "PASS", commercialSafety: "PASS" }, reasons: [] };
@@ -151,8 +173,58 @@ beforeEach(() => {
   config.videoFalApprovedModels = [config.videoFalPrimaryModel, config.videoFalFallbackModel];
   config.videoFalResolution = "720p"; config.videoFalDurationSeconds = 8; config.videoFalQualityThreshold = 85;
 });
+afterEach(() => vi.unstubAllEnvs());
 
 describe("real Video Factory production pipeline", () => {
+  it("holds a script with no verified claim before any provider upload or budget reservation", async () => {
+    const { generateVideoFactoryFalMaster } = await import("./auto-fal");
+    const db = database(), network = providers(), verifier = vision();
+    db.tables.compliance_brain_claims = [];
+    await expect(generateVideoFactoryFalMaster(db.client, owner, "project", network.factory, verifier.provider))
+      .rejects.toThrow("compliance_review_required");
+    expect(network.client.upload).not.toHaveBeenCalled();
+    expect(network.submit).not.toHaveBeenCalled();
+    expect(verifier.network).not.toHaveBeenCalled();
+    expect(db.tables.generation_budget_reservations).toHaveLength(0);
+    expect(db.tables.generation_costs).toHaveLength(0);
+    expect(db.tables.generation_jobs).toHaveLength(0);
+    expect(db.rpc.mock.calls.some(([name]) => name === "record_compliance_brain_decision")).toBe(true);
+  });
+
+  it("blocks an unsafe voice-script claim even when the selected angle and product fact are safe", async () => {
+    const { generateVideoFactoryFalMaster } = await import("./auto-fal");
+    const db = database(), network = providers(), verifier = vision();
+    db.tables.scripts[0].voice_script = "รักษาสิวให้หายขาด";
+    await expect(generateVideoFactoryFalMaster(db.client, owner, "project", network.factory, verifier.provider))
+      .rejects.toThrow("compliance_review_required");
+    expect(network.client.upload).not.toHaveBeenCalled();
+    expect(network.submit).not.toHaveBeenCalled();
+    expect(db.tables.generation_budget_reservations).toHaveLength(0);
+    expect(db.tables.generation_costs).toHaveLength(0);
+    const recorded = db.rpc.mock.calls.filter(([name]) => name === "record_compliance_brain_decision");
+    expect(recorded.some(([, input]) => (input.p_decision as Row).decision === "BLOCK")).toBe(true);
+  });
+
+  it("retires policy after image upload and releases the hold without any paid POST or fallback", async () => {
+    const { generateVideoFactoryFalMaster } = await import("./auto-fal");
+    const db = database(), network = providers(), verifier = vision();
+    network.client.upload = vi.fn(async () => {
+      db.tables.compliance_brain_policy_versions = [];
+      return "https://fal.media/input.jpg";
+    });
+    await expect(generateVideoFactoryFalMaster(db.client, owner, "project", network.factory, verifier.provider))
+      .rejects.toMatchObject({ name: "PaidProviderNotSubmittedError" });
+    expect(network.client.upload).toHaveBeenCalledOnce();
+    expect(network.submit).not.toHaveBeenCalled();
+    expect(network.client.status).not.toHaveBeenCalled();
+    expect(verifier.network).not.toHaveBeenCalled();
+    expect(db.tables.generation_budget_reservations).toHaveLength(1);
+    expect(db.tables.generation_budget_reservations[0]).toMatchObject({ state: "RELEASED", provider_request_id: null });
+    expect(db.tables.generation_costs).toHaveLength(0);
+    const recorded = db.rpc.mock.calls.filter(([name]) => name === "record_compliance_brain_decision");
+    expect(recorded.some(([, input]) => (input.p_decision as Row).decision === "REVIEW_REQUIRED")).toBe(true);
+  }, 30_000);
+
   it("stores one passing master and never pays again after manual reload", async () => {
     const { generateVideoFactoryFalMaster } = await import("./auto-fal");
     const db = database(), network = providers(), verifier = vision();
@@ -219,7 +291,7 @@ describe("real Video Factory production pipeline", () => {
   it("honors a stopped AUTO run before reserving or submitting", async () => {
     const { generateAutoFalMaster } = await import("./auto-fal");
     const db = database(), network = providers(), verifier = vision(); db.tables.auto_runs[0].state = "STOPPED";
-    await expect(generateAutoFalMaster(db.client, { ownerId: owner, runId: "run", accountId: "account", projectId: "project", operationKey: "test-operation" }, network.factory, verifier.provider)).rejects.toMatchObject({ name: "PaidProviderNotSubmittedError" });
+    await expect(generateAutoFalMaster(db.client, { ownerId: owner, runId: "run", accountId: accountId, projectId: "project", operationKey: "test-operation" }, network.factory, verifier.provider)).rejects.toMatchObject({ name: "PaidProviderNotSubmittedError" });
     expect(network.submit).not.toHaveBeenCalled(); expect(db.tables.generation_budget_reservations).toHaveLength(0);
   });
 
@@ -304,7 +376,7 @@ describe("real Video Factory production pipeline", () => {
     const network = providers(), verifier = vision();
     const anotherOwner = "22222222-2222-4222-8222-222222222222";
     const photo = database();
-    photo.tables.media_assets[0].storage_path = videoStoragePath(anotherOwner, "products", "product", "photo.jpg");
+    photo.tables.media_assets[0].storage_path = videoStoragePath(anotherOwner, "products", productId, "photo.jpg");
     await expect(generateVideoFactoryFalMaster(photo.client, owner, "project", network.factory, verifier.provider)).rejects.toThrow("product_image_storage_invalid");
     const narration = database();
     narration.tables.media_assets[1].storage_path = videoStoragePath(anotherOwner, "masters", "project", "voice.wav");
@@ -355,7 +427,7 @@ describe("real Video Factory production pipeline", () => {
     const master = await generateVideoFactoryFalMaster(db.client, owner, "project", network.factory, verifier.provider);
     config.videoFalDurationSeconds = 10; config.videoFalQualityThreshold = 100;
     db.tables.creative_projects[0].selected_script_id = "new-script"; db.tables.creative_projects[0].selected_angle_id = "new-angle";
-    const verified = await reverifyAutoFalMaster(db.client, { ownerId: owner, accountId: "account", projectId: "project", videoId: String(master.id) }, verifier.provider);
+    const verified = await reverifyAutoFalMaster(db.client, { ownerId: owner, accountId: accountId, projectId: "project", videoId: String(master.id) }, verifier.provider);
     expect(verified).toMatchObject({ selected_script_id: "script", quality_status: "PASS", duration_seconds: 8,
       quality_explanation_json: { qualityThreshold: 85, targetDurationSeconds: 8 } });
     expect((db.tables.generation_jobs[0].output_json as Row).reviewRequired).toBe(false);

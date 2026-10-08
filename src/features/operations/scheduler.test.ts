@@ -7,9 +7,16 @@ const secret = "c".repeat(32);
 const result = { claimed: true, windowKey: "window-1", incidents: 2, alerts: 1 };
 
 describe("Phase 11E recovery schedule", () => {
-  it("lets the cron request reach the bearer-protected route through the auth proxy", () => {
+  it("keeps recovery callable while the active POST schedule is owned by Supabase", () => {
     expect(readFileSync("src/lib/supabase/proxy.ts", "utf8")).toContain('"/api/operations/recovery"');
-    expect(readFileSync("vercel.json", "utf8")).toContain('"path": "/api/operations/recovery"');
+    // Vercel Hobby intentionally has no five-minute recovery cron. The endpoint
+    // stays protected and available; POST uses the database's SAFE tick instead.
+    const vercel = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons?: unknown[] };
+    expect(vercel.crons ?? []).toEqual([]);
+    const migration = readFileSync("supabase/migrations/20261007040348_post_supabase_cron_safe_scheduler.sql", "utf8");
+    expect(migration).toContain("'viralflow-post-account-automation','* * * * *','SELECT public.tick_post_account_automation();'");
+    expect(migration).toContain("execution_mode text not null default 'SAFE'");
+    expect(migration).not.toMatch(/net\.http_post|https?:\/\//);
   });
   it("rejects unauthorized calls before touching recovery", async () => {
     const run = vi.fn(async () => result);

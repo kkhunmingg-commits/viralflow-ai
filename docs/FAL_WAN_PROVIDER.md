@@ -7,7 +7,7 @@ Updated 5 October 2026. `FalWanVideoProvider` remains the existing server adapte
 - Manual Video Factory and AUTO share the real generation, budget, composition and persistence path.
 - Real benchmark: **NOT_RUN — FAL_KEY unavailable** in the accessible process/user/machine environment. No paid generation was submitted: cost $0, outputs 0, observed success/usable rate and latency unavailable.
 - PRIMARY/FALLBACK defaults are provisional candidates. `FAL_VIDEO_ENABLED=false`; exact model approval list is empty by default.
-- `20261003190554_fal_generation_budget_guards.sql` is validated in isolated PostgreSQL and **not applied remotely by this task**. Spending requires the `fal_budget_guard_version` handshake.
+- `20261008122111_fal_generation_budget_guards.sql` was validated in isolated PostgreSQL and applied during the Integration readiness task. Spending still requires the `fal_budget_guard_version` handshake and explicit paid-execution authorization; the database migration does not enable paid execution.
 - TikTok approval/OAuth/scopes/publishing configuration and AI LIVE are unchanged. No merge or production deployment.
 
 ## Real provider boundary

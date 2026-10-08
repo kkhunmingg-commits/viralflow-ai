@@ -17,6 +17,7 @@ const { getPostAutomationExecutionMode } = await import("./execution-mode");
 type Row = Record<string, unknown>;
 function fixture() {
   const tables: Record<string, Row[]> = {
+    auto_runs: [{ owner_id: "owner", id: "run", tiktok_account_id: "account", posting_mode: "AUTO" }],
     tiktok_accounts: [{ owner_id: "owner", id: "account", is_mock: false, effective_mode: "GROWTH", preferred_categories: [] }],
     product_assignments: [{ owner_id: "owner", id: "assignment", tiktok_account_id: "account", product_id: "product",
       final_score: 90, status: "SELECTED", score_id: "score", reason_json: {} }],

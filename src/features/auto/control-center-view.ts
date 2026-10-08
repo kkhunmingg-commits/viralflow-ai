@@ -44,7 +44,8 @@ export function mapCustomerStages(stages: readonly ControlCenterStage[]) {
     const state: ControlCenterStageState = members.some((stage) => stage.state === "failed") ? "failed"
       : members.every((stage) => stage.state === "completed") ? "completed"
         : members.some((stage) => stage.state === "active") ? "active" : "waiting";
-    return { id: group.ids[0], label: group.label, state };
+    const label = group.ids[0] === "PUBLISH" && members.some((stage) => stage.label === "Export") ? "ส่งออก" : group.label;
+    return { id: group.ids[0], label, state };
   });
 }
 
@@ -91,6 +92,8 @@ export function mapControlCenterStages({ steps, currentStep, currentState, check
   const scriptReady = hasScriptEvidence(checkpoint, itemIndex, itemSteps);
   const activeState = currentState === "RUNNING" || currentState === "STARTING" || currentState === "RETRY_PENDING";
   const failedState = currentState === "FAILED" || currentState === "BLOCKED";
+  const exportMode = itemSteps.some((step) => ["QUEUE_PUBLISH", "PUBLISH"].includes(step.step)
+    && step.state === "COMPLETED" && step.output_json?.postingMode === "EXPORT");
 
   return stages.map(({ id, label, steps: required }) => {
     // Script is evidence inside CREATE_CREATIVE, not an independent processor stage.
@@ -100,7 +103,7 @@ export function mapControlCenterStages({ steps, currentStep, currentState, check
       : isCurrent && failedState ? "failed"
       : isCurrent && activeState ? "active"
       : "waiting";
-    return { id, label, state };
+    return { id, label: id === "PUBLISH" && exportMode ? "Export" : label, state };
   });
 }
 
@@ -132,6 +135,9 @@ function activityTitle(step: ControlCenterStepEvidence): string | null {
   const base = completedTitles[step.step];
   if (!base) return null;
   if (step.state === "COMPLETED") {
+    if (step.output_json?.postingMode === "EXPORT" && ["QUEUE_PUBLISH", "PUBLISH"].includes(step.step)) return "ไฟล์ส่งออกพร้อม";
+    if (step.step === "COLLECT_ANALYTICS" && step.output_json?.analyticsDeferred === true) return "รอผลลัพธ์หลังเผยแพร่";
+    if (step.step === "LEARN" && step.output_json?.learningDeferred === true) return "รอผลลัพธ์เพื่อปรับแผน";
     if (step.step === "CREATE_CREATIVE" && typeof step.output_json?.scriptId === "string" && step.output_json.scriptId) {
       return "เนื้อหาและสคริปต์พร้อม";
     }
@@ -154,7 +160,9 @@ export function mapControlCenterActivity({ steps, itemIndex, limit = 8 }: {
     const title = activityTitle(step);
     const occurredAt = step.completed_at ?? step.created_at;
     if (!title || !occurredAt || !Number.isFinite(Date.parse(occurredAt))) return [];
-    const state: ControlCenterActivity["state"] = step.state === "COMPLETED" ? "completed"
+    const deferred = step.step === "COLLECT_ANALYTICS" && step.output_json?.analyticsDeferred === true
+      || step.step === "LEARN" && step.output_json?.learningDeferred === true;
+    const state: ControlCenterActivity["state"] = step.state === "COMPLETED" && !deferred ? "completed"
       : step.state === "FAILED" ? "failed" : "waiting";
     return [{ id: step.id, step: step.step, title, state, occurredAt }];
   }).sort((left, right) => Date.parse(right.occurredAt) - Date.parse(left.occurredAt)).slice(0, boundedLimit);

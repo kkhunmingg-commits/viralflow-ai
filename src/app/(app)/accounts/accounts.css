@@ -103,8 +103,8 @@
   .accounts-connect { width: 100%; min-height: 48px; }
   .accounts-empty { min-height: 385px; padding: 32px 18px; }
   .accounts-card { padding: 17px; }
-  .accounts-card-header { flex-wrap: wrap; }
-  .accounts-card-header > .accounts-badge { margin-left: 66px; }
+  .accounts-card-header { display: grid; grid-template-columns: 54px minmax(0, 1fr); }
+  .accounts-card-header > .accounts-badge { grid-column: 2; justify-self: start; margin-left: 0; }
 }
 @media (max-width: 350px) {
   .accounts-card-header > .accounts-badge { margin-left: 0; }

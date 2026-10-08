@@ -1,12 +1,13 @@
 // Isolated PostgreSQL proof. Never connects to Supabase or loads environment files.
 import fs from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { PGlite } from '@electric-sql/pglite';
 import { runProof } from './post-multi-account-sql-cases.mjs';
 import { runCronProof } from './post-cron-sql-cases.mjs';
 
-async function baseline(db) {
+export async function baseline(db, { excludeMigrations = [] } = {}) {
   await db.exec(`
     create role anon; create role authenticated; create role service_role bypassrls;
     grant usage on schema public to anon, authenticated, service_role;
@@ -39,7 +40,7 @@ async function baseline(db) {
     $$;
     grant usage on schema extensions to service_role;
   `);
-  const files=fs.readdirSync('supabase/migrations').filter(n=>n.endsWith('.sql')).sort();
+  const files=fs.readdirSync('supabase/migrations').filter(n=>n.endsWith('.sql')&&!excludeMigrations.includes(n)).sort();
   for(const file of files) {
     try {await db.exec(fs.readFileSync(path.join('supabase/migrations',file),'utf8'));}
     catch(error) {console.error('FAILED MIGRATION',file,error.message);throw error;}
@@ -77,4 +78,6 @@ async function main() {
     console.log(JSON.stringify({databaseCases:cases+Object.keys(before).length,result:'PASS',populatedMigrationReplay:'PASS',networkCalls:0,paidCalls:0,cronEngine:'CONTRACT_STUB_ONLY'}));
   } finally {await db.close();}
 }
-main().catch(e=>{console.error(e.message);process.exitCode=1;});
+if(process.argv[1]&&pathToFileURL(path.resolve(process.argv[1])).href===import.meta.url) {
+  main().catch(e=>{console.error(e.message);process.exitCode=1;});
+}

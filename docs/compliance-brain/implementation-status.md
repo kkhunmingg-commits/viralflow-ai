@@ -2,6 +2,8 @@
 
 Local implementation review: 8 October 2026. This document records repository behavior and local verification; it does not certify a deployed environment or authorize policy activation.
 
+**Subsequent integration update:** [Production readiness integration](../PRODUCTION_READINESS_INTEGRATION.md) records the combined POST/Compliance/AI LIVE/fal branch and supersedes the earlier migration/scheduler-test delivery status below. Compliance and fal guard migrations have now been applied and verified on the existing project; customer aggregates and active SAFE Cron remain unchanged. Independent holdout, actual local media/experimental ASR and START-to-EXPORT fixture proofs were added. The production policy candidate remains unsigned/inactive, the real Claim Ledger is empty and visual verification remains a release blocker. No Production application deployment, paid generation or TikTok posting was performed.
+
 ## Implemented locally
 
 - Owner-scoped product evidence, permitted claims, final-media attestations and immutable POST/LIVE decisions have a SQL foundation. Customer roles can read their own ledger and aggregate decision inputs; they cannot manufacture verdicts, verify claims, write media attestations or activate policy packs.

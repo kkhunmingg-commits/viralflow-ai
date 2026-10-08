@@ -21,7 +21,7 @@ try{
     create table public.profiles(id uuid primary key);
     create table public.products(owner_id uuid,id uuid,unique(owner_id,id));
     create table public.tiktok_accounts(owner_id uuid,id uuid,unique(owner_id,id));`);
-  await db.exec(await readFile("supabase/migrations/20261007162048_compliance_brain_foundation.sql","utf8"));
+  await db.exec(await readFile("supabase/migrations/20261008121446_compliance_brain_foundation.sql","utf8"));
   const a=randomUUID(),b=randomUUID(),pa=randomUUID(),pb=randomUUID(),aa=randomUUID(),ab=randomUUID(),ev=randomUUID(),unverified=randomUUID(),claim=randomUUID(),mediaEv=randomUUID();
   await db.query("insert into public.profiles values($1),($2)",[a,b]);
   await db.query("insert into public.products values($1,$2),($3,$4)",[a,pa,b,pb]);

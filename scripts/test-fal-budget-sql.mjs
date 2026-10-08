@@ -13,7 +13,7 @@ const { PGlite } = await import(pathToFileURL(resolve(modulePath)).href);
 const db = await PGlite.create();
 const phase6 = await readFile("supabase/migrations/20260915195004_phase_6_video_factory.sql", "utf8");
 const phase11 = await readFile("supabase/migrations/20260923143000_phase_11b_exactly_once_atomic_budget.sql", "utf8");
-const upgrade = await readFile("supabase/migrations/20261003190554_fal_generation_budget_guards.sql", "utf8");
+const upgrade = await readFile("supabase/migrations/20261008122111_fal_generation_budget_guards.sql", "utf8");
 
 function table(sql, name) {
   const start = sql.indexOf(`create table public.${name} (`);
