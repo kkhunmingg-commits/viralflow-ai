@@ -15,4 +15,5 @@ supabase/.temp/
 benchmark-assets/
 .ai-live-dev/
 .venv-dev/
+scripts/__pycache__/
 

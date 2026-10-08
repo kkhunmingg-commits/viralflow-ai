@@ -1,0 +1,356 @@
+{
+  "status": "PARSED",
+  "parserOrigin": "AI",
+  "ownerApproval": "PENDING",
+  "validation": null,
+  "signature": null,
+  "checksum": "bb755d577d69f78e4151b8a76f01e4d07d67dcb336df8b21c1d6d2de0baaac2f",
+  "payload": {
+    "schemaVersion": 1,
+    "platform": "TIKTOK_SHOP",
+    "country": "TH",
+    "region": "TH",
+    "id": "tiktok.shop.th",
+    "version": "research.2026.10.09",
+    "effectiveDate": "UNKNOWN",
+    "issuedAt": "2026-10-08T18:37:43.943Z",
+    "sources": [
+      {
+        "platform": "TIKTOK_SHOP",
+        "country": "TH",
+        "region": "TH",
+        "id": "beauty",
+        "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=10009139&lang=en",
+        "title": "Misleading Claims (Health & Beauty Products)",
+        "sourceHash": "1df2b95a2717f1e6d38f8216f0f65b16768da94e5ba25a161be797fc72f6a395",
+        "hashBasis": "NORMALIZED_TEXT_V1",
+        "retrievedAt": "2026-10-08T18:35:00.000Z",
+        "publishedAt": "2026-09-14",
+        "effectiveDate": "UNKNOWN",
+        "version": "research.2026.10.09",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ]
+      },
+      {
+        "platform": "TIKTOK_SHOP",
+        "country": "TH",
+        "region": "TH",
+        "id": "aigc",
+        "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=6490273266140929&lang=en",
+        "title": "AI-Generated Content (AIGC)",
+        "sourceHash": "acdbab0053cd94cd4275ffc06069546f5be54e843b94217ca494ab085f89f3f3",
+        "hashBasis": "NORMALIZED_TEXT_V1",
+        "retrievedAt": "2026-10-08T18:35:00.000Z",
+        "publishedAt": "2026-08-27",
+        "effectiveDate": "UNKNOWN",
+        "version": "research.2026.10.09",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ]
+      },
+      {
+        "platform": "TIKTOK_SHOP",
+        "country": "TH",
+        "region": "TH",
+        "id": "misleading",
+        "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=4881274146408193&lang=en",
+        "title": "Misleading Content",
+        "sourceHash": "62888110c62886a876722a458a7ac880bb35dccbc4a42b34e34a5ad102f236d7",
+        "hashBasis": "NORMALIZED_TEXT_V1",
+        "retrievedAt": "2026-10-08T18:35:00.000Z",
+        "publishedAt": "2025-12-04",
+        "effectiveDate": "UNKNOWN",
+        "version": "research.2026.10.09",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ]
+      },
+      {
+        "platform": "TIKTOK_SHOP",
+        "country": "TH",
+        "region": "TH",
+        "id": "content",
+        "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=10008418&lang=en",
+        "title": "TikTok Shop Content Policy",
+        "sourceHash": "7f4ec55358767b4a8dccc112fd86b9e4d1ae7bc3f500945f2670dc62c3a39d4b",
+        "hashBasis": "NORMALIZED_TEXT_V1",
+        "retrievedAt": "2026-10-08T18:35:00.000Z",
+        "publishedAt": "2026-03-16",
+        "effectiveDate": "UNKNOWN",
+        "version": "research.2026.10.09",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ]
+      },
+      {
+        "platform": "TIKTOK_SHOP",
+        "country": "TH",
+        "region": "TH",
+        "id": "restricted",
+        "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=10015351&lang=en",
+        "title": "Restricted Products that Require Category Qualification",
+        "sourceHash": "5b5e7afd595500ad843b01d3c8e456b7aeeca9c93651b237ab248e87433ba2b6",
+        "hashBasis": "NORMALIZED_TEXT_V1",
+        "retrievedAt": "2026-10-08T18:35:00.000Z",
+        "publishedAt": "2026-07-31",
+        "effectiveDate": "UNKNOWN",
+        "version": "research.2026.10.09",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ]
+      },
+      {
+        "platform": "TIKTOK_SHOP",
+        "country": "TH",
+        "region": "TH",
+        "id": "prohibited",
+        "url": "https://seller-th.tiktok.com/university/essay?knowledge_id=1531423806867201&lang=en",
+        "title": "Prohibited and Unsupported Products",
+        "sourceHash": "524134e7d73e9f2fa869ece28143366a226220e1caa2c54820f0b0fdd22c518a",
+        "hashBasis": "NORMALIZED_TEXT_V1",
+        "retrievedAt": "2026-10-08T18:35:00.000Z",
+        "publishedAt": "2026-05-08",
+        "effectiveDate": "UNKNOWN",
+        "version": "research.2026.10.09",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ]
+      }
+    ],
+    "rules": [
+      {
+        "id": "shop.content.coverage",
+        "version": "research.2026.10.09",
+        "sourceIds": [
+          "content"
+        ],
+        "semanticCategories": [
+          "UNKNOWN_FACT",
+          "VISUAL_MISMATCH"
+        ],
+        "obligation": "Review all product-promoting surfaces, including product links, speech, captions, images, video, listing text and LIVE; promotions must describe the actual linked product.",
+        "severity": "HIGH",
+        "recommendedDecision": "REVIEW_REQUIRED",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ],
+        "requiresEvidence": true
+      },
+      {
+        "id": "shop.content.restricted",
+        "version": "research.2026.10.09",
+        "sourceIds": [
+          "content"
+        ],
+        "semanticCategories": [
+          "RESTRICTED_PRODUCT"
+        ],
+        "obligation": "Do not promote prohibited or unsupported products. Check category approval and applicable restrictions before promoting restricted products.",
+        "severity": "CRITICAL",
+        "recommendedDecision": "BLOCK",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ],
+        "requiresEvidence": false
+      },
+      {
+        "id": "shop.beauty.claims",
+        "version": "research.2026.10.09",
+        "sourceIds": [
+          "beauty"
+        ],
+        "semanticCategories": [
+          "MEDICAL_TREATMENT",
+          "DISEASE_PREVENTION",
+          "GUARANTEED_RESULT"
+        ],
+        "obligation": "Do not invent health or beauty effects, disease treatment promises, guaranteed transformations or expanded claims. Claims tied to visible packaging or government advertising approval require verification of the exact claim and its permitted scope.",
+        "severity": "CRITICAL",
+        "recommendedDecision": "REVIEW_REQUIRED",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ],
+        "requiresEvidence": true
+      },
+      {
+        "id": "shop.beauty.effects",
+        "version": "research.2026.10.09",
+        "sourceIds": [
+          "beauty"
+        ],
+        "semanticCategories": [
+          "BODY_MANIPULATION",
+          "FALSE_BEFORE_AFTER",
+          "TIME_BOUND_RESULT"
+        ],
+        "obligation": "Do not fabricate appearance transformations, AI results or misleading beauty-filter demonstrations. Temporary makeup or concealment effects must be clearly cosmetic and accurately shown.",
+        "severity": "HIGH",
+        "recommendedDecision": "REVIEW_REQUIRED",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ],
+        "requiresEvidence": true
+      },
+      {
+        "id": "shop.aigc.disclosure",
+        "version": "research.2026.10.09",
+        "sourceIds": [
+          "content",
+          "aigc"
+        ],
+        "semanticCategories": [
+          "AIGC_DISCLOSURE"
+        ],
+        "obligation": "Apply the required AI-generated-content disclosure and keep generated content consistent with the actual product and other applicable content rules.",
+        "severity": "HIGH",
+        "recommendedDecision": "REVIEW_REQUIRED",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ],
+        "requiresEvidence": true
+      },
+      {
+        "id": "shop.aigc.product",
+        "version": "research.2026.10.09",
+        "sourceIds": [
+          "aigc"
+        ],
+        "semanticCategories": [
+          "VISUAL_MISMATCH",
+          "UNSUPPORTED_FEATURE",
+          "FAKE_TESTIMONIAL",
+          "BODY_MANIPULATION"
+        ],
+        "obligation": "AI media must preserve real product attributes. Do not fabricate product effects, physical transformations or sympathy stories to sell products.",
+        "severity": "HIGH",
+        "recommendedDecision": "REVIEW_REQUIRED",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ],
+        "requiresEvidence": true
+      },
+      {
+        "id": "shop.misleading.facts",
+        "version": "research.2026.10.09",
+        "sourceIds": [
+          "misleading"
+        ],
+        "semanticCategories": [
+          "EXAGGERATED_FUNCTIONALITY",
+          "FAKE_CERTIFICATION",
+          "MISLEADING_COMPARISON",
+          "UNSUPPORTED_SUPERIORITY"
+        ],
+        "obligation": "Do not present impossible or unsupported functions, invented certifications, awards or endorsements, or misleading comparisons. Claims and comparisons must be factual, neutral and supported for the linked product.",
+        "severity": "HIGH",
+        "recommendedDecision": "REVIEW_REQUIRED",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ],
+        "requiresEvidence": true
+      },
+      {
+        "id": "shop.category.approval",
+        "version": "research.2026.10.09",
+        "sourceIds": [
+          "restricted"
+        ],
+        "semanticCategories": [
+          "RESTRICTED_PRODUCT"
+        ],
+        "obligation": "Obtain required category approval and supporting documents before listing, sharing or promoting restricted categories. Infant-formula marketing restrictions require a separate check; category approval does not remove advertising restrictions.",
+        "severity": "CRITICAL",
+        "recommendedDecision": "REVIEW_REQUIRED",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ],
+        "requiresEvidence": true
+      },
+      {
+        "id": "shop.product.prohibited",
+        "version": "research.2026.10.09",
+        "sourceIds": [
+          "prohibited"
+        ],
+        "semanticCategories": [
+          "RESTRICTED_PRODUCT"
+        ],
+        "obligation": "Exclude prohibited and unsupported items, including prohibited weapons, drugs, tobacco, prescription or professional-only medicines and devices, unsafe food, and unsupported weight-management products; apply the specific listed exceptions only after verification.",
+        "severity": "CRITICAL",
+        "recommendedDecision": "BLOCK",
+        "contentTypes": [
+          "POST",
+          "LIVE"
+        ],
+        "categories": [
+          "*"
+        ],
+        "requiresEvidence": false
+      }
+    ]
+  },
+  "limitations": [
+    "Article publication dates are not asserted policy effective dates; effective dates remain UNKNOWN.",
+    "Owner review, regressions, unknown-date acknowledgement and a trusted signature are required before activation.",
+    "Sources are normalized retrieved article text, not raw publisher HTML or image interpretation.",
+    "Classification covers a subset of policy categories; unknown visual meaning is held for review.",
+    "Not a guarantee of enforcement prevention; category exceptions require product evidence and manual validation."
+  ]
+}

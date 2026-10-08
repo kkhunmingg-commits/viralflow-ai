@@ -1,9 +1,10 @@
 import {createHash} from "node:crypto";
 import {afterEach,beforeEach,describe,expect,it,vi} from "vitest";
 import type {SupabaseClient} from "@supabase/supabase-js";
-const boundary=vi.hoisted(()=>({admin:vi.fn(),creator:vi.fn(),token:vi.fn()}));
+const boundary=vi.hoisted(()=>({admin:vi.fn(),creator:vi.fn(),token:vi.fn(),media:vi.fn()}));
 vi.mock("server-only",()=>({}));
 vi.mock("@/lib/supabase/admin",()=>({createAdminClient:boundary.admin}));
+vi.mock("./media-local",()=>({inspectLocalMedia:boundary.media}));
 vi.mock("@/lib/server-env",()=>({serverEnv:{tiktokAllowedPullHosts:[],tiktokAllowedUploadHosts:[],opsLogLevel:"ERROR"}}));
 vi.mock("@/features/tiktok/services",()=>({TikTokCreatorService:class{queryCreatorInfo=boundary.creator},TikTokTokenService:class{getAccessToken=boundary.token}}));
 import {checkFinalMedia,commerceScope,currentVerifiedPolicy,generationConstraints} from "./server-runtime";
@@ -86,7 +87,7 @@ function fixture(){
     setChangedBytes:(value:boolean)=>changedBytes=value};
 }
 describe("production POST uses shared compliance with trusted database/network boundaries",()=>{
-  beforeEach(()=>{vi.useFakeTimers();vi.setSystemTime(new Date("2026-10-07T02:00:00Z"));boundary.creator.mockResolvedValue({});boundary.token.mockResolvedValue("unit-test-token");});
+  beforeEach(()=>{vi.useFakeTimers();vi.setSystemTime(new Date("2026-10-07T02:00:00Z"));boundary.creator.mockResolvedValue({});boundary.token.mockResolvedValue("unit-test-token");boundary.media.mockResolvedValue({state:"DISABLED"});});
   afterEach(()=>{vi.unstubAllEnvs();vi.useRealTimers();vi.clearAllMocks();});
   it("provides current grounded constraints before generation",async()=>{
     const f=fixture();expect((await generationConstraints(f.admin,scope)).allowedClaims[0].text).toBe("ช่วยเพิ่มความชุ่มชื้น");
@@ -95,6 +96,20 @@ describe("production POST uses shared compliance with trusted database/network b
   it("persisted decision plus actual verified media can pass",async()=>{
     const f=fixture();expect((await checkFinalMedia(f.admin,scope,path,{caption:"ช่วยเพิ่มความชุ่มชื้น"})).status).toBe("PASS");
     expect(f.rpc.mock.calls.some(([name])=>name==="record_compliance_brain_decision")).toBe(true);
+  });
+  it.each(["POST_GENERATION","FINAL_PUBLISH"] as const)("actual OCR is appended and checked again at %s",async(stage)=>{
+    const f=fixture(),assetHash=createHash("sha256").update(new Uint8Array([1,2,3,4])).digest("hex");
+    boundary.media.mockResolvedValue({state:"OBSERVED",observation:{schemaVersion:1,assetHash,durationSeconds:8,
+      evidenceVerified:false,coverageComplete:false,frames:[{timeSeconds:0,text:"รักษาสิวหายขาด",confidence:95,
+        comparisonCandidate:false,contrast:30,sharpness:20}],audioStatus:"UNAVAILABLE",
+      uncertainties:["SAMPLED_FRAMES_ONLY","VISUAL_SEMANTICS_UNVERIFIED","AUDIO_UNVERIFIED"]}});
+    const decision=await checkFinalMedia(f.admin,scope,path,{caption:"ช่วยเพิ่มความชุ่มชื้น"},stage);
+    expect(decision.status).toBe("BLOCK");expect(boundary.media).toHaveBeenCalledWith(new Uint8Array([1,2,3,4]));
+    expect(f.rpc.mock.calls.some(([name,args])=>name==="record_compliance_brain_decision"&&args.p_decision.decision==="BLOCK")).toBe(true);
+  });
+  it("configured scanner failure cannot fall back to an old media PASS",async()=>{
+    const f=fixture();boundary.media.mockResolvedValue({state:"FAILED"});
+    expect((await checkFinalMedia(f.admin,scope,path,{caption:"ช่วยเพิ่มความชุ่มชื้น"})).status).toBe("REVIEW_REQUIRED");
   });
   it("refreshes and persists anonymous shadow learning only after the immutable decision is recorded",async()=>{
     const f=fixture(),uuid=(index:number)=>`00000000-0000-4000-8000-${index.toString().padStart(12,"0")}`;

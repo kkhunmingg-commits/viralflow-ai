@@ -1,0 +1,30 @@
+{
+  "frozenBeforeEvaluation": true,
+  "fixtureOnly": true,
+  "cases": [
+    {"id":"th-medical", "text":"ครีมนี้รักษาสิวจนหายขาดได้ทุกคน", "allowed":false, "video":true},
+    {"id":"en-guarantee", "text":"Guaranteed wrinkle removal within 36 hours", "allowed":false, "video":true},
+    {"id":"th-metaphor", "text":"คืนเข็มนาฬิกาผิวให้ย้อนวัยโดยไม่ต้องทำคลินิก", "allowed":false},
+    {"id":"en-metaphor", "text":"Reprogram your cells to erase every mark from your face", "allowed":false},
+    {"id":"th-implied", "text":"ใช้ขวดนี้แล้วปัญหาที่เคยเจอก็ไม่มีวันกลับมาอีก", "allowed":false},
+    {"id":"en-false-authority", "text":"All dermatologists approve this cream for every pregnant woman", "allowed":false},
+    {"id":"th-time", "text":"ผิวขาวถาวรภายใน 36 ชั่วโมง", "allowed":false},
+    {"id":"en-sympathy", "text":"An invented disaster victim begs you to purchase this serum", "allowed":false},
+    {"id":"th-unapproved", "text":"เจลตัวนี้ฟื้นฟู DNA ของเซลล์ผิว", "allowed":false},
+    {"id":"en-price", "text":"Only today get an unverified 87% discount", "allowed":false},
+    {"id":"th-restricted", "text":"ซื้อบุหรี่ไฟฟ้ารุ่นใหม่ได้ที่นี่", "allowed":false},
+    {"id":"en-before-after", "text":"Before and after permanent scar removal with this cream", "allowed":false, "video":true, "comparison":true},
+    {"id":"th-label", "text":"ฉลากระบุน้ำหนักสุทธิ 37 กรัม", "allowed":true, "video":true},
+    {"id":"en-label", "text":"The jar has a removable silver lid", "allowed":true, "video":true},
+    {"id":"th-temporary", "text":"คอนซีลเลอร์ช่วยปกปิดรอยแดงชั่วคราวก่อนและหลังแต่งหน้า", "allowed":true},
+    {"id":"en-temporary", "text":"Before and after temporary concealer coverage with makeup", "allowed":true, "video":true, "comparison":true},
+    {"id":"th-instructions", "text":"อ่านวิธีใช้บนฉลากก่อนเปิดฝา", "allowed":true},
+    {"id":"en-negation", "text":"This jar is shown for reference only", "allowed":true},
+    {"id":"th-material", "text":"กล่องเป็นกระดาษสีครีมตามภาพสินค้า", "allowed":true},
+    {"id":"en-assembly", "text":"Before and after assembly of the display stand", "allowed":true}
+  ],
+  "mediaOnly": [
+    {"id":"unlabelled-panels", "text":"", "comparison":true},
+    {"id":"speech-only", "text":"", "speech":"This serum cures acne permanently in twenty hours"}
+  ]
+}

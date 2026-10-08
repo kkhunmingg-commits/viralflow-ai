@@ -14,6 +14,8 @@ import { loadActivePolicyPack, loadFinalMediaReview, loadProductLedger, recordDe
 import { createSemanticClassifierFromEnvironment } from "./semantic-local";
 import { refreshComplianceLearning } from "./learning-runtime";
 import { logOps } from "@/lib/ops/logger";
+import { inspectLocalMedia } from "./media-local";
+import { appendMediaObservations, type MediaInspection } from "./media-observations";
 
 // A short outage may use verified authority; stale/revoked policy cannot authorize indefinitely.
 const POLICY_OUTAGE_LEASE_MS=60_000;
@@ -105,6 +107,7 @@ export async function checkFinalMedia(client: SupabaseClient, scope: ComplianceS
   content: ComplianceContent, stage: "POST_GENERATION" | "FINAL_PUBLISH" = "FINAL_PUBLISH", publishDisclosure?:boolean,
   deliveryMedia?:Blob|null) {
   let assetHash = "", review: FinalMediaReview | null = null;
+  let inspection: MediaInspection = process.env.COMPLIANCE_LOCAL_MEDIA_ENABLED === "true" ? { state: "FAILED" } : { state: "DISABLED" };
   try {
     if(!ownsVideoStoragePath(scope.ownerId,storagePath))throw new Error("compliance_media_scope_invalid");
     const admin = createAdminClient();
@@ -113,16 +116,23 @@ export async function checkFinalMedia(client: SupabaseClient, scope: ComplianceS
     const file = deliveryMedia === undefined ? await admin.storage.from("video-assets").download(storagePath)
       : {data:deliveryMedia,error:null};
     if (!file.error && file.data && file.data.size > 0 && file.data.size <= 100_000_000) {
-      assetHash = createHash("sha256").update(new Uint8Array(await file.data.arrayBuffer())).digest("hex");
+      const bytes = new Uint8Array(await file.data.arrayBuffer());
+      assetHash = createHash("sha256").update(bytes).digest("hex");
+      inspection = await inspectLocalMedia(bytes);
       review=await loadFinalMediaReview(admin,scope.ownerId,scope.productId,assetHash,scope.accountId);
     }
   } catch { /* Missing actual-media verification stays held for review. */ }
   const context = await loadComplianceContext(client, scope);
-  const input: ComplianceInput = { ...context, stage, content: { ...content,
+  const reviewedContent: ComplianceContent = { ...content,
     transcript: review?.transcript, onScreenText: review?.onScreenText, coverText: review?.coverText,
-    visibleClaims: review?.visibleClaims, metadata: review?.metadata },
+    visibleClaims: review?.visibleClaims, metadata: review?.metadata };
+  const input: ComplianceInput = { ...context, stage,
+    content: inspection.state === "OBSERVED" ? appendMediaObservations(reviewedContent, inspection.observation, assetHash) : reviewedContent,
     aiGenerated: true, disclosureApplied: publishDisclosure===undefined?review?.aiDisclosed===true:publishDisclosure,
-    media: { assetHash, coverageComplete: review?.coverageComplete === true, evidenceRefs:review?.evidenceRefs??[] } };
+    // An opt-in local scan is an extra review layer; sampled pixels/ASR never mint full coverage.
+    // With scanning disabled, the existing owner/product/hash-bound human attestation still applies.
+    media: { assetHash, coverageComplete: inspection.state === "DISABLED" && review?.coverageComplete === true,
+      evidenceRefs:review?.evidenceRefs??[] } };
   const authority = new ComplianceEngine({ policy: () => currentVerifiedPolicy(client, scope), classifier:createSemanticClassifierFromEnvironment() });
   const decision = stage === "FINAL_PUBLISH" ? (await new PublishGate(authority).check(input)).decision : await authority.evaluate(input);
   return persistOrHold(decision);
