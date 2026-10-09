@@ -7,11 +7,13 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
     <div className="legal-page">
       <header className="legal-header">
         <div className="legal-header-inner">
-          <Link className="legal-brand" href="/login" aria-label="ViralFlow AI — เข้าสู่ระบบ">
+          <Link className="legal-brand" href="/" aria-label="Viral Flow AI — Homepage">
             <span className="legal-brand-mark" aria-hidden="true">V<span>✦</span></span>
-            <span>ViralFlow <b>AI</b></span>
+            <span>Viral Flow <b>AI</b></span>
           </Link>
           <nav className="legal-nav" aria-label="นโยบายและการเข้าสู่ระบบ">
+            <Link href="/product-guide">Product guide</Link>
+            <Link href="/support">Contact</Link>
             <Link href="/terms">ข้อกำหนดการใช้บริการ</Link>
             <Link href="/privacy">นโยบายความเป็นส่วนตัว</Link>
             <Link className="legal-login" href="/login">เข้าสู่ระบบ <span aria-hidden="true">↗</span></Link>
@@ -20,8 +22,8 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
       </header>
       {children}
       <footer className="legal-footer">
-        <span>© 2026 ViralFlow AI</span>
-        <div><Link href="/terms">Terms of Service</Link><Link href="/privacy">Privacy Policy</Link></div>
+        <span>© 2026 Viral Flow AI</span>
+        <div><Link href="/">Home</Link><Link href="/terms">Terms of Service</Link><Link href="/privacy">Privacy Policy</Link><Link href="/review-guide">Reviewer guide</Link></div>
       </footer>
     </div>
   );

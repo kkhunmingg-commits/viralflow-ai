@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 
-const publicPaths = new Set(["/", "/login", "/terms", "/privacy"]);
+const publicPaths = new Set(["/", "/login", "/terms", "/privacy", "/review-guide", "/product-guide", "/support", "/tiktokjKFfcToXhtvp5qMnaP1tS1Uaj2Ydn9Aj.txt"]);
 // A hidden menu is not access control. These internal pages need a trusted
 // server-managed role in app_metadata, never user_metadata.
 const diagnosticPages = [

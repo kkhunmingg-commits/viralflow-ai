@@ -40,6 +40,11 @@
 .legal-callout p { margin: 0; }
 .legal-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px 24px; padding: 28px 0 38px; border-top: 1px solid rgba(167, 174, 209, .12); color: #8191aa; font-size: 11px; }
 .legal-footer div { display: flex; gap: 20px; }
+.legal-footer div { flex-wrap: wrap; }
+.product-guide-image { display: block; width: 100%; max-width: 547px; height: auto; border: 1px solid #353c53; border-radius: 14px; }
+.legal-content figure { margin: 24px 0 0; }
+.legal-content figcaption { max-width: 547px; margin-top: 10px; color: #94a3bb; font-size: 12px; line-height: 1.8; }
+.legal-content ol { display: grid; gap: 12px; padding-left: 24px; }
 @media (max-width: 660px) {
   .legal-header-inner { align-items: flex-start; flex-direction: column; padding-block: 20px; }
   .legal-nav { justify-content: flex-start; gap: 12px 18px; }

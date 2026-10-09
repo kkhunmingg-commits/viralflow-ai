@@ -1,17 +1,18 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { LoginForm } from "./login-form";
 import { loginErrorMessage } from "./auth-flow";
 import "./login.css";
 
-export const metadata: Metadata = { title: "เข้าสู่ระบบ" };
+export const metadata: Metadata = { title: { absolute: "Viral Flow AI — Login" } };
 
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
   return (
     <main className="auth-page">
       <div className="auth-layout">
-        <section className="auth-story" aria-label="ViralFlow AI">
-          <div className="auth-brand"><span className="auth-brand-mark" aria-hidden="true">V<span>✦</span></span><span>ViralFlow <b>AI</b></span></div>
+        <section className="auth-story" aria-label="Viral Flow AI">
+          <div className="auth-brand"><span className="auth-brand-mark" aria-hidden="true">V<span>✦</span></span><span>Viral Flow <b>AI</b></span></div>
           <div className="auth-story-main">
             <p className="auth-kicker"><span /> YOUR CONTENT COMMAND CENTER</p>
             <h1>Automate.<br />Publish.<br /><em>Learn. Grow.</em></h1>
@@ -21,7 +22,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <p className="auth-story-foot">CREATE WITH INTENT <span>·</span> GROW WITH EVIDENCE</p>
         </section>
         <section className="auth-panel" aria-labelledby="auth-heading">
-          <div className="auth-mobile-brand"><span className="auth-brand-mark" aria-hidden="true">V<span>✦</span></span><span>ViralFlow <b>AI</b></span></div>
+          <div className="auth-mobile-brand"><span className="auth-brand-mark" aria-hidden="true">V<span>✦</span></span><span>Viral Flow <b>AI</b></span></div>
           <div className="auth-card">
             <div className="auth-card-accent" aria-hidden="true" />
             <p className="auth-card-kicker">WELCOME BACK</p>
@@ -30,7 +31,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <LoginForm initialError={loginErrorMessage(error)} />
             <p className="auth-privacy">เซสชันของคุณจัดการโดย Supabase Auth อย่างปลอดภัย</p>
           </div>
-          <p className="auth-panel-foot">ViralFlow AI <span>·</span> Create. Publish. Learn. Grow.</p>
+          <nav className="auth-panel-foot" aria-label="เว็บไซต์และนโยบาย"><Link href="/">Viral Flow AI</Link> <span>·</span> <Link href="/privacy">Privacy Policy</Link> <span>·</span> <Link href="/terms">Terms of Service</Link> <span>·</span> <Link href="/support">Contact</Link></nav>
         </section>
       </div>
     </main>

@@ -26,7 +26,7 @@ describe("login session routing", () => {
 
   it("keeps the homepage, Terms and Privacy public without opening application routes", async () => {
     getClaims.mockResolvedValue({ data: { claims: null } });
-    for (const path of ["/", "/terms", "/privacy"]) {
+    for (const path of ["/", "/terms", "/privacy", "/product-guide", "/review-guide", "/support", "/tiktokjKFfcToXhtvp5qMnaP1tS1Uaj2Ydn9Aj.txt"]) {
       const response = await updateSession(new NextRequest(`https://viralflow.example${path}`));
       expect(response.headers.get("location")).toBeNull();
       expect(response.status).toBe(200);
@@ -34,6 +34,8 @@ describe("login session routing", () => {
     const protectedResponse = await updateSession(new NextRequest("https://viralflow.example/auto"));
     expect(protectedResponse.headers.get("location")).toContain("/login?next=%2Fauto");
     expect(protectedResponse.status).toBe(307);
+    const privateApi = await updateSession(new NextRequest("https://viralflow.example/api/tiktok/sandbox-private-post"));
+    expect(privateApi.headers.get("location")).toContain("/login");
   });
 
   it("requires a server-managed role for internal diagnostics", async () => {
