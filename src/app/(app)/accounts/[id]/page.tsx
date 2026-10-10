@@ -37,6 +37,7 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
         {disconnected ? <Link className="accounts-connect" href="/accounts/connect/tiktok/qr">เชื่อม TikTok บัญชีอื่น</Link>
           : !account.is_mock ? <DisconnectTikTokButton accountId={account.id} accountName={account.display_name} /> : null}
         <Link className="accounts-detail-link" href={`/auto?account=${account.id}`}>ไปหน้า Home →</Link>
+        {!disconnected && !account.is_mock && <Link className="accounts-connect" href={`/accounts/${account.id}/upload`}>ส่งวิดีโอเข้า TikTok</Link>}
       </div>
     </section>
   </div>;

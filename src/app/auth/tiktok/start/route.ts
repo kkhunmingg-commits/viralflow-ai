@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
     ownerId: data.user.id,
     origin: request.nextUrl.origin,
     requestedScopes: serverEnv.tiktokProvider === "official"
-      ? officialTikTokRequestedScopes(serverEnv.tiktokOAuthScopeMode)
+      ? officialTikTokRequestedScopes(serverEnv.tiktokOAuthScopeMode, request.nextUrl.searchParams.get("inbox") === "1")
       : requestedScopes(scenario),
     mockScenario: serverEnv.tiktokProvider === "official" ? undefined : scenario,
     disableAutoAuth: serverEnv.tiktokProvider === "official" && request.nextUrl.searchParams.get("new_account") === "1",
