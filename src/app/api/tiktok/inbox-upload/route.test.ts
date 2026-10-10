@@ -52,4 +52,19 @@ describe("Inbox API owner boundary", () => {
     expect(provider.fetchPublishStatus).not.toHaveBeenCalled();
     expect((await GET(new Request(`https://viralflow.example/api/tiktok/inbox-upload?account=${account}&receipt=v_inbox_arbitrary`, { headers: { "sec-fetch-site": "same-origin" } }))).status).toBe(400);
   });
+  it("rechecks a delivered owner receipt with no upload or init call", async () => {
+    const row = { id: receipt, status: "SEND_TO_USER_INBOX", media_sha256: "hash", video_size: 2000, provider_publish_id: "existing-inbox-publish" };
+    const update = vi.fn().mockImplementation(async (_id, patch) => ({ ...row, ...patch }));
+    readReceipt.mockResolvedValue(row);
+    provider.fetchPublishStatus.mockResolvedValue({ status: "SEND_TO_USER_INBOX", uploadedBytes: 2000, failReason: null, postIds: [], providerError: { code: "ok", logId: "fresh-log" } });
+    context.mockResolvedValue({ token: "private-test-token", provider, receipt: readReceipt, store: { update } });
+    const response = await GET(new Request(`https://viralflow.example/api/tiktok/inbox-upload?account=${account}&receipt=${receipt}`, { headers: { "sec-fetch-site": "same-origin" } }));
+    expect(response.status).toBe(200);
+    expect(context).toHaveBeenCalledWith("authenticated-owner", account);
+    expect(provider.fetchPublishStatus).toHaveBeenCalledWith("private-test-token", "existing-inbox-publish");
+    expect(update).toHaveBeenCalledWith(receipt, expect.objectContaining({ status: "SEND_TO_USER_INBOX", log_id: "fresh-log" }));
+    expect(await response.json()).toEqual({ receipt, status: "SEND_TO_USER_INBOX" });
+    expect(provider.uploadDraft).not.toHaveBeenCalled();
+    expect(provider.uploadBinary).not.toHaveBeenCalled();
+  });
 });

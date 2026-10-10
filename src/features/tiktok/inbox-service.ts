@@ -36,11 +36,13 @@ export async function inboxContext(ownerId: string, accountId: string, key?: str
       return { receipt: existing as InboxReceipt, created: false };
     },
     async update(id, patch) {
-      const { data, error: updateError } = await admin.from("tiktok_inbox_uploads")
+      let mutation = admin.from("tiktok_inbox_uploads")
         .update({ ...patch, updated_at: new Date().toISOString() })
         .eq("owner_id", ownerId).eq("tiktok_account_id", accountId).eq("id", id)
-        .not("status", "in", "(SEND_TO_USER_INBOX,PUBLISH_COMPLETE,FAILED)")
-        .select("id,status,media_sha256,video_size,provider_publish_id").single();
+        .not("status", "in", "(PUBLISH_COMPLETE,FAILED)");
+      // A late processing/transfer response must not undo confirmed delivery.
+      if (!["SEND_TO_USER_INBOX", "PUBLISH_COMPLETE", "FAILED"].includes(String(patch.status))) mutation = mutation.neq("status", "SEND_TO_USER_INBOX");
+      const { data, error: updateError } = await mutation.select("id,status,media_sha256,video_size,provider_publish_id").single();
       if (!data && updateError?.code === "PGRST116") {
         const current = await scope().eq("id", id).single();
         if (current.data && ["SEND_TO_USER_INBOX", "PUBLISH_COMPLETE", "FAILED"].includes(current.data.status)) return current.data as InboxReceipt;

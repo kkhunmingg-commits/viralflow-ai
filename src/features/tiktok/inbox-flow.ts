@@ -56,7 +56,9 @@ export async function sendInboxVideo(input: {
 }
 
 export async function refreshInboxReceipt(store: InboxStore, provider: TikTokPublishingProvider, token: string, receipt: InboxReceipt) {
-  if (["SEND_TO_USER_INBOX", "PUBLISH_COMPLETE", "FAILED"].includes(receipt.status) || !receipt.provider_publish_id) return receipt;
+  // Delivery is not publication: allow an explicit status refresh of the same
+  // publish_id after delivery, without initializing or uploading another video.
+  if (["PUBLISH_COMPLETE", "FAILED"].includes(receipt.status) || !receipt.provider_publish_id) return receipt;
   const result = await provider.fetchPublishStatus(token, receipt.provider_publish_id);
   const status = result.status === "SEND_TO_USER_INBOX" || result.status === "PUBLISH_COMPLETE" || result.status === "FAILED"
     ? result.status : receipt.status;

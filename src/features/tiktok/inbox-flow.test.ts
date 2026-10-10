@@ -97,4 +97,31 @@ describe("opt-in TikTok Inbox flow", () => {
     expect(f.provider.fetchPublishStatus).toHaveBeenCalledTimes(2);
     expect(f.provider.uploadDraft).toHaveBeenCalledTimes(1);
   });
+  it("refreshes an already delivered Inbox item using only its original publish id", async () => {
+    const f = fixture();
+    const uploaded = await sendInboxVideo(f);
+    const delivered = await refreshInboxReceipt(f.store, f.provider, f.token, uploaded);
+    vi.mocked(f.provider.fetchPublishStatus).mockResolvedValueOnce({ status: "PROCESSING_UPLOAD", uploadedBytes: 2000, failReason: null, postIds: [] });
+    expect((await refreshInboxReceipt(f.store, f.provider, f.token, delivered)).status).toBe("SEND_TO_USER_INBOX");
+    vi.mocked(f.provider.fetchPublishStatus).mockResolvedValueOnce({ status: "PUBLISH_COMPLETE", uploadedBytes: 2000, failReason: null, postIds: [] });
+    const published = await refreshInboxReceipt(f.store, f.provider, f.token, delivered);
+    expect(published.status).toBe("PUBLISH_COMPLETE");
+    await refreshInboxReceipt(f.store, f.provider, f.token, published);
+    expect(f.provider.fetchPublishStatus).toHaveBeenCalledTimes(3);
+    for (const call of vi.mocked(f.provider.fetchPublishStatus).mock.calls) expect(call).toEqual([f.token, "original-publish"]);
+    expect(f.provider.uploadDraft).toHaveBeenCalledTimes(1);
+    expect(f.provider.uploadBinary).toHaveBeenCalledTimes(1);
+    expect(f.provider.directPost).not.toHaveBeenCalled();
+  });
+  it("records a later TikTok failure after delivery without sending again", async () => {
+    const f = fixture();
+    const delivered = await refreshInboxReceipt(f.store, f.provider, f.token, await sendInboxVideo(f));
+    vi.mocked(f.provider.fetchPublishStatus).mockResolvedValueOnce({ status: "FAILED", uploadedBytes: 2000, failReason: "internal", postIds: [], providerError: { code: "ok", message: "", logId: "later-log" } });
+    const failed = await refreshInboxReceipt(f.store, f.provider, f.token, delivered);
+    expect(failed.status).toBe("FAILED");
+    await refreshInboxReceipt(f.store, f.provider, f.token, failed);
+    expect(f.provider.fetchPublishStatus).toHaveBeenCalledTimes(2);
+    expect(f.provider.uploadDraft).toHaveBeenCalledTimes(1);
+    expect(f.provider.uploadBinary).toHaveBeenCalledTimes(1);
+  });
 });

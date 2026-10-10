@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 type Receipt = { receipt: string; status: string };
 const labels: Record<string, string> = {
   RESERVED: "กำลังเตรียมการส่ง", INITIALIZED: "กำลังส่งวิดีโอ", UPLOADED: "TikTok กำลังเตรียมวิดีโอ",
-  SEND_TO_USER_INBOX: "ส่งเข้า TikTok แล้ว เปิดการแจ้งเตือนใน TikTok เพื่อตรวจและแก้ไขวิดีโอ",
+  SEND_TO_USER_INBOX: "TikTok แจ้งว่าส่งวิดีโอเข้า Inbox แล้ว เปิดการแจ้งเตือนระบบในแอป TikTok เพื่อตรวจและแก้ไขวิดีโอ",
   PUBLISH_COMPLETE: "คุณเผยแพร่วิดีโอผ่าน TikTok แล้ว", FAILED: "TikTok ไม่สามารถเตรียมวิดีโอนี้ได้",
   RECONCILIATION_REQUIRED: "ยังยืนยันการส่งไม่ได้ กรุณาตรวจสถานะเดิมก่อนส่งอีกครั้ง",
 };
@@ -74,6 +74,13 @@ export function InboxUpload({ accountId }: { accountId: string }) {
     } catch { setMessage("ยังยืนยันการส่งไม่ได้ ลองตรวจสถานะหรือเลือกไฟล์เดิมอีกครั้ง ระบบจะไม่ส่งไฟล์เดิมซ้ำ"); }
     finally { inFlight.current = false; setBusy(false); }
   }
+  async function refresh() {
+    if (!receipt || inFlight.current) return;
+    inFlight.current = true; setBusy(true); setMessage("");
+    try { await checkStatus(receipt); }
+    catch { setMessage("ยังตรวจสถานะไม่ได้ กรุณาลองอีกครั้งภายหลัง"); }
+    finally { inFlight.current = false; setBusy(false); }
+  }
   return <div style={{ display: "grid", gap: 20, marginTop: 24 }}>
     <label>เลือก MP4 ขนาดไม่เกิน 4 MB <input aria-label="เลือกวิดีโอ MP4" type="file" accept="video/mp4" disabled={busy} onChange={event => {
       const chosen = event.target.files?.[0];
@@ -85,6 +92,6 @@ export function InboxUpload({ accountId }: { accountId: string }) {
       ฉันมีสิทธิ์ใช้ภาพและเสียงในวิดีโอนี้ และยินยอมส่งไปยังบัญชี TikTok ที่เลือก โดยยังไม่เผยแพร่อัตโนมัติ</label>
     <button className="accounts-connect" disabled={!file || !consent || busy} onClick={send}>{busy ? "กำลังส่ง…" : "ส่งเข้า TikTok"}</button>
     <p role="status" aria-live="polite">{message || (receipt ? labels[receipt.status] ?? "กำลังตรวจสถานะ" : "ตรวจตัวอย่างและบัญชีก่อนส่ง")}</p>
-    {receipt && !terminal(receipt.status) && <button className="accounts-detail-link" disabled={busy} onClick={() => checkStatus(receipt).catch(() => setMessage("ยังตรวจสถานะไม่ได้ กรุณาลองอีกครั้งภายหลัง"))}>ตรวจสถานะรายการเดิม</button>}
+    {receipt && !["PUBLISH_COMPLETE", "FAILED"].includes(receipt.status) && <button className="accounts-detail-link" disabled={busy} onClick={refresh}>{busy ? "กำลังตรวจ…" : "ตรวจสถานะรายการเดิม"}</button>}
   </div>;
 }
