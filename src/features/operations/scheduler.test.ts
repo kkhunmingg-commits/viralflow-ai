@@ -7,9 +7,12 @@ const secret = "c".repeat(32);
 const result = { claimed: true, windowKey: "window-1", incidents: 2, alerts: 1 };
 
 describe("Phase 11E recovery schedule", () => {
-  it("lets the cron request reach the bearer-protected route through the auth proxy", () => {
+  it("keeps recovery reachable and validates a deployment cron only when configured", () => {
     expect(readFileSync("src/lib/supabase/proxy.ts", "utf8")).toContain('"/api/operations/recovery"');
-    expect(readFileSync("vercel.json", "utf8")).toContain('"path": "/api/operations/recovery"');
+    const deployment = JSON.parse(readFileSync("vercel.json", "utf8")) as { crons?: Array<{ path: string }> };
+    // Supabase SAFE Cron is independent. An absent Vercel cron is intentional,
+    // not permission to enable another runner while releasing export UI.
+    if (deployment.crons?.length) expect(deployment.crons.map(cron => cron.path)).toContain("/api/operations/recovery");
   });
   it("rejects unauthorized calls before touching recovery", async () => {
     const run = vi.fn(async () => result);

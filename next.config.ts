@@ -18,6 +18,10 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    "/api/post/create": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
+    "/api/post/create/product": ["./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
+  },
   poweredByHeader: false,
   async headers() {
     return [{

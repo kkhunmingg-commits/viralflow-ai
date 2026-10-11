@@ -3,6 +3,14 @@ import { logOps } from "../../lib/ops/logger";
 
 export type BudgetReservationState = "RESERVED" | "SETTLED" | "RELEASED" | "EXPIRED";
 export type ProviderSubmissionState = "REQUEST_NOT_SENT" | "SUBMITTING" | "SUBMITTED_UNKNOWN" | "SUBMITTED" | "CONFIRMED" | "FAILED";
+export const FAL_BUDGET_GUARD_VERSION = "fal-generation-budget-guards-v1";
+
+export class BudgetGuardError extends Error {
+  constructor() {
+    super("fal_budget_guard_not_ready");
+    this.name = "BudgetGuardError";
+  }
+}
 
 export interface BudgetReservation {
   id: string;
@@ -45,6 +53,15 @@ export class AtomicBudgetLedger {
   constructor(private readonly admin: SupabaseClient) {}
 
   async reserve(input: ReserveBudgetInput) {
+    if (input.provider === "fal") {
+      try {
+        const ready = await this.admin.rpc("fal_budget_guard_version");
+        if (ready.error || ready.data !== FAL_BUDGET_GUARD_VERSION) throw new BudgetGuardError();
+      } catch {
+        // Deploying code before its database guards must never permit a paid call.
+        throw new BudgetGuardError();
+      }
+    }
     const { data, error } = await this.admin.rpc("reserve_generation_budget", {
       p_owner_id: input.ownerId,
       p_tiktok_account_id: input.accountId,
@@ -122,6 +139,14 @@ export class PaidProviderNotSubmittedError extends Error {
   }
 }
 
+/** A terminal provider response with a known request and conservative charge. */
+export class PaidProviderConfirmedFailureError extends Error {
+  constructor(message: string, readonly requestId: string, readonly actualUsd: number, cause?: unknown) {
+    super(message, cause === undefined ? undefined : { cause });
+    this.name = "PaidProviderConfirmedFailureError";
+  }
+}
+
 export class PaidGenerationUncertainError extends Error {
   constructor(readonly reservationId: string, readonly providerRequestId: string | null, cause: unknown) {
     super("paid_generation_requires_reconciliation", { cause });
@@ -151,29 +176,56 @@ export async function executePaidGeneration<T>(input: {
       const settled = await input.ledger.settle(input.reservation.ownerId, hold.id, recovered.actualUsd, hold.provider_request_id);
       return { reservation: settled, value: recovered.value, replayed: true };
     } catch (error) {
+      if (error instanceof PaidProviderConfirmedFailureError) {
+        try {
+          await input.ledger.settle(input.reservation.ownerId, hold.id, error.actualUsd, error.requestId);
+        } catch (settlementError) {
+          throw new PaidGenerationUncertainError(hold.id, error.requestId, settlementError);
+        }
+        throw error;
+      }
       throw new PaidGenerationUncertainError(hold.id, hold.provider_request_id, error);
     }
   }
   if (hold.state !== "RESERVED" || hold.provider_submission_state !== "REQUEST_NOT_SENT") {
     throw new PaidGenerationUncertainError(hold.id, hold.provider_request_id, new Error("existing_operation_requires_reconciliation"));
   }
-  await input.ledger.begin(input.reservation.ownerId, hold.id);
+  try {
+    await input.ledger.begin(input.reservation.ownerId, hold.id);
+  } catch (error) {
+    // Another worker may have begun this hold; never release it or submit again.
+    throw new PaidGenerationUncertainError(hold.id, hold.provider_request_id, error);
+  }
   let result: { value: T; providerRequestId: string; actualUsd: number };
+  let confirmedFailure: PaidProviderConfirmedFailureError | null = null;
   try {
     result = await input.callProvider(hold);
   } catch (error) {
     if (error instanceof PaidProviderNotSubmittedError) {
-      await input.ledger.release(input.reservation.ownerId, hold.id, true);
+      try {
+        await input.ledger.release(input.reservation.ownerId, hold.id, true);
+      } catch (releaseError) {
+        throw new PaidGenerationUncertainError(hold.id, hold.provider_request_id, releaseError);
+      }
       throw error;
     }
-    const providerRequestId = requestIdFrom(error);
-    await input.ledger.uncertain(input.reservation.ownerId, hold.id, providerRequestId);
-    throw new PaidGenerationUncertainError(hold.id, providerRequestId, error);
+    if (error instanceof PaidProviderConfirmedFailureError) {
+      confirmedFailure = error;
+      result = { value: null as T, providerRequestId: error.requestId, actualUsd: error.actualUsd };
+    } else {
+      const providerRequestId = requestIdFrom(error) ?? hold.provider_request_id;
+      try {
+        await input.ledger.uncertain(input.reservation.ownerId, hold.id, providerRequestId);
+      } catch {
+        // A database outage must not hide the provider request or enable a retry.
+      }
+      throw new PaidGenerationUncertainError(hold.id, providerRequestId, error);
+    }
   }
+  let settled: BudgetReservation;
   try {
     await input.ledger.submitted(input.reservation.ownerId, hold.id, result.providerRequestId);
-    const settled = await input.ledger.settle(input.reservation.ownerId, hold.id, result.actualUsd, result.providerRequestId);
-    return { reservation: settled, value: result.value, replayed: false };
+    settled = await input.ledger.settle(input.reservation.ownerId, hold.id, result.actualUsd, result.providerRequestId);
   } catch (error) {
     try {
       await input.ledger.uncertain(input.reservation.ownerId, hold.id, result.providerRequestId);
@@ -182,6 +234,8 @@ export async function executePaidGeneration<T>(input: {
     }
     throw new PaidGenerationUncertainError(hold.id, result.providerRequestId, error);
   }
+  if (confirmedFailure) throw confirmedFailure;
+  return { reservation: settled, value: result.value, replayed: false };
 }
 
 export function recoverBudgetState(state: BudgetReservationState, providerState: ProviderSubmissionState) {

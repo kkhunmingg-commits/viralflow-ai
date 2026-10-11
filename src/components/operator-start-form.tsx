@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { startOperatorAction } from "@/app/(app)/auto/actions";
 
 interface AccountOption {
@@ -21,7 +22,7 @@ function StartButton({ disabled }: { disabled: boolean }) {
   return <button className="operator-start-button" type="submit" disabled={disabled || pending}><span aria-hidden="true">▶</span>{pending ? "กำลังเริ่มแผน…" : "START AUTO"}</button>;
 }
 
-export function OperatorStartForm({ accounts, requestKey, disabled, selectedAccountId }: { accounts: AccountOption[]; requestKey: string; disabled: boolean; selectedAccountId?: string }) {
+export function OperatorStartForm({ accounts, requestKey, disabled, selectedAccountId, exportOnly = false }: { accounts: AccountOption[]; requestKey: string; disabled: boolean; selectedAccountId?: string; exportOnly?: boolean }) {
   const router = useRouter();
   const [accountId, setAccountId] = useState(selectedAccountId ?? accounts[0]?.id ?? "");
   const [mode, setMode] = useState("AUTO");
@@ -29,6 +30,14 @@ export function OperatorStartForm({ accounts, requestKey, disabled, selectedAcco
   const ready = account?.status === "active" && account.authorization === "authorized";
   const affiliateBlocked = mode === "AFFILIATE" && account?.effectiveMode !== "AFFILIATE";
   const canStart = Boolean(account && ready && !affiliateBlocked && account.hardLimit > 0 && !disabled);
+
+  if (exportOnly) return <div className="operator-form">
+    <div className="operator-fields"><label>บัญชี TikTok<select value={accountId} onChange={event => setAccountId(event.target.value)}>
+      {accounts.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+      <label>โหมด<select value={mode} onChange={event => setMode(event.target.value)}><option value="AUTO">AUTO · เลือกตามบัญชี</option>
+        <option value="GROWTH">GROWTH · ปั้นบัญชี</option><option value="AFFILIATE">AFFILIATE · คอนเทนต์สินค้า</option></select></label></div>
+    <div className="operator-form-footer"><p>ระบบคิดและสร้างคลิปให้ คุณตรวจแล้วดาวน์โหลดไปโพสต์เอง</p>
+      <Link className="operator-start-button" href={`/post?account=${encodeURIComponent(accountId)}&mode=${mode}`}>▶ สร้างคลิป</Link></div></div>;
 
   return <form action={startOperatorAction} className="operator-form">
     <input type="hidden" name="requestKey" value={requestKey}/>

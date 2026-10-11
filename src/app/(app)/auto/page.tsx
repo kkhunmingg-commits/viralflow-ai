@@ -304,7 +304,7 @@ export default async function AutoPage({ searchParams }: {
       <div className="operator-card-head"><div><h2>เริ่มงาน</h2></div>
         <span className="operator-date">{today}</span></div>
       <div className="operator-control-row">
-        {accounts.length ? <OperatorStartForm requestKey={randomUUID()} disabled={!canStartOperatorRun(overview.activeRun)}
+        {accounts.length ? <OperatorStartForm exportOnly={!serverEnv.tiktokVideoPublishApproved} requestKey={randomUUID()} disabled={!canStartOperatorRun(overview.activeRun)}
           selectedAccountId={selectedAccount?.id}
           accounts={accounts.map((account) => ({
             id: account.id, name: account.display_name, status: account.account_status,

@@ -1,0 +1,43 @@
+import { readFile } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
+import assert from 'node:assert/strict';
+const { PGlite } = await import(pathToFileURL(process.argv[2] ?? 'node_modules/@electric-sql/pglite/dist/index.js').href);
+const db = new PGlite(); let checks = 0;
+const a = '10000000-0000-4000-8000-000000000001', b = '10000000-0000-4000-8000-000000000002', account = '20000000-0000-4000-8000-000000000001', run = '30000000-0000-4000-8000-000000000001';
+try {
+  await db.exec(`create role anon; create role authenticated; create role service_role bypassrls; create schema auth;
+    grant usage on schema public,auth to anon,authenticated,service_role;
+    create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
+    grant execute on function auth.uid() to authenticated;
+    create table public.profiles(id uuid primary key);
+    create table public.tiktok_accounts(id uuid primary key,owner_id uuid not null,unique(owner_id,id));
+    create table public.products(id uuid primary key,owner_id uuid not null,unique(owner_id,id));
+    insert into public.profiles values('${a}'),('${b}'); insert into public.tiktok_accounts values('${account}','${a}');`);
+  await db.exec(await readFile('supabase/migrations/20261011172017_customer_content_export.sql','utf8')); checks++;
+  await db.exec(`insert into public.content_export_runs(id,owner_id,tiktok_account_id,request_key,mode,budget_usd) values('${run}','${a}','${account}',gen_random_uuid(),'GROWTH',.5);`); checks++;
+  async function denied(sql) { await assert.rejects(db.exec(sql)); checks++; }
+  await db.exec(`set role authenticated; select set_config('request.jwt.claim.sub','${a}',false);`);
+  assert.equal((await db.query('select id,title,status from public.content_export_runs')).rows.length,1); checks++;
+  await denied('select checkpoint from public.content_export_runs');
+  await denied('select storage_path from public.content_export_runs');
+  await denied('select lease_token from public.content_export_runs');
+  await denied('select * from public.content_export_runs');
+  await denied("update public.content_export_runs set status='READY'");
+  await denied(`select public.claim_content_export_run('${a}','${run}',gen_random_uuid())`);
+  await db.exec(`select set_config('request.jwt.claim.sub','${b}',false);`);
+  assert.equal((await db.query('select id,title from public.content_export_runs')).rows.length,0); checks++;
+  await db.exec('set role anon;'); await denied('select id from public.content_export_runs');
+  await db.exec('reset role; set role service_role;');
+  const first = await db.query(`select (public.claim_content_export_run('${a}','${run}','40000000-0000-4000-8000-000000000001')).id as id`);
+  assert.equal(first.rows[0].id,run); checks++;
+  assert.equal((await db.query(`select (public.claim_content_export_run('${a}','${run}',gen_random_uuid())).id as id`)).rows[0].id,null); checks++;
+  assert.equal((await db.query(`select (public.claim_content_export_run('${b}','${run}',gen_random_uuid())).id as id`)).rows[0].id,null); checks++;
+  await denied(`insert into public.content_export_runs(owner_id,tiktok_account_id,request_key,mode,budget_usd) values('${a}','${account}',gen_random_uuid(),'GROWTH',.5)`);
+  await denied(`insert into public.content_export_runs(owner_id,tiktok_account_id,request_key,mode,budget_usd) values('${b}','${account}',gen_random_uuid(),'GROWTH',.5)`);
+  await db.exec(`update public.content_export_runs set lease_expires_at=now()-interval '1 minute' where id='${run}';`);
+  assert.equal((await db.query(`select (public.claim_content_export_run('${a}','${run}',gen_random_uuid())).id as id`)).rows[0].id,run); checks++;
+  await db.exec(`update public.content_export_runs set status='CANCELLED',lease_expires_at=null where id='${run}';`);
+  assert.equal((await db.query(`select (public.claim_content_export_run('${a}','${run}',gen_random_uuid())).id as id`)).rows[0].id,null); checks++;
+  await db.exec('delete from public.content_export_runs;'); assert.equal((await db.query('select count(*)::int as count from public.content_export_runs')).rows[0].count,0); checks++;
+  console.log(JSON.stringify({ isolatedPostgres: 'PASS', checks, scope: 'migration/RLS/column privacy/claim/recovery/account isolation', paidCalls: 0, tiktokCalls: 0 }));
+} finally { await db.close(); }

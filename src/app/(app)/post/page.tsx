@@ -4,25 +4,32 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { listManualClips, type ManualClip } from "@/features/manual-post/services";
 import { LocalPreparation } from "./local-preparation";
+import { ContentStudio } from "./content-studio";
+import { contentExportConfig } from "@/features/content-export/config";
+import { listContentRuns } from "@/features/content-export/service";
 import "./post.css";
 export const metadata = { title: "โพสต์เอง · Viral Flow AI" };
 export const dynamic = "force-dynamic";
-export default async function ManualPostPage({ searchParams }: { searchParams: Promise<{ account?: string }> }) {
+export default async function ManualPostPage({ searchParams }: { searchParams: Promise<{ account?: string; mode?: string }> }) {
   const client = await createClient();
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) redirect("/login?next=/post");
-  const { account } = await searchParams;
+  const { account, mode } = await searchParams;
   const accountId = z.uuid().safeParse(account).success ? account : undefined;
   const accountsResult = await client.from("tiktok_accounts").select("id,display_name,username")
     .eq("owner_id", data.user.id).is("hidden_at", null).order("created_at", { ascending: false });
   const accounts = accountsResult.data ?? [];
+  const productsResult = await client.from("products").select("id,title").eq("owner_id", data.user.id).eq("status", "available").limit(100);
+  const config = contentExportConfig();
+  const initialRuns = await listContentRuns(client, data.user.id).catch(() => []);
   let clips: ManualClip[] = [], unavailable = false;
   try { clips = await listManualClips(client, data.user.id, accountId); } catch { unavailable = true; }
   return <div className="manual-page">
     <header className="manual-hero"><div><p className="manual-eyebrow">Viral Flow AI</p><h1>โพสต์เอง ไม่ต้องรอ</h1>
       <p>เตรียมวิดีโอและคำบรรยาย แล้วนำไปโพสต์ใน TikTok ด้วยตัวเอง</p></div><Link className="manual-back" href="/auto">← กลับ Home</Link></header>
     <ol className="manual-steps" aria-label="วิธีโพสต์เอง"><li><span>1</span>เลือกคลิป</li><li><span>2</span>ตรวจและดาวน์โหลด</li><li><span>3</span>เปิด TikTok แล้วโพสต์</li></ol>
-    <LocalPreparation accounts={accounts.map(account => ({ name: account.username ? account.display_name + " · @" + account.username.replace(/^@/, "") : account.display_name }))} />
+    <ContentStudio accounts={accounts} products={productsResult.data ?? []} configured={config.enabled && Boolean(config.key) && config.allowedOwners.includes(data.user.id)} initialRuns={initialRuns} initialAccount={accountId} initialMode={mode} />
+    <details className="manual-panel"><summary>ใช้ MP4 ที่มีอยู่แล้ว</summary><LocalPreparation accounts={accounts.map(account => ({ name: account.username ? account.display_name + " · @" + account.username.replace(/^@/, "") : account.display_name }))} /></details>
     <section className="manual-panel" aria-labelledby="saved-title"><div className="manual-section-head"><div><p className="manual-eyebrow">คลิปจาก Viral Flow AI</p><h2 id="saved-title">คลิปที่บันทึกไว้</h2></div>
       <form method="get"><label className="manual-filter">บัญชี<select name="account" defaultValue={accountId ?? ""}><option value="">ทุกบัญชี</option>
         {accounts.map(account => <option key={account.id} value={account.id}>{account.display_name}</option>)}</select></label><button className="manual-secondary" type="submit">แสดง</button></form></div>
@@ -36,6 +43,6 @@ export default async function ManualPostPage({ searchParams }: { searchParams: P
       <p className="manual-muted">ดาวน์โหลดได้เฉพาะไฟล์ที่ผ่านคุณภาพและการตรวจเนื้อหา การดาวน์โหลดไม่ถือว่าโพสต์แล้ว และไม่ส่งวิดีโอให้ TikTok อัตโนมัติ</p>
     </section>
     <aside className="manual-help"><h2>หลังดาวน์โหลด ทำอย่างไร?</h2><p>แตกไฟล์ ZIP → เปิด <strong>video.mp4</strong> ใน TikTok → ใส่คำบรรยายจาก <strong>caption.txt</strong> → ตรวจการรับชมและการระบุคอนเทนต์ AI → กดโพสต์ด้วยตัวเอง</p>
-      <p>การสร้างคลิปอัตโนมัติยังขึ้นกับความพร้อมของระบบและงบ การดาวน์โหลดนี้ไม่ได้เปิดบริการสร้างวิดีโอแบบเสียเงิน</p></aside>
+      <p>งานสร้างคลิปที่คุณสั่งดำเนินต่อขณะเปิดหน้านี้ กลับมาเปิดใหม่เพื่อทำต่อจากรายการเดิม ไม่ต้องเริ่มหรือจ่ายซ้ำ การโพสต์ใน TikTok ยังเป็นการกดด้วยตัวเอง</p></aside>
   </div>;
 }

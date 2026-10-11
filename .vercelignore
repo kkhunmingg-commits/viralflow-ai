@@ -1,0 +1,9 @@
+.env*
+.venv-dev/
+.ai-live-dev/
+.video-cache/
+.video-benchmark/
+benchmark-assets/
+workers/ai-live/installer/
+**/__pycache__/
+**/*.pyc
