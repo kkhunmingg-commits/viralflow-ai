@@ -32,7 +32,7 @@ export function OperatorStartForm({ accounts, requestKey, disabled, selectedAcco
   const canStart = Boolean(account && ready && !affiliateBlocked && account.hardLimit > 0 && !disabled);
 
   if (exportOnly) return <div className="operator-form">
-    <div className="operator-fields"><label>บัญชี TikTok<select value={accountId} onChange={event => setAccountId(event.target.value)}>
+    <div className="operator-fields"><label>บัญชี TikTok<select value={accountId} onChange={event => { setAccountId(event.target.value); router.replace(`/auto?account=${encodeURIComponent(event.target.value)}`, { scroll: false }); }}>
       {accounts.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
       <label>โหมด<select value={mode} onChange={event => setMode(event.target.value)}><option value="AUTO">AUTO · เลือกตามบัญชี</option>
         <option value="GROWTH">GROWTH · ปั้นบัญชี</option><option value="AFFILIATE">AFFILIATE · คอนเทนต์สินค้า</option></select></label></div>

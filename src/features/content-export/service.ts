@@ -23,8 +23,10 @@ function must(error: unknown) { if (error) throw new Error("content_storage_unav
 export function customerRun(row: Run): ContentView { return { id: row.id, accountId: row.tiktok_account_id, mode: row.mode, status: row.status,
   title: row.title, script: row.script, caption: row.caption, rationale: row.rationale, message: row.message,
   budgetUsd: Number(row.budget_usd), reservedUsd: Number(row.reserved_usd), createdAt: row.created_at }; }
-export async function listContentRuns(client: SupabaseClient, owner: string) {
-  const result = await client.from("content_export_runs").select(publicColumns).eq("owner_id", owner).order("created_at", { ascending: false }).limit(20);
+export async function listContentRuns(client: SupabaseClient, owner: string, accountId?: string) {
+  let query = client.from("content_export_runs").select(publicColumns).eq("owner_id", owner);
+  if (accountId) query = query.eq("tiktok_account_id", accountId);
+  const result = await query.order("created_at", { ascending: false }).limit(20);
   must(result.error); return (result.data ?? []).map(row => customerRun(row as unknown as Run));
 }
 async function ownedAccount(admin: SupabaseClient, owner: string, account: string) {

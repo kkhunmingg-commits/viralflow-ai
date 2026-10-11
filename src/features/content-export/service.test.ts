@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const config = vi.hoisted(() => ({ enabled: true, key: "test-runtime-key", allowedOwners: ["10000000-0000-4000-8000-000000000001"], brainModel: "google/gemini-2.5-flash-lite", dailyCapUsd: 5, monthlyCapUsd: 30 }));
 vi.mock("./config", () => ({ contentExportConfig: () => config }));
-import { advanceContentRun, contentMedia, reviewContentRun, startContentRun, stopContentRun } from "./service";
+import { advanceContentRun, contentMedia, listContentRuns, reviewContentRun, startContentRun, stopContentRun } from "./service";
 import { ContentProvider } from "./provider";
 import type { ContentRequest } from "./contracts";
 
@@ -99,6 +99,14 @@ function runtime() {
 const request = (): ContentRequest => ({ requestKey: randomUUID(), accountId, mode: "GROWTH", topic: "", budgetUsd: .5, consent: true });
 describe("automatic creation to reviewed manual export", () => {
   beforeEach(() => { config.enabled = true; });
+  it("Home reads only the selected owner's account and returns customer fields", async () => {
+    const db = database(), run = await startContentRun(db.client, owner, request());
+    db.rows.content_export_runs.push({ ...db.rows.content_export_runs[0], id: randomUUID(), tiktok_account_id: randomUUID() });
+    db.rows.content_export_runs.push({ ...db.rows.content_export_runs[0], id: randomUUID(), owner_id: other });
+    const selected = await listContentRuns(db.client, owner, accountId);
+    expect(selected).toHaveLength(1); expect(selected[0].id).toBe(run.id);
+    expect(selected[0]).not.toHaveProperty("checkpoint"); expect(selected[0]).not.toHaveProperty("lease_token");
+  });
   it.each(["GROWTH", "AUTO", "AFFILIATE"] as const)("runs %s from creative thought through review and ZIP without TikTok", async mode => {
     const db = database(), external = runtime(), input = request();
     input.mode = mode;

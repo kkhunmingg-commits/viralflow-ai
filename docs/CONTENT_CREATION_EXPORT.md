@@ -6,6 +6,8 @@ Production base: `d5185ed`; this release selectively reuses the reviewed fal que
 
 Home → account / AUTO, GROWTH or AFFILIATE → Create → explicit per-clip budget approval → real creative thought → image/reference → Thai voice → vertical AI footage → local H.264/AAC composition → owner review → private ZIP download → manual TikTok posting.
 
+Before production posting approval, Home reports actual export jobs and exact account/day counts, rather than presenting legacy posting gates as clip-creation blockers. Home refresh is read-only; paid advancement happens only on the creation page after explicit consent. The narration bytes are locally probed before buying footage; missing/invalid audio or narration exceeding eight seconds blocks that purchase.
+
 - GROWTH does not require a product. Account interests, optional topic and real recent concept titles are creative context; no fabricated trends, followers or performance.
 - AUTO uses a selected actual product only when account commerce facts permit; otherwise GROWTH.
 - AFFILIATE uses an owner-selected product and actual stored photograph. The new intake writes the existing products/media_assets tables. Owner-provided price/photo are identified as owner supplied, not verified efficacy evidence. Missing analytics are marked UNKNOWN in provenance, never invented sales evidence.

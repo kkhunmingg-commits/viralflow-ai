@@ -14,6 +14,7 @@ import { VIDEO_BUCKET } from "@/features/video/types";
 import { serverEnv } from "@/lib/server-env";
 import { createClient } from "@/lib/supabase/server";
 import { AutoRefresh } from "./auto-refresh";
+import { ContentHome } from "./content-home";
 import "./operator.css";
 
 export const maxDuration = 300;
@@ -101,9 +102,10 @@ export default async function AutoPage({ searchParams }: {
   const run = overview.activeRun ?? overview.runs.find((item) => item.run_date === today) ?? null;
   const detail = run ? await getAutoRun(client, owner, run.id) : null;
   const activeAccountId = overview.activeRun ? detail?.states[0]?.tiktok_account_id : null;
-  const selectedAccount = accounts.find((item) => item.id === activeAccountId)
+  const selectedAccount = accounts.find((item) => item.id === (serverEnv.tiktokVideoPublishApproved ? activeAccountId : accountParam))
     ?? accounts.find((item) => item.id === accountParam) ?? accounts[0];
   const accountId = selectedAccount?.id;
+  if (!serverEnv.tiktokVideoPublishApproved) return <ContentHome client={client} owner={owner} accounts={accounts} accountId={accountId} today={today} dayStart={dayStart} dayEnd={dayEnd} />;
   const current = detail?.states.find((item) => item.tiktok_account_id === accountId) ?? null;
   const status = describeOperatorRun(run, current ?? undefined);
   const needsReconnect = selectedAccount?.connection_status === "DISCONNECTED"
