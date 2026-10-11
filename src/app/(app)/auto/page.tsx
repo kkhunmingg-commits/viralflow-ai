@@ -299,6 +299,7 @@ export default async function AutoPage({ searchParams }: {
         <h1>Home</h1><p>เริ่มงานและดูผลลัพธ์ของคุณในหน้าเดียว</p></div>
       <span className={`operator-state ${status.tone}`}><span aria-hidden="true">●</span>{customerStatus}</span>
     </header>
+    <p><Link className="operator-empty" href="/post">ดาวน์โหลดไปโพสต์เอง →</Link></p>
     <section className="operator-command-card" aria-label="ควบคุมการทำงานอัตโนมัติ">
       <div className="operator-card-head"><div><h2>เริ่มงาน</h2></div>
         <span className="operator-date">{today}</span></div>
