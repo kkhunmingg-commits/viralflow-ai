@@ -7,7 +7,7 @@ import { AtomicBudgetLedger } from "@/features/video/budget-ledger";
 import { ownsVideoStoragePath, videoStoragePath } from "@/features/video/storage";
 import { FAL_MODEL_ENDPOINTS } from "@/features/video/fal-models";
 import { portraitProductReference, validateNarrationAudio } from "@/features/video/media-composition";
-import { providerSettingsSchema, defaultProviderSettings, type ProviderId, type RouterJob, type JobState } from "./contracts";
+import { providerSettingsSchema, defaultProviderSettings, type ProviderSettings, type ProviderId, type RouterJob, type JobState } from "./contracts";
 import { routeVideoJob } from "./router";
 import { GoogleVidsOmniProvider } from "./google-vids";
 import { RoutedFalProvider, type FalRequest } from "./fal";
@@ -35,7 +35,7 @@ async function readJob(admin:SupabaseClient,owner:string,id:string) {
   const result=await admin.from("video_provider_jobs").select("*").eq("owner_id",owner).eq("id",id).maybeSingle();check(result.error);
   if(!result.data)throw new Error("VIDEO_PROVIDER_JOB_NOT_FOUND");return result.data as Job;
 }
-export interface RouterRuntime {fal:RoutedFalProvider;enabled:boolean;source?:typeof getVideoCreativeSource;finalize?:typeof finalizeProviderMaster;}
+export interface RouterRuntime {fal:RoutedFalProvider;enabled:boolean;source?:typeof getVideoCreativeSource;finalize?:typeof finalizeProviderMaster;restrictSettings?:(settings:ProviderSettings)=>ProviderSettings;accountDailyCapUsd?:number;authorizeSubmission?:()=>Promise<void>;}
 function enabled(runtime?:RouterRuntime) {return runtime?.enabled??process.env.VIDEO_PROVIDER_ROUTER_ENABLED==="true";}
 async function sourceFor(admin:SupabaseClient,owner:string,job:Job,runtime?:RouterRuntime) {
   const source=await(runtime?.source??getVideoCreativeSource)(admin,owner,job.creative_project_id);
@@ -95,7 +95,7 @@ export async function advanceProviderJob(admin:SupabaseClient,owner:string,id:st
   const claimed=await claim(admin,owner,id);if(!claimed)return;
   const {job,token}=claimed,ledger=new AtomicBudgetLedger(admin);
   try {
-    const {settings}=await providerSettings(admin,owner),source=await sourceFor(admin,owner,job,runtime);
+    const configured=await providerSettings(admin,owner),settings=runtime?.restrictSettings?.(configured.settings)??configured.settings,source=await sourceFor(admin,owner,job,runtime);
     const fal=runtime?.fal??new RoutedFalProvider(serverEnv.falKey??"");
     if(job.checkpoint.sourcePath){
       if(job.provider==="fal_ai" && job.checkpoint.holdId && job.checkpoint.request && job.provider_request_id)
@@ -145,7 +145,7 @@ export async function advanceProviderJob(admin:SupabaseClient,owner:string,id:st
       const day=new Date().toISOString().slice(0,10),hold=await ledger.reserve({ownerId:owner,accountId:job.tiktok_account_id,generationJobId:job.generation_job_id,
         autoRunId:null,runKey:id,logicalOperationKey:`provider-router:${id}`,provider:"fal",model:request.endpoint,reservedUsd:request.estimateUsd,
         perVideoCapUsd:settings.maxCostUsd,dailyCapUsd:settings.dailyBudgetUsd,monthlyCapUsd:settings.monthlyBudgetUsd,runCapUsd:settings.maxCostUsd,
-        accountCapUsd:settings.dailyBudgetUsd,providerCapUsd:settings.dailyBudgetUsd,budgetDay:day,budgetMonth:`${day.slice(0,7)}-01`});
+        accountCapUsd:Math.min(settings.dailyBudgetUsd,runtime?.accountDailyCapUsd??settings.dailyBudgetUsd),providerCapUsd:settings.dailyBudgetUsd,budgetDay:day,budgetMonth:`${day.slice(0,7)}-01`});
       job.checkpoint={...job.checkpoint,request,holdId:hold.id};
       // A crash between reservation and identity persistence must recover the ledger.
       if(hold.provider_request_id){await save(admin,owner,id,token,{checkpoint:job.checkpoint,provider:"fal_ai",submission_state:"ACCEPTED",provider_request_id:hold.provider_request_id,state:"PROCESSING"});return;}
@@ -155,6 +155,7 @@ export async function advanceProviderJob(admin:SupabaseClient,owner:string,id:st
       if(holdModel.data?.model!==request.endpoint)throw new Error("PREVIOUS_RESULT_UNKNOWN");
       const refreshed=(await providerSettings(admin,owner)).settings;
       if(!(refreshed.mode==="FAL_ONLY" || (refreshed.mode==="AUTO"&&refreshed.paidFallback)))throw new Error("PAID_PERMISSION_CHANGED");
+      await runtime?.authorizeSubmission?.();
       await save(admin,owner,id,token,{checkpoint:job.checkpoint,provider:"fal_ai",estimated_cost_usd:request.estimateUsd});
       await ledger.begin(owner,hold.id);
       await save(admin,owner,id,token,{submission_state:"SUBMITTING",state:"PROCESSING"});

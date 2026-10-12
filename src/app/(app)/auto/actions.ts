@@ -11,7 +11,7 @@ export async function startAutoAction(requestKey:string){
   const run=await createAutoRun(createAdminClient(),ownerId,requestKey);
   scheduleExecution(ownerId,run.id);revalidatePath("/auto");redirect(`/auto/runs/${run.id}`);
 }
-const operatorSchema=z.object({accountId:z.uuid(),mode:z.enum(["AUTO","GROWTH","AFFILIATE"]),dailyTarget:z.coerce.number().int().min(1).max(20),dailyBudgetUsd:z.coerce.number().finite().min(0).max(1000),requestKey:z.uuid()});
+const operatorSchema=z.object({accountId:z.uuid(),mode:z.enum(["AUTO","GROWTH","AFFILIATE"]),dailyTarget:z.coerce.number().int().min(1).refine(Number.isSafeInteger),dailyBudgetUsd:z.coerce.number().finite().min(0).max(1000),requestKey:z.uuid()});
 export async function startOperatorAction(formData:FormData){
   const parsed=operatorSchema.safeParse(Object.fromEntries(formData));
   if(!parsed.success)redirect("/auto?setup=account");

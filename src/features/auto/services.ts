@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logOps } from "../../lib/ops/logger";
 import { operationalPage, operationalWindow } from "../../lib/pagination";
 import { planAccount, stableAutoKey } from "./engine";
+import {manualRunTargets} from "./target-policy";
 import type { AutoAccountState, AutoAction, AutoCheckpoint, AutoFailure, AutoRun, AutoStep } from "./types";
 import { serverEnv } from "@/lib/server-env";
 import { falAutoModeAvailability } from "@/features/video/provider-routing";
@@ -72,7 +73,7 @@ export async function createAutoRun(admin: SupabaseClient, owner: string, reques
   const accounts = await accountQuery;
   if (accounts.error) throw new Error(accounts.error.message);
   if (selection && accounts.data?.length !== 1) throw new Error("account_not_found");
-  if (selection && (!Number.isInteger(selection.dailyTarget) || selection.dailyTarget < 1 || selection.dailyTarget > 20 || !Number.isFinite(selection.dailyBudgetUsd) || selection.dailyBudgetUsd < 0 || selection.dailyBudgetUsd > 1000)) throw new Error("invalid_operator_selection");
+  if (selection && (!Number.isSafeInteger(selection.dailyTarget) || selection.dailyTarget < 1 || !Number.isFinite(selection.dailyBudgetUsd) || selection.dailyBudgetUsd < 0 || selection.dailyBudgetUsd > 1000)) throw new Error("invalid_operator_selection");
   const providerGate = falAutoModeAvailability({ keyPresent: Boolean(serverEnv.falKey), state: serverEnv.falWanProviderState });
   const providerAvailable = providerGate.providerAvailable;
   const sandbox = process.env.NODE_ENV === "development" && (accounts.data ?? []).length > 0 && (accounts.data ?? []).every((account) => account.is_mock);
@@ -81,20 +82,20 @@ export async function createAutoRun(admin: SupabaseClient, owner: string, reques
     const requestedMode = selection?.mode ?? account.mode;
     const dailyTarget = selection?.dailyTarget ?? account.daily_post_target;
     const dailyBudgetUsd = selection?.dailyBudgetUsd ?? Number(account.daily_video_budget_usd ?? 0);
-    if (dailyTarget > account.daily_post_hard_limit) throw new Error("daily_target_exceeds_account_limit");
+    const {desiredCandidates,desiredPosts}=manualRunTargets(dailyTarget,account.daily_post_hard_limit);
     if (requestedMode === "AFFILIATE" && (account.effective_mode !== "AFFILIATE" || account.is_mock)) throw new Error("affiliate_not_eligible");
     const plan = planAccount({
       id: account.id, requestedMode, commerceReady: account.effective_mode === "AFFILIATE" && !account.is_mock, providerAvailable: sandbox || realProviderAllowedForAccount(providerAvailable, account.is_mock),
       providerBudgetAvailable: Number(account.max_cost_per_video_usd) > 0 && Number(account.monthly_video_budget_usd) > 0 && dailyBudgetUsd > 0 && dailyBudgetUsd <= Number(account.daily_video_budget_usd),
       analyticsFresh: true, accountHealthy: account.account_status === "active" && account.authorization_status === "authorized", consent: false, deferConsentUntilPublish: true,
-      publishRemaining: account.daily_post_hard_limit, desiredCandidates: Math.max(15, dailyTarget), desiredPosts: dailyTarget,
-      priority: 100 - index, nextGrowthAction: "WAIT_FOR_DATA", affiliateDecision: "WATCH",
+      publishRemaining: account.daily_post_hard_limit, desiredCandidates, desiredPosts,
+      priority: Math.max(0,100 - index), nextGrowthAction: "WAIT_FOR_DATA", affiliateDecision: "WATCH",
     });
     return {
       accountId: plan.accountId, requestedMode, mode: plan.mode, state: plan.state, nextAction: plan.nextAction, blockers: plan.blockers,
-      desiredCandidates: Math.max(15, dailyTarget), desiredPosts: dailyTarget,
+      desiredCandidates, desiredPosts,
       maxDailyCostUsd: dailyBudgetUsd, generationCapacity: plan.generationCapacity, publishCapacity: plan.publishCapacity,
-      priority: 100 - index, actionKey: stableAutoKey(key, plan.accountId, plan.nextAction),
+      priority: Math.max(0,100 - index), actionKey: stableAutoKey(key, plan.accountId, plan.nextAction),
     };
   });
   const result = await admin.rpc(selection ? "create_operator_auto_run_atomic" : "create_auto_run_atomic", {

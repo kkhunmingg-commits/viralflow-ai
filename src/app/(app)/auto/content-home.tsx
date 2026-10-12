@@ -29,7 +29,7 @@ export async function ContentHome({ client, owner, accounts, accountId, today, d
     <AutoRefresh />
     <header className="operator-hero"><div className="operator-brand-mark" aria-hidden="true">V</div>
       <div className="operator-hero-copy"><p className="operator-overline">Viral Flow AI</p><h1>Home</h1><p>ให้ระบบคิดและสร้างคลิป คุณตรวจแล้วนำไปโพสต์เอง</p></div>
-      <span className="operator-state"><span aria-hidden="true">●</span>{overall}</span></header>
+      <span className="operator-state"><span aria-hidden="true">●</span>{overall}</span><Link href="/auto/accounts">จัดการหลายบัญชี →</Link></header>
     <section className="operator-command-card" aria-label="เริ่มสร้างคลิป">
       <div className="operator-card-head"><h2>เริ่มงาน</h2><span className="operator-date">{today}</span></div>
       {accounts.length ? <OperatorStartForm exportOnly requestKey={randomUUID()} disabled={false} selectedAccountId={accountId}
