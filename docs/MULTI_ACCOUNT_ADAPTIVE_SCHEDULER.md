@@ -1,5 +1,7 @@
 # Adaptive multi-account automation (development branch)
 
+The follow-up [zero-cost readiness audit](REAL_READINESS_AUDIT.md) tightens source provenance, account-day counts, cadence spacing and transactional window checks; its prepared migration remains unapplied to Production. It also adds a 24-hour virtual-time pipeline/recovery proof, without claiming actual continuous uptime or paid/TikTok execution.
+
 The user's latest requirement supersedes the earlier 15–20-per-account target. No fixed account count, minimum daily clip count, maximum daily clip count, or global clip quota is imposed by this module. 1/3/10/20/50/73 accounts and 211/220/1,250 clips in regression inputs are examples, not capacity promises.
 
 ## What changed

@@ -7,6 +7,14 @@ import { providerSettingsSchema } from "@/features/video-provider/contracts";
 export const accounts = (n: number): SchedulerAccount[] => Array.from({ length:n },(_,i) => ({ id:`account-${i}`,ownerId:"owner",config:accountAutomationSchema.parse({enabled:true}),connected:true,hidden:false,ready:0,produced:0,published:0,publishCap:2,recommendation:{generation:i+2,publishing:2,reason:"FIXTURE_OBSERVATIONS",confidence:1},scheduleSeed:`fixture-seed-${i}` }));
 const now = new Date("2026-10-12T05:00:00Z");
 describe("dynamic per-account scheduler",() => {
+  it("prevents jitter from bunching low-cadence slots even with the old one-minute floor",()=>{
+    for (let seed=0;seed<100;seed++) {
+      const row=accounts(1)[0];row.recommendation.generation=6;row.scheduleSeed=String(seed);
+      const slots=new MultiAccountPublishingScheduler().plan([row],now);
+      expect(slots).toHaveLength(6);
+      for(let i=1;i<slots.length;i++) expect(Date.parse(slots[i].dueAt)-Date.parse(slots[i-1].dueAt)).toBeGreaterThanOrEqual(120*60000);
+    }
+  });
   for (const n of [1,3,10,20,50]) it(`${n} accounts follow independently supplied recommendations, without fixed clip quotas`,() => {
     const rows = accounts(n), scheduler = new MultiAccountPublishingScheduler(), plan = scheduler.plan(rows,now);
     const total=rows.reduce((sum,a)=>sum+a.recommendation.generation,0);

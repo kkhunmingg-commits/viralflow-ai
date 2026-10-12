@@ -43,7 +43,7 @@ export const reasonLabels: Record<string, string> = {
   PRIVATE_ONLY: "เผยแพร่ได้เฉพาะแบบส่วนตัว", TRANSPORT: "รอตั้งค่าการส่งคลิปที่ได้รับอนุญาต",
   RECONCILE: "กำลังตรวจผลรายการเดิม", RETRY: "รอลองใหม่", ACCOUNT_PAUSED: "พักบัญชีแล้ว",
   RECOVERY_REQUIRED: "ต้องตรวจรายการก่อนดำเนินการต่อ", FAILED: "ทำต่อไม่ได้",
-  RATE_LIMIT: "รอรอบการส่งถัดไป", FREQUENCY_DATA_REQUIRED: "ยังไม่มีผลลัพธ์จริงเพียงพอสำหรับประเมินความถี่",
+  RATE_LIMIT: "รอรอบการส่งถัดไป", POSTING_WINDOW: "รอช่วงเวลาเผยแพร่ของบัญชี", FREQUENCY_DATA_REQUIRED: "เตรียมเนื้อหาและเก็บผลลัพธ์ก่อนเปิดอัตโนมัติ",
   CAPACITY_SHORTAGE: "กำลังผลิตหรืองบยังไม่พอ", PLATFORM_CAP_UNKNOWN: "ยังไม่ทราบจำนวนโพสต์ที่อนุญาต",
   OBSERVED_PERFORMANCE: "ประเมินจากผลลัพธ์ของบัญชี", ACCOUNT_HEALTH: "บัญชียังไม่พร้อม",
   REPLANNED:"ปรับแผนตามข้อมูลล่าสุด",EXPIRED_PLAN:"พ้นช่วงเวลาของแผนเดิม",

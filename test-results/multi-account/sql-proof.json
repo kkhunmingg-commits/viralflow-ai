@@ -1,6 +1,6 @@
 {
   "isolatedPostgres": "PASS",
-  "checks": 291,
+  "checks": 301,
   "accounts": 50,
   "tasks": 247,
   "simulation": "Variable per-account recommendations and mock generation outcomes, real SQL functions; one PGlite connection, not a cloud horizontal load certification",
@@ -8,33 +8,33 @@
     {
       "accounts": 1,
       "planned": 2,
-      "planAndTwoWritesMs": 34
+      "planAndTwoWritesMs": 42
     },
     {
       "accounts": 3,
       "planned": 9,
-      "planAndTwoWritesMs": 37
+      "planAndTwoWritesMs": 43
     },
     {
       "accounts": 10,
       "planned": 44,
-      "planAndTwoWritesMs": 113
+      "planAndTwoWritesMs": 128
     },
     {
       "accounts": 20,
       "planned": 97,
-      "planAndTwoWritesMs": 237
+      "planAndTwoWritesMs": 238
     },
     {
       "accounts": 50,
       "planned": 247,
-      "planAndTwoWritesMs": 629
+      "planAndTwoWritesMs": 693
     }
   ],
-  "claimP50Ms": 12.21,
-  "claimP95Ms": 27.36,
-  "mockTasksPerSecond": 302.7,
-  "elapsedMs": 3109,
+  "claimP50Ms": 14.68,
+  "claimP95Ms": 46.41,
+  "mockTasksPerSecond": 227.81,
+  "elapsedMs": 3577,
   "workerConcurrency": 8,
   "restart": "PASS",
   "rls": "owner/cross-owner/anon/private columns/service-only mutations PASS",
@@ -45,13 +45,13 @@
   "cloudStagingApplied": false,
   "queryPlan": [
     {
-      "QUERY PLAN": "Limit  (cost=0.28..8.30 rows=1 width=32)"
+      "QUERY PLAN": "Limit  (cost=0.52..8.54 rows=1 width=32)"
     },
     {
-      "QUERY PLAN": "  ->  Index Scan using multi_account_due on multi_account_work  (cost=0.28..8.30 rows=1 width=32)"
+      "QUERY PLAN": "  ->  Index Scan using multi_account_due on multi_account_work  (cost=0.52..8.54 rows=1 width=32)"
     },
     {
-      "QUERY PLAN": "        Index Cond: ((kind = 'GENERATE'::text) AND (available_at <= now()))"
+      "QUERY PLAN": "        Index Cond: ((kind = 'GENERATE'::text) AND (available_at <= private.audit_now()))"
     },
     {
       "QUERY PLAN": "        Filter: (state = 'WAITING'::text)"

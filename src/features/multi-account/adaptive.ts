@@ -12,7 +12,8 @@ export interface FrequencyEvidence {
 export function analyzeFrequency(config: AccountAutomation, data: FrequencyEvidence): FrequencyRecommendation {
   if (!data.accountHealthy) return {generation:0,publishing:0,reason:"ACCOUNT_HEALTH",confidence:0};
   const history=data.history.filter(d=>d.posts>0&&d.views>0&&[d.posts,d.views,d.engagements].every(Number.isFinite));
-  if (!history.length) return {generation:0,publishing:0,reason:"FREQUENCY_DATA_REQUIRED",confidence:0};
+  // Three independent observed days are an evidence threshold, never an account/clip limit.
+  if (history.length < 3) return {generation:0,publishing:0,reason:"FREQUENCY_DATA_REQUIRED",confidence:0};
   const split=Math.max(1,Math.floor(history.length/2)),older=history.slice(0,split),recent=history.slice(split);
   const performance=(rows:typeof history)=>rows.reduce((n,d)=>n+d.views+d.engagements,0)/Math.max(1,rows.reduce((n,d)=>n+d.posts,0));
   const trend=recent.length?Math.sqrt(performance(recent)/Math.max(1,performance(older))):1;

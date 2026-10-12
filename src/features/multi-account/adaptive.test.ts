@@ -4,7 +4,8 @@ import {analyzeFrequency,adaptiveConcurrency,type FrequencyEvidence} from "./ada
 const config=accountAutomationSchema.parse({dailyBudgetUsd:1000}),evidence:FrequencyEvidence={history:Array.from({length:8},()=>({posts:220,views:22000,engagements:220})),publishCap:300,ready:0,candidates:500,estimatedUnitCost:1,paidPermitted:true,measuredGenerationPerDay:1000,providerAutomated:true,accountHealthy:true};
 it("learns frequency from observations rather than fixed 15/20/200 or aggregate quotas",()=>{
   expect(analyzeFrequency(config,evidence)).toMatchObject({generation:220,publishing:220});
-  expect(analyzeFrequency(config,{...evidence,history:[{posts:7,views:700,engagements:7}]})).toMatchObject({generation:7,publishing:7});
+  expect(analyzeFrequency(config,{...evidence,history:Array.from({length:3},()=>({posts:7,views:700,engagements:7}))})).toMatchObject({generation:7,publishing:7});
+  expect(analyzeFrequency(config,{...evidence,history:evidence.history.slice(0,2)})).toMatchObject({generation:0,publishing:0,reason:"FREQUENCY_DATA_REQUIRED"});
   expect(analyzeFrequency(config,{...evidence,history:[]})).toMatchObject({generation:0,publishing:0,reason:"FREQUENCY_DATA_REQUIRED"});
 });
 it("respects actual budgets, platform caps, health, provider throughput, assisted mode and permitted spacing",()=>{

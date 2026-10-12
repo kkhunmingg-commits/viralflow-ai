@@ -1,0 +1,26 @@
+{
+  "result": "PASS",
+  "virtualHours": 24,
+  "wallClockUptimeCertified": false,
+  "checks": 100,
+  "cadence": [
+    2,
+    5,
+    9
+  ],
+  "accounts": 3,
+  "planned": 16,
+  "complete": 15,
+  "reviewRequired": 1,
+  "networkFailures": 1,
+  "providerFailures": 8,
+  "boundedProviderAttempts": 8,
+  "restarts": 1,
+  "queueMax": 16,
+  "queueRemaining": 0,
+  "pipeline": "Actual scheduler/SQL leases, Product Radar scoring, Assignment planner, local MockAIProvider, compliance/eligibility functions and isolated publishing_queue rows; VIDEO/QUALITY are mock boundaries, not real paid media or production publishing",
+  "queuedForReview": 15,
+  "paidCalls": 0,
+  "tiktokCalls": 0,
+  "safeMode": true
+}

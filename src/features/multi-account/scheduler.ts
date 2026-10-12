@@ -40,12 +40,17 @@ export class MultiAccountPublishingScheduler {
         if (c.spreadFullDay || c.windows.some(w => minute >= w.start && minute < w.end)) eligible.push(t);
       }
       const target = account.recommendation.generation, jitter=random(`${account.scheduleSeed}:${day}`);
+      // Jitter may vary a slot, but cannot bunch adjacent slots at a stratum boundary.
+      // This is a cadence-derived spacing rule, not a fixed daily clip quota.
+      const gapMinutes = Math.max(c.minimumGapMinutes, Math.floor(eligible.length / Math.max(1, target * 2)));
       let last=-Infinity;
       for (let ordinal = 0; ordinal < target; ordinal++) {
         const start = Math.floor(ordinal * eligible.length / target), end = Math.floor((ordinal + 1) * eligible.length / target);
         const candidates = eligible.slice(start, Math.max(start + 1, end));
         const audience = candidates.filter(t => { const p = parts(new Date(t), c.timezone); return c.audienceMinutes.includes(Number(p.hour) * 60 + Number(p.minute)); });
-        const times = (audience.length ? audience : candidates).filter(t=>t-last>=c.minimumGapMinutes*60000);
+        const spaced = candidates.filter(t=>t-last>=gapMinutes*60000);
+        const preferred = audience.filter(t=>t-last>=gapMinutes*60000);
+        const times = preferred.length ? preferred : spaced;
         if (!times.length) continue;
         const due = times[Math.floor(jitter()*times.length)];last=due;
         result.push({ ownerId: account.ownerId, accountId: account.id, day, ordinal: ordinal + 1, kind: "GENERATE",
