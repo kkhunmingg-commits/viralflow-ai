@@ -21,7 +21,7 @@ The visible Creative Center alternatives were a game/weapon hashtag, a Shop danc
 
 ## First real clip: short owner handoff
 
-1. Use the existing Google Vids document the owner opened. Choose **Portrait 9:16**, **Create AI videos**, duration **10 seconds** if offered. Paste `first-clip-prompt.txt`. Generate **one** clip only using existing included quota; stop at any charge or upgrade prompt. Do not start fal fallback. This experiment size is not an architecture account/clip limit.
+1. Use the existing Google Vids document the owner opened. Choose **Portrait 9:16**, **Create AI videos → Create**, duration **8 seconds** if offered. Paste `first-clip-prompt.txt`. Generate **one** clip only using existing included quota; stop at any charge or upgrade prompt. Do not start fal fallback. This experiment size is not an architecture account/clip limit.
 2. Insert the generated result into the Vid before closing the tab, preview the entire clip, then export/download MP4. If Thai narration is missing or incorrect, add a real Thai voice recording through the existing audio workflow; do not call a paid TTS service or claim narration passed without listening.
 3. Return the actual MP4's local path. Reuse `FFmpegVideoRenderer.probe()` to check duration, dimensions, codecs and audio, and decode the video locally to detect broken media. Inspect actual frames and listen to the Thai speech. File validity alone is not visual, semantic or voice validation; unverified checks stay **REVIEW_REQUIRED**.
 4. Use the existing local-only MP4 preparation/export component with **luckzazero only**. It requires playback, owner review and rights confirmation. Label AI-generated content as required. It performs no storage upload, paid generation or TikTok call. Do not mark a queue item PUBLISHED based on a local export or an owner report.
@@ -55,6 +55,8 @@ No Production database/config/env/deployment changes, new infrastructure, paid r
 Observed data is dated. Recheck sources before generation/posting if the Pilot resumes on a later day.
 
 ## Checks for this delivery
+
+Continuation: the real Create panel and prompt textbox became visible through Google's command search. Keyboard control and clipboard input failed; the prompt was not successfully inserted and Generate was not submitted. The owner then instructed stopping browser retries and using one manual generation. The handoff now targets 8 seconds with shorter Thai narration. This is a manual quality experiment, not automatic Google Vids integration. No new engine, queue or infrastructure was added.
 
 - Relevant existing Growth, provider-router, manual-export and TikTok tests: **162 passed** (including two new grant-preservation regressions). These are unit/integration checks, not proof that the real Pilot generated or published a clip.
 - Typecheck passed; lint passed with **0 errors / 8 pre-existing warnings**.
