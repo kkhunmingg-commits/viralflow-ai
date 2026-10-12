@@ -11,12 +11,13 @@ import { providerSettingsSchema, defaultProviderSettings, type ProviderSettings,
 import { routeVideoJob } from "./router";
 import { GoogleVidsOmniProvider } from "./google-vids";
 import { RoutedFalProvider, type FalRequest } from "./fal";
+import { GeminiOmniProvider, type GeminiRequest } from "./gemini";
 import { finalizeProviderMaster, type ProviderCreativeSource } from "./finalize";
 
 type Row = Record<string,unknown>;
 interface Job {id:string;owner_id:string;tiktok_account_id:string;creative_project_id:string;selected_script_id:string;generation_job_id:string;created_at:string;
   state:JobState;provider:ProviderId|null;submission_state:RouterJob["submission"];provider_request_id:string|null;retries:number;next_retry_at:string|null;
-  estimated_cost_usd:number;actual_cost_usd?:number|null;checkpoint:{request?:FalRequest;holdId?:string;sourcePath?:string;voicePath?:string;polls?:number;submittedAt?:string};decisions:Row[];lease_token:string|null;}
+  estimated_cost_usd:number;actual_cost_usd?:number|null;checkpoint:{request?:FalRequest;geminiRequest?:GeminiRequest;imagePath?:string;usageCostUsd?:number|null;holdId?:string;sourcePath?:string;voicePath?:string;polls?:number;submittedAt?:string};decisions:Row[];lease_token:string|null;}
 const columns="id,tiktok_account_id,creative_project_id,state,provider,message,retries,next_retry_at,estimated_cost_usd,actual_cost_usd,master_video_id,created_at,updated_at";
 const check = (error:unknown) => {if(error)throw new Error("VIDEO_PROVIDER_STORAGE_UNAVAILABLE");};
 export async function providerSettings(client:SupabaseClient,owner:string) {
@@ -35,7 +36,7 @@ async function readJob(admin:SupabaseClient,owner:string,id:string) {
   const result=await admin.from("video_provider_jobs").select("*").eq("owner_id",owner).eq("id",id).maybeSingle();check(result.error);
   if(!result.data)throw new Error("VIDEO_PROVIDER_JOB_NOT_FOUND");return result.data as Job;
 }
-export interface RouterRuntime {fal:RoutedFalProvider;enabled:boolean;source?:typeof getVideoCreativeSource;finalize?:typeof finalizeProviderMaster;restrictSettings?:(settings:ProviderSettings)=>ProviderSettings;accountDailyCapUsd?:number;authorizeSubmission?:()=>Promise<void>;}
+export interface RouterRuntime {fal:RoutedFalProvider;gemini?:GeminiOmniProvider;geminiEnabled?:boolean;enabled:boolean;source?:typeof getVideoCreativeSource;finalize?:typeof finalizeProviderMaster;restrictSettings?:(settings:ProviderSettings)=>ProviderSettings;accountDailyCapUsd?:number;authorizeSubmission?:()=>Promise<void>;}
 function enabled(runtime?:RouterRuntime) {return runtime?.enabled??process.env.VIDEO_PROVIDER_ROUTER_ENABLED==="true";}
 async function sourceFor(admin:SupabaseClient,owner:string,job:Job,runtime?:RouterRuntime) {
   const source=await(runtime?.source??getVideoCreativeSource)(admin,owner,job.creative_project_id);
@@ -50,7 +51,7 @@ export async function enqueueProviderVideo(admin:SupabaseClient,owner:string,pro
   const prior=await admin.from("master_videos").select("id").eq("owner_id",owner).eq("creative_project_id",projectId).maybeSingle();check(prior.error);
   if(prior.data)throw new Error("EXISTING_MASTER_REQUIRES_REVIEW");
   const generation=await admin.from("generation_jobs").upsert({owner_id:owner,creative_project_id:projectId,idempotency_key:key,job_type:"MASTER_RENDER",
-    provider:"provider-router",model:"google_vids_omni/fal_ai",input_json:{projectId},status:"QUEUED",max_attempts:1},{onConflict:"owner_id,idempotency_key",ignoreDuplicates:true});check(generation.error);
+    provider:"provider-router",model:"google_vids_omni/gemini_omni_api/fal_ai",input_json:{projectId},status:"QUEUED",max_attempts:1},{onConflict:"owner_id,idempotency_key",ignoreDuplicates:true});check(generation.error);
   const generationJob=await admin.from("generation_jobs").select("id").eq("owner_id",owner).eq("idempotency_key",key).single();check(generationJob.error);
   const result=await admin.from("video_provider_jobs").upsert({owner_id:owner,tiktok_account_id:source.account.id,product_id:source.product.id,
     creative_project_id:projectId,selected_script_id:source.script.id,generation_job_id:generationJob.data!.id},{onConflict:"owner_id,creative_project_id,selected_script_id",ignoreDuplicates:true});check(result.error);
@@ -84,13 +85,87 @@ async function settleBilledCost(admin:SupabaseClient,owner:string,job:Job,fal:Ro
   if(!job.checkpoint.request||!job.checkpoint.holdId||!job.provider_request_id)return null;
   const actual=await fal.billedCost(job.checkpoint.request,job.provider_request_id,job.created_at);if(actual===null)return null;
   if(actual>job.checkpoint.request.estimateUsd){
-    const {settings}=await providerSettings(admin,owner);await saveProviderSettings(admin,owner,{...settings,mode:"GOOGLE_ONLY",paidFallback:false,autoRecovery:false});
+    const {settings}=await providerSettings(admin,owner);await saveProviderSettings(admin,owner,{...settings,mode:"GOOGLE_ONLY",paidMode:false,paidFallback:false,autoRecovery:false});
     check((await admin.from("video_provider_jobs").update({actual_cost_usd:actual,message:"ยอดเรียกเก็บเกินประมาณการ ปิดบริการเสียเงินไว้จนเจ้าของตรวจสอบ"}).eq("owner_id",owner).eq("id",job.id)).error);
     throw new Error("BILLING_OVER_CAP");
   }
   await new AtomicBudgetLedger(admin).settle(owner,job.checkpoint.holdId,actual,job.provider_request_id);
   check((await admin.from("video_provider_jobs").update({actual_cost_usd:actual}).eq("owner_id",owner).eq("id",job.id)).error);return actual;
 }
+async function geminiImage(admin:SupabaseClient,owner:string,path:string) {
+  const bytes=Buffer.from(await ownedFile(admin,owner,path,12_000_000));
+  const mimeType=bytes[0]===0xff&&bytes[1]===0xd8?"image/jpeg":bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10]))?"image/png":bytes.subarray(0,4).toString()==="RIFF"&&bytes.subarray(8,12).toString()==="WEBP"?"image/webp":null;
+  if(!mimeType)throw new Error("REAL_PRODUCT_IMAGE_REQUIRED");
+  return{bytes,mimeType};
+}
+
+async function advanceGeminiJob(admin:SupabaseClient,owner:string,job:Job,token:string,source:ProviderCreativeSource,settings:ProviderSettings,poll:boolean,runtime?:RouterRuntime) {
+  const geminiEnabled=runtime?.geminiEnabled??process.env.GEMINI_OMNI_API_ENABLED==="true";
+  const api=runtime?.gemini??new GeminiOmniProvider(serverEnv.geminiKey??"",fetch,{paidMode:enabled(runtime)&&geminiEnabled&&settings.paidMode});
+  const ledger=new AtomicBudgetLedger(admin);
+  if(!poll){
+    if(!enabled(runtime)||!geminiEnabled||!settings.paidMode||settings.mode!=="GEMINI_ONLY")throw new Error("PAID_PERMISSION_CHANGED");
+    let imagePath=job.checkpoint.imagePath;
+    const inputMode=job.checkpoint.geminiRequest?(job.checkpoint.geminiRequest.image?"IMAGE_TO_VIDEO":"TEXT_TO_VIDEO"):settings.geminiInputMode;
+    if(inputMode==="IMAGE_TO_VIDEO"&&!imagePath){
+      const photo=await admin.from("media_assets").select("storage_path").eq("owner_id",owner).eq("product_id",source.product.id).eq("asset_type","PRODUCT_IMAGE").in("source_type",["UPLOAD","PRODUCT"]).order("created_at",{ascending:false}).limit(1).maybeSingle();check(photo.error);
+      if(!photo.data||!ownsVideoStoragePath(owner,photo.data.storage_path))throw new Error("REAL_PRODUCT_IMAGE_REQUIRED");
+      imagePath=photo.data.storage_path;
+    }
+    const image=imagePath?await geminiImage(admin,owner,imagePath):undefined;
+    const prompt=["Create one original 8-second portrait video. Natural motion, no unsolicited text overlay. Preserve reference product details if supplied.",
+      `Topic: ${String(source.product.title)}. Hook: ${String(source.script.hook_text)}.`,
+      `Thai narration: ${String(source.script.voice_script)}. ${String(source.script.cta_text??"")}`].join("\n");
+    const request=job.checkpoint.geminiRequest??api.prepare(prompt,image);
+    if(!Number.isFinite(request.estimateUsd)||request.estimateUsd<=0||request.estimateUsd>settings.maxCostUsd)throw new Error("BUDGET_OR_QUOTE_UNAVAILABLE");
+    const day=new Date().toISOString().slice(0,10);
+    const hold=await ledger.reserve({ownerId:owner,accountId:job.tiktok_account_id,generationJobId:job.generation_job_id,autoRunId:null,runKey:job.id,
+      logicalOperationKey:`provider-router:${job.id}`,provider:"gemini",model:request.endpoint,reservedUsd:request.estimateUsd,perVideoCapUsd:settings.maxCostUsd,
+      dailyCapUsd:settings.dailyBudgetUsd,monthlyCapUsd:settings.monthlyBudgetUsd,runCapUsd:settings.maxCostUsd,
+      accountCapUsd:Math.min(settings.dailyBudgetUsd,runtime?.accountDailyCapUsd??settings.dailyBudgetUsd),providerCapUsd:settings.dailyBudgetUsd,budgetDay:day,budgetMonth:`${day.slice(0,7)}-01`});
+    job.checkpoint={...job.checkpoint,geminiRequest:request,imagePath,holdId:hold.id};
+    const held=await admin.from("generation_budget_reservations").select("model,provider").eq("owner_id",owner).eq("id",hold.id).single();check(held.error);
+    if(held.data?.model!==request.endpoint||held.data?.provider!=="gemini")throw new Error("PREVIOUS_RESULT_UNKNOWN");
+    if(hold.provider_request_id){await save(admin,owner,job.id,token,{checkpoint:job.checkpoint,provider:"gemini_omni_api",provider_request_id:hold.provider_request_id,submission_state:"ACCEPTED",state:"PROCESSING"});return;}
+    if(hold.provider_submission_state!=="REQUEST_NOT_SENT"||hold.state!=="RESERVED"||Number(hold.reserved_usd)<request.estimateUsd)throw new Error("PREVIOUS_RESULT_UNKNOWN");
+    const refreshed=(await providerSettings(admin,owner)).settings;
+    if(refreshed.mode!=="GEMINI_ONLY"||!refreshed.paidMode||refreshed.maxCostUsd<request.estimateUsd||refreshed.dailyBudgetUsd<settings.dailyBudgetUsd||refreshed.monthlyBudgetUsd<settings.monthlyBudgetUsd)throw new Error("PAID_PERMISSION_CHANGED");
+    await runtime?.authorizeSubmission?.();
+    job.decisions=[...job.decisions,{at:new Date().toISOString(),action:"SUBMIT",provider:"gemini_omni_api",reason:"EXPLICIT_GEMINI_API_APPROVED"}].slice(-50);
+    await save(admin,owner,job.id,token,{checkpoint:job.checkpoint,decisions:job.decisions,provider:"gemini_omni_api",estimated_cost_usd:request.estimateUsd});
+    await ledger.begin(owner,hold.id);
+    await save(admin,owner,job.id,token,{submission_state:"SUBMITTING",state:"PROCESSING",next_retry_at:null});
+    const accepted=await api.submit(request,image);
+    if(!accepted.request_id)throw new Error("PREVIOUS_RESULT_UNKNOWN");
+    await ledger.submitted(owner,hold.id,accepted.request_id);
+    job.checkpoint.submittedAt=new Date().toISOString();
+    await save(admin,owner,job.id,token,{checkpoint:job.checkpoint,provider_request_id:accepted.request_id,submission_state:"ACCEPTED",message:"กำลังสร้างวิดีโอ"});return;
+  }
+  const request=job.checkpoint.geminiRequest;
+  if(!request||!job.provider_request_id)throw new Error("PREVIOUS_RESULT_UNKNOWN");
+  job.checkpoint.polls=(job.checkpoint.polls??0)+1;
+  if(job.checkpoint.polls>120||(job.checkpoint.submittedAt&&Date.now()-Date.parse(job.checkpoint.submittedAt)>30*60_000))throw new Error("PREVIOUS_RESULT_UNKNOWN");
+  await save(admin,owner,job.id,token,{checkpoint:job.checkpoint});
+  const status=await api.poll(request,job.provider_request_id);
+  if(status.status==="PENDING"){
+    await save(admin,owner,job.id,token,{next_retry_at:new Date(Date.now()+Math.min(60_000,5_000*2**Math.min(job.checkpoint.polls,4))).toISOString()});return;
+  }
+  if(status.status==="FAILED"){
+    await save(admin,owner,job.id,token,{submission_state:"CONFIRMED_FAILED",state:"FAILED",message:"สร้างไม่สำเร็จ ต้องตรวจรายการเดิม ไม่มีการซื้อคลิปซ้ำ"});return;
+  }
+  const generated=await api.retrieve(request,job.provider_request_id);
+  const path=videoStoragePath(owner,"masters",job.id,"routed-source.mp4");
+  check((await admin.storage.from("video-assets").upload(path,generated.bytes,{contentType:"video/mp4",upsert:true})).error);
+  job.checkpoint={...job.checkpoint,sourcePath:path,usageCostUsd:generated.usageCostUsd};
+  // Usage at catalog rates is not an invoice. Keep the conservative reservation; never fabricate actual_cost_usd.
+  await save(admin,owner,job.id,token,{checkpoint:job.checkpoint,next_retry_at:null});
+  if(generated.usageCostUsd!=null&&generated.usageCostUsd>request.estimateUsd){
+    await saveProviderSettings(admin,owner,{...settings,mode:"GOOGLE_ONLY",paidMode:false,paidFallback:false,autoRecovery:false});
+    throw new Error("BILLING_OVER_CAP");
+  }
+  await finish(admin,owner,job,token,source,runtime);
+}
+
 export async function advanceProviderJob(admin:SupabaseClient,owner:string,id:string,runtime?:RouterRuntime) {
   const claimed=await claim(admin,owner,id);if(!claimed)return;
   const {job,token}=claimed,ledger=new AtomicBudgetLedger(admin);
@@ -103,16 +178,22 @@ export async function advanceProviderJob(admin:SupabaseClient,owner:string,id:st
       await finish(admin,owner,job,token,source,runtime);return;
     }
     if(job.checkpoint.holdId && !job.provider_request_id){
-      const prior=await admin.from("generation_budget_reservations").select("provider_request_id").eq("owner_id",owner).eq("id",job.checkpoint.holdId).maybeSingle();check(prior.error);
+      const prior=await admin.from("generation_budget_reservations").select("provider_request_id,provider,model").eq("owner_id",owner).eq("id",job.checkpoint.holdId).maybeSingle();check(prior.error);
       if(prior.data?.provider_request_id){
-        await save(admin,owner,id,token,{provider:"fal_ai",provider_request_id:prior.data.provider_request_id,submission_state:"ACCEPTED",state:"PROCESSING"});return;
+        const model=job.provider==="gemini_omni_api"?job.checkpoint.geminiRequest?.endpoint:job.checkpoint.request?.endpoint;
+        if (!job.provider || prior.data.provider!==(job.provider==="gemini_omni_api"?"gemini":"fal") || prior.data.model!==model) throw new Error("PREVIOUS_RESULT_UNKNOWN");
+        await save(admin,owner,id,token,{provider_request_id:prior.data.provider_request_id,submission_state:"ACCEPTED",state:"PROCESSING"});return;
       }
     }
     const routerJob:RouterJob={state:job.state,provider:job.provider,submission:job.submission_state,requestId:job.provider_request_id,retries:job.retries,nextRetryAt:job.next_retry_at};
     let request=job.checkpoint.request;
     const google=new GoogleVidsOmniProvider().health(settings);
-    let decision=routeVideoJob(settings,routerJob,{google,falAvailable:Boolean(runtime?.fal||serverEnv.falKey),estimateUsd:null,budgetAvailable:false});
+    const geminiEnabled=runtime?.geminiEnabled??process.env.GEMINI_OMNI_API_ENABLED==="true";
+    let decision=routeVideoJob(settings,routerJob,{google,geminiAvailable:geminiEnabled&&Boolean(runtime?.gemini||serverEnv.geminiKey),falAvailable:Boolean(runtime?.fal||serverEnv.falKey),estimateUsd:null,budgetAvailable:false});
     if(decision.action==="RECONCILE"){await save(admin,owner,id,token,{state:"RECONCILIATION_REQUIRED",message:"ตรวจรายการเดิมก่อนเริ่มซ้ำ ไม่มีการสลับไปเสียเงินอัตโนมัติ"});return;}
+    if(decision.provider==="gemini_omni_api" && (["POLL","SUBMIT"].includes(decision.action) || (decision.reason==="BUDGET_OR_QUOTE_UNAVAILABLE" && enabled(runtime)))){
+      await advanceGeminiJob(admin,owner,job,token,source,settings,decision.action==="POLL",runtime);return;
+    }
     if(decision.action==="POLL" && job.provider!=="fal_ai")throw new Error("GOOGLE_VIDS_ASSISTED_ONLY");
     if(decision.action==="WAIT" && decision.reason==="BUDGET_OR_QUOTE_UNAVAILABLE" && enabled(runtime)){
       const photo=await admin.from("media_assets").select("storage_path").eq("owner_id",owner).eq("product_id",source.product.id).eq("asset_type","PRODUCT_IMAGE").in("source_type",["UPLOAD","PRODUCT"]).order("created_at",{ascending:false}).limit(1).maybeSingle();check(photo.error);
@@ -147,14 +228,14 @@ export async function advanceProviderJob(admin:SupabaseClient,owner:string,id:st
         perVideoCapUsd:settings.maxCostUsd,dailyCapUsd:settings.dailyBudgetUsd,monthlyCapUsd:settings.monthlyBudgetUsd,runCapUsd:settings.maxCostUsd,
         accountCapUsd:Math.min(settings.dailyBudgetUsd,runtime?.accountDailyCapUsd??settings.dailyBudgetUsd),providerCapUsd:settings.dailyBudgetUsd,budgetDay:day,budgetMonth:`${day.slice(0,7)}-01`});
       job.checkpoint={...job.checkpoint,request,holdId:hold.id};
+      const holdModel=await admin.from("generation_budget_reservations").select("model,provider").eq("owner_id",owner).eq("id",hold.id).single();check(holdModel.error);
+      if(holdModel.data?.model!==request.endpoint||holdModel.data?.provider!=="fal")throw new Error("PREVIOUS_RESULT_UNKNOWN");
       // A crash between reservation and identity persistence must recover the ledger.
       if(hold.provider_request_id){await save(admin,owner,id,token,{checkpoint:job.checkpoint,provider:"fal_ai",submission_state:"ACCEPTED",provider_request_id:hold.provider_request_id,state:"PROCESSING"});return;}
       if(hold.provider_submission_state!=="REQUEST_NOT_SENT")throw new Error("PREVIOUS_RESULT_UNKNOWN");
       if(hold.state!=="RESERVED" || Number(hold.reserved_usd)<request.estimateUsd)throw new Error("PREVIOUS_RESULT_UNKNOWN");
-      const holdModel=await admin.from("generation_budget_reservations").select("model").eq("owner_id",owner).eq("id",hold.id).single();check(holdModel.error);
-      if(holdModel.data?.model!==request.endpoint)throw new Error("PREVIOUS_RESULT_UNKNOWN");
       const refreshed=(await providerSettings(admin,owner)).settings;
-      if(!(refreshed.mode==="FAL_ONLY" || (refreshed.mode==="AUTO"&&refreshed.paidFallback)))throw new Error("PAID_PERMISSION_CHANGED");
+      if(!(refreshed.mode==="FAL_ONLY" || (refreshed.mode==="AUTO"&&refreshed.paidFallback) || (refreshed.mode==="GEMINI_ONLY"&&refreshed.paidMode&&refreshed.paidFallback)))throw new Error("PAID_PERMISSION_CHANGED");
       await runtime?.authorizeSubmission?.();
       await save(admin,owner,id,token,{checkpoint:job.checkpoint,provider:"fal_ai",estimated_cost_usd:request.estimateUsd});
       await ledger.begin(owner,hold.id);
@@ -247,7 +328,7 @@ export async function resumeKnownProviderResult(admin:SupabaseClient,owner:strin
   const claimed=await claim(admin,owner,id);if(!claimed)return;
   try{
     const {job,token}=claimed;
-    if(job.state!=="RECONCILIATION_REQUIRED"||job.provider!=="fal_ai"||!job.provider_request_id||!job.checkpoint.request)throw new Error("PREVIOUS_RESULT_UNKNOWN");
+    if(job.state!=="RECONCILIATION_REQUIRED"||!["fal_ai","gemini_omni_api"].includes(job.provider??"")||!job.provider_request_id||!(job.checkpoint.request||job.checkpoint.geminiRequest))throw new Error("PREVIOUS_RESULT_UNKNOWN");
     await save(admin,owner,id,token,{state:"PROCESSING",submission_state:"ACCEPTED",checkpoint:{...job.checkpoint,polls:0,submittedAt:new Date().toISOString()},message:"ติดตามผลรายการเดิมแบบอ่านอย่างเดียว ไม่สร้างงานใหม่"});
   }finally{await release(admin,owner,id,claimed.token);}
 }

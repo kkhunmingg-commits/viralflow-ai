@@ -51,8 +51,9 @@ export interface AccountView { id: string; name: string; username: string | null
   lastPublish: string | null; nextPublish: string | null; estimatedToday: number; actualToday: number | null; recommendation?:FrequencyRecommendation; }
 async function recommendAccount(admin:SupabaseClient,owner:string,account:string,config:AccountAutomation,healthy:boolean){
   const [evidence,ownerConfig]=await Promise.all([admin.rpc("multi_account_frequency_evidence",{p_owner:owner,p_account:account}),providerSettings(admin,owner)]);check(evidence.error);
-  const settings=ownerConfig.settings,paidPermitted=(settings.mode==="FAL_ONLY"||settings.paidFallback)&&settings.mode!=="GOOGLE_ONLY"&&config.providerPreference!=="GOOGLE_ONLY";
-  return analyzeFrequency(config,{...(evidence.data as FrequencyEvidence),paidPermitted,providerAutomated:paidPermitted&&Boolean(serverEnv.falKey),accountHealthy:healthy});
+  const settings=ownerConfig.settings,paidPermitted=(settings.mode==="GEMINI_ONLY"?settings.paidMode:settings.mode==="FAL_ONLY"||settings.paidFallback)&&settings.mode!=="GOOGLE_ONLY"&&config.providerPreference!=="GOOGLE_ONLY";
+  const providerAutomated=paidPermitted&&(settings.mode==="GEMINI_ONLY"?Boolean(serverEnv.geminiKey)&&process.env.GEMINI_OMNI_API_ENABLED==="true":Boolean(serverEnv.falKey));
+  return analyzeFrequency(config,{...(evidence.data as FrequencyEvidence),paidPermitted,providerAutomated,accountHealthy:healthy});
 }
 export async function dashboard(admin: SupabaseClient, owner: string) {
   const result = await admin.rpc("multi_account_overview", { p_owner: owner });
@@ -60,8 +61,9 @@ export async function dashboard(admin: SupabaseClient, owner: string) {
   check(result.error);
   const [inputs,ownerConfig]=await Promise.all([admin.rpc("multi_account_advice_inputs",{p_owner:owner}),providerSettings(admin,owner)]);check(inputs.error);
   const accounts = (result.data as AccountView[]).map(a => {const config=accountAutomationSchema.parse(a.config??{}),settings=ownerConfig.settings;
-    const paidPermitted=(settings.mode==="FAL_ONLY"||settings.paidFallback)&&settings.mode!=="GOOGLE_ONLY"&&config.providerPreference!=="GOOGLE_ONLY";
-    return {...a,config,recommendation:analyzeFrequency(config,{...inputs.data[a.id] as FrequencyEvidence,paidPermitted,providerAutomated:paidPermitted&&Boolean(serverEnv.falKey),accountHealthy:a.connected&&a.tokenReady})};});
+    const paidPermitted=(settings.mode==="GEMINI_ONLY"?settings.paidMode:settings.mode==="FAL_ONLY"||settings.paidFallback)&&settings.mode!=="GOOGLE_ONLY"&&config.providerPreference!=="GOOGLE_ONLY";
+    const providerAutomated=paidPermitted&&(settings.mode==="GEMINI_ONLY"?Boolean(serverEnv.geminiKey)&&process.env.GEMINI_OMNI_API_ENABLED==="true":Boolean(serverEnv.falKey));
+    return {...a,config,recommendation:analyzeFrequency(config,{...inputs.data[a.id] as FrequencyEvidence,paidPermitted,providerAutomated,accountHealthy:a.connected&&a.tokenReady})};});
   const days = [...new Set(accounts.flatMap(a => [localDay(new Date(), a.config.timezone), localDay(new Date(Date.now() + 86400000), a.config.timezone)]))];
   const calendar = days.length ? await allRows((from, to) => admin.from("multi_account_work").select("id,tiktok_account_id,local_day,kind,due_at,state,reason")
     .eq("owner_id", owner).in("local_day", days).order("due_at").order("id").range(from, to)) : [];

@@ -29,5 +29,5 @@ export default async function VideoProvidersPage({searchParams}:{searchParams:Pr
   const productNames=new Map(products.data?.map(row=>[row.id,row.title])),accountNames=new Map(accounts.data?.map(row=>[row.id,row.display_name]));
   const choices=rows.map(row=>({id:row.id,label:[productNames.get(row.product_id)??"สินค้า",accountNames.get(row.tiktok_account_id)??"บัญชี"].join(" · ")}));
   const decisions=(history.data??[]).flatMap(row=>(row.decisions as Array<{at:string;provider:string;reason:string}>).map(item=>({at:item.at,provider:item.provider,reason:item.reason}))).sort((a,b)=>b.at.localeCompare(a.at)).slice(0,20);
-  return <ProviderPanel settings={configuration.settings} jobs={jobs as ProviderJobView[]} choices={choices} selectedProject={params.project??""} totals={totals.data} history={decisions} enabled={process.env.VIDEO_PROVIDER_ROUTER_ENABLED==="true"} falConfigured={Boolean(serverEnv.falKey)}/>;
+  return <ProviderPanel settings={configuration.settings} jobs={jobs as ProviderJobView[]} choices={choices} selectedProject={params.project??""} totals={totals.data} history={decisions} enabled={process.env.VIDEO_PROVIDER_ROUTER_ENABLED==="true"} falConfigured={Boolean(serverEnv.falKey)} geminiConfigured={Boolean(serverEnv.geminiKey)}/>;
 }

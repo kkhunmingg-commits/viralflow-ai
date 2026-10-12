@@ -7,6 +7,16 @@ const fresh:RouterJob={state:"QUEUED",provider:null,submission:"NOT_SENT",reques
 const snapshot:ProviderSnapshot={google:{status:"READY",automated:true},falAvailable:true,estimateUsd:.3,budgetAvailable:true};
 const paid=()=>providerSettingsSchema.parse({paidFallback:true,maxCostUsd:1,dailyBudgetUsd:5,monthlyBudgetUsd:30,autoRecovery:true});
 describe("video provider routing decisions (capability fixtures, not real Google generation)",()=>{
+  it("Gemini requires paid mode and its own quote; assisted defaults are preserved",()=>{
+    const settings=providerSettingsSchema.parse({mode:"GEMINI_ONLY",paidMode:true,maxCostUsd:3,dailyBudgetUsd:6,monthlyBudgetUsd:20});
+    const ready={...snapshot,geminiAvailable:true,geminiEstimateUsd:2};
+    expect(routeVideoJob(settings,fresh,ready)).toMatchObject({action:"SUBMIT",provider:"gemini_omni_api"});
+    expect(routeVideoJob({...settings,paidMode:false},fresh,ready).reason).toBe("PAID_MODE_DISABLED");
+    expect(routeVideoJob(settings,fresh,{...ready,geminiEstimateUsd:null})).toMatchObject({action:"WAIT",provider:"gemini_omni_api"});
+    expect(routeVideoJob(settings,fresh,{...ready,geminiAvailable:false}).reason).toBe("GEMINI_UNAVAILABLE");
+    expect(routeVideoJob({...settings,paidFallback:true},fresh,{...ready,geminiAvailable:false})).toMatchObject({action:"SUBMIT",provider:"fal_ai"});
+    expect(routeVideoJob(settings,{...fresh,provider:"gemini_omni_api",submission:"SUBMITTING"},ready).action).toBe("RECONCILE");
+  });
   it("defaults to no paid permission and no budget",()=>{expect(defaultProviderSettings()).toMatchObject({mode:"AUTO",paidFallback:false,maxCostUsd:0,autoRecovery:false});});
   it("requires ordered positive caps for every paid mode",()=>{expect(()=>providerSettingsSchema.parse({mode:"FAL_ONLY"})).toThrow();expect(()=>providerSettingsSchema.parse({paidFallback:true,maxCostUsd:1,dailyBudgetUsd:.5,monthlyBudgetUsd:10})).toThrow();});
   it("chooses verified automation capability before fal",()=>expect(routeVideoJob(paid(),fresh,snapshot).provider).toBe("google_vids_omni"));

@@ -9,6 +9,7 @@ import {assertProviderAdministrator} from "@/features/video-provider/access";
 import {providerSettingsSchema,type ProviderSettings} from "@/features/video-provider/contracts";
 import {GoogleVidsOmniProvider} from "@/features/video-provider/google-vids";
 import {RoutedFalProvider} from "@/features/video-provider/fal";
+import {GeminiOmniProvider} from "@/features/video-provider/gemini";
 import {saveProviderSettings,providerSettings,enqueueProviderVideo,advanceProviderJob,prepareGoogleHandoff,beginProviderImport,completeProviderImport,reconcileGoogleNotSubmitted,processProviderQueue,resumeKnownProviderResult,reconcileProviderBilling} from "@/features/video-provider/service";
 const uuid=z.string().uuid();
 async function auth(){
@@ -18,7 +19,7 @@ async function auth(){
 }
 export async function saveSettingsAction(settings:ProviderSettings,paidConsent:boolean){
   const {admin,owner}=await auth(),parsed=providerSettingsSchema.parse(settings);
-  if((parsed.paidFallback||parsed.mode==="FAL_ONLY")&&paidConsent!==true)throw new Error("กรุณายืนยันวงเงินก่อนอนุญาตบริการเสียเงิน");
+  if((parsed.paidMode||parsed.paidFallback||parsed.mode==="FAL_ONLY")&&paidConsent!==true)throw new Error("กรุณายืนยันวงเงินก่อนอนุญาตบริการเสียเงิน");
   await saveProviderSettings(admin,owner,parsed);revalidatePath("/video-factory/providers");
 }
 export async function queueVideoAction(project:string){const {admin,owner}=await auth();const result=await enqueueProviderVideo(admin,owner,uuid.parse(project));revalidatePath("/video-factory/providers");return result.id as string;}
@@ -34,9 +35,14 @@ export async function noGooglePendingAction(id:string,confirmed:boolean){
   if(confirmed!==true)throw new Error("ต้องยืนยันว่าไม่มีรายการ Google ค้างก่อน");const {admin,owner}=await auth();await reconcileGoogleNotSubmitted(admin,owner,uuid.parse(id));revalidatePath("/video-factory/providers");
 }
 export async function processQueueAction(){const {admin,owner}=await auth();const result=await processProviderQueue(admin,owner);revalidatePath("/video-factory/providers");return result;}
-export async function testProviderAction(provider:"google_vids_omni"|"fal_ai"){
+export async function testProviderAction(provider:"google_vids_omni"|"gemini_omni_api"|"fal_ai"){
   const {admin,owner}=await auth(),{settings}=await providerSettings(admin,owner);
   if(provider==="google_vids_omni")return `Google Vids: ${new GoogleVidsOmniProvider().health(settings).status} (เจ้าของระบุ) — Assisted เท่านั้น ไม่ได้ทดสอบล็อกอินหรือโควตาบัญชี`;
+  if(provider==="gemini_omni_api"){
+    const result=await new GeminiOmniProvider(serverEnv.geminiKey??"").health();
+    if(!result.keyConfigured)return "ยังไม่ได้ตั้งค่าการเข้าถึง Gemini Omni API บนเซิร์ฟเวอร์ — ไม่ได้สร้างคลิป";
+    return result.modelAvailable===true?"ตรวจการเข้าถึง Gemini Omni API สำเร็จ — อ่านข้อมูลเท่านั้น ยังไม่ยืนยัน Billing และไม่ได้สร้างคลิป":"ยังยืนยันการเข้าถึง Gemini Omni API ไม่ได้ — Billing ยังไม่ทราบและไม่ได้สร้างคลิป";
+  }
   if(provider!=="fal_ai")throw new Error("ไม่พบบริการ");
   const request=await new RoutedFalProvider(serverEnv.falKey??"").prepare(settings.falModel,"https://example.invalid/product.jpg","Read-only price check; no generation");
   return `อ่านราคา fal สำเร็จ: ประมาณ $${request.estimateUsd.toFixed(4)} ต่อคำขอนี้ รวมเผื่อ 10% — ยังไม่ตรวจยอดเงิน/คุณภาพ/ยอดเรียกเก็บจริง และไม่สร้างคลิป`;

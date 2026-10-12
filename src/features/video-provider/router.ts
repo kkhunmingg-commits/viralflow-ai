@@ -5,8 +5,19 @@ export function routeVideoJob(settings: ProviderSettings, job: RouterJob, snapsh
   if (["EXTERNAL_PENDING", "SUBMITTING"].includes(job.submission) || job.state === "RECONCILIATION_REQUIRED") return { action: "RECONCILE", provider: job.provider, reason: "PREVIOUS_RESULT_UNKNOWN" };
   if (job.requestId && job.submission === "ACCEPTED") return { action: "POLL", provider: job.provider, reason: "RESUME_SAME_REQUEST" };
   if (job.nextRetryAt && Date.parse(job.nextRetryAt) > now.getTime()) return { action: "WAIT", provider: job.provider, reason: "BACKOFF", retryAt: job.nextRetryAt };
-  if (job.provider === "fal_ai" && job.submission === "CONFIRMED_FAILED") return { action: "WAIT", provider: "fal_ai", reason: "PAID_RETRY_REQUIRES_NEW_OWNER_DECISION" };
-  if (settings.mode !== "FAL_ONLY") {
+  if (["fal_ai", "gemini_omni_api"].includes(job.provider ?? "") && job.submission === "CONFIRMED_FAILED") return { action: "WAIT", provider: job.provider, reason: "PAID_RETRY_REQUIRES_NEW_OWNER_DECISION" };
+  if (settings.mode === "GEMINI_ONLY") {
+    if (!settings.paidMode) return { action: "WAIT", provider: "gemini_omni_api", reason: "PAID_MODE_DISABLED" };
+    if (snapshot.geminiAvailable) {
+      const estimate = snapshot.geminiEstimateUsd;
+      if (estimate == null || !Number.isFinite(estimate) || estimate <= 0 || estimate > settings.maxCostUsd || !snapshot.budgetAvailable)
+        return { action: "WAIT", provider: "gemini_omni_api", reason: "BUDGET_OR_QUOTE_UNAVAILABLE" };
+      return { action: "SUBMIT", provider: "gemini_omni_api", reason: "EXPLICIT_GEMINI_API_APPROVED" };
+    }
+    if (!settings.paidFallback) return { action: "WAIT", provider: "gemini_omni_api", reason: "GEMINI_UNAVAILABLE" };
+    // Fallback is allowed before submission only. Unknown or failed requests above never buy a replacement.
+  }
+  if (settings.mode !== "FAL_ONLY" && settings.mode !== "GEMINI_ONLY") {
     if (snapshot.google.status === "READY" && snapshot.google.automated) return { action: "SUBMIT", provider: "google_vids_omni", reason: "GOOGLE_PRIMARY_READY" };
     if (snapshot.google.status === "ASSISTED" || (snapshot.google.status === "READY" && !snapshot.google.automated)) return { action: "ASSIST", provider: "google_vids_omni", reason: "GOOGLE_QUOTA_REQUIRES_USER_UI" };
     if (snapshot.google.status === "TRANSIENT_FAILURE" && job.retries < settings.retryLimit) {

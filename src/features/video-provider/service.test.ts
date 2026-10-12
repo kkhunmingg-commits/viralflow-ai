@@ -6,6 +6,7 @@ vi.mock("@/lib/server-env",()=>({serverEnv:{}}));
 import {enqueueProviderVideo,advanceProviderJob,completeProviderImport,resumeKnownProviderResult,processProviderQueue,reconcileProviderBilling,type RouterRuntime} from "./service";
 import {providerSettingsSchema} from "./contracts";
 import {RoutedFalProvider} from "./fal";
+import {GeminiOmniProvider} from "./gemini";
 import {resolveFalModelSettings,FAL_MODEL_ENDPOINTS} from "@/features/video/fal-models";
 type Row=Record<string,unknown>;
 const owner=randomUUID(),account=randomUUID(),project=randomUUID(),script=randomUUID(),product=randomUUID();
@@ -30,6 +31,7 @@ function database(){
     }return q;
   }
   const rpc=vi.fn(async(name:string,args:Row)=>{
+    if(name==="gemini_video_guard_version")return{data:"gemini-omni-budget-v1",error:null};
     if(name==="fal_budget_guard_version")return{data:"fal-generation-budget-guards-v1",error:null};
     if(name==="claim_video_provider_job"){
       const job=rows.video_provider_jobs.find(row=>row.owner_id===args.p_owner_id&&row.id===args.p_job_id);
@@ -40,7 +42,7 @@ function database(){
       const prior=rows.generation_budget_reservations.find(row=>row.owner_id===args.p_owner_id&&row.logical_operation_key===args.p_logical_operation_key);if(prior)return{data:structuredClone(prior),error:null};
       const spent=rows.generation_budget_reservations.filter(row=>row.owner_id===args.p_owner_id).reduce((sum,row)=>sum+Number(row.reserved_usd),0);
       if(spent+Number(args.p_reserved_usd)>Number(args.p_daily_cap_usd))return{data:null,error:{message:"daily_budget_exceeded"}};
-      const hold={id:randomUUID(),owner_id:args.p_owner_id,logical_operation_key:args.p_logical_operation_key,reserved_usd:args.p_reserved_usd,state:"RESERVED",provider_submission_state:"REQUEST_NOT_SENT",provider_request_id:null,model:args.p_model};rows.generation_budget_reservations.push(hold);return{data:structuredClone(hold),error:null};
+      const hold={id:randomUUID(),owner_id:args.p_owner_id,logical_operation_key:args.p_logical_operation_key,reserved_usd:args.p_reserved_usd,state:"RESERVED",provider_submission_state:"REQUEST_NOT_SENT",provider_request_id:null,model:args.p_model,provider:args.p_provider};rows.generation_budget_reservations.push(hold);return{data:structuredClone(hold),error:null};
     }
     const hold=rows.generation_budget_reservations.find(row=>row.id===args.p_reservation_id&&row.owner_id===args.p_owner_id);if(!hold)return{data:null,error:{message:"missing hold"}};
     if(name==="begin_generation_submission"){if(hold.provider_submission_state!=="REQUEST_NOT_SENT")return{data:null,error:{message:"begun"}};hold.provider_submission_state="SUBMITTING";}
@@ -57,6 +59,93 @@ function runtime(){
   fal.billedCost=vi.fn(async()=>null);fal.submit=vi.fn(async()=>({request_id:"same-request"}));fal.poll=vi.fn(async()=>({status:"COMPLETE" as const}));fal.retrieve=vi.fn(async()=>({bytes:new Uint8Array([1,2,3])})) as unknown as typeof fal.retrieve;
   const finalize=vi.fn(async()=>({id:randomUUID(),quality_status:"RETRY"}));return{enabled:true,fal,source:vi.fn(async()=>source),finalize} satisfies RouterRuntime;
 }
+
+function geminiFixture(){
+  const d=database(),r=runtime(),gemini=new GeminiOmniProvider("fixture-not-a-real-key",fetch,{paidMode:true});
+  d.rows.video_provider_settings[0].config=providerSettingsSchema.parse({mode:"GEMINI_ONLY",paidMode:true,geminiInputMode:"TEXT_TO_VIDEO",maxCostUsd:3,dailyBudgetUsd:6,monthlyBudgetUsd:20});
+  gemini.submit=vi.fn(async()=>({request_id:"omni-existing-request"}));gemini.poll=vi.fn(async()=>({status:"COMPLETE" as const}));
+  gemini.retrieve=vi.fn(async()=>({bytes:new Uint8Array([1,2,3]),costUsd:null,usageCostUsd:.82,costBasis:"PROVIDER_USAGE_ESTIMATE" as const}));
+  return{d,r:{...r,gemini,geminiEnabled:true as boolean} satisfies RouterRuntime};
+}
+
+describe("Gemini durable integration with mocked transport, zero paid calls",()=>{
+  it("TTV without a product image reserves once, retrieves the same id and enters quality review",async()=>{
+    const {d,r}=geminiFixture();d.rows.media_assets=[];
+    const j=await enqueueProviderVideo(d.client,owner,project,r);
+    await Promise.all([advanceProviderJob(d.client,owner,j.id,r),advanceProviderJob(d.client,owner,j.id,r)]);
+    await advanceProviderJob(d.client,owner,j.id,r);await advanceProviderJob(d.client,owner,j.id,r);
+    expect(r.gemini.submit).toHaveBeenCalledOnce();expect(r.fal.submit).not.toHaveBeenCalled();
+    expect(d.rows.video_provider_jobs[0]).toMatchObject({provider:"gemini_omni_api",state:"REVIEW_REQUIRED",checkpoint:{usageCostUsd:.82}});
+    expect(d.rows.video_provider_jobs[0].actual_cost_usd).toBeUndefined();expect(d.rows.generation_budget_reservations[0]).toMatchObject({provider:"gemini",state:"RESERVED"});
+    expect(r.finalize).toHaveBeenCalledOnce();expect(r.gemini.poll).toHaveBeenCalledWith(expect.anything(),"omni-existing-request");
+  });
+  it("I2V sends an owner-bound image but persists only its hash and private storage path",async()=>{
+    const {d,r}=geminiFixture();d.rows.video_provider_settings[0].config={...d.rows.video_provider_settings[0].config as Row,geminiInputMode:"IMAGE_TO_VIDEO"};
+    d.files.set(photoPath,new Blob([new Uint8Array([255,216,255,224,1,2,3,4])]));
+    const j=await enqueueProviderVideo(d.client,owner,project,r);await advanceProviderJob(d.client,owner,j.id,r);
+    expect(r.gemini.submit).toHaveBeenCalledWith(expect.objectContaining({task:"image_to_video",image:expect.objectContaining({sha256:expect.any(String)})}),expect.objectContaining({mimeType:"image/jpeg"}));
+    const checkpoint=d.rows.video_provider_jobs[0].checkpoint as Row;expect(checkpoint.imagePath).toBe(photoPath);expect(JSON.stringify(checkpoint)).not.toContain("base64");
+  });
+  it.each(["permission","server flag","budget","schema guard"])("blocks paid submit for missing %s",async(blocker)=>{
+    const {d,r}=geminiFixture();
+    if(blocker==="permission")d.rows.video_provider_settings[0].config={...d.rows.video_provider_settings[0].config as Row,paidMode:false};
+    if(blocker==="server flag")r.geminiEnabled=false;
+    if(blocker==="budget")d.rows.video_provider_settings[0].config={...d.rows.video_provider_settings[0].config as Row,maxCostUsd:.5};
+    if(blocker==="schema guard"){const old=d.rpc.getMockImplementation()!;d.rpc.mockImplementation(async(name,args)=>name==="gemini_video_guard_version"?{data:null,error:{message:"not installed"}}:old(name,args));}
+    const j=await enqueueProviderVideo(d.client,owner,project,r);await advanceProviderJob(d.client,owner,j.id,r);
+    expect(r.gemini.submit).not.toHaveBeenCalled();expect(r.fal.submit).not.toHaveBeenCalled();
+  });
+  it("lost POST response prevents both resubmission and paid fallback",async()=>{
+    const {d,r}=geminiFixture();d.rows.video_provider_settings[0].config={...d.rows.video_provider_settings[0].config as Row,paidFallback:true};
+    r.gemini.submit=vi.fn(async()=>{throw new Error("GEMINI_SUBMISSION_UNKNOWN");});const j=await enqueueProviderVideo(d.client,owner,project,r);
+    await advanceProviderJob(d.client,owner,j.id,r);await advanceProviderJob(d.client,owner,j.id,r);
+    expect(r.gemini.submit).toHaveBeenCalledOnce();expect(r.fal.submit).not.toHaveBeenCalled();expect(d.rows.video_provider_jobs[0].state).toBe("RECONCILIATION_REQUIRED");
+  });
+  it("restart and changed mode only retrieve the original interaction",async()=>{
+    const {d,r}=geminiFixture();const j=await enqueueProviderVideo(d.client,owner,project,r);await advanceProviderJob(d.client,owner,j.id,r);
+    d.rows.video_provider_settings[0].config=providerSettingsSchema.parse({mode:"GOOGLE_ONLY"});r.geminiEnabled=false;
+    await advanceProviderJob(d.client,owner,j.id,r);expect(r.gemini.submit).toHaveBeenCalledOnce();expect(r.gemini.retrieve).toHaveBeenCalledWith(expect.anything(),"omni-existing-request");
+  });
+  it("recovers Gemini identity from ledger without changing provider to fal",async()=>{
+    const {d,r}=geminiFixture();const j=await enqueueProviderVideo(d.client,owner,project,r);await advanceProviderJob(d.client,owner,j.id,r);
+    Object.assign(d.rows.video_provider_jobs[0],{provider_request_id:null,submission_state:"SUBMITTING"});await advanceProviderJob(d.client,owner,j.id,r);
+    expect(d.rows.video_provider_jobs[0]).toMatchObject({provider:"gemini_omni_api",provider_request_id:"omni-existing-request"});expect(r.gemini.submit).toHaveBeenCalledOnce();
+  });
+  it.each(["fal","gemini"])("a prior %s request cannot be recovered as the other provider after a mode change",async(provider)=>{
+    const {d,r}=geminiFixture();const j=await enqueueProviderVideo(d.client,owner,project,r);
+    if(provider==="fal")d.rows.generation_budget_reservations.push({id:randomUUID(),owner_id:owner,logical_operation_key:`provider-router:${j.id}`,provider:"fal",model:FAL_MODEL_ENDPOINTS.LTX_23_FAST,reserved_usd:3,state:"RESERVED",provider_submission_state:"SUBMITTED",provider_request_id:"old-fal"});
+    else{await advanceProviderJob(d.client,owner,j.id,r);Object.assign(d.rows.video_provider_jobs[0],{provider:null,provider_request_id:null,checkpoint:{},submission_state:"NOT_SENT",state:"QUEUED"});d.rows.video_provider_settings[0].config=providerSettingsSchema.parse({mode:"FAL_ONLY",maxCostUsd:3,dailyBudgetUsd:6,monthlyBudgetUsd:20});}
+    await advanceProviderJob(d.client,owner,j.id,r);
+    expect(d.rows.video_provider_jobs[0].state).toBe("RECONCILIATION_REQUIRED");expect(r.fal.poll).not.toHaveBeenCalled();expect(r.gemini.poll).not.toHaveBeenCalled();expect(r.fal.submit).not.toHaveBeenCalled();
+    expect(r.gemini.submit).toHaveBeenCalledTimes(provider==="fal"?0:1);
+  });
+  it("confirmed failure stays failed and never falls back automatically",async()=>{
+    const {d,r}=geminiFixture();r.gemini.poll=vi.fn(async()=>({status:"FAILED" as const}));const j=await enqueueProviderVideo(d.client,owner,project,r);
+    await advanceProviderJob(d.client,owner,j.id,r);await advanceProviderJob(d.client,owner,j.id,r);await advanceProviderJob(d.client,owner,j.id,r);
+    expect(d.rows.video_provider_jobs[0].state).toBe("FAILED");expect(r.gemini.submit).toHaveBeenCalledOnce();expect(r.fal.submit).not.toHaveBeenCalled();
+  });
+  it("SAFE execution disabled never calls either paid transport",async()=>{
+    const {d,r}=geminiFixture();const j=await enqueueProviderVideo(d.client,owner,project,r);
+    await advanceProviderJob(d.client,owner,j.id,{...r,enabled:false});expect(r.gemini.submit).not.toHaveBeenCalled();expect(r.fal.submit).not.toHaveBeenCalled();
+  });
+  it("polls with bounded backoff and an explicit recovery resumes only the same ID",async()=>{
+    const {d,r}=geminiFixture();const j=await enqueueProviderVideo(d.client,owner,project,r);await advanceProviderJob(d.client,owner,j.id,r);
+    r.gemini.poll=vi.fn(async()=>({status:"PENDING" as const}));await advanceProviderJob(d.client,owner,j.id,r);
+    expect(Date.parse(String(d.rows.video_provider_jobs[0].next_retry_at))-Date.now()).toBeGreaterThan(5_000);
+    Object.assign(d.rows.video_provider_jobs[0],{next_retry_at:null});(d.rows.video_provider_jobs[0].checkpoint as Row).polls=120;
+    await advanceProviderJob(d.client,owner,j.id,r);expect(d.rows.video_provider_jobs[0].state).toBe("RECONCILIATION_REQUIRED");
+    await resumeKnownProviderResult(d.client,owner,j.id);r.gemini.poll=vi.fn(async()=>({status:"COMPLETE" as const}));
+    await advanceProviderJob(d.client,owner,j.id,r);expect(d.rows.video_provider_jobs[0].state).toBe("REVIEW_REQUIRED");expect(r.gemini.submit).toHaveBeenCalledOnce();
+  });
+  it("over-estimate usage pauses paid execution and never records an invoice",async()=>{
+    const {d,r}=geminiFixture();const j=await enqueueProviderVideo(d.client,owner,project,r);await advanceProviderJob(d.client,owner,j.id,r);
+    r.gemini.retrieve=vi.fn(async()=>({bytes:new Uint8Array([1,2,3]),costUsd:null,usageCostUsd:4,costBasis:"PROVIDER_USAGE_ESTIMATE" as const}));
+    await advanceProviderJob(d.client,owner,j.id,r);
+    expect(d.rows.video_provider_settings[0].config).toMatchObject({paidMode:false,paidFallback:false,mode:"GOOGLE_ONLY"});
+    expect(d.rows.video_provider_jobs[0]).toMatchObject({state:"RECONCILIATION_REQUIRED",checkpoint:{usageCostUsd:4}});
+    expect(d.rows.video_provider_jobs[0].actual_cost_usd).toBeUndefined();expect(d.rows.generation_budget_reservations[0].state).toBe("RESERVED");
+  });
+});
 describe("durable provider service with transport fixtures (no real paid calls)",()=>{
   it("automatic recovery processes at most three jobs and respects daily reservation limit",async()=>{const d=database(),r=runtime(),sources=new Map<string,typeof source>();d.rows.video_provider_settings[0].config=providerSettingsSchema.parse({mode:"FAL_ONLY",maxCostUsd:.5,dailyBudgetUsd:2,monthlyBudgetUsd:10,autoRecovery:true});
     for(let i=0;i<21;i++){const id=randomUUID(),a=[account,project,product][i%3],s={...source,project:{id,tiktok_account_id:a},account:{id:a,is_mock:false},script:{...source.script,id:randomUUID()}};sources.set(id,s);r.source=vi.fn(async()=>s);await enqueueProviderVideo(d.client,owner,id,r);}

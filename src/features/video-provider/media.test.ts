@@ -41,6 +41,11 @@ it("validates real MP4/audio/frames, imports master, renders real crop and keeps
     const file=db.objects.get(String(result.storage_path))!;const finalPath=join(dir,"variation.mp4");await writeFile(finalPath,new Uint8Array(await file.arrayBuffer()));
     const actual=await new FFmpegVideoRenderer().probe(finalPath);expect(actual).toMatchObject({width:1080,height:1920,hasAudio:true,videoCodec:"h264",audioCodec:"aac"});expect(actual.duration).toBeCloseTo(8,1);
     expect(db.rows.media_assets.some(row=>row.source_type==="MOCK")).toBe(false);
+    const textDb=fixtureDatabase(new Uint8Array(await readFile(imagePath)));textDb.rows.media_assets=[];
+    const textJob={...input,provider:"gemini_omni_api" as const,estimated_cost_usd:2,checkpoint:{geminiRequest:{task:"text_to_video"},usageCostUsd:.82}};
+    const textMaster=await finalizeProviderMaster(textDb.client,owner,textJob,source,bytes,null);
+    expect(textMaster.quality_status).toBe("RETRY");
+    expect(textDb.rows.master_videos[0]).toMatchObject({model:"gemini-omni-1.1-flash",render_strategy:"PREMIUM_AI_VIDEO",quality_explanation_json:{thaiNarrationVerified:false,costBasis:"PROVIDER_USAGE_ESTIMATE_PENDING_BILLING",usageCostUsd:.82}});
     await expect(finalizeProviderMaster(db.client,owner,{...input,generation_job_id:randomUUID()},source,bytes,null)).rejects.toThrow("EXISTING_MASTER_REQUIRES_REVIEW");
   }finally{await rm(dir,{recursive:true,force:true});}
 },180_000);
