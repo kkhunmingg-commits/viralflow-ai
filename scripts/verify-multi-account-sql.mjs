@@ -7,6 +7,7 @@ import {runWorkerPool} from '../src/features/multi-account/worker.ts';
 import {MultiAccountPublishingScheduler,localDay} from '../src/features/multi-account/scheduler.ts';
 import {accountAutomationSchema} from '../src/features/multi-account/contracts.ts';
 import {runReadinessDay} from './readiness-day-simulation.mjs';
+import {verifyGrowthManagerSql} from './growth-manager-sql-proof.mjs';
 const {PGlite}=await import(pathToFileURL(process.argv[2]?.startsWith('--')?'node_modules/@electric-sql/pglite/dist/index.js':process.argv[2]??'node_modules/@electric-sql/pglite/dist/index.js').href);
 const db=new PGlite(),owner=randomUUID(),other=randomUUID(),accountIds=Array.from({length:50},()=>randomUUID());
 let checks=0;const ok=value=>{assert.ok(value);checks++;},denied=async sql=>{await assert.rejects(db.exec(sql));checks++;};
@@ -127,4 +128,5 @@ try {
  const report={isolatedPostgres:'PASS',checks,accounts:50,tasks:totalJobs,simulation:'Variable per-account recommendations and mock generation outcomes, real SQL functions; one PGlite connection, not a cloud horizontal load certification',timings,claimP50Ms:Number(sorted[Math.floor(sorted.length*.5)].toFixed(2)),claimP95Ms:Number(sorted[Math.floor(sorted.length*.95)].toFixed(2)),mockTasksPerSecond:Number((totalJobs/(throughputMs/1000)).toFixed(2)),elapsedMs:Math.round(performance.now()-started),workerConcurrency:8,restart:'PASS',rls:'owner/cross-owner/anon/private columns/service-only mutations PASS',creatorCap:'5 unaudited; audited unknown blocks',perCreatorCap:'2 fixture cap respected',paidCalls:0,tiktokCalls:0,cloudStagingApplied:false,queryPlan:explain.rows};
  await mkdir('test-results/multi-account',{recursive:true});await writeFile('test-results/multi-account/sql-proof.json',JSON.stringify(report,null,2));console.log(JSON.stringify(report));
  if(simulate)await runReadinessDay(db,owner,accountIds.slice(0,3));
+ if(process.argv.includes('--growth-manager'))await verifyGrowthManagerSql(db,owner,other,accountIds);
 } finally {await db.close();}

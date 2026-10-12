@@ -14,6 +14,8 @@ import { restrictProviderSettings } from "./provider-policy";
 import { runWorkerPool, retryAt, type WorkerPorts, type WorkerStore, type WorkOutcome } from "./worker";
 import { analyzeFrequency, type FrequencyEvidence } from "./adaptive";
 import { resourceAdmission } from "./resources";
+import { activeGrowthPilot, tickGrowthPilot } from "@/features/growth-manager/service";
+import { syncAutoDiscovery, accountAutoPermission } from "@/features/growth-manager/discovery-service";
 
 type Row = Record<string, unknown>;
 const check = (error: unknown) => { if (error) throw new Error("AUTOMATION_STORAGE_UNAVAILABLE"); };
@@ -85,13 +87,15 @@ export function createWorkerPorts(admin: SupabaseClient, safe: boolean, canPubli
     const config = await readAccountConfig(admin, work.owner_id, work.tiktok_account_id);
     const account = await admin.from("tiktok_accounts").select("authorization_status,hidden_at,account_status,is_mock,token_expires_at,refresh_token_expires_at").eq("owner_id", work.owner_id).eq("id", work.tiktok_account_id).single(); check(account.error);
     if (!account.data) throw new Error("ACCOUNT_NOT_FOUND");
-    return { config, active: config.enabled && !config.paused && !account.data.hidden_at && account.data.authorization_status === "authorized" && account.data.account_status==="active" && !account.data.is_mock && (Date.parse(account.data.token_expires_at)>Date.now()||Date.parse(account.data.refresh_token_expires_at)>Date.now()) };
+    const autoPermission=await accountAutoPermission(admin,work.owner_id,work.tiktok_account_id);
+    const health=await admin.from("account_publish_health").select("health_status").eq("owner_id",work.owner_id).eq("tiktok_account_id",work.tiktok_account_id).maybeSingle();check(health.error);
+    return { config, mode:autoPermission?.mode, active: health.data?.health_status==="READY" && !!autoPermission && config.enabled && !config.paused && !account.data.hidden_at && account.data.authorization_status === "authorized" && account.data.account_status==="active" && !account.data.is_mock && (Date.parse(account.data.token_expires_at)>Date.now()||Date.parse(account.data.refresh_token_expires_at)>Date.now()) };
   }
   return {
     async generate(work) {
       if (safe) return waiting("SAFE_MODE");
       if (process.env.VIDEO_PROVIDER_ROUTER_ENABLED !== "true") return waiting("PROVIDER");
-      const { config, active: permitted } = await active(work); if (!permitted) return waiting("ACCOUNT_PAUSED");
+      const { config, active: permitted,mode } = await active(work); if (!permitted) return waiting("ACCOUNT_PAUSED");
       if (!work.provider_job_id && !work.creative_project_id) {
         const advice=await recommendAccount(admin,work.owner_id,work.tiktok_account_id,config,true);
         if (work.ordinal>advice.generation) return {state:"CANCELLED",reason:"REPLANNED"};
@@ -99,12 +103,13 @@ export function createWorkerPorts(admin: SupabaseClient, safe: boolean, canPubli
       let projectId = work.creative_project_id;
       if (!projectId) {
         // Reuse real selected Creative Brain output. Never invent a safe script or invoke a paid text provider here.
-        const projects = await allRows((from, to) => admin.from("creative_projects").select("id,product_id,selected_script_id")
+        const projects = await allRows((from, to) => admin.from("creative_projects").select("id,product_id,selected_script_id,mode")
           .eq("owner_id", work.owner_id).eq("tiktok_account_id", work.tiktok_account_id).not("selected_script_id", "is", null).order("created_at").order("id").range(from, to));
         const used = await allRows((from, to) => admin.from("multi_account_work").select("creative_project_id").eq("owner_id", work.owner_id).eq("kind", "GENERATE").not("creative_project_id", "is", null).order("id").range(from, to));
         const masters = await allRows((from, to) => admin.from("master_videos").select("creative_project_id").eq("owner_id", work.owner_id).eq("tiktok_account_id", work.tiktok_account_id).order("id").range(from, to));
         const usedIds = new Set([...used, ...masters].map(r => r.creative_project_id));
         for (const project of projects) {
+          if(project.mode!==mode)continue;
           if (usedIds.has(project.id)) continue;
           const product = await admin.from("products").select("category_key").eq("owner_id", work.owner_id).eq("id", project.product_id).single(); check(product.error);
           if (!product.data) continue;
@@ -119,9 +124,13 @@ export function createWorkerPorts(admin: SupabaseClient, safe: boolean, canPubli
           return waiting("CREATIVE_REQUIRED");
         }
       }
+      const projectMode=await admin.from("creative_projects").select("mode").eq("owner_id",work.owner_id).eq("id",projectId).single();check(projectMode.error);
+      if(projectMode.data?.mode!==mode)return {state:"REVIEW_REQUIRED",reason:"MODE_CHANGED"};
+      const creativeEvidence=await admin.from("creative_generations").select("id,provider").eq("owner_id",work.owner_id).eq("creative_project_id",projectId).eq("status","SUCCEEDED").order("created_at",{ascending:false}).order("id").limit(1);check(creativeEvidence.error);
+      if(creativeEvidence.data?.[0]?.provider!=="openai")return waiting("CREATIVE_REQUIRED");
       const runtime = { fal: new RoutedFalProvider(serverEnv.falKey ?? ""), enabled: process.env.VIDEO_PROVIDER_ROUTER_ENABLED === "true",
         accountDailyCapUsd: config.dailyBudgetUsd, restrictSettings: (settings: Parameters<typeof restrictProviderSettings>[0]) => restrictProviderSettings(settings, config, Date.parse(work.due_at) <= Date.now()),
-        authorizeSubmission: async () => { const fresh = await active(work); const mode = await admin.from("multi_account_runtime").select("enabled,execution_mode").eq("singleton",true).single(); check(mode.error); if (!mode.data?.enabled || mode.data.execution_mode !== "ENABLED" || process.env.VIDEO_PROVIDER_ROUTER_ENABLED !== "true" || !fresh.active || fresh.config.dailyBudgetUsd !== config.dailyBudgetUsd || fresh.config.providerPreference !== config.providerPreference) throw new Error("ACCOUNT_PERMISSION_CHANGED"); } };
+        authorizeSubmission: async () => { const fresh = await active(work); const runtimeState = await admin.from("multi_account_runtime").select("enabled,execution_mode").eq("singleton",true).single(); check(runtimeState.error); if (fresh.mode !== mode || !runtimeState.data?.enabled || runtimeState.data.execution_mode !== "ENABLED" || process.env.VIDEO_PROVIDER_ROUTER_ENABLED !== "true" || !fresh.active || fresh.config.dailyBudgetUsd !== config.dailyBudgetUsd || fresh.config.providerPreference !== config.providerPreference) throw new Error("ACCOUNT_PERMISSION_CHANGED"); } };
       const prior = await admin.from("video_provider_jobs").select("id").eq("owner_id", work.owner_id).eq("tiktok_account_id", work.tiktok_account_id).eq("creative_project_id", projectId).maybeSingle(); check(prior.error);
       const job = work.provider_job_id ? { id: work.provider_job_id } : prior.data ?? await enqueueProviderVideo(admin, work.owner_id, projectId, runtime);
       // Persist identity BEFORE advancing. Any restart recovers the same logical video purchase.
@@ -145,6 +154,9 @@ export function createWorkerPorts(admin: SupabaseClient, safe: boolean, canPubli
       const q = await admin.from("publishing_queue").select("*").eq("owner_id", work.owner_id).eq("id", work.publishing_queue_id).eq("tiktok_account_id", work.tiktok_account_id).single(); check(q.error);
       if (q.data.status === "PUBLISHED") return { state: "COMPLETE", reason: "READY" };
       if (q.data.provider_publish_id || q.data.external_state === "SUBMITTED_UNKNOWN") return waiting("RECONCILE");
+      const media=await admin.from(q.data.video_kind==="MASTER"?"master_videos":"video_variations").select("creative_project_id").eq("owner_id",work.owner_id).eq("id",q.data.video_id).single();check(media.error);
+      const creative=await admin.from("creative_projects").select("mode").eq("owner_id",work.owner_id).eq("id",media.data?.creative_project_id).single();check(creative.error);
+      if(creative.data?.mode!==eligibility.mode)return {state:"REVIEW_REQUIRED",reason:"MODE_CHANGED"};
       if (!q.data.consent_id || !["APPROVED", "QUEUED", "RETRYING"].includes(q.data.status)) return waiting("CONSENT_REQUIRED");
       // Background server-hosted media must use an owner-verified pull URL. No FILE_UPLOAD workaround.
       if (q.data.source_method !== "PULL_FROM_URL" || !q.data.pull_from_url) return waiting("TRANSPORT");
@@ -183,7 +195,11 @@ export async function tickMultiAccount(admin: SupabaseClient) {
   const deadlineAt = Date.now() + 180000;
   const runtime = await admin.from("multi_account_runtime").select("enabled,execution_mode,publishing_enabled").eq("singleton", true).single(); check(runtime.error);
   if (!runtime.data) throw new Error("RUNTIME_NOT_FOUND");
-  if (!runtime.data.enabled) return { disabled: true, paidCalls: 0, postingCalls: 0 };
+  const pilot = await activeGrowthPilot(admin);
+  if (!runtime.data.enabled && !pilot) return { disabled: true, paidCalls: 0, postingCalls: 0 };
+  // Read-only upstream discovery is separate from opt-in execution. It never auto-enrolls an account.
+  await syncAutoDiscovery(admin);
+  if (pilot) return tickGrowthPilot(admin, pilot);
   const safe = runtime.data.execution_mode !== "ENABLED";
   const plannerToken = randomUUID(), planner = await admin.rpc("claim_multi_account_planner", { p_token: plannerToken }); check(planner.error);
   const rows = planner.data?.singleton ? await allRows((from, to) => admin.from("account_automation_settings").select("owner_id,tiktok_account_id,config").order("owner_id").order("tiktok_account_id").range(from, to)) : [];

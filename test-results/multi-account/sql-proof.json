@@ -8,17 +8,17 @@
     {
       "accounts": 1,
       "planned": 2,
-      "planAndTwoWritesMs": 42
+      "planAndTwoWritesMs": 36
     },
     {
       "accounts": 3,
       "planned": 9,
-      "planAndTwoWritesMs": 43
+      "planAndTwoWritesMs": 38
     },
     {
       "accounts": 10,
       "planned": 44,
-      "planAndTwoWritesMs": 128
+      "planAndTwoWritesMs": 123
     },
     {
       "accounts": 20,
@@ -28,13 +28,13 @@
     {
       "accounts": 50,
       "planned": 247,
-      "planAndTwoWritesMs": 693
+      "planAndTwoWritesMs": 646
     }
   ],
-  "claimP50Ms": 14.68,
-  "claimP95Ms": 46.41,
-  "mockTasksPerSecond": 227.81,
-  "elapsedMs": 3577,
+  "claimP50Ms": 9.43,
+  "claimP95Ms": 27.95,
+  "mockTasksPerSecond": 349.53,
+  "elapsedMs": 3126,
   "workerConcurrency": 8,
   "restart": "PASS",
   "rls": "owner/cross-owner/anon/private columns/service-only mutations PASS",
@@ -45,13 +45,13 @@
   "cloudStagingApplied": false,
   "queryPlan": [
     {
-      "QUERY PLAN": "Limit  (cost=0.52..8.54 rows=1 width=32)"
+      "QUERY PLAN": "Limit  (cost=0.28..8.30 rows=1 width=32)"
     },
     {
-      "QUERY PLAN": "  ->  Index Scan using multi_account_due on multi_account_work  (cost=0.52..8.54 rows=1 width=32)"
+      "QUERY PLAN": "  ->  Index Scan using multi_account_due on multi_account_work  (cost=0.28..8.30 rows=1 width=32)"
     },
     {
-      "QUERY PLAN": "        Index Cond: ((kind = 'GENERATE'::text) AND (available_at <= private.audit_now()))"
+      "QUERY PLAN": "        Index Cond: ((kind = 'GENERATE'::text) AND (available_at <= now()))"
     },
     {
       "QUERY PLAN": "        Filter: (state = 'WAITING'::text)"
