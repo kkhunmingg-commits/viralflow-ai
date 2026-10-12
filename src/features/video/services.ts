@@ -14,6 +14,7 @@ import {videoSimilarity} from "./similarity";
 import {masterJobKey,nextJobAttempt,variationJobKey,variationRunId} from "./jobs";
 import {videoStoragePath} from "./storage";
 import {templateFor,variationPlan} from "./templates";
+import {isRoutedMaster,renderRoutedVariation} from "@/features/video-provider/variations";
 import {VIDEO_BUCKET,VIDEO_DURATION_SECONDS,VIDEO_FACTORY_VERSION,type SimilarityMetadata,type VideoBudget,type VideoRenderInput} from "./types";
 
 type Row=Record<string,unknown>;
@@ -73,6 +74,7 @@ function budget(account:Row,spent:{daySpend:number;monthSpend:number}):VideoBudg
 export async function buildMasterVideo(client:SupabaseClient,owner:string,projectId:string,visionProvider?:FrameVisionProvider){
   const src=await source(client,owner,projectId),existing=await client.from("master_videos").select("*").eq("owner_id",owner).eq("creative_project_id",projectId).maybeSingle();
   if(existing.error)throw new Error(existing.error.message);
+  if(isRoutedMaster(existing.data?.provider))throw new Error("Resume provider job instead of replacing real footage with a template");
   if(existing.data&&["READY","APPROVED"].includes(existing.data.status)&&existing.data.quality_status==="PASS"){if(existing.data.generation_job_id)await recordZeroCost(client,owner,existing.data.generation_job_id);return existing.data}
   const decision=chooseVideoStrategy({existingApprovedMaster:existing.data?.status==="APPROVED",hasUsableAssets:true,qualityRequirement:85,budget:budget(src.account,await spend(client,owner)),availability:{freeCredit:false,lowCostPaid:false,premium:false,paidAllowed:false}});
   const masterId=String(existing.data?.id??randomUUID()),job=await jobFor(client,owner,masterJobKey(projectId,String(src.script.id)),{creativeProjectId:projectId,scriptId:src.script.id,strategy:decision.strategy},"MASTER_RENDER");
@@ -111,6 +113,15 @@ export async function createVideoVariations(client:SupabaseClient,owner:string,m
   const existing=await client.from("video_variations").select("*").eq("owner_id",owner).eq("master_video_id",masterId).order("variation_index");
   if(existing.error)throw new Error(existing.error.message);
   if((existing.data?.length??0)>=count)return existing.data?.slice(0,count)??[];
+  if(isRoutedMaster(master.provider)){
+    const src=await source(client,owner,String(master.creative_project_id));
+    const rows=Array.from({length:Math.min(3,count)},(_,index)=>({owner_id:owner,master_video_id:masterId,tiktok_account_id:master.tiktok_account_id,
+      product_id:master.product_id,creative_project_id:master.creative_project_id,run_id:variationRunId(masterId),variation_index:index+1,
+      variation_type:"CROP",hook_variant:src.input.hook,cta_variant:src.input.cta,overlay_config_json:{items:[]},motion_config_json:{cropInset:(index+1)*.02},
+      scene_config_json:{source:"REAL_MASTER"},audio_config_json:{voice:"REAL_MASTER"},similarity_score:1,estimated_cost_usd:0,status:"QUEUED",quality_explanation_json:{requiresVisualAndOriginalityReview:true}}));
+    const result=await client.from("video_variations").upsert(rows,{onConflict:"owner_id,master_video_id,variation_index",ignoreDuplicates:true}).select("*");
+    if(result.error)throw new Error(result.error.message);return result.data??[];
+  }
   const src=await source(client,owner,String(master.creative_project_id)),runId=variationRunId(masterId),base:SimilarityMetadata={masterId,hook:src.input.hook,cta:src.input.cta,scenes:src.input.scenes,motion:{pattern:"ZOOM_IN"},overlay:src.input.overlay,audio:{voice:"mock"}};
   const rows=[] as Row[],accepted=[] as SimilarityMetadata[];
   for(let i=1;i<=count;i++){
@@ -131,6 +142,9 @@ export async function buildVideoVariation(client:SupabaseClient,owner:string,var
   await client.from("generation_jobs").update({video_variation_id:variation.id,master_video_id:master.id,creative_project_id:variation.creative_project_id}).eq("owner_id",owner).eq("id",job.id);await beginJob(client,owner,job);
   const dir=join(tmpdir(),"viralflow-video",owner,String(variation.id));await mkdir(dir,{recursive:true});
   try{
+    if(isRoutedMaster(master.provider)){
+      const result=await renderRoutedVariation(client,owner,master,variation,job);await recordZeroCost(client,owner,String(job.id));return result;
+    }
     const imageProvider=new MockImageProvider(),voiceProvider=new MockVoiceProvider(),provider=new MockVideoProvider(),renderer=new FFmpegVideoRenderer(),qualityEvaluator=new DeterministicVideoQualityEvaluator();
     const image=await imageProvider.createProductImage(String(src.product.title),join(dir,"product.ppm")),voice=await voiceProvider.createVoiceTrack(String(src.script.voice_script),join(dir,"voice.wav"),VIDEO_DURATION_SECONDS),input={...src.input,hook:planData.hook,cta:planData.cta,variation:planData},rendered=await renderer.render(await provider.plan(input),image.path,voice.path,join(dir,"variation.mp4"));
     const frameEvidence=await extractVideoFrameEvidence(rendered.path,image.path,rendered.duration);
@@ -189,3 +203,5 @@ export async function getVideoDetail(client:SupabaseClient,owner:string,masterId
   return {master,project,script,account,product,variations:variationRows,jobs:jobs.data??[],costs:costs.data??[],signedUrl};
 }
 export const videoCostRouter=new CostRouter();
+// Reuse the existing selected-product/script/account safety boundary.
+export { source as getVideoCreativeSource };

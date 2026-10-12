@@ -1,0 +1,30 @@
+import {describe,it,expect} from "vitest";
+import {defaultProviderSettings,providerSettingsSchema,type RouterJob,type ProviderSnapshot} from "./contracts";
+import {routeVideoJob} from "./router";
+import {GoogleVidsOmniProvider} from "./google-vids";
+import {assertProviderAdministrator} from "./access";
+const fresh:RouterJob={state:"QUEUED",provider:null,submission:"NOT_SENT",requestId:null,retries:0,nextRetryAt:null};
+const snapshot:ProviderSnapshot={google:{status:"READY",automated:true},falAvailable:true,estimateUsd:.3,budgetAvailable:true};
+const paid=()=>providerSettingsSchema.parse({paidFallback:true,maxCostUsd:1,dailyBudgetUsd:5,monthlyBudgetUsd:30,autoRecovery:true});
+describe("video provider routing decisions (capability fixtures, not real Google generation)",()=>{
+  it("defaults to no paid permission and no budget",()=>{expect(defaultProviderSettings()).toMatchObject({mode:"AUTO",paidFallback:false,maxCostUsd:0,autoRecovery:false});});
+  it("requires ordered positive caps for every paid mode",()=>{expect(()=>providerSettingsSchema.parse({mode:"FAL_ONLY"})).toThrow();expect(()=>providerSettingsSchema.parse({paidFallback:true,maxCostUsd:1,dailyBudgetUsd:.5,monthlyBudgetUsd:10})).toThrow();});
+  it("chooses verified automation capability before fal",()=>expect(routeVideoJob(paid(),fresh,snapshot).provider).toBe("google_vids_omni"));
+  it("actual Vids adapter always returns Assisted and unknown quota",async()=>{const p=new GoogleVidsOmniProvider();expect(p.health(defaultProviderSettings())).toMatchObject({automated:false,quotaUsed:null,quotaRemaining:null});expect(routeVideoJob(paid(),fresh,{...snapshot,google:p.health(paid())}).action).toBe("ASSIST");await expect(p.submit()).rejects.toThrow("ASSISTED_ONLY");});
+  it.each(["QUOTA_EXHAUSTED","LOGIN_EXPIRED","UNAVAILABLE"] as const)("falls back for %s only with approved limits",status=>{
+    const state={...snapshot,google:{status,automated:false}};expect(routeVideoJob(paid(),fresh,state)).toMatchObject({action:"SUBMIT",provider:"fal_ai"});
+    expect(routeVideoJob(defaultProviderSettings(),fresh,state).action).toBe("WAIT");
+    expect(routeVideoJob({...paid(),mode:"GOOGLE_ONLY"},fresh,state).action).toBe("WAIT");
+  });
+  it("backs off and stops Google retry before permitted fallback",()=>{const state={...snapshot,google:{status:"TRANSIENT_FAILURE" as const,automated:true}},now=new Date("2026-10-12T00:00:00Z");
+    expect(routeVideoJob(paid(),fresh,state,now)).toMatchObject({action:"WAIT",retryAt:"2026-10-12T00:00:05.000Z"});
+    expect(routeVideoJob(paid(),{...fresh,retries:2},state,now).provider).toBe("fal_ai");
+    expect(routeVideoJob({...paid(),autoRecovery:false},fresh,state,now).reason).toBe("RECOVERY_DISABLED");
+  });
+  it("returns to Google for new jobs, keeps known fal request when settings change",()=>{expect(routeVideoJob(paid(),fresh,snapshot).provider).toBe("google_vids_omni");expect(routeVideoJob({...paid(),mode:"GOOGLE_ONLY"},{...fresh,provider:"fal_ai",submission:"ACCEPTED",requestId:"known"},snapshot)).toMatchObject({action:"POLL",provider:"fal_ai"});});
+  it.each(["EXTERNAL_PENDING","SUBMITTING"] as const)("never buys replacement for %s, even FAL ONLY",submission=>expect(routeVideoJob({...paid(),mode:"FAL_ONLY"},{...fresh,submission},snapshot).action).toBe("RECONCILE"));
+  it.each([null,0,-.1,NaN,Infinity,1.01])("blocks missing/invalid/over-cap estimate %s",estimateUsd=>expect(routeVideoJob({...paid(),mode:"FAL_ONLY"},fresh,{...snapshot,estimateUsd}).action).toBe("WAIT"));
+  it("queues if balance guard or fal availability rejects",()=>{expect(routeVideoJob({...paid(),mode:"FAL_ONLY"},fresh,{...snapshot,budgetAvailable:false}).action).toBe("WAIT");expect(routeVideoJob({...paid(),mode:"FAL_ONLY"},fresh,{...snapshot,falAvailable:false}).reason).toBe("FAL_UNAVAILABLE");});
+  it.each(["COMPLETED","REVIEW_REQUIRED","FAILED"] as const)("terminal %s never creates another job",state=>expect(routeVideoJob(paid(),{...fresh,state},snapshot).action).toBe("DONE"));
+  it("accepts only server-issued admin/developer role",()=>{expect(()=>assertProviderAdministrator(null)).toThrow();expect(()=>assertProviderAdministrator({app_metadata:{}})).toThrow();expect(()=>assertProviderAdministrator({app_metadata:{viralflow_role:"member"}})).toThrow();expect(()=>assertProviderAdministrator({app_metadata:{viralflow_role:"admin"}})).not.toThrow();});
+});
