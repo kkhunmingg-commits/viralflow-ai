@@ -47,17 +47,37 @@ export class MockAIProvider implements AIProvider {
 }
 export class OpenAIProvider implements AIProvider {
   readonly provider="openai";
-  constructor(private apiKey:string,readonly model="gpt-5.4-nano"){}
+  constructor(private apiKey:string,readonly model="gpt-5.4-nano",private transport:typeof fetch=fetch){}
   async generate(prompt:string):Promise<ProviderResult>{
-    const response=await fetch("https://api.openai.com/v1/responses",{method:"POST",headers:{"Authorization":`Bearer ${this.apiKey}`,"Content-Type":"application/json"},
-      body:JSON.stringify({model:this.model,store:false,instructions:"Return safe, diverse Thai creative concepts.",input:prompt,
-        text:{format:{type:"json_schema",name:"creative_concepts",strict:true,schema:z.toJSONSchema(creativeOutputSchema)}}})});
+    return this.generateStructured(prompt,{name:"creative_concepts",schema:z.toJSONSchema(creativeOutputSchema),
+      instructions:"Return safe, diverse Thai creative concepts."});
+  }
+  /** Same official Responses adapter, with a task-specific schema. No automatic
+   * retries: a lost response is not permission to buy another generation. */
+  async generateStructured(prompt:string,format:StructuredCreativeFormat):Promise<ProviderResult>{
+    if(!this.apiKey.trim()||!this.model.trim())throw new Error("CREATIVE_LLM_NOT_CONFIGURED");
+    if(!/^[a-zA-Z0-9_-]{1,64}$/.test(format.name))throw new Error("CREATIVE_OUTPUT_SCHEMA_INVALID");
+    const maxOutputTokens=format.maxOutputTokens??6000;
+    if(!Number.isInteger(maxOutputTokens)||maxOutputTokens<256||maxOutputTokens>12000)throw new Error("CREATIVE_TOKEN_BUDGET_INVALID");
+    const response=await this.transport("https://api.openai.com/v1/responses",{method:"POST",headers:{"Authorization":`Bearer ${this.apiKey}`,"Content-Type":"application/json"},
+      redirect:"error",signal:AbortSignal.timeout(90_000),
+      body:JSON.stringify({model:this.model,store:false,instructions:format.instructions,input:prompt,max_output_tokens:maxOutputTokens,
+        text:{format:{type:"json_schema",name:format.name,strict:true,schema:format.schema}}})});
     const raw=await response.json();if(!response.ok)throw new Error(`OpenAI generation failed (${response.status})`);
-    const body=raw as {output_text?:string;output?:Array<{content?:Array<{type?:string;text?:string}>}>;usage?:{input_tokens?:number;output_tokens?:number}};
+    const body=raw as {status?:string;output_text?:string;output?:Array<{content?:Array<{type?:string;text?:string}>}>;usage?:{input_tokens?:number;output_tokens?:number}};
+    if(body.status&&body.status!=="completed")throw new Error("CREATIVE_LLM_RESPONSE_INCOMPLETE");
+    if(body.output?.some(item=>item.content?.some(content=>content.type==="refusal")))throw new Error("CREATIVE_LLM_REFUSED");
     const text=body.output_text??body.output?.flatMap(i=>i.content??[]).find(c=>c.type==="output_text")?.text;
     if(!text)throw new Error("OpenAI response contained no structured text");
-    return {raw,output:JSON.parse(text),usage:{inputTokens:body.usage?.input_tokens??0,outputTokens:body.usage?.output_tokens??0}};
+    const inputTokens=body.usage?.input_tokens,outputTokens=body.usage?.output_tokens;
+    if(![inputTokens,outputTokens].every(n=>typeof n==="number"&&Number.isSafeInteger(n)&&n>=0))throw new Error("CREATIVE_USAGE_UNAVAILABLE");
+    return {raw,output:JSON.parse(text),usage:{inputTokens:inputTokens!,outputTokens:outputTokens!}};
   }
+}
+export interface StructuredCreativeFormat {name:string;schema:Record<string,unknown>;instructions:string;maxOutputTokens?:number}
+export interface StructuredCreativeProvider {
+  readonly provider:string;readonly model:string;
+  generateStructured(prompt:string,format:StructuredCreativeFormat):Promise<ProviderResult>;
 }
 export async function generateValidated(provider:AIProvider,prompt:string) {
   let result=await provider.generate(prompt,false);

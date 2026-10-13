@@ -52,14 +52,14 @@ export interface StrategyConcept {
   cost: UsableProductionCost;
 }
 export interface CreativeStrategyPlan {
-  version: typeof CREATIVE_STRATEGY_VERSION; source: "DETERMINISTIC_EVIDENCE_RUBRIC"; accountId: string;
+  version: typeof CREATIVE_STRATEGY_VERSION; source: "DETERMINISTIC_EVIDENCE_RUBRIC" | "LLM_EVIDENCE_STRATEGY"; accountId: string;
   concepts: StrategyConcept[]; selectedConceptId: string; fingerprint: string;
   trendStatus: "OBSERVED" | "UNKNOWN"; topic: string | null;
   analysis: { problem: string | null; sellingPoints: string[];
     audience: { status: "OBSERVED" | "HYPOTHESIS" | "UNKNOWN"; segments: string[]; basis: string };
     mechanismRisk: "REAL_FOOTAGE_REQUIRED" | "NO_FUNCTIONAL_GENERATION" | "NOT_APPLICABLE" };
   humanReviewRequired: true; predictedVirality: "UNKNOWN"; warnings: string[];
-  confidenceBasis: "EVIDENCE_COMPLETENESS_NOT_PERFORMANCE";
+  confidenceBasis: "EVIDENCE_COMPLETENESS_NOT_PERFORMANCE" | "LLM_REASONED_SELECTION_NOT_VIRAL_PREDICTION";
 }
 
 /** Count every charged attempt, including rejects/retries. A missing bill is never $0.
@@ -86,12 +86,12 @@ export function summarizeUsableProductionCost(attempts: ProductionCostAttempt[])
     targetMet: costPerUsableThb <= 5, basis: "VERIFIED_ACTUAL_COST_PER_USABLE_OUTPUT", includesFailedAttempts: true };
 }
 
-function verifiedFacts(input: CreativeStrategyInput, topic: string | null) {
+export function verifiedFacts(input: CreativeStrategyInput, topic: string | null) {
   return input.facts.filter(f => f.source !== "MOCK" && f.verified && f.id.trim() && f.reference.trim() && f.text.trim() &&
     Number.isFinite(Date.parse(f.capturedAt)) && Date.parse(f.capturedAt) <= input.now.getTime() &&
     (input.product ? f.productId === input.product.id : Boolean(topic) && f.topic === topic));
 }
-function approvedAssets(input: CreativeStrategyInput, topic: string | null) {
+export function approvedAssets(input: CreativeStrategyInput, topic: string | null) {
   return input.assets.filter(a => a.source !== "MOCK" && a.rightsConfirmed && a.reviewed && a.id.trim() && a.reference.trim() &&
     (input.product ? a.productId === input.product.id : Boolean(topic) && a.topic === topic));
 }
@@ -217,7 +217,7 @@ export function strategyEvidenceDigest(value: unknown): string {
     ?Object.fromEntries(Object.entries(item as Record<string,unknown>).sort(([a],[b])=>a<b?-1:a>b?1:0).map(([key,child])=>[key,canonical(child)])):item;
   return createHash("sha256").update(JSON.stringify(canonical(value))).digest("hex");
 }
-function strategyFingerprint(plan: Pick<CreativeStrategyPlan, "version" | "accountId" | "concepts" | "selectedConceptId">) {
+export function strategyFingerprint(plan: Pick<CreativeStrategyPlan, "version" | "accountId" | "concepts" | "selectedConceptId">) {
   return strategyEvidenceDigest({ version: plan.version, accountId: plan.accountId,
     concepts: plan.concepts, selectedConceptId: plan.selectedConceptId });
 }

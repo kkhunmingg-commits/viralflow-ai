@@ -2,6 +2,7 @@ import type { CreativeContext } from "./types";
 import { analyzeTrendIntelligence, type TrendObservation } from "../growth-manager/topics";
 import { analyzeCreativeLearning, type CreativeOutcome } from "../analytics/creative-learning";
 import { planCreativeStrategy, type StrategyAsset, type StrategyFact, type ProductionCostAttempt } from "./strategist";
+import type { CreativeLearningHistory } from "./self-learning";
 
 export interface CreativeIntelligenceResources {
   ownerId: string; now: Date; optedIn: boolean; affiliateEligible: boolean;
@@ -10,6 +11,7 @@ export interface CreativeIntelligenceResources {
   /** These attestations are server/owner-reviewed evidence, never raw catalog assertions. */
   facts: StrategyFact[]; assets: StrategyAsset[];
   trends: TrendObservation[]; outcomes: CreativeOutcome[]; costs?: ProductionCostAttempt[];
+  adaptiveHistory?: CreativeLearningHistory[];
 }
 
 /** Shared orchestration over existing Creative Brain, Trend and Analytics contracts. No API or media submission. */

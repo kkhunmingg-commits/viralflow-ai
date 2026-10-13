@@ -29,4 +29,15 @@ describe("Auto evidence strategy stays in existing restartable stages",()=>{
     mocks.detail.mockResolvedValue({...detail(),scripts:[{id:"legacy",version:"creative-concept-v1"}],angles:[{policy_status:"REJECT"}]});
     expect(await createAutoExecutionPorts(client).CREATE_CREATIVE(claim)).toMatchObject({kind:"SKIP_ITEM",reason:"CREATIVE_RISK_REJECTED"});
   });
+  it("parks a real item when LLM configuration is unavailable instead of generating mock copy",async()=>{
+    mocks.detail.mockResolvedValue({...detail(),scripts:[],angles:[]});
+    mocks.generate.mockRejectedValue(new Error("CREATIVE_LLM_NOT_CONFIGURED"));
+    expect(await createAutoExecutionPorts(client).CREATE_CREATIVE(claim)).toMatchObject({kind:"WAIT",state:"WAITING_FOR_PROVIDER",reason:"CREATIVE_THINKING_UNAVAILABLE"});
+    expect(mocks.select).not.toHaveBeenCalled();expect(mocks.fal).not.toHaveBeenCalled();
+  });
+  it("does not treat AI selection as factual/media approval",async()=>{
+    mocks.detail.mockResolvedValue({...detail(),project:{id:"project",selected_script_id:"script"}});
+    expect(await createAutoExecutionPorts(client).CREATE_CREATIVE(claim)).toMatchObject({kind:"WAIT",state:"WAITING_FOR_DATA",reason:"CREATIVE_EVIDENCE_OR_HUMAN_REVIEW_REQUIRED"});
+    expect(mocks.generate).not.toHaveBeenCalled();expect(mocks.fal).not.toHaveBeenCalled();
+  });
 });
