@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { FAL_MODEL_ENDPOINTS } from "@/features/video/fal-models";
+import type {ProductionMethod} from "@/features/creative/strategist";
 export const providerSettingsSchema = z.object({
   mode: z.enum(["AUTO", "GOOGLE_ONLY", "GEMINI_ONLY", "FAL_ONLY"]).default("AUTO"),
   paidMode: z.boolean().default(false),
@@ -17,6 +18,6 @@ export type GoogleHealth = "READY" | "ASSISTED" | "QUOTA_EXHAUSTED" | "LOGIN_EXP
 export type JobState = "QUEUED" | "WAITING_ASSISTED" | "WAITING_PROVIDER" | "RETRY_WAIT" | "PROCESSING" | "RECONCILIATION_REQUIRED" | "REVIEW_REQUIRED" | "COMPLETED" | "FAILED";
 export type SubmissionState = "NOT_SENT" | "EXTERNAL_PENDING" | "SUBMITTING" | "ACCEPTED" | "CONFIRMED_FAILED";
 export interface RouterJob { state: JobState; provider: ProviderId | null; submission: SubmissionState; requestId: string | null; retries: number; nextRetryAt: string | null; }
-export interface ProviderSnapshot { google: { status: GoogleHealth; automated: boolean }; geminiAvailable?: boolean; geminiEstimateUsd?: number | null; falAvailable: boolean; estimateUsd: number | null; budgetAvailable: boolean; }
+export interface ProviderSnapshot { google: { status: GoogleHealth; automated: boolean }; geminiAvailable?: boolean; geminiEstimateUsd?: number | null; falAvailable: boolean; estimateUsd: number | null; budgetAvailable: boolean; productionMethod?:ProductionMethod; }
 export type RouteDecision = { action: "ASSIST" | "SUBMIT" | "POLL" | "WAIT" | "RECONCILE" | "DONE"; provider: ProviderId | null; reason: string; retryAt?: string };
 export const jobLabels: Record<JobState,string> = { QUEUED: "รอเริ่ม", WAITING_ASSISTED: "รอคลิปจาก Google", WAITING_PROVIDER: "รอบริการพร้อม", RETRY_WAIT: "รอลองเชื่อมต่อใหม่", PROCESSING: "กำลังสร้าง", RECONCILIATION_REQUIRED: "ต้องตรวจรายการเดิมก่อนเริ่มซ้ำ", REVIEW_REQUIRED: "รอตรวจคลิป", COMPLETED: "ตรวจแล้ว", FAILED: "ทำต่อไม่ได้" };

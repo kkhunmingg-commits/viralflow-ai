@@ -8,6 +8,11 @@ import { MockAIProvider,OpenAIProvider,generateValidated } from "./providers";
 import { scoreCreativeConcept } from "./scoring";
 import { CREATIVE_SCORE_VERSION,PROMPT_VERSION,type CreativeProjectRow } from "./types";
 import { canStartCreativeProject,nextProjectStatus } from "./lifecycle";
+import { readCreativeIntelligence } from "./intelligence-service";
+import { CREATIVE_STRATEGY_VERSION, assertHumanProductionReview } from "./strategist";
+import { creativeScriptDigest, storedProductionStrategy } from "./production-gate";
+import {createGoogleTrendsThailandSource} from "../growth-manager/trend-source";
+const publicTrendSource=createGoogleTrendsThailandSource();
 
 async function one(client:SupabaseClient,table:string,owner:string,id:string){
   const {data,error}=await client.from(table).select("*").eq("owner_id",owner).eq("id",id).maybeSingle();
@@ -57,6 +62,7 @@ function providerFor(context:Awaited<ReturnType<typeof loadCreativeContext>>["co
   return new MockAIProvider(context);
 }
 export async function generateCreativeProject(client:SupabaseClient,owner:string,projectId:string,options:{forceMock?:boolean;forAutoWorker?:boolean}={}){
+  if(options.forAutoWorker&&!options.forceMock)return generateEvidenceStrategyProject(client,owner,projectId,{forAutoWorker:true});
   const {project,context}=await loadCreativeContext(client,owner,projectId),provider=providerFor(context,options.forceMock),generationId=randomUUID(),prompt=buildCreativePrompt(context);
   const generatingStatus=nextProjectStatus(project.status,"GENERATE");
   const generating=await client.from("creative_projects").update({status:generatingStatus}).eq("owner_id",owner).eq("id",projectId);
@@ -88,6 +94,42 @@ export async function getCreativeProjectDetail(client:SupabaseClient,owner:strin
   ]);
   if(angles.error||scripts.error||generations.error)throw new Error(angles.error?.message??scripts.error?.message??generations.error?.message);
   return {...source,angles:angles.data??[],scripts:scripts.data??[],generations:generations.data??[]};
+}
+/** Zero-provider planning in the existing creative tables/RPC, with every draft held for human review. */
+export async function generateEvidenceStrategyProject(client:SupabaseClient,owner:string,projectId:string,options:{forAutoWorker?:boolean}={}){
+  const {context,project}=await loadCreativeContext(client,owner,projectId);
+  const now=new Date(),feed=await publicTrendSource.read(now);
+  const intelligence=await readCreativeIntelligence(client,owner,context,{now,trends:feed.observations}),plan=intelligence.strategy,generationId=randomUUID();
+  nextProjectStatus(project.status,"GENERATE");
+  const angleIds=plan.concepts.map(()=>randomUUID()),createdAt=new Date().toISOString();
+  const scripts=plan.concepts.map((s,index)=>({id:randomUUID(),owner_id:owner,creative_project_id:projectId,creative_angle_id:angleIds[index],duration_seconds:8,
+    hook_text:s.concept.hook,voice_script:s.concept.voiceScript,overlay_text_json:s.concept.overlayText,scene_plan_json:s.concept.scenePlan,cta_text:s.concept.cta,
+    caption:s.concept.caption,hashtags_json:s.concept.hashtags,language:"th",status:s.status==="REJECTED"?"REJECTED":"DRAFT",version:CREATIVE_STRATEGY_VERSION,created_at:createdAt,updated_at:createdAt}));
+  const angles=plan.concepts.map((s,index)=>({id:angleIds[index],owner_id:owner,creative_project_id:projectId,angle_type:s.concept.angleType,title:s.concept.title,
+    hook:s.concept.hook,core_message:s.concept.coreMessage,cta_strategy:s.concept.cta,visual_strategy:s.concept.visualStrategy,score:s.score,confidence:s.confidence??0,
+    policy_status:s.status==="REJECTED"?"REJECT":"REVIEW",is_selected:false,created_at:createdAt,
+    score_explanation_json:{scoreMeaning:"Evidence/production suitability rubric, not viral probability",reasons:s.reasons,confidenceBasis:plan.confidenceBasis,
+      productionStrategy:{plan,conceptId:s.id,productId:context.product.id,scriptDigest:creativeScriptDigest(scripts[index]),review:null}}}));
+  const generation={id:generationId,owner_id:owner,creative_project_id:projectId,provider:"local-evidence-planner",model:"deterministic-strategy-rubric",
+    prompt_version:CREATIVE_STRATEGY_VERSION,input_tokens:0,output_tokens:0,estimated_cost:0,raw_response_json:{source:plan.source,humanReview:"PENDING"},
+    validated_output_json:{concepts:plan.concepts.map(c=>c.concept),strategyPlan:plan},status:"SUCCEEDED",error:null,created_at:createdAt};
+  const result=options.forAutoWorker?await client.rpc("save_auto_creative_generation",{p_owner_id:owner,p_project_id:projectId,p_generation:generation,p_angles:angles,p_scripts:scripts})
+    :await client.rpc("save_creative_generation",{p_project_id:projectId,p_generation:generation,p_angles:angles,p_scripts:scripts});
+  if(result.error||result.data!==generationId)throw new Error("CREATIVE_STRATEGY_SAVE_FAILED");
+  return {generationId,count:angles.length,paidCalls:0,humanReview:"PENDING",intelligence};
+}
+export async function approveEvidenceCreative(client:SupabaseClient,owner:string,projectId:string,angleId:string,scriptId:string,
+  checks:{creativeApproved:boolean;factualAccuracyApproved:boolean;mediaRightsApproved:boolean}){
+  const {data}=await client.auth.getUser();if(data.user?.id!==owner)throw new Error("HUMAN_CREATIVE_REVIEW_REQUIRED");
+  const [project,angle,script]=await Promise.all([one(client,"creative_projects",owner,projectId),one(client,"creative_angles",owner,angleId),one(client,"scripts",owner,scriptId)]);
+  if(!project||!angle||!script||angle.creative_project_id!==projectId||script.creative_project_id!==projectId||script.creative_angle_id!==angleId)throw new Error("Creative selection mismatch");
+  const stored=storedProductionStrategy(angle);
+  if(!stored||stored.productId!==project.product_id||stored.plan.accountId!==project.tiktok_account_id||stored.scriptDigest!==creativeScriptDigest(script))throw new Error("HUMAN_CREATIVE_REVIEW_REQUIRED");
+  const review={...checks,fingerprint:stored.plan.fingerprint,conceptId:stored.conceptId,reviewedBy:owner};
+  assertHumanProductionReview(stored.plan,review);
+  const result=await client.from("creative_angles").update({policy_status:"SAFE",score_explanation_json:{...(angle.score_explanation_json as Record<string,unknown>),productionStrategy:{...stored,review}}})
+    .eq("owner_id",owner).eq("id",angleId).select("id").maybeSingle();
+  if(result.error||!result.data)throw new Error("CREATIVE_REVIEW_SAVE_FAILED");
 }
 export async function selectCreative(client:SupabaseClient,owner:string,projectId:string,angleId:string,scriptId:string){
   const angle=await one(client,"creative_angles",owner,angleId),script=await one(client,"scripts",owner,scriptId);

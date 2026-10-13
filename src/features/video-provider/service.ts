@@ -189,7 +189,7 @@ export async function advanceProviderJob(admin:SupabaseClient,owner:string,id:st
     let request=job.checkpoint.request;
     const google=new GoogleVidsOmniProvider().health(settings);
     const geminiEnabled=runtime?.geminiEnabled??process.env.GEMINI_OMNI_API_ENABLED==="true";
-    let decision=routeVideoJob(settings,routerJob,{google,geminiAvailable:geminiEnabled&&Boolean(runtime?.gemini||serverEnv.geminiKey),falAvailable:Boolean(runtime?.fal||serverEnv.falKey),estimateUsd:null,budgetAvailable:false});
+    let decision=routeVideoJob(settings,routerJob,{google,geminiAvailable:geminiEnabled&&Boolean(runtime?.gemini||serverEnv.geminiKey),falAvailable:Boolean(runtime?.fal||serverEnv.falKey),estimateUsd:null,budgetAvailable:false,productionMethod:source.productionMethod});
     if(decision.action==="RECONCILE"){await save(admin,owner,id,token,{state:"RECONCILIATION_REQUIRED",message:"ตรวจรายการเดิมก่อนเริ่มซ้ำ ไม่มีการสลับไปเสียเงินอัตโนมัติ"});return;}
     if(decision.provider==="gemini_omni_api" && (["POLL","SUBMIT"].includes(decision.action) || (decision.reason==="BUDGET_OR_QUOTE_UNAVAILABLE" && enabled(runtime)))){
       await advanceGeminiJob(admin,owner,job,token,source,settings,decision.action==="POLL",runtime);return;
@@ -213,7 +213,7 @@ export async function advanceProviderJob(admin:SupabaseClient,owner:string,id:st
       const image=await admin.storage.from("video-assets").createSignedUrl(imagePath,3600);check(image.error);if(!image.data)throw new Error("REAL_PRODUCT_IMAGE_REQUIRED");
       const brief=new GoogleVidsOmniProvider().brief({productTitle:String(source.product.title),hook:String(source.script.hook_text),script:String(source.script.voice_script),cta:String(source.script.cta_text??"")});
       request=await fal.prepare(settings.falModel,image.data.signedUrl,brief.prompt);
-      decision=routeVideoJob(settings,routerJob,{google,falAvailable:true,estimateUsd:request.estimateUsd,budgetAvailable:true});
+      decision=routeVideoJob(settings,routerJob,{google,falAvailable:true,estimateUsd:request.estimateUsd,budgetAvailable:true,productionMethod:source.productionMethod});
     }
     job.decisions=[...job.decisions,{at:new Date().toISOString(),action:decision.action,provider:decision.provider,reason:decision.reason}].slice(-50);
     await save(admin,owner,id,token,{decisions:job.decisions});
@@ -276,7 +276,11 @@ export async function prepareGoogleHandoff(admin:SupabaseClient,owner:string,id:
   const claimed=await claim(admin,owner,id);if(!claimed)throw new Error("JOB_BUSY");
   try{
     const {job,token}=claimed;if(job.provider!=="google_vids_omni" || job.provider_request_id || !["NOT_SENT","EXTERNAL_PENDING"].includes(job.submission_state))throw new Error("PREVIOUS_RESULT_UNKNOWN");
-    const source=await sourceFor(admin,owner,job),brief=new GoogleVidsOmniProvider().brief({productTitle:String(source.product.title),hook:String(source.script.hook_text),script:String(source.script.voice_script),cta:String(source.script.cta_text??"")});
+    const source=await sourceFor(admin,owner,job),brief=new GoogleVidsOmniProvider().brief({productTitle:String(source.product.title),hook:String(source.script.hook_text),script:String(source.script.voice_script),cta:String(source.script.cta_text??""),productionMethod:source.productionMethod});
+    if(source.productionMethod){
+      await save(admin,owner,id,token,{submission_state:"EXTERNAL_PENDING",state:"WAITING_ASSISTED",message:source.productionMethod==="GENERATIVE_ATMOSPHERE"?"สร้างเฉพาะฉากประกอบตามแนวคิดที่ตรวจแล้ว จากนั้นนำไฟล์กลับเข้างานเดิม":"ใช้สื่อสินค้าจริงที่ตรวจแล้วตัดต่อ จากนั้นนำไฟล์กลับเข้างานเดิม"});
+      return brief;
+    }
     const photo=await admin.from("media_assets").select("storage_path").eq("owner_id",owner).eq("product_id",source.product.id).eq("asset_type","PRODUCT_IMAGE").in("source_type",["UPLOAD","PRODUCT"]).order("created_at",{ascending:false}).limit(1).maybeSingle();check(photo.error);
     if(!photo.data || !ownsVideoStoragePath(owner,photo.data.storage_path))throw new Error("REAL_PRODUCT_IMAGE_REQUIRED");
     const image=await admin.storage.from("video-assets").createSignedUrl(photo.data.storage_path,900);check(image.error);

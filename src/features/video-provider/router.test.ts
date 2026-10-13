@@ -37,4 +37,43 @@ describe("video provider routing decisions (capability fixtures, not real Google
   it("queues if balance guard or fal availability rejects",()=>{expect(routeVideoJob({...paid(),mode:"FAL_ONLY"},fresh,{...snapshot,budgetAvailable:false}).action).toBe("WAIT");expect(routeVideoJob({...paid(),mode:"FAL_ONLY"},fresh,{...snapshot,falAvailable:false}).reason).toBe("FAL_UNAVAILABLE");});
   it.each(["COMPLETED","REVIEW_REQUIRED","FAILED"] as const)("terminal %s never creates another job",state=>expect(routeVideoJob(paid(),{...fresh,state},snapshot).action).toBe("DONE"));
   it("accepts only server-issued admin/developer role",()=>{expect(()=>assertProviderAdministrator(null)).toThrow();expect(()=>assertProviderAdministrator({app_metadata:{}})).toThrow();expect(()=>assertProviderAdministrator({app_metadata:{viralflow_role:"member"}})).toThrow();expect(()=>assertProviderAdministrator({app_metadata:{viralflow_role:"admin"}})).not.toThrow();});
+  it.each(["FAL_ONLY","GEMINI_ONLY"] as const)("%s cannot override a reviewed real-media production decision",mode=>{
+    const settings=providerSettingsSchema.parse({mode,paidMode:true,paidFallback:true,maxCostUsd:3,dailyBudgetUsd:6,monthlyBudgetUsd:20});
+    for(const productionMethod of ["REAL_FOOTAGE_EDIT","REAL_IMAGE_MOTION"] as const){
+      expect(routeVideoJob(settings,fresh,{...snapshot,productionMethod,geminiAvailable:true,geminiEstimateUsd:2}))
+        .toMatchObject({action:"ASSIST",provider:"google_vids_omni",reason:"REAL_MEDIA_EDIT_ONLY_NO_GENERATIVE_PRODUCT"});
+    }
+    expect(routeVideoJob(settings,fresh,{...snapshot,productionMethod:"WAIT_FOR_EVIDENCE",geminiAvailable:true,geminiEstimateUsd:2}))
+      .toMatchObject({action:"WAIT",provider:null,reason:"VERIFIED_CREATIVE_EVIDENCE_REQUIRED"});
+  });
+  it.each(["fal_ai","gemini_omni_api"] as const)("keeps known %s identity when a later strategy prohibits new generation",provider=>{
+    for(const productionMethod of ["REAL_FOOTAGE_EDIT","REAL_IMAGE_MOTION","WAIT_FOR_EVIDENCE"] as const){
+      expect(routeVideoJob(defaultProviderSettings(),{...fresh,provider,submission:"ACCEPTED",requestId:"existing-request"},
+        {...snapshot,productionMethod})).toMatchObject({action:"POLL",provider,reason:"RESUME_SAME_REQUEST"});
+      expect(routeVideoJob(paid(),{...fresh,provider,submission:"SUBMITTING"},
+        {...snapshot,productionMethod})).toMatchObject({action:"RECONCILE",provider});
+    }
+  });
+  it.each(["REAL_FOOTAGE_EDIT","REAL_IMAGE_MOTION"] as const)("%s Google handoff describes editing and explicitly forbids reconstruction",productionMethod=>{
+    const brief=new GoogleVidsOmniProvider().brief({productTitle:"Spin mop",hook:"ดูจุดหมุน",script:"ดูการทำงานจากภาพจริง",cta:"ตรวจรายละเอียด",productionMethod});
+    expect(brief.assisted).toBe(true);expect(brief.quota).toBe("UNKNOWN");
+    expect(brief.prompt).toContain("Editing brief only");
+    expect(brief.prompt).toContain("Do not generate or reconstruct the product, hands, pivots or mechanism");
+    expect(brief.instructions).not.toContain("Create AI videos");
+    expect(brief.prompt).not.toContain("Create an 8-second");
+  });
+  it.each(["FAL_ONLY","GEMINI_ONLY"] as const)("%s cannot route an atmosphere concept into product-generation adapters",mode=>{
+    const settings=providerSettingsSchema.parse({mode,paidMode:true,paidFallback:true,maxCostUsd:3,dailyBudgetUsd:6,monthlyBudgetUsd:20});
+    expect(routeVideoJob(settings,fresh,{...snapshot,productionMethod:"GENERATIVE_ATMOSPHERE",geminiAvailable:true,geminiEstimateUsd:2}))
+      .toMatchObject({action:"ASSIST",provider:"google_vids_omni",reason:"ATMOSPHERE_ASSISTED_TRANSPORT_ONLY"});
+  });
+  it("atmosphere handoff omits the product identity and explicitly disallows factual/product proof",()=>{
+    const brief=new GoogleVidsOmniProvider().brief({productTitle:"PRIVATE-CATALOG-SKU-MOP-123",hook:"ถ้าเป็นคุณ จะสังเกตอะไร?",
+      script:"ตั้งคำถามโดยไม่สรุปเหตุการณ์จริง",cta:"เสนอเรื่องที่อยากรู้",productionMethod:"GENERATIVE_ATMOSPHERE"});
+    expect(brief.prompt).not.toContain("PRIVATE-CATALOG-SKU-MOP-123");
+    expect(brief.prompt).not.toContain("productTitle");
+    expect(brief.prompt).toContain("No featured product, product mechanism, claimed demonstration");
+    expect(brief.prompt).toContain("not proof");
+    expect(brief.assisted).toBe(true);
+  });
 });

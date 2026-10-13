@@ -19,6 +19,7 @@ import type { VideoAnalyticsObservation } from "@/features/analytics/provider";
 import type { FrameVisionProvider } from "@/features/video/frame-verification";
 import { autoPublishMode, autoVideoQualityOutcome } from "./execution-policy";
 import { stableAutoKey } from "./engine";
+import {CREATIVE_STRATEGY_VERSION} from "@/features/creative/strategist";
 import type { ExecutionClaim, ExecutionPorts, StageOutcome } from "./processor";
 
 function id(claim: ExecutionClaim, key: string) {
@@ -75,7 +76,10 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       if (!detail.project.selected_script_id) {
         const safe = detail.angles.find((angle) => angle.policy_status === "SAFE");
         const script = detail.scripts.find((row) => row.creative_angle_id === safe?.id && row.status !== "REJECTED");
-        if (!safe || !script) return { kind: "SKIP_ITEM", reason: "CREATIVE_RISK_REJECTED" };
+        if (!safe || !script) {
+          if(detail.scripts.some(row=>row.version===CREATIVE_STRATEGY_VERSION))return wait("WAITING_FOR_DATA","CREATIVE_EVIDENCE_OR_HUMAN_REVIEW_REQUIRED");
+          return { kind: "SKIP_ITEM", reason: "CREATIVE_RISK_REJECTED" };
+        }
         await selectCreative(admin, claim.ownerId, project.id, safe.id, script.id);
         return { kind: "ADVANCE", evidence: { projectId: project.id, scriptId: script.id } };
       }
@@ -87,6 +91,9 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       must(error, "auto_account_read_failed");
       if (!account) throw new Error("auto_account_missing");
       if (!account.is_mock) {
+        const detail=await getCreativeProjectDetail(admin,claim.ownerId,id(claim,"projectId"));
+        if(detail.scripts.some(row=>row.id===detail.project.selected_script_id&&row.version===CREATIVE_STRATEGY_VERSION))
+          return wait("WAITING_FOR_PROVIDER","REVIEWED_ASSISTED_PRODUCTION_REQUIRED");
         const gate = falAutoModeAvailability({ keyPresent: Boolean(serverEnv.falKey), state: serverEnv.falWanProviderState });
         if (!gate.providerAvailable) return wait("WAITING_FOR_PROVIDER", "PROVIDER_UNAVAILABLE");
         try {

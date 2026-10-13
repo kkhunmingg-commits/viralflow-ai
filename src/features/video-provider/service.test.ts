@@ -3,7 +3,8 @@ import {describe,it,expect,vi} from "vitest";
 import type {SupabaseClient} from "@supabase/supabase-js";
 vi.mock("server-only",()=>({}));
 vi.mock("@/lib/server-env",()=>({serverEnv:{}}));
-import {enqueueProviderVideo,advanceProviderJob,completeProviderImport,resumeKnownProviderResult,processProviderQueue,reconcileProviderBilling,type RouterRuntime} from "./service";
+import {enqueueProviderVideo,advanceProviderJob,completeProviderImport,resumeKnownProviderResult,processProviderQueue,reconcileProviderBilling,prepareGoogleHandoff,type RouterRuntime} from "./service";
+import * as videoServices from "@/features/video/services";
 import {providerSettingsSchema} from "./contracts";
 import {RoutedFalProvider} from "./fal";
 import {GeminiOmniProvider} from "./gemini";
@@ -147,6 +148,73 @@ describe("Gemini durable integration with mocked transport, zero paid calls",()=
   });
 });
 describe("durable provider service with transport fixtures (no real paid calls)",()=>{
+  it.each(["FAL_ONLY","GEMINI_ONLY"] as const)("%s never even prepares paid generation for reviewed real media editing",async(mode)=>{
+    for(const productionMethod of ["REAL_FOOTAGE_EDIT","REAL_IMAGE_MOTION"] as const){
+      const {d,r}=geminiFixture(),geminiPrepare=vi.spyOn(r.gemini,"prepare");
+      d.rows.video_provider_settings[0].config=providerSettingsSchema.parse({mode,paidMode:true,paidFallback:true,maxCostUsd:3,dailyBudgetUsd:6,monthlyBudgetUsd:20});
+      r.source=vi.fn(async()=>({...source,productionMethod}));
+      const j=await enqueueProviderVideo(d.client,owner,project,r);
+      await advanceProviderJob(d.client,owner,j.id,r);await advanceProviderJob(d.client,owner,j.id,r);
+      expect(d.rows.video_provider_jobs[0]).toMatchObject({state:"WAITING_ASSISTED",provider:"google_vids_omni",submission_state:"NOT_SENT"});
+      expect(r.fal.prepare).not.toHaveBeenCalled();expect(r.fal.submit).not.toHaveBeenCalled();
+      expect(geminiPrepare).not.toHaveBeenCalled();expect(r.gemini.submit).not.toHaveBeenCalled();
+      expect(d.rows.generation_budget_reservations).toHaveLength(0);expect(r.finalize).not.toHaveBeenCalled();
+    }
+  });
+  it.each(["FAL_ONLY","GEMINI_ONLY"] as const)("%s cannot purchase a substitute while creative evidence is missing",async(mode)=>{
+    const {d,r}=geminiFixture(),geminiPrepare=vi.spyOn(r.gemini,"prepare");
+    d.rows.video_provider_settings[0].config=providerSettingsSchema.parse({mode,paidMode:true,paidFallback:true,maxCostUsd:3,dailyBudgetUsd:6,monthlyBudgetUsd:20});
+    r.source=vi.fn(async()=>({...source,productionMethod:"WAIT_FOR_EVIDENCE" as const}));
+    const j=await enqueueProviderVideo(d.client,owner,project,r);
+    await advanceProviderJob(d.client,owner,j.id,r);await advanceProviderJob(d.client,owner,j.id,r);
+    expect(d.rows.video_provider_jobs[0]).toMatchObject({state:"WAITING_PROVIDER",provider:null,submission_state:"NOT_SENT"});
+    expect(d.rows.video_provider_jobs[0].decisions).toEqual(expect.arrayContaining([expect.objectContaining({action:"WAIT",reason:"VERIFIED_CREATIVE_EVIDENCE_REQUIRED"})]));
+    expect(r.fal.prepare).not.toHaveBeenCalled();expect(r.fal.submit).not.toHaveBeenCalled();
+    expect(geminiPrepare).not.toHaveBeenCalled();expect(r.gemini.submit).not.toHaveBeenCalled();
+    expect(d.rows.generation_budget_reservations).toHaveLength(0);
+  });
+  it.each(["FAL_ONLY","GEMINI_ONLY"] as const)("%s keeps atmosphere-only production assisted even when every paid flag is enabled",async(mode)=>{
+    const {d,r}=geminiFixture(),geminiPrepare=vi.spyOn(r.gemini,"prepare");
+    d.rows.media_assets=[];
+    d.rows.video_provider_settings[0].config=providerSettingsSchema.parse({mode,paidMode:true,paidFallback:true,maxCostUsd:3,dailyBudgetUsd:6,monthlyBudgetUsd:20});
+    r.source=vi.fn(async()=>({...source,productionMethod:"GENERATIVE_ATMOSPHERE" as const}));
+    const j=await enqueueProviderVideo(d.client,owner,project,r);await advanceProviderJob(d.client,owner,j.id,r);
+    expect(d.rows.video_provider_jobs[0]).toMatchObject({state:"WAITING_ASSISTED",provider:"google_vids_omni"});
+    expect(r.fal.prepare).not.toHaveBeenCalled();expect(r.fal.submit).not.toHaveBeenCalled();
+    expect(geminiPrepare).not.toHaveBeenCalled();expect(r.gemini.submit).not.toHaveBeenCalled();
+    expect(d.rows.generation_budget_reservations).toHaveLength(0);
+  });
+  it.each(["REAL_FOOTAGE_EDIT","REAL_IMAGE_MOTION","GENERATIVE_ATMOSPHERE"] as const)("%s handoff does not require or sign a product photo",async(productionMethod)=>{
+    const {d,r}=geminiFixture();d.rows.media_assets=[];
+    r.source=vi.fn(async()=>({...source,productionMethod}));
+    const j=await enqueueProviderVideo(d.client,owner,project,r);await advanceProviderJob(d.client,owner,j.id,r);
+    const readSource=vi.spyOn(videoServices,"getVideoCreativeSource").mockResolvedValue({...source,productionMethod});
+    const readTable=vi.spyOn(d.client,"from"),storage=vi.spyOn(d.client.storage,"from");
+    try{
+      const brief=await prepareGoogleHandoff(d.client,owner,j.id);
+      expect(brief.assisted).toBe(true);expect(brief).not.toHaveProperty("imageUrl");
+      expect(readTable).not.toHaveBeenCalledWith("media_assets");expect(storage).not.toHaveBeenCalled();
+      expect(d.rows.video_provider_jobs[0]).toMatchObject({state:"WAITING_ASSISTED",submission_state:"EXTERNAL_PENDING"});
+      expect(r.fal.submit).not.toHaveBeenCalled();expect(r.gemini.submit).not.toHaveBeenCalled();
+    }finally{readSource.mockRestore();readTable.mockRestore();storage.mockRestore();}
+  });
+  it.each(["fal","gemini"] as const)("recovers accepted %s once after strategy changes to require real footage",async(provider)=>{
+    const {d,r}=geminiFixture(),geminiPrepare=vi.spyOn(r.gemini,"prepare");
+    if(provider==="fal")d.rows.video_provider_settings[0].config=providerSettingsSchema.parse({mode:"FAL_ONLY",maxCostUsd:3,dailyBudgetUsd:6,monthlyBudgetUsd:20});
+    const j=await enqueueProviderVideo(d.client,owner,project,r);await advanceProviderJob(d.client,owner,j.id,r);
+    const acceptedId=d.rows.video_provider_jobs[0].provider_request_id;
+    r.source=vi.fn(async()=>({...source,productionMethod:"REAL_FOOTAGE_EDIT" as const}));
+    d.rows.video_provider_settings[0].config=providerSettingsSchema.parse({mode:"GOOGLE_ONLY"});r.geminiEnabled=false;
+    vi.mocked(r.fal.prepare).mockClear();geminiPrepare.mockClear();
+    await advanceProviderJob(d.client,owner,j.id,r);await advanceProviderJob(d.client,owner,j.id,r);
+    expect(d.rows.video_provider_jobs[0]).toMatchObject({state:"REVIEW_REQUIRED",provider:provider==="fal"?"fal_ai":"gemini_omni_api",provider_request_id:acceptedId});
+    expect(d.rows.generation_budget_reservations).toHaveLength(1);
+    expect(r.fal.prepare).not.toHaveBeenCalled();expect(geminiPrepare).not.toHaveBeenCalled();
+    expect(r.fal.submit).toHaveBeenCalledTimes(provider==="fal"?1:0);
+    expect(r.gemini.submit).toHaveBeenCalledTimes(provider==="gemini"?1:0);
+    expect(provider==="fal"?r.fal.retrieve:r.gemini.retrieve).toHaveBeenCalledWith(expect.anything(),acceptedId);
+    expect(r.finalize).toHaveBeenCalledOnce();
+  });
   it("automatic recovery processes at most three jobs and respects daily reservation limit",async()=>{const d=database(),r=runtime(),sources=new Map<string,typeof source>();d.rows.video_provider_settings[0].config=providerSettingsSchema.parse({mode:"FAL_ONLY",maxCostUsd:.5,dailyBudgetUsd:2,monthlyBudgetUsd:10,autoRecovery:true});
     for(let i=0;i<21;i++){const id=randomUUID(),a=[account,project,product][i%3],s={...source,project:{id,tiktok_account_id:a},account:{id:a,is_mock:false},script:{...source.script,id:randomUUID()}};sources.set(id,s);r.source=vi.fn(async()=>s);await enqueueProviderVideo(d.client,owner,id,r);}
     r.source=vi.fn(async(_client:SupabaseClient,_owner:string,id:string)=>sources.get(id)!) as unknown as typeof r.source; r.fal.submit=vi.fn(async()=>({request_id:randomUUID()}));expect(await processProviderQueue(d.client,owner,r)).toEqual({processed:3});expect(r.fal.submit).toHaveBeenCalledTimes(3);expect(d.rows.video_provider_jobs).toHaveLength(21);

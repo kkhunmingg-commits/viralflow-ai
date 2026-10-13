@@ -15,6 +15,7 @@ import {masterJobKey,nextJobAttempt,variationJobKey,variationRunId} from "./jobs
 import {videoStoragePath} from "./storage";
 import {templateFor,variationPlan} from "./templates";
 import {isRoutedMaster,renderRoutedVariation} from "@/features/video-provider/variations";
+import {reviewedProductionMethod} from "@/features/creative/production-gate";
 import {VIDEO_BUCKET,VIDEO_DURATION_SECONDS,VIDEO_FACTORY_VERSION,type SimilarityMetadata,type VideoBudget,type VideoRenderInput} from "./types";
 
 type Row=Record<string,unknown>;
@@ -60,7 +61,8 @@ async function source(client:SupabaseClient,owner:string,projectId:string){
   if(!script||!angle||!account||!product)throw new Error("Selected creative source is incomplete");
   if(angle.policy_status!=="SAFE"||script.status==="REJECTED")throw new Error("Creative risk status must be SAFE");
   const input:VideoRenderInput={productTitle:String(product.title),hook:String(script.hook_text),cta:String(script.cta_text),overlay:script.overlay_text_json as VideoRenderInput["overlay"],scenes:script.scene_plan_json as VideoRenderInput["scenes"],template:templateFor(String(angle.angle_type))};
-  return {project,script,angle,account,product,input};
+  const productionMethod=reviewedProductionMethod({angle,script,account,product},owner);
+  return {project,script,angle,account,product,input,...(productionMethod?{productionMethod}:{})};
 }
 async function spend(client:SupabaseClient,owner:string){
   const now=new Date(),day=now.toISOString().slice(0,10),month=day.slice(0,7);
@@ -73,6 +75,7 @@ function budget(account:Row,spent:{daySpend:number;monthSpend:number}):VideoBudg
 
 export async function buildMasterVideo(client:SupabaseClient,owner:string,projectId:string,visionProvider?:FrameVisionProvider){
   const src=await source(client,owner,projectId),existing=await client.from("master_videos").select("*").eq("owner_id",owner).eq("creative_project_id",projectId).maybeSingle();
+  if(src.productionMethod)throw new Error("REVIEWED_STRATEGY_REQUIRES_PROVIDER_OR_REAL_MEDIA_IMPORT");
   if(existing.error)throw new Error(existing.error.message);
   if(isRoutedMaster(existing.data?.provider))throw new Error("Resume provider job instead of replacing real footage with a template");
   if(existing.data&&["READY","APPROVED"].includes(existing.data.status)&&existing.data.quality_status==="PASS"){if(existing.data.generation_job_id)await recordZeroCost(client,owner,existing.data.generation_job_id);return existing.data}
@@ -122,7 +125,9 @@ export async function createVideoVariations(client:SupabaseClient,owner:string,m
     const result=await client.from("video_variations").upsert(rows,{onConflict:"owner_id,master_video_id,variation_index",ignoreDuplicates:true}).select("*");
     if(result.error)throw new Error(result.error.message);return result.data??[];
   }
-  const src=await source(client,owner,String(master.creative_project_id)),runId=variationRunId(masterId),base:SimilarityMetadata={masterId,hook:src.input.hook,cta:src.input.cta,scenes:src.input.scenes,motion:{pattern:"ZOOM_IN"},overlay:src.input.overlay,audio:{voice:"mock"}};
+  const src=await source(client,owner,String(master.creative_project_id));
+  if(src.productionMethod)throw new Error("REAL_MEDIA_VARIATIONS_REQUIRE_REVIEW");
+  const runId=variationRunId(masterId),base:SimilarityMetadata={masterId,hook:src.input.hook,cta:src.input.cta,scenes:src.input.scenes,motion:{pattern:"ZOOM_IN"},overlay:src.input.overlay,audio:{voice:"mock"}};
   const rows=[] as Row[],accepted=[] as SimilarityMetadata[];
   for(let i=1;i<=count;i++){
     const plan=variationPlan(i,src.input),candidate:SimilarityMetadata={masterId,hook:plan.hook,cta:plan.cta,scenes:src.input.scenes,motion:{pattern:plan.motionPattern,transition:plan.transition},overlay:{items:src.input.overlay,position:plan.overlayPosition},audio:{voice:"mock",speed:plan.speed}};
@@ -138,7 +143,9 @@ export async function buildVideoVariation(client:SupabaseClient,owner:string,var
   const variation=await one(client,"video_variations",owner,variationId);if(!variation)throw new Error("Variation not found");
   if(["READY","APPROVED"].includes(String(variation.status))&&variation.storage_path)return variation;
   const master=await one(client,"master_videos",owner,String(variation.master_video_id));if(!master)throw new Error("Master not found");
-  const src=await source(client,owner,String(variation.creative_project_id)),planData=variationPlan(Number(variation.variation_index),src.input),job=await jobFor(client,owner,variationJobKey(String(variation.id),String(variation.run_id)),{variationId:variation.id,runId:variation.run_id},"VARIATION_RENDER");
+  const src=await source(client,owner,String(variation.creative_project_id));
+  if(src.productionMethod&&!isRoutedMaster(master.provider))throw new Error("REAL_MEDIA_VARIATIONS_REQUIRE_REVIEW");
+  const planData=variationPlan(Number(variation.variation_index),src.input),job=await jobFor(client,owner,variationJobKey(String(variation.id),String(variation.run_id)),{variationId:variation.id,runId:variation.run_id},"VARIATION_RENDER");
   await client.from("generation_jobs").update({video_variation_id:variation.id,master_video_id:master.id,creative_project_id:variation.creative_project_id}).eq("owner_id",owner).eq("id",job.id);await beginJob(client,owner,job);
   const dir=join(tmpdir(),"viralflow-video",owner,String(variation.id));await mkdir(dir,{recursive:true});
   try{

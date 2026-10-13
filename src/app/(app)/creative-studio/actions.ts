@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { assignmentDate } from "@/features/assignments/planner";
 import { persistDailyAssignments } from "@/features/assignments/services";
-import { createProjectFromAssignment,generateCreativeProject,rejectScript,selectCreative,updateScript } from "@/features/creative/services";
+import { approveEvidenceCreative,createProjectFromAssignment,generateCreativeProject,generateEvidenceStrategyProject,rejectScript,selectCreative,updateScript } from "@/features/creative/services";
 const uuid=z.string().uuid();
 async function auth(){
   const client=await createClient(),{data}=await client.auth.getUser();
@@ -26,6 +26,17 @@ export async function createCreativeFromRecommendation(formData:FormData){
 export async function generateCreativeAction(formData:FormData){
   const projectId=uuid.parse(formData.get("projectId"));const {client,owner}=await auth();
   await generateCreativeProject(client,owner,projectId);revalidatePath(`/creative-studio/${projectId}`);
+}
+export async function generateEvidenceStrategyAction(formData:FormData){
+  const projectId=uuid.parse(formData.get("projectId")),{client,owner}=await auth();
+  await generateEvidenceStrategyProject(client,owner,projectId);revalidatePath(`/creative-studio/${projectId}`);
+}
+export async function approveEvidenceStrategyAction(formData:FormData){
+  const projectId=uuid.parse(formData.get("projectId")),angleId=uuid.parse(formData.get("angleId")),scriptId=uuid.parse(formData.get("scriptId"));
+  const {client,owner}=await auth();
+  await approveEvidenceCreative(client,owner,projectId,angleId,scriptId,{creativeApproved:formData.get("creativeApproved")==="on",
+    factualAccuracyApproved:formData.get("factualAccuracyApproved")==="on",mediaRightsApproved:formData.get("mediaRightsApproved")==="on"});
+  revalidatePath(`/creative-studio/${projectId}`);
 }
 export async function selectCreativeAction(formData:FormData){
   const projectId=uuid.parse(formData.get("projectId")),angleId=uuid.parse(formData.get("angleId")),scriptId=uuid.parse(formData.get("scriptId"));
