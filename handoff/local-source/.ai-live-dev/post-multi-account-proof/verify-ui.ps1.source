@@ -1,0 +1,27 @@
+$ErrorActionPreference = 'Stop'
+$browserPath = Join-Path $PSScriptRoot 'node_modules/agent-browser/bin/agent-browser-win32-x64.exe'
+$captures = Join-Path $PSScriptRoot 'screenshots'
+New-Item -ItemType Directory -Path $captures -Force | Out-Null
+$records = @()
+foreach ($accountCount in @(3,10)) {
+  foreach ($width in @(1440,1280,768,390)) {
+    & $browserPath --session viralflow-post-proof set viewport $width 900 | Out-Null
+    & $browserPath --session viralflow-post-proof open "http://127.0.0.1:4328/?page=post&count=$accountCount" | Out-Null
+    & $browserPath --session viralflow-post-proof wait --fn 'document.querySelectorAll(".customer-account-card").length > 0' | Out-Null
+    $result = & $browserPath --session viralflow-post-proof --json eval '({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,cards:document.querySelectorAll(".customer-account-card").length,errors:window.__uiErrors,technicalText:/Supabase|FFmpeg|fal\b|MuseTalk|open_id|queueId|API key/.test(document.body.innerText)})' | ConvertFrom-Json
+    if (!$result.success -or $result.data.result.scrollWidth -gt $width -or $result.data.result.cards -ne $accountCount -or $result.data.result.errors.Count -ne 0 -or $result.data.result.technicalText) { throw "UI proof failed: $accountCount accounts / $width" }
+    & $browserPath --session viralflow-post-proof screenshot (Join-Path $captures "post-$accountCount-$width.png") --full | Out-Null
+    $records += [PSCustomObject]@{accounts=$accountCount;width=$width;overflow=$false;errors=$result.data.result.errors;result='PASS'}
+  }
+}
+foreach ($width in @(1440,390)) {
+  & $browserPath --session viralflow-post-proof set viewport $width 900 | Out-Null
+  & $browserPath --session viralflow-post-proof open 'http://127.0.0.1:4328/?page=detail&count=3' | Out-Null
+  & $browserPath --session viralflow-post-proof wait --fn 'document.querySelector(".customer-post-detail") !== null' | Out-Null
+  $result = & $browserPath --session viralflow-post-proof --json eval '({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,errors:window.__uiErrors})' | ConvertFrom-Json
+  if (!$result.success -or $result.data.result.scrollWidth -gt $width -or $result.data.result.errors.Count -ne 0) { throw "Detail UI failed: $width" }
+  & $browserPath --session viralflow-post-proof screenshot (Join-Path $captures "detail-$width.png") --full | Out-Null
+  $records += [PSCustomObject]@{page='detail';width=$width;overflow=$false;errors=$result.data.result.errors;result='PASS'}
+}
+$records | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $PSScriptRoot 'browser-results.json') -Encoding utf8
+$records | ConvertTo-Json -Compress -Depth 5

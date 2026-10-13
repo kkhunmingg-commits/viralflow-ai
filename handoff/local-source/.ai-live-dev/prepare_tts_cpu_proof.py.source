@@ -1,0 +1,55 @@
+from __future__ import annotations
+import concurrent.futures
+import hashlib
+import json
+import pathlib
+import urllib.request
+
+ROOT = pathlib.Path(__file__).resolve().parent / 'tts-proof'
+DIRECTORY = ROOT / 'models' / 'voxcpm2'
+REVISION = '32279effe8c19989596f05d353d1447f51d9e915'
+URL = 'https://huggingface.co/openbmb/VoxCPM2'
+
+def download(item):
+    name = item['rfilename']
+    target = DIRECTORY / name
+    expected = item.get('lfs', {}).get('sha256')
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_suffix(target.suffix + '.partial')
+    if not target.exists():
+        offset = partial.stat().st_size if partial.exists() else 0
+        request = urllib.request.Request(f'{URL}/resolve/{REVISION}/{name}', headers={'Range': f'bytes={offset}-'} if offset else {})
+        with urllib.request.urlopen(request, timeout=45) as response:
+            append = offset > 0 and response.status == 206
+            with partial.open('ab' if append else 'wb') as output:
+                while True:
+                    chunk = response.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    output.write(chunk)
+        partial.replace(target)
+    digest = hashlib.file_digest(target.open('rb'), 'sha256').hexdigest() if hasattr(hashlib, 'file_digest') else None
+    if digest is None:
+        h = hashlib.sha256()
+        with target.open('rb') as artifact:
+            while chunk := artifact.read(1024 * 1024):
+                h.update(chunk)
+        digest = h.hexdigest()
+    if target.stat().st_size != item['size'] or expected and digest != expected:
+        raise RuntimeError('TTS_ARTIFACT_MISMATCH:' + name)
+    print('verified ' + name + ' ' + str(target.stat().st_size), flush=True)
+    return {'relative_path':'models/voxcpm2/' + name,'sha256':digest,'size_bytes':target.stat().st_size}
+
+if __name__ == '__main__':
+    with urllib.request.urlopen(f'https://huggingface.co/api/models/openbmb/VoxCPM2/revision/{REVISION}?blobs=true', timeout=25) as response:
+        metadata = json.load(response)
+    files = [item for item in metadata['siblings'] if item['rfilename'] != '.gitattributes']
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        artifacts = list(pool.map(download, files))
+    record = {'model_id':'voxcpm2','kind':'TTS','version':REVISION,'source':URL,
+              'code_license':'Apache-2.0','weights_license':'Apache-2.0','commercial_allowed':True,
+              'redistribution_allowed':True,'attribution':['Copyright OpenBMB. Apache-2.0; preserve license and notices.'],
+              'relative_path':'models/voxcpm2','artifacts':artifacts,'requires_gpu':False,
+              'minimum_ram_gb':8,'minimum_vram_gb':0,'profile':'voxcpm2'}
+    (ROOT/'verified-model-record.json').write_text(json.dumps(record,ensure_ascii=False,indent=2),encoding='utf-8')
+    print('CPU proof artifacts verified; not installed or approved for production',flush=True)

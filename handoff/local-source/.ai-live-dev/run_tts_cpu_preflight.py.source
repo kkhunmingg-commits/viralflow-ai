@@ -1,0 +1,34 @@
+import dataclasses
+import json
+import pathlib
+import sys
+import time
+import psutil
+
+ROOT = pathlib.Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / 'workers' / 'ai-live'))
+from local_agent.model_manager import VerifiedLocalModel, validate_model_record
+from tts_benchmark import run_voxcpm_benchmark
+
+managed = ROOT / '.ai-live-dev' / 'tts-proof'
+record = validate_model_record(json.loads((managed / 'verified-model-record.json').read_text(encoding='utf-8')))
+model = VerifiedLocalModel(record, managed, tuple(managed / item.relative_path for item in record.artifacts))
+memory = psutil.virtual_memory()
+report = run_voxcpm_benchmark(model, managed / 'cpu-preflight-results', device='cpu', rounds=1)
+report['available_ram_before_bytes'] = memory.available
+report['total_ram_bytes'] = memory.total
+report['verified_artifact_bytes'] = sum(item.size_bytes for item in record.artifacts)
+report['weight_bytes'] = sum(item.size_bytes for item in record.artifacts if item.relative_path.endswith(('.safetensors', '.pth')))
+report['cpu_minimum_available_ram_policy_bytes'] = 8 * 1024 ** 3
+report['audio_generated'] = bool(report['samples'])
+report['source'] = record.source
+report['artifacts_verified'] = True
+report['thai_pronunciation'] = 'NOT_MEASURED_OWNER_REVIEW_PENDING'
+report['first_audio_seconds'] = None
+report['real_time_factor'] = None
+report['streaming_proof'] = None
+report['interruption_proof'] = None
+report['gpu_results'] = None
+output = ROOT / 'benchmarks' / 'local-tts-cpu-preflight.json'
+output.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')
+print(json.dumps(report,ensure_ascii=True,indent=2))

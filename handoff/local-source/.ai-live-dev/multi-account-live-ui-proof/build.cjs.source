@@ -1,0 +1,13 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const {createRequire} = require('node:module');
+const fromTsx = createRequire(require.resolve('tsx'));
+const esbuild = fromTsx('esbuild');
+(async () => {
+  await esbuild.build({entryPoints:[path.join(__dirname,'entry.tsx')],bundle:true,outfile:path.join(__dirname,'bundle.js'),platform:'browser',format:'iife',jsx:'automatic',
+    alias:{'@':path.resolve('src'),'client-only':path.join(__dirname,'browser-marker.js')},define:{'process.env.NODE_ENV':'"production"'},conditions:['browser']});
+  const global = fs.readFileSync('src/app/globals.css','utf8').replace('@import "tailwindcss";','');
+  const css = fs.readFileSync('src/app/(app)/ai-live/ai-live.css','utf8');
+  const theme = fs.readFileSync('src/app/(app)/app-theme.css','utf8');
+  fs.writeFileSync(path.join(__dirname,'index.html'),`<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ViralFlow internal multi-account LIVE UI proof</title><style>${global}\n${theme}\n${css}\nhtml,body{margin:0;background:#10131d;color:#eef1fa;font-family:Arial,sans-serif}*{box-sizing:border-box}button,input,select{font:inherit}button{cursor:pointer}button:disabled{cursor:default}a{color:#b3a5fa}[hidden]{display:none!important}.fixture-marker{margin:0 auto 20px;max-width:1280px;padding:12px;border:1px dashed #6e6484;border-radius:10px;color:#b8acce;font-size:12px;line-height:1.7}.fixture-marker a{margin-left:12px}</style></head><body><div id="root"></div><script>window.process={env:{}};window.__uiErrors=[];window.__fixtureCommands=[];window.addEventListener('error',e=>window.__uiErrors.push({message:e.message}));window.addEventListener('unhandledrejection',e=>window.__uiErrors.push({message:String(e.reason)}));const report=console.error;console.error=function(...args){window.__uiErrors.push({message:args.map(String).join(' ')});report.apply(console,args)};</script><script src="bundle.js"></script></body></html>`);
+})();

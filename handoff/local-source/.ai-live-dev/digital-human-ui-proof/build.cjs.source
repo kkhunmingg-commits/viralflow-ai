@@ -1,0 +1,12 @@
+const fs=require('node:fs');
+const path=require('node:path');
+const {createRequire}=require('node:module');
+const fromTsx=createRequire(require.resolve('tsx'));
+const esbuild=fromTsx('esbuild');
+(async()=>{
+  await esbuild.build({entryPoints:[path.join(__dirname,'entry.tsx')],bundle:true,outfile:path.join(__dirname,'bundle.js'),platform:'browser',format:'iife',jsx:'automatic',
+    alias:{'@':path.resolve('src'),'client-only':path.join(__dirname,'browser-marker.js')},define:{'process.env.NODE_ENV':'"production"'},conditions:['browser']});
+  const global=fs.readFileSync('src/app/globals.css','utf8').replace('@import "tailwindcss";','');
+  const css=fs.readFileSync('src/app/(app)/ai-live/ai-live.css','utf8');
+  fs.writeFileSync(path.join(__dirname,'index.html'),`<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AI LIVE internal UI proof</title><style>${global}\n${css}\nhtml,body{margin:0;background:#10131d;color:#eef1fa;font-family:Arial,sans-serif}*{box-sizing:border-box}body{padding:32px}button,input,select{font:inherit}button{cursor:pointer}button:disabled{cursor:default}a{color:#b3a5fa}[hidden]{display:none!important}@media(max-width:600px){body{padding:16px}}</style></head><body><main id="root"></main><script>window.process={env:{}};window.__uiErrors=[];window.addEventListener("error",function(e){window.__uiErrors.push({message:e.message,stack:e.error?e.error.stack:null})});</script><script src="bundle.js"></script></body></html>`);
+})();

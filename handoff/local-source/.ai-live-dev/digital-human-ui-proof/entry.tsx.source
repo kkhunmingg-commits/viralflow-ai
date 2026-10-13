@@ -1,0 +1,19 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import {AiLiveControlRoom} from '../../src/app/(app)/ai-live/control-room';
+
+// Internal visual fixture, no presenter frames, no authorization, no LIVE transport.
+window.fetch = async (url) => {
+  if (String(url) === '/api/ai-live/entitlement') return Response.json({supported:false});
+  throw new Error('Visual fixture: companion not installed');
+};
+createRoot(document.getElementById('root')!).render(<>
+  <p style={{padding:12,border:'1px solid #675a96',color:'#d0c7ee'}}>ตรวจหน้าจอภายใน • ข้อมูลทดสอบ • ไม่ได้เริ่ม LIVE</p>
+  <AiLiveControlRoom accounts={[
+    {id:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',label:'@beauty_demo',connected:true},
+    {id:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',label:'@home_demo',connected:false},
+  ]} products={[
+    {id:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',title:'สินค้าทดสอบ Beauty',category:'Beauty'},
+    {id:'dddddddd-dddd-4ddd-8ddd-dddddddddddd',title:'สินค้าทดสอบ Home',category:'Home'},
+  ]}/>
+</>);

@@ -1,0 +1,4 @@
+export async function startCustomerPostAction(){return {ok:false,message:"ข้อมูลทดสอบภายใน ไม่ได้เริ่มงานจริง"};}
+export const stopCustomerPostAction=startCustomerPostAction;
+export const retryCustomerPostAction=startCustomerPostAction;
+export const saveCustomerPostScheduleAction=startCustomerPostAction;

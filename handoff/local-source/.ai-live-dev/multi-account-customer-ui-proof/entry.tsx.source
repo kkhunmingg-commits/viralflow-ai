@@ -1,0 +1,29 @@
+import React from "react";
+import {createRoot} from "react-dom/client";
+import {HomeOverview} from "../../src/components/customer-control-center/home-overview";
+import {PostOverview} from "../../src/components/customer-control-center/post-overview";
+import {PostAccountDetail} from "../../src/components/customer-control-center/post-account-detail";
+import {ShareSummaryButton} from "../../src/components/customer-control-center/share-summary";
+import {Sidebar} from "../../src/components/sidebar";
+import {mapCustomerOverview,mapCustomerPostAccount} from "../../src/features/control-center/customer-mapping";
+import type {CustomerDataRecords} from "../../src/features/control-center/customer-mapping";
+const params=new URLSearchParams(location.search),period=params.get("period")==="7d"?"7d":params.get("period")==="30d"?"30d":"today";
+const now=new Date("2026-10-06T12:00:00Z");
+// INTERNAL DEVELOPMENT VISUAL FIXTURE ONLY. No owner records, auth, generation or publishing.
+const accountCount=params.get("count")==="3"?3:10;
+const records:CustomerDataRecords={accounts:Array.from({length:accountCount},(_,i)=>({id:`account-${i}`,display_name:["ร้านความงามของฉัน","บ้านน่าอยู่","อุปกรณ์น่าใช้"][i%3]+` ${i+1}`,username:`internal_test_${i+1}`,avatar_url:null,
+ mode:"AUTO",authorization_status:i===2?"revoked":"authorized",account_status:"active",daily_post_target:5,daily_post_hard_limit:7,daily_video_budget_usd:0.5,preferred_categories:["beauty"],is_mock:false,hidden_at:null})),
+ masters:[{id:"v0",tiktok_account_id:"account-0",product_id:"p",status:"READY",created_at:now.toISOString(),storage_path:null}],variations:[],products:[{id:"p",title:"สินค้าทดสอบภายใน",image_url:null}],
+ queues:[{id:"q0",tiktok_account_id:"account-0",video_id:"v0",video_kind:"MASTER",status:"REVIEW_REQUIRED",scheduled_for:null,published_at:null,created_at:now.toISOString(),retry_count:0,max_retries:2,provider_publish_id:null,external_state:"READY"}],jobs:[],
+ runs:[{id:"run0",state:"RUNNING",run_date:"2026-10-06",updated_at:now.toISOString()}],
+ states:[{auto_run_id:"run0",tiktok_account_id:"account-0",state:"WAITING_FOR_PROVIDER",current_step:"GENERATE_VIDEO",desired_daily_posts:1,blockers_json:["SAFE_EXECUTION_BOUNDARY"],updated_at:now.toISOString()}],snapshots:[],
+ schedules:Array.from({length:accountCount},(_,i)=>({tiktok_account_id:`account-${i}`,posting_mode:(["AUTO","DRAFT","EXPORT"] as const)[i%3],creative_mode:"AUTO",clips_per_day:5,active_start:540,active_end:1320,timezone:"Asia/Bangkok",min_spacing_minutes:60,allowed_days:[0,1,2,3,4,5,6],enabled:i<2,daily_budget_usd:0.5,next_due_at:i===0?"2026-10-07T02:00:00Z":null})),
+ outputs:[{id:"output0",tiktok_account_id:"account-0",video_id:"v0",publishing_queue_id:"q0",posting_mode:"AUTO",status:"REVIEW_REQUIRED",caption:"สินค้าทดสอบภายในสำหรับตรวจข้อความที่ยาวและการแสดงผลบนมือถือ ไม่มีการสร้างหรือโพสต์จริง",hashtags_json:["ทดสอบภายใน"],product_reference_json:{title:"สินค้าทดสอบภายใน"},suggested_post_at:null,created_at:now.toISOString()}]};
+records.scheduleSlots=[{tiktok_account_id:"account-1",local_date:"2026-10-06",state:"PENDING",scheduled_at:"2026-10-06T11:00:00Z",expires_at:"2026-10-06T15:00:00Z",next_attempt_at:null}];
+const overview=mapCustomerOverview(records,period,now),detail=mapCustomerPostAccount(records,params.get("id")??"account-0",period,now)!;
+window.fetch=async()=>Response.json(overview);
+const page=params.get("page")??"home";
+createRoot(document.getElementById("root")!).render(<div className="app-frame"><Sidebar/><div className="app-main"><header className="topbar"><p>VIRALFLOW AI</p><strong>INTERNAL TEST — ไม่ใช่ข้อมูลผู้ใช้จริง</strong></header><main className="page-content">
+ {page==="home"?<HomeOverview data={overview} shareAction={<ShareSummaryButton overview={overview}/>}/>:page==="post"?<PostOverview data={overview} requestKeys={Object.fromEntries(overview.accounts.map(a=>[a.id,"fixture-only"]))}/>:<PostAccountDetail data={detail} requestKey="fixture-only"/>}
+</main></div></div>);
+

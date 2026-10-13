@@ -1,0 +1,19 @@
+import subprocess,time,http.client,json
+from pathlib import Path
+root=Path(__file__).resolve().parent
+log=(root/'probe-server.log').open('wb')
+args=[str(root/'runtime'/'llama-server.exe'),'--model',str(root/'Qwen3-4B-Q4_K_M.gguf'),'--host','127.0.0.1','--port','18973','--api-key','proof-test-only','--alias','viralflow-local-brain','--ctx-size','2048','--parallel','1','--threads','8','--n-gpu-layers','0','--jinja','--chat-template-kwargs','{"enable_thinking":false}','--reasoning-budget','0','--n-predict','96','--no-webui','--no-slots','--timeout','15']
+p=subprocess.Popen(args,stdout=log,stderr=log,creationflags=subprocess.CREATE_NO_WINDOW)
+try:
+    for attempt in range(80):
+        time.sleep(.5)
+        c=http.client.HTTPConnection('127.0.0.1',18973,timeout=1)
+        try:
+            c.request('GET','/v1/models',headers={'Authorization':'Bearer proof-test-only'});r=c.getresponse();data=r.read(20000)
+            print(json.dumps({'status':r.status,'body':data.decode(),'poll':p.poll()}),flush=True)
+            if r.status==200:break
+        except Exception as exc:print(type(exc).__name__,flush=True)
+        finally:c.close()
+finally:
+    p.terminate();p.wait(5);log.close()
+print((root/'probe-server.log').read_text(errors='replace')[-6000:])

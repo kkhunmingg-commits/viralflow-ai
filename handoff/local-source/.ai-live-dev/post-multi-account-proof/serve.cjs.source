@@ -1,0 +1,9 @@
+const http=require('node:http'),fs=require('node:fs'),path=require('node:path');
+const root=path.resolve('.ai-live-dev/multi-account-customer-ui-proof');
+const allowed=new Set(['index.html','bundle.js']);
+http.createServer((req,res)=>{
+ const name=new URL(req.url,'http://127.0.0.1').pathname.slice(1)||'index.html';
+ if(!allowed.has(name)){res.writeHead(404);res.end();return;}
+ res.setHeader('Content-Type',name.endsWith('.js')?'application/javascript':'text/html; charset=utf-8');
+ res.end(fs.readFileSync(path.join(root,name)));
+}).listen(4328,'127.0.0.1',()=>process.stdout.write('Isolated POST UI proof ready on loopback 4328\n'));

@@ -1,0 +1,2 @@
+# Preserve exact archived source bytes for checksum-based restoration on Windows.
+handoff/local-source/**/*.source -text

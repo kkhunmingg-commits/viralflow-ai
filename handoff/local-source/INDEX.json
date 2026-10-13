@@ -1,0 +1,177 @@
+[
+  {
+    "OriginalPath": ".ai-live-dev/prepare_tts_cpu_proof.py",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/prepare_tts_cpu_proof.py.source",
+    "Bytes": 2977,
+    "SHA256": "d83e6a9dbc055c5039e014fcf87c02fb735722499c17cdb075b2301e7e63c087",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/run_tts_cpu_preflight.py",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/run_tts_cpu_preflight.py.source",
+    "Bytes": 1653,
+    "SHA256": "b6092b207bfe1ff579f96f3023e62268699b2d17d6d709a9fc09d9f73a80ba1a",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/digital-human-ui-proof/build.cjs",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/digital-human-ui-proof/build.cjs.source",
+    "Bytes": 1548,
+    "SHA256": "f54bf6cd5994fc42a41dc8cf5ace66ff73d749c5bec994ab0e8b6d29cfab8b86",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/digital-human-ui-proof/entry.tsx",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/digital-human-ui-proof/entry.tsx.source",
+    "Bytes": 1138,
+    "SHA256": "6843280669218371a39e8da9b55346c48d194c43ec5a8253f342fe85344b6a77",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/local-brain-proof/download.py",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/local-brain-proof/download.py.source",
+    "Bytes": 2070,
+    "SHA256": "b782f2f18b1fe76880b1ad24ffb3c9aefe4240a798dcf5887a3e379d07d789dc",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/local-brain-proof/mutex-proof.py",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/local-brain-proof/mutex-proof.py.source",
+    "Bytes": 1128,
+    "SHA256": "7b9ab82edfc9e9f820afc73a471c57f72f2e247ef082c949817c5516a4331755",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/local-brain-proof/probe_server.py",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/local-brain-proof/probe_server.py.source",
+    "Bytes": 1262,
+    "SHA256": "22c6a7a75d66d60b8f45409d01c8cd67527bbdac06b887b9086cff623777914d",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/multi-account-customer-ui-proof/actions.ts",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/multi-account-customer-ui-proof/actions.ts.source",
+    "Bytes": 374,
+    "SHA256": "c96c7ef5a57fde815179a89361215557184105dd8236382dbedbc3ed1777a5f1",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/multi-account-customer-ui-proof/build.cjs",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/multi-account-customer-ui-proof/build.cjs.source",
+    "Bytes": 1503,
+    "SHA256": "4196c770aa60b103413ae100cc4560582f44a3e9e6a41adaf350e0cc2436d199",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/multi-account-customer-ui-proof/entry.tsx",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/multi-account-customer-ui-proof/entry.tsx.source",
+    "Bytes": 4370,
+    "SHA256": "cc313bb5a0958da7c86614939cc04253729bbca302ed00feee61bd05f077b8c0",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/multi-account-customer-ui-proof/link.tsx",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/multi-account-customer-ui-proof/link.tsx.source",
+    "Bytes": 470,
+    "SHA256": "a7df65d6a7c986d8f3ef234a465e805be9ee12310567e1518e3761da50de22a7",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/multi-account-customer-ui-proof/navigation.ts",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/multi-account-customer-ui-proof/navigation.ts.source",
+    "Bytes": 235,
+    "SHA256": "4001eb605945b5d638693a0d80bfd27d3b63dd6299e72dfd57d7d4520b2db6d1",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/multi-account-live-ui-proof/build.cjs",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/multi-account-live-ui-proof/build.cjs.source",
+    "Bytes": 2027,
+    "SHA256": "68fafeac57e5f4e6c64396057eace193fe1f87af4e228a0a054a4b9b3c561a99",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/multi-account-live-ui-proof/entry.tsx",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/multi-account-live-ui-proof/entry.tsx.source",
+    "Bytes": 4035,
+    "SHA256": "c2e6f27d7f47128998e8e3b77a7b82b1e89ca268ef58a56b4a582bdc12130205",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/post-multi-account-proof/serve.cjs",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/post-multi-account-proof/serve.cjs.source",
+    "Bytes": 638,
+    "SHA256": "f71ee1fa91e62f38115a9b8945985e55ca291e61d97a0f3572503e675b430cbf",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/post-multi-account-proof/sql-cases.cjs",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/post-multi-account-proof/sql-cases.cjs.source",
+    "Bytes": 8469,
+    "SHA256": "b027d8524dc3b1659fd7bb0a32f4da837164e570f4eca449fc1e0cc5101740a1",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/post-multi-account-proof/sql-proof.cjs",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/post-multi-account-proof/sql-proof.cjs.source",
+    "Bytes": 2516,
+    "SHA256": "b1b717d16355c354a2bbeae6313bc657f8b0b6b0898cfd50a537682cddb7c106",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/post-multi-account-proof/verify-ui.ps1",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/post-multi-account-proof/verify-ui.ps1.source",
+    "Bytes": 2682,
+    "SHA256": "7b0c91ed66d5afef40911652ad6b0b443c2531003354ecb92fc8b92947d60e49",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".video-benchmark/economy-20261013/authorize-wan.mts",
+    "ArchivePath": "handoff/local-source/.video-benchmark/economy-20261013/authorize-wan.mts.source",
+    "Bytes": 1288,
+    "SHA256": "c0b5b3975b378215ca2a26a3a277fed393385e72130d1e191f60253e65a399c4",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".video-benchmark/economy-20261013/compose.mts",
+    "ArchivePath": "handoff/local-source/.video-benchmark/economy-20261013/compose.mts.source",
+    "Bytes": 4689,
+    "SHA256": "79dc2b88e67f995e52a0f2ae159c8fe46f9a9331dfb9d9a43da6fb6cf818b86d",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".video-benchmark/economy-20261013/inspect-wan.mts",
+    "ArchivePath": "handoff/local-source/.video-benchmark/economy-20261013/inspect-wan.mts.source",
+    "Bytes": 2263,
+    "SHA256": "96fdebf15642412418d57ed2324574b7f67dc39dcdb9d736649082dcf2d481a4",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".video-benchmark/economy-20261013/review-mop.mts",
+    "ArchivePath": "handoff/local-source/.video-benchmark/economy-20261013/review-mop.mts.source",
+    "Bytes": 2495,
+    "SHA256": "edcd32409d818d660f8fe9763dfb26cde689d05b5d5cc557e6d222502e8e7026",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".video-benchmark/economy-20261013/review.mts",
+    "ArchivePath": "handoff/local-source/.video-benchmark/economy-20261013/review.mts.source",
+    "Bytes": 2759,
+    "SHA256": "f6911776ff0badd804b9f9ae111a6136218ea33787a96a30db2c2644e631e0f5",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".video-benchmark/economy-20261013/review-wan.mts",
+    "ArchivePath": "handoff/local-source/.video-benchmark/economy-20261013/review-wan.mts.source",
+    "Bytes": 5023,
+    "SHA256": "977df590b42ed4d7b052554553a3c064b92641cb9187642f91c5154f67b97f20",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".video-benchmark/economy-20261013/run.mts",
+    "ArchivePath": "handoff/local-source/.video-benchmark/economy-20261013/run.mts.source",
+    "Bytes": 9837,
+    "SHA256": "11967f0e712aa55e24930725991a93aab5422adfa23814c3ca5141fdc79cd0c1",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  }
+]

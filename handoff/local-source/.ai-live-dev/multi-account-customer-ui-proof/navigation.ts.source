@@ -1,0 +1,2 @@
+export function usePathname(){const page=new URLSearchParams(location.search).get("page");return page==="post"||page==="detail"?"/post":"/home";}
+export function useRouter(){return {refresh(){},replace(url:string){location.href=url}}}

@@ -1,0 +1,40 @@
+import React from 'react';
+import {createRoot} from 'react-dom/client';
+import {AiLiveControlRoom} from '../../src/app/(app)/ai-live/control-room';
+import {PresenterWizard} from '../../src/app/(app)/ai-live/presenter-wizard';
+import {LocalLiveClient} from '../../src/features/ai-live/local-client';
+import {localMachineView, type LocalMachineView} from '../../src/features/ai-live/local-contract';
+import type {PresenterConsoleHandle} from '../../src/app/(app)/ai-live/presenter-console';
+
+// INTERNAL DEVELOPMENT FIXTURE ONLY. This is never bundled into an application route.
+// Simulated bridge state tests customer rendering/control isolation, never real LIVE success.
+const accounts = Array.from({length:10}, (_,i)=>({id:`${String(i+1).padStart(8,'0')}-aaaa-4aaa-8aaa-aaaaaaaaaaaa`,label:`@ร้านทดสอบ${i+1}`,connected:i!==8}));
+const products = [{id:'cccccccc-cccc-4ccc-8ccc-cccccccccccc',title:'สินค้าทดสอบ ภาพรวม',category:'สินค้าทดสอบ'}];
+const view = new URLSearchParams(location.search).get('view');
+let machine:LocalMachineView={...localMachineView('NOT_INSTALLED'),capacity:{status:'UNVERIFIED_CAPACITY',maximumRooms:null,activeRooms:0,canStartAnotherRoom:false},rooms:[]};
+if(view==='runtime') machine={...localMachineView('BUSY',true,[],true),deviceAuthorized:true,deviceRegistered:true,membershipStatus:'SUPPORTED',deviceStatus:'AUTHORIZED',
+  capacity:{status:'UNVERIFIED_CAPACITY',maximumRooms:null,activeRooms:2,canStartAnotherRoom:false},activeAccountId:accounts[0].id,
+  rooms:accounts.slice(0,2).map((a,i)=>({accountId:a.id,sessionId:`${String(i+10).padStart(8,'0')}-aaaa-4aaa-8aaa-aaaaaaaaaaaa`,state:'BUSY' as const,
+    currentProductId:products[0].id,sessionStartedAt:Date.now()-120000,customerStream:{phase:'CONNECTING' as const,connectionQuality:'UNAVAILABLE' as const}}))};
+const snapshot=async()=>structuredClone(machine);
+LocalLiveClient.prototype.refresh=snapshot;
+LocalLiveClient.prototype.refreshRooms=snapshot;
+LocalLiveClient.prototype.checkComponents=snapshot;
+LocalLiveClient.prototype.discover=snapshot;
+LocalLiveClient.prototype.checkHardware=snapshot;
+LocalLiveClient.prototype.listPresenters=async()=>[];
+for(const method of ['pauseAccount','resumeAccount','stopAccount'] as const) {
+  LocalLiveClient.prototype[method]=async(accountId:string)=>{
+    (window as unknown as {__fixtureCommands:unknown[]}).__fixtureCommands.push({method,accountId});
+    machine.rooms=machine.rooms?.map(room=>room.accountId!==accountId?room:{...room,state:method==='pauseAccount'?'PAUSED':method==='resumeAccount'?'BUSY':'STOPPED'});
+    return structuredClone(machine);
+  };
+}
+window.fetch=async()=>{throw new Error('Internal UI fixture does not allow network services')};
+createRoot(document.getElementById('root')!).render(<div className="app-frame"><aside className="sidebar"><div className="sidebar-brand">ViralFlow AI</div><nav>{['Home','POST','AI LIVE','Accounts'].map(label=><span className={`nav-link ${label==='AI LIVE'?'active':''}`} key={label}><span className="nav-icon">{label.slice(0,2)}</span><span>{label}</span></span>)}</nav></aside><div className="app-main"><main className="page-content">
+  <p className="fixture-marker">ชุดตรวจ UI ภายในเท่านั้น • บัญชีจำลอง • ไม่ได้เริ่ม LIVE • ไม่มีการเชื่อมแพลตฟอร์ม
+    <a href="/">บัญชี</a><a href="/?view=runtime">ทดสอบปุ่มห้อง</a><a href="/?view=wizard">ตรวจขั้นตอนคน LIVE</a></p>
+  {view==='wizard'?<div className="live-control-center"><PresenterWizard presenter="new" accounts={accounts}
+    bridge={{current:null as PresenterConsoleHandle|null}} authorized busy={false} onCancel={()=>location.assign('/')}
+    onSave={async(input)=>{document.body.dataset.fixtureSaved=input.name;}} /></div>
+    :<AiLiveControlRoom accounts={accounts} products={products}/>}</main></div></div>);

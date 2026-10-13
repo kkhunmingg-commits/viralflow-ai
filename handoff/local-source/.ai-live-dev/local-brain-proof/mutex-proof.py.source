@@ -1,0 +1,20 @@
+import json,sys,time,subprocess
+from pathlib import Path
+repo=Path(__file__).resolve().parents[2]
+sys.path.insert(0,str(repo/'workers'/'ai-live'))
+from local_llama_runtime import _model_admission
+state=Path(__file__).resolve().parent/'mutex-state'
+if '--child' in sys.argv:
+    print('WAITING',flush=True);start=time.monotonic()
+    with _model_admission(state,3):
+        print(json.dumps({'waited_ms':(time.monotonic()-start)*1000}),flush=True)
+else:
+    with _model_admission(state,3):
+        p=subprocess.Popen([sys.executable,str(Path(__file__).resolve()),'--child'],stdout=subprocess.PIPE,stderr=subprocess.PIPE,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
+        ready=p.stdout.readline().decode().strip()
+        if ready!='WAITING':raise RuntimeError('no child ready')
+        time.sleep(.2)
+    stdout,stderr=p.communicate(timeout=5)
+    data=json.loads(stdout.decode());data['child_exit_code']=p.returncode;data['cross_process_mutex_pass']=p.returncode==0 and data['waited_ms']>=150
+    (state.parent/'mutex-proof.json').write_text(json.dumps(data,indent=2),encoding='utf8')
+    print(json.dumps(data))

@@ -1,0 +1,10 @@
+const fs=require('node:fs'),path=require('node:path');
+const {createRequire}=require('node:module');const esbuild=createRequire(require.resolve('tsx'))('esbuild');
+(async()=>{
+ await esbuild.build({entryPoints:[path.join(__dirname,'entry.tsx')],bundle:true,outfile:path.join(__dirname,'bundle.js'),platform:'browser',format:'iife',jsx:'automatic',
+  alias:{'@/app/(app)/post/actions':path.join(__dirname,'actions.ts'),'next/link':path.join(__dirname,'link.tsx'),'next/navigation':path.join(__dirname,'navigation.ts'),'@':path.resolve('src')},define:{'process.env.NODE_ENV':'"production"'}});
+ const global=fs.readFileSync('src/app/globals.css','utf8').replace('@import "tailwindcss";','');const css=fs.readFileSync('src/components/customer-control-center/customer-control-center.css','utf8');
+ fs.writeFileSync(path.join(__dirname,'index.html'),`<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ViralFlow Internal Multi Account UI Proof</title><style>${global}\n${fs.readFileSync("src/app/(app)/app-theme.css","utf8")}\n${css}\nbody{font-family:Arial,sans-serif}[hidden]{display:none!important}</style></head><body><div id="root"></div><script>window.process={env:{}};window.__uiErrors=[];window.addEventListener('error',e=>window.__uiErrors.push(e.message));window.addEventListener('unhandledrejection',e=>window.__uiErrors.push(String(e.reason)));</script><script src="bundle.js"></script></body></html>`);
+})();
+
+

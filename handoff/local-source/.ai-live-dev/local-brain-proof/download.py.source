@@ -1,0 +1,32 @@
+import hashlib,json,zipfile
+from pathlib import Path
+import requests
+root=Path(__file__).resolve().parent
+items=[('llama-b11438-bin-win-cpu-x64.zip','https://github.com/ggml-org/llama.cpp/releases/download/b11438/llama-b11438-bin-win-cpu-x64.zip',19399367,'8f9350b0082d1b9052992991456206070e817bfa63cd8d49e7b3bad304306c9e'),('Qwen3-4B-Q4_K_M.gguf','https://huggingface.co/Qwen/Qwen3-4B-GGUF/resolve/bc640142c66e1fdd12af0bd68f40445458f3869b/Qwen3-4B-Q4_K_M.gguf',2497280256,'7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5')]
+for name,url,size,expected in items:
+    target=root/name
+    if not target.exists() or target.stat().st_size != size:
+        partial=target.with_suffix(target.suffix+'.part')
+        with requests.get(url,stream=True,timeout=(30,60)) as response:
+            response.raise_for_status()
+            h=hashlib.sha256();count=0;next_update=100000000
+            with partial.open('wb') as output:
+                for block in response.iter_content(4*1024*1024):
+                    output.write(block);h.update(block);count+=len(block)
+                    if count >= next_update:
+                        print(json.dumps({'download':name,'bytes':count,'total':size}),flush=True);next_update+=100000000
+            if count != size or h.hexdigest() != expected:raise RuntimeError('bad checksum')
+            partial.replace(target)
+    h=hashlib.sha256()
+    with target.open('rb') as source:
+        for block in iter(lambda:source.read(4*1024*1024),b''):h.update(block)
+    if h.hexdigest()!=expected:raise RuntimeError('bad checksum')
+    print(json.dumps({'verified':name,'bytes':size,'sha256':h.hexdigest()}),flush=True)
+archive=root/items[0][0]
+dest=root/'runtime';dest.mkdir(exist_ok=True)
+with zipfile.ZipFile(archive) as package:
+    for member in package.infolist():
+        target=(dest/member.filename).resolve()
+        if not target.is_relative_to(dest.resolve()):raise RuntimeError('bad archive path')
+    package.extractall(dest)
+print(json.dumps({'runtime_files':[p.name for p in dest.iterdir()]}),flush=True)

@@ -1,0 +1,6 @@
+import React from "react";
+export default function Link({href,children,...props}: React.PropsWithChildren<{href:string}>) {
+ const url=new URL(href,"https://internal.test");
+ const page=url.pathname==="/home"?"home":url.pathname.startsWith("/post/")?"detail":url.pathname==="/post"?"post":"home";
+ return <a {...props} href={`?page=${page}&period=${url.searchParams.get("period")??"today"}${page==="detail"?`&id=${url.pathname.split("/").pop()}`:""}`}>{children}</a>;
+}
