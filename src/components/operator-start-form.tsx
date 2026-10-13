@@ -48,7 +48,7 @@ export function OperatorStartForm({ accounts, requestKey, disabled, selectedAcco
       <label>โหมด<select name="mode" value={mode} onChange={(event) => setMode(event.target.value)} disabled={disabled}>
         <option value="AUTO">AUTO · เลือกตามความพร้อม</option><option value="GROWTH">GROWTH · เพิ่มการเติบโต</option><option value="AFFILIATE">AFFILIATE · คอนเทนต์สินค้า</option>
       </select></label>
-      <label>เป้าหมายต่อวัน<input name="dailyTarget" type="number" min="1" max={account?.hardLimit || 1} defaultValue={Math.max(1, account?.target ?? 1)} key={`${accountId}-target`} required disabled={disabled}/></label>
+      <label>จำนวนคลิปสำหรับรอบนี้<input name="dailyTarget" type="number" min="1" defaultValue={Math.max(1, account?.target ?? 1)} key={`${accountId}-target`} required disabled={disabled}/></label>
       <label>งบต่อวัน (USD)<input name="dailyBudgetUsd" type="number" min="0" max={Math.min(1000, account?.budget ?? 0)} step="0.01" defaultValue={account?.budget ?? 0} key={`${accountId}-budget`} required disabled={disabled}/></label>
     </div>
     <div className="operator-form-footer">

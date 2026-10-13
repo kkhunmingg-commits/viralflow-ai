@@ -298,7 +298,7 @@ export default async function AutoPage({ searchParams }: {
     <header className="operator-hero">
       <div className="operator-brand-mark" aria-hidden="true">V</div>
       <div className="operator-hero-copy"><p className="operator-overline">VIRALFLOW AI</p>
-        <h1>Home</h1><p>เริ่มงานและดูผลลัพธ์ของคุณในหน้าเดียว</p></div>
+        <h1>Home</h1><p>เริ่มงานและดูผลลัพธ์ของคุณในหน้าเดียว</p><Link href="/auto/accounts">จัดการหลายบัญชี →</Link></div>
       <span className={`operator-state ${status.tone}`}><span aria-hidden="true">●</span>{customerStatus}</span>
     </header>
     <p><Link className="operator-empty" href="/post">ดาวน์โหลดไปโพสต์เอง →</Link></p>

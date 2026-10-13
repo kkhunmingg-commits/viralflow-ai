@@ -1,0 +1,18 @@
+{
+  "branch": "codex/google-vids-fal-router",
+  "baseline": "96be80185e1f39ce786ea24e7866d742d31eff77",
+  "scope": "Local/isolated Master Auto Account Logic; no real account activation",
+  "tests": { "fullSuitePassed": 629, "skipped": 2, "finalGrowthManagerPassed": 30 },
+  "isolatedSql": { "schedulerChecks": 301, "growthChecks": 90, "discoveredAccounts": 51, "enrolledPilotAccounts": 1 },
+  "dynamicPagination": { "fixtureAccountsBefore": 1003, "fixtureAccountsAfter": 1004, "hardcodedAccountLimit": false },
+  "typecheck": "PASS",
+  "lint": { "errors": 0, "preExistingWarnings": 8 },
+  "build": "PASS",
+  "paidCalls": 0,
+  "tiktokPostingCalls": 0,
+  "productionDatabaseChanges": 0,
+  "productionDeployments": 0,
+  "externalValidation": "Not claimed: live follower scopes, Shop permissions, trend ingestion, paid generation, public posting or 24-hour wall-clock production run",
+  "manualPostAnalytics": "Owner report remains unverified until an actual official observation is returned",
+  "migrationStatus": "Prepared and isolated-tested only"
+}

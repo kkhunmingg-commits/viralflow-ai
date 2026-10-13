@@ -53,6 +53,10 @@ export class AtomicBudgetLedger {
   constructor(private readonly admin: SupabaseClient) {}
 
   async reserve(input: ReserveBudgetInput) {
+    if (input.provider === "gemini") {
+      const ready = await this.admin.rpc("gemini_video_guard_version");
+      if (ready.error || ready.data !== "gemini-omni-budget-v1") throw new BudgetGuardError();
+    }
     if (input.provider === "fal") {
       try {
         const ready = await this.admin.rpc("fal_budget_guard_version");

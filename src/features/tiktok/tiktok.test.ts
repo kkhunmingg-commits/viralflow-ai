@@ -42,6 +42,16 @@ describe("TikTok scope and readiness mapping", () => {
     expect(normalizeTikTokScopes(["video.list", "video.publish"])).toEqual(["video.list", "video.publish"]);
   });
 
+  it("retains actual analytics grants without granting publishing or expanding OAuth requests", () => {
+    const grants = normalizeTikTokScopes(["user.info.basic", "user.info.stats", "video.list", "fake.scope"]);
+    expect(grants).toEqual(["user.info.basic", "user.info.stats", "video.list"]);
+    const readiness = calculateTikTokReadiness({ ...base, grantedScopes: grants });
+    expect(readiness.grantedScopes).toEqual(grants);
+    expect(readiness.directPostStatus).toBe("MISSING_SCOPE");
+    expect(readiness.uploadStatus).toBe("MISSING_SCOPE");
+    expect(officialTikTokRequestedScopes("publishing", true)).toEqual(["user.info.basic", "video.publish", "video.upload"]);
+  });
+
   it.each([
     [["user.info.basic"], "PARTIAL"],
     [["user.info.basic", "video.upload"], "READY_FOR_UPLOAD"],
@@ -118,6 +128,18 @@ describe("TikTok providers and token lifecycle", () => {
     expect(refreshed.refreshToken).toBe("refresh-secret");
     expect(fetchMock.mock.calls.every(([url]) => String(url) === "https://open.tiktokapis.com/v2/oauth/token/")).toBe(true);
     expect(String(fetchMock.mock.calls[1]?.[1]?.body)).toContain("grant_type=refresh_token");
+  });
+
+  it("preserves returned follower/video read permissions across token exchange and refresh", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({
+      open_id: "pilot-read-identity", access_token: "test-access", refresh_token: "test-refresh",
+      token_type: "Bearer", scope: "user.info.basic,user.info.stats,video.list", expires_in: 86400,
+      refresh_expires_in: 31536000,
+    }));
+    const provider = new OfficialTikTokProvider({ clientKey: "test-client", clientSecret: "test-secret", redirectUri: "https://app.example/callback", fetch: fetchMock });
+    for (const tokens of [await provider.exchangeAuthorizationCode("test-code"), await provider.refreshAccessToken("test-refresh")]) {
+      expect(tokens.scopes).toEqual(["user.info.basic", "user.info.stats", "video.list"]);
+    }
   });
 
   it("omits redirect_uri for QR codes while retaining it for web callbacks", async () => {

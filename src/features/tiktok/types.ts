@@ -1,5 +1,6 @@
 export const TIKTOK_SCOPES = [
   "user.info.basic",
+  "user.info.stats",
   "video.publish",
   "video.upload",
   "video.list",

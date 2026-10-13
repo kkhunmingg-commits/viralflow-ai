@@ -9,6 +9,12 @@ import { updateSession } from "./proxy";
 
 describe("login session routing", () => {
   beforeEach(() => vi.clearAllMocks());
+  it("leaves only the exact bearer-authenticated worker route to its own authorization handler",async()=>{
+    getClaims.mockResolvedValue({data:{claims:null}});
+    expect((await updateSession(new NextRequest("https://viralflow.example/api/multi-account/tick"))).headers.get("location")).toBeNull();
+    expect(getClaims).not.toHaveBeenCalled();
+    expect((await updateSession(new NextRequest("https://viralflow.example/api/multi-account/other"))).headers.get("location")).toContain("/login");
+  });
 
   it("takes an existing session directly to /auto", async () => {
     getClaims.mockResolvedValueOnce({ data: { claims: { sub: "owner" } } });

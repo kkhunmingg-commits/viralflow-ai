@@ -43,6 +43,7 @@ export async function portraitProductReference(image: Blob): Promise<Blob> {
 /** Compose real generated footage; this never creates substitute product images or synthetic voice. */
 export async function composeGeneratedVideo(sourcePath: string, outputPath: string, options: {
   durationSeconds: number; resolution: string; overlay: TimedText[]; voicePath?: string; preserveAudio?: boolean;
+  cropInset?: number;
 }) {
   const samePath = process.platform === "win32"
     ? resolve(sourcePath).toLowerCase() === resolve(outputPath).toLowerCase()
@@ -58,7 +59,10 @@ export async function composeGeneratedVideo(sourcePath: string, outputPath: stri
   const [width, height] = options.resolution === "1080p" ? [1080, 1920] : options.resolution === "480p" ? [480, 854] : [720, 1280];
   const text = options.overlay.filter(item => item.text.trim()).slice(0, 3).map((item, index) =>
     `drawtext=text='${escapeText(item.text)}':fontcolor=white:fontsize=${Math.round(width * .044)}:box=1:boxcolor=black@0.6:boxborderw=16:x=(w-text_w)/2:y=${index === 0 ? "h*0.14" : "h*0.78"}:enable='between(t,${Math.max(0, item.start)},${Math.min(options.durationSeconds, item.end)})'`);
-  const filter = [`scale=${width}:${height}:force_original_aspect_ratio=decrease`, `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black`, "fps=30", "format=yuv420p", ...text].join(",");
+  const inset=options.cropInset??0;
+  if(!Number.isFinite(inset)||inset<0||inset>.08)throw new Error("video_crop_invalid");
+  const crop=inset?[`crop=trunc(iw*${1-2*inset}/2)*2:trunc(ih*${1-2*inset}/2)*2`]:[];
+  const filter = [...crop,`scale=${width}:${height}:force_original_aspect_ratio=decrease`, `pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:black`, "fps=30", "format=yuv420p", ...text].join(",");
   const args = ["-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", sourcePath,
     ...(options.voicePath ? ["-i", options.voicePath] : []), "-map", "0:v:0",
     ...(options.voicePath ? ["-map", "1:a:0", "-af", "apad"] : options.preserveAudio ? ["-map", "0:a:0?"] : ["-an"]),

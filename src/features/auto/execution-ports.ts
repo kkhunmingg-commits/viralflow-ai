@@ -19,6 +19,7 @@ import type { VideoAnalyticsObservation } from "@/features/analytics/provider";
 import type { FrameVisionProvider } from "@/features/video/frame-verification";
 import { autoPublishMode, autoVideoQualityOutcome } from "./execution-policy";
 import { stableAutoKey } from "./engine";
+import {CREATIVE_STRATEGY_VERSION} from "@/features/creative/strategist";
 import type { ExecutionClaim, ExecutionPorts, StageOutcome } from "./processor";
 
 function id(claim: ExecutionClaim, key: string) {
@@ -69,16 +70,32 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
           .eq("owner_id", claim.ownerId).eq("id", claim.accountId).maybeSingle();
         must(account.error, "auto_account_read_failed");
         if (!account.data) throw new Error("auto_account_missing");
-        await generateCreativeProject(admin, claim.ownerId, project.id, { forceMock: account.data.is_mock, forAutoWorker: true });
+        try{
+          await generateCreativeProject(admin, claim.ownerId, project.id, { forceMock: account.data.is_mock, forAutoWorker: true });
+        }catch(error){
+          if(error instanceof Error&&["CREATIVE_LLM_NOT_CONFIGURED","CREATIVE_MODEL_PRICING_UNKNOWN"].includes(error.message))
+            return wait("WAITING_FOR_PROVIDER","CREATIVE_THINKING_UNAVAILABLE");
+          if(error instanceof Error&&error.message==="CREATIVE_ACCOUNT_AUTOMATION_NOT_AUTHORIZED")
+            return wait("BLOCKED","ACCOUNT_AUTOMATION_CONSENT_REQUIRED");
+          if(error instanceof Error&&["CREATIVE_GENERATION_REVIEW_REQUIRED","CREATIVE_GENERATION_ALREADY_CLAIMED","CREATIVE_EXPERIMENT_ALREADY_PROPOSED"].includes(error.message))
+            return wait("WAITING_FOR_DATA","CREATIVE_GENERATION_REVIEW_REQUIRED");
+          throw error;
+        }
         detail = await getCreativeProjectDetail(admin, claim.ownerId, project.id);
       }
       if (!detail.project.selected_script_id) {
         const safe = detail.angles.find((angle) => angle.policy_status === "SAFE");
         const script = detail.scripts.find((row) => row.creative_angle_id === safe?.id && row.status !== "REJECTED");
-        if (!safe || !script) return { kind: "SKIP_ITEM", reason: "CREATIVE_RISK_REJECTED" };
+        if (!safe || !script) {
+          if(detail.scripts.some(row=>row.version===CREATIVE_STRATEGY_VERSION))return wait("WAITING_FOR_DATA","CREATIVE_EVIDENCE_OR_HUMAN_REVIEW_REQUIRED");
+          return { kind: "SKIP_ITEM", reason: "CREATIVE_RISK_REJECTED" };
+        }
         await selectCreative(admin, claim.ownerId, project.id, safe.id, script.id);
         return { kind: "ADVANCE", evidence: { projectId: project.id, scriptId: script.id } };
       }
+      const selected=detail.scripts.find(s=>s.id===detail.project.selected_script_id);
+      if(selected?.version===CREATIVE_STRATEGY_VERSION&&detail.angles.find(a=>a.id===selected.creative_angle_id)?.policy_status!=="SAFE")
+        return wait("WAITING_FOR_DATA","CREATIVE_EVIDENCE_OR_HUMAN_REVIEW_REQUIRED");
       return { kind: "ADVANCE", evidence: { projectId: project.id, scriptId: detail.project.selected_script_id } };
     },
     async GENERATE_VIDEO(claim) {
@@ -87,6 +104,9 @@ export function createAutoExecutionPorts(admin: SupabaseClient, boundaries: Auto
       must(error, "auto_account_read_failed");
       if (!account) throw new Error("auto_account_missing");
       if (!account.is_mock) {
+        const detail=await getCreativeProjectDetail(admin,claim.ownerId,id(claim,"projectId"));
+        if(detail.scripts.some(row=>row.id===detail.project.selected_script_id&&row.version===CREATIVE_STRATEGY_VERSION))
+          return wait("WAITING_FOR_PROVIDER","REVIEWED_ASSISTED_PRODUCTION_REQUIRED");
         const gate = falAutoModeAvailability({ keyPresent: Boolean(serverEnv.falKey), state: serverEnv.falWanProviderState });
         if (!gate.providerAvailable) return wait("WAITING_FOR_PROVIDER", "PROVIDER_UNAVAILABLE");
         try {

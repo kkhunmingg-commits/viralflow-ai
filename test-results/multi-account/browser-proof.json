@@ -1,0 +1,24 @@
+[
+  {
+    "viewport": {
+      "width": 1440,
+      "height": 900
+    },
+    "accounts": 10,
+    "hours": 24,
+    "horizontalOverflow": false,
+    "consoleErrors": [],
+    "scope": "Real component/CSS with isolated fixtures, no authenticated staging API proof"
+  },
+  {
+    "viewport": {
+      "width": 390,
+      "height": 844
+    },
+    "accounts": 10,
+    "hours": 24,
+    "horizontalOverflow": false,
+    "consoleErrors": [],
+    "scope": "Real component/CSS with isolated fixtures, no authenticated staging API proof"
+  }
+]

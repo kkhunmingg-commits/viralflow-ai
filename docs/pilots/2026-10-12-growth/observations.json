@@ -1,0 +1,88 @@
+{
+  "baseline": "e2e67b23a37ec29eb30c993b658be0bce69cd72f",
+  "observedDate": "2026-10-12",
+  "observationMethod": "PUBLIC_OFFICIAL_UI_AND_OWNER_AUTHORIZED_READ_ONLY_UI",
+  "pilot": {
+    "username": "luckzazero",
+    "connectedInCurrentViralFlowSession": true,
+    "ownerSelectedExistingAccount": true,
+    "accountAge": null,
+    "followers": null,
+    "health": null,
+    "grantedScopesVerifiedThisRun": null,
+    "serverAllowlistActivatedThisRun": false,
+    "postingConsentForFirstClip": false
+  },
+  "tiktokApp": {
+    "portalProductionStatus": "IN_REVIEW",
+    "reviewRequestedScopes": ["user.info.basic", "video.publish", "video.upload"],
+    "publicPostingVerified": false,
+    "portalConfigurationChanged": false
+  },
+  "trends": [
+    {
+      "source": "GOOGLE_TRENDS",
+      "url": "https://trends.google.com/trending?geo=TH",
+      "country": "TH",
+      "window": "PAST_24_HOURS",
+      "pageUpdatedDisplayed": "12/10/26 17:56",
+      "topic": "ลิเวอร์พูล พบ แมนซิตี",
+      "reportedSearchVolume": "200K+",
+      "reportedGrowthVsBaseline": "1,000%",
+      "reportedStatus": "ACTIVE",
+      "reportedStartedAgo": "20 hours",
+      "audienceDemographics": null,
+      "tiktokPerformance": null,
+      "machineFeedConnectedToPlanner": false
+    },
+    {
+      "source": "TIKTOK_CREATIVE_CENTER",
+      "url": "https://ads.tiktok.com/creative/creativeCenter/trends/hashtag?region=TH&period=7",
+      "country": "TH",
+      "window": "LAST_7_DAYS",
+      "rows": [
+        {"hashtag": "ฟีฟายอาวุธออนิว", "postsDisplayed": "52.6K", "viewsDisplayed": "55.8M"},
+        {"hashtag": "tiktokshop1010dancechallenge", "postsDisplayed": "37.9K", "viewsDisplayed": "23.3M"},
+        {"hashtag": "souleater", "postsDisplayed": "7.1K", "viewsDisplayed": "22.2M"}
+      ],
+      "detailedAnalytics": "LOGIN_REQUIRED",
+      "direction": null,
+      "audienceDemographics": null,
+      "machineFeedConnectedToPlanner": false
+    }
+  ],
+  "creative": {
+    "title": "ทำไมลูกฟุตบอลหมุนแล้วโค้ง?",
+    "choice": "ASSISTANT_SELECTED_EXPERIMENT_HYPOTHESIS",
+    "factSource": "https://www1.grc.nasa.gov/beginners-guide-to-aeronautics/bending-a-soccer-ball/",
+    "exactTopicTrendingOnTikTokVerified": false,
+    "topicScore": null,
+    "followerGainPrediction": null,
+    "targetDurationSeconds": 8,
+    "targetAspectRatio": "9:16",
+    "narrationLanguage": "th",
+    "promptFile": "first-clip-prompt.txt",
+    "captionFile": "caption.txt"
+  },
+  "execution": {
+    "googleVidsMode": "ASSISTED",
+    "googleVidsAiControlsVisible": true,
+    "canvasAspectRatioVerified": "9:16",
+    "documentSavedToDrive": true,
+    "generationPanel": "OWNER_ACTION_REQUIRED",
+    "createPanelAndPromptFieldObserved": true,
+    "browserAutomationStatus": "STOPPED_AFTER_CONTROL_FAILURES",
+    "remainingIncludedQuota": null,
+    "googleGenerationRequestsSubmitted": 0,
+    "generatedMp4": null,
+    "thaiAudioCheck": "NOT_RUN",
+    "visualQualityCheck": "NOT_RUN",
+    "pilotPublishingQueuePersisted": false,
+    "falFallbackStarted": false,
+    "paidApiCallsInitiated": 0,
+    "tiktokPublishUploadCallsInitiated": 0,
+    "productionDatabaseMutations": 0,
+    "productionDeployments": 0,
+    "realPilotE2E": "NOT_PROVEN"
+  }
+}
