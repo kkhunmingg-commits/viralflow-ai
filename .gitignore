@@ -17,4 +17,8 @@ benchmark-assets/
 .ai-live-dev/
 **/__pycache__/
 **/*.pyc
+.handoff-backup/
+workers/ai-live/installer/.build/
+workers/ai-live/installer/.dist/
+workers/ai-live/installer/.venv/
 

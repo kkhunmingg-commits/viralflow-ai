@@ -5,6 +5,6 @@ import nextTypeScript from "eslint-config-next/typescript";
 export default defineConfig([
   ...nextCoreWebVitals,
   ...nextTypeScript,
-  globalIgnores([".next/**", "coverage/**", "next-env.d.ts", ".venv-dev/**", ".ai-live-dev/**"]),
+  globalIgnores([".next/**", "coverage/**", "next-env.d.ts", ".venv-dev/**", ".ai-live-dev/**", ".handoff-backup/**", "handoff/local-source/**"]),
 ]);
 

@@ -1,0 +1,402 @@
+{
+  "checkedAt": "2026-10-13T18:54:13.065Z",
+  "repository": "kkhunmingg-commits/viralflow-ai",
+  "handoffBranch": "codex/claude-handoff-20261014",
+  "handoffCommit": "Resolve remote branch HEAD; this document cannot embed its own commit SHA",
+  "localBranches": [
+    {
+      "branch": "codex/backup-content-before-google-3571383",
+      "sha": "35713835000696556d18e063566c29af14d91fcb",
+      "remoteHead": "35713835000696556d18e063566c29af14d91fcb",
+      "sourceReachableFrom": "codex/backup-content-before-google-3571383",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "codex/content-generation-export",
+      "sha": "35713835000696556d18e063566c29af14d91fcb",
+      "remoteHead": "35713835000696556d18e063566c29af14d91fcb",
+      "sourceReachableFrom": "codex/content-generation-export",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "codex/fal-production-integration",
+      "sha": "57eedc81c522d2a191d9bebe47e85756d663f18a",
+      "remoteHead": "57eedc81c522d2a191d9bebe47e85756d663f18a",
+      "sourceReachableFrom": "codex/fal-production-integration",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "codex/google-vids-fal-router",
+      "sha": "9545a003d9f2d5ef7b572b08896724b32ce9ca02",
+      "remoteHead": "9545a003d9f2d5ef7b572b08896724b32ce9ca02",
+      "sourceReachableFrom": "codex/google-vids-fal-router",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "codex/manual-post-export",
+      "sha": "d5185edcebdf485d5d2ca87301ebdb49db3876b3",
+      "remoteHead": "d5185edcebdf485d5d2ca87301ebdb49db3876b3",
+      "sourceReachableFrom": "codex/manual-post-export",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "codex/production-readiness-integration",
+      "sha": "d684eb4680178fcec9985f315595ec673148f994",
+      "remoteHead": "d684eb4680178fcec9985f315595ec673148f994",
+      "sourceReachableFrom": "codex/production-readiness-integration",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "codex/tiktok-review-website",
+      "sha": "3900b773358f5556a81d664c87ea0c49d38e4a5b",
+      "remoteHead": "3900b773358f5556a81d664c87ea0c49d38e4a5b",
+      "sourceReachableFrom": "codex/tiktok-review-website",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "develop",
+      "sha": "c7db763bda65fc3fa1f57b8d3c2b379e3bbef72b",
+      "remoteHead": "dad413f9834efd0797206421bb67ef08e87342e0",
+      "sourceReachableFrom": "codex/backup-local-develop-20261014",
+      "verified": true,
+      "note": "LOCAL_HISTORIC_TIP_PRESERVED_IN_REMOTE_HISTORY"
+    },
+    {
+      "branch": "feature/account-product-assignment",
+      "sha": "2dd21a632961cbc25d4cddfb79ed4f781a7542dd",
+      "remoteHead": "db3324c60c3b55db9bed90b62690d0728fb34fe9",
+      "sourceReachableFrom": "codex/backup-local-feature-account-product-assignment-20261014",
+      "verified": true,
+      "note": "LOCAL_HISTORIC_TIP_PRESERVED_IN_REMOTE_HISTORY"
+    },
+    {
+      "branch": "feature/ai-live",
+      "sha": "a7d55301c8080a621a3330804173cf5d56be58eb",
+      "remoteHead": "a7d55301c8080a621a3330804173cf5d56be58eb",
+      "sourceReachableFrom": "feature/ai-live",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/analytics-learning",
+      "sha": "a0ef575cb107a5919d0a2ecbbae730f176e1293e",
+      "remoteHead": "a0ef575cb107a5919d0a2ecbbae730f176e1293e",
+      "sourceReachableFrom": "feature/analytics-learning",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/category-intelligence",
+      "sha": "e5c4576732e0a8f4358a558f8eabdd4594040375",
+      "remoteHead": "43fa284c4a662557ddf5c8db09f6fafa8e335135",
+      "sourceReachableFrom": "codex/backup-local-feature-account-product-assignment-20261014",
+      "verified": true,
+      "note": "LOCAL_HISTORIC_TIP_PRESERVED_IN_REMOTE_HISTORY"
+    },
+    {
+      "branch": "feature/compliance-brain",
+      "sha": "239fe51e8f9cb61da654ba6cc05f439ec8b02a89",
+      "remoteHead": "239fe51e8f9cb61da654ba6cc05f439ec8b02a89",
+      "sourceReachableFrom": "feature/compliance-brain",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/compliance-originality",
+      "sha": "bdfb088e4b1c1b0c3f30a8251b3e2389e19d9dc0",
+      "remoteHead": "bdfb088e4b1c1b0c3f30a8251b3e2389e19d9dc0",
+      "sourceReachableFrom": "feature/compliance-originality",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/creative-brain",
+      "sha": "fabd005d13b7fcad02176fb27021207febf28d32",
+      "remoteHead": "b2a30a20a4764154c65697d6bb147feff9ba9deb",
+      "sourceReachableFrom": "codex/backup-local-feature-creative-brain-20261014",
+      "verified": true,
+      "note": "LOCAL_HISTORIC_TIP_PRESERVED_IN_REMOTE_HISTORY"
+    },
+    {
+      "branch": "feature/fal-wan-primary-provider",
+      "sha": "401d7c0aed4a09142b8b4df9da8861c9fdf9cffd",
+      "remoteHead": "401d7c0aed4a09142b8b4df9da8861c9fdf9cffd",
+      "sourceReachableFrom": "feature/fal-wan-primary-provider",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/foundation",
+      "sha": "cbb32ac5cc2df89c7be09022d1b0e2b22754e21d",
+      "remoteHead": "8eaf14b10ae26c5a0a4477d15ef61c306ef3788c",
+      "sourceReachableFrom": "codex/backup-local-feature-account-product-assignment-20261014",
+      "verified": true,
+      "note": "LOCAL_HISTORIC_TIP_PRESERVED_IN_REMOTE_HISTORY"
+    },
+    {
+      "branch": "feature/full-auto-mode",
+      "sha": "42bfaa02ea73ae511bcf521948987e19f2f5cd9b",
+      "remoteHead": "42bfaa02ea73ae511bcf521948987e19f2f5cd9b",
+      "sourceReachableFrom": "feature/full-auto-mode",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/google-veo-provider",
+      "sha": "2ae6bae3ff5d9105cd29da884118da60fecd8157",
+      "remoteHead": "2ae6bae3ff5d9105cd29da884118da60fecd8157",
+      "sourceReachableFrom": "feature/google-veo-provider",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/growth-learning-engine",
+      "sha": "a26a82f4b7f06d9f5370ab25d1ae2616cfd7a3fc",
+      "remoteHead": "a26a82f4b7f06d9f5370ab25d1ae2616cfd7a3fc",
+      "sourceReachableFrom": "feature/growth-learning-engine",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/multi-account-brain",
+      "sha": "b5ccba185cbdebb4f13eb41ddfdc6557eccd0198",
+      "remoteHead": "9fe1d5a70b455d56e63bfe358f2eb0f798bb9f8a",
+      "sourceReachableFrom": "codex/backup-local-feature-account-product-assignment-20261014",
+      "verified": true,
+      "note": "LOCAL_HISTORIC_TIP_PRESERVED_IN_REMOTE_HISTORY"
+    },
+    {
+      "branch": "feature/post-multi-account",
+      "sha": "2614eadcc4afca7dbd579adc3a5baa5748e24eef",
+      "remoteHead": "2614eadcc4afca7dbd579adc3a5baa5748e24eef",
+      "sourceReachableFrom": "feature/post-multi-account",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/product-radar",
+      "sha": "6a74ed6f7584e5882e4343d718f2fe4d2cd38a83",
+      "remoteHead": "a65fddbfd85ab56a3365fee527c5c08383c29474",
+      "sourceReachableFrom": "codex/backup-local-feature-account-product-assignment-20261014",
+      "verified": true,
+      "note": "LOCAL_HISTORIC_TIP_PRESERVED_IN_REMOTE_HISTORY"
+    },
+    {
+      "branch": "feature/tiktok-oauth-foundation",
+      "sha": "c62390545b47c2df07bfd3439cc21889989da763",
+      "remoteHead": "c62390545b47c2df07bfd3439cc21889989da763",
+      "sourceReachableFrom": "feature/tiktok-oauth-foundation",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/tiktok-publishing-foundation",
+      "sha": "1297536e53c924b9b6af0c1e697a3721049f4829",
+      "remoteHead": "1297536e53c924b9b6af0c1e697a3721049f4829",
+      "sourceReachableFrom": "feature/tiktok-publishing-foundation",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/tiktok-shop-foundation",
+      "sha": "946b095ea87630aed1b4e0ad206b3fcfa099d879",
+      "remoteHead": "946b095ea87630aed1b4e0ad206b3fcfa099d879",
+      "sourceReachableFrom": "feature/tiktok-shop-foundation",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/ui-control-center",
+      "sha": "ff85ee94f691facac9ed587f28f07e771d12efe0",
+      "remoteHead": "ff85ee94f691facac9ed587f28f07e771d12efe0",
+      "sourceReachableFrom": "feature/ui-control-center",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/video-factory",
+      "sha": "7c6044a998f614fe9b8911f8ac48b5e3a40367ec",
+      "remoteHead": "7c6044a998f614fe9b8911f8ac48b5e3a40367ec",
+      "sourceReachableFrom": "feature/video-factory",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "feature/video-provider-benchmark",
+      "sha": "fd405830e299cebbc346b2cebafc342b837412ee",
+      "remoteHead": "fd405830e299cebbc346b2cebafc342b837412ee",
+      "sourceReachableFrom": "feature/video-provider-benchmark",
+      "verified": true,
+      "note": "EXACT_REMOTE_HEAD"
+    },
+    {
+      "branch": "main",
+      "sha": "c7db763bda65fc3fa1f57b8d3c2b379e3bbef72b",
+      "remoteHead": "dad413f9834efd0797206421bb67ef08e87342e0",
+      "sourceReachableFrom": "codex/backup-local-develop-20261014",
+      "verified": true,
+      "note": "LOCAL_HISTORIC_TIP_PRESERVED_IN_REMOTE_HISTORY"
+    }
+  ],
+  "remoteBranches": [
+    {
+      "branch": "codex/backup-content-before-google-3571383",
+      "sha": "35713835000696556d18e063566c29af14d91fcb"
+    },
+    {
+      "branch": "codex/backup-local-develop-20261014",
+      "sha": "c7db763bda65fc3fa1f57b8d3c2b379e3bbef72b"
+    },
+    {
+      "branch": "codex/backup-local-feature-account-product-assignment-20261014",
+      "sha": "2dd21a632961cbc25d4cddfb79ed4f781a7542dd"
+    },
+    {
+      "branch": "codex/backup-local-feature-category-intelligence-20261014",
+      "sha": "e5c4576732e0a8f4358a558f8eabdd4594040375"
+    },
+    {
+      "branch": "codex/backup-local-feature-creative-brain-20261014",
+      "sha": "fabd005d13b7fcad02176fb27021207febf28d32"
+    },
+    {
+      "branch": "codex/backup-local-feature-foundation-20261014",
+      "sha": "cbb32ac5cc2df89c7be09022d1b0e2b22754e21d"
+    },
+    {
+      "branch": "codex/backup-local-feature-multi-account-brain-20261014",
+      "sha": "b5ccba185cbdebb4f13eb41ddfdc6557eccd0198"
+    },
+    {
+      "branch": "codex/backup-local-feature-product-radar-20261014",
+      "sha": "6a74ed6f7584e5882e4343d718f2fe4d2cd38a83"
+    },
+    {
+      "branch": "codex/backup-local-main-20261014",
+      "sha": "c7db763bda65fc3fa1f57b8d3c2b379e3bbef72b"
+    },
+    {
+      "branch": "codex/content-generation-export",
+      "sha": "35713835000696556d18e063566c29af14d91fcb"
+    },
+    {
+      "branch": "codex/fal-production-integration",
+      "sha": "57eedc81c522d2a191d9bebe47e85756d663f18a"
+    },
+    {
+      "branch": "codex/google-vids-fal-router",
+      "sha": "9545a003d9f2d5ef7b572b08896724b32ce9ca02"
+    },
+    {
+      "branch": "codex/manual-post-export",
+      "sha": "d5185edcebdf485d5d2ca87301ebdb49db3876b3"
+    },
+    {
+      "branch": "codex/production-readiness-integration",
+      "sha": "d684eb4680178fcec9985f315595ec673148f994"
+    },
+    {
+      "branch": "codex/tiktok-review-website",
+      "sha": "3900b773358f5556a81d664c87ea0c49d38e4a5b"
+    },
+    {
+      "branch": "develop",
+      "sha": "dad413f9834efd0797206421bb67ef08e87342e0"
+    },
+    {
+      "branch": "feature/account-product-assignment",
+      "sha": "db3324c60c3b55db9bed90b62690d0728fb34fe9"
+    },
+    {
+      "branch": "feature/ai-live",
+      "sha": "a7d55301c8080a621a3330804173cf5d56be58eb"
+    },
+    {
+      "branch": "feature/analytics-learning",
+      "sha": "a0ef575cb107a5919d0a2ecbbae730f176e1293e"
+    },
+    {
+      "branch": "feature/category-intelligence",
+      "sha": "43fa284c4a662557ddf5c8db09f6fafa8e335135"
+    },
+    {
+      "branch": "feature/compliance-brain",
+      "sha": "239fe51e8f9cb61da654ba6cc05f439ec8b02a89"
+    },
+    {
+      "branch": "feature/compliance-originality",
+      "sha": "bdfb088e4b1c1b0c3f30a8251b3e2389e19d9dc0"
+    },
+    {
+      "branch": "feature/creative-brain",
+      "sha": "b2a30a20a4764154c65697d6bb147feff9ba9deb"
+    },
+    {
+      "branch": "feature/fal-wan-primary-provider",
+      "sha": "401d7c0aed4a09142b8b4df9da8861c9fdf9cffd"
+    },
+    {
+      "branch": "feature/foundation",
+      "sha": "8eaf14b10ae26c5a0a4477d15ef61c306ef3788c"
+    },
+    {
+      "branch": "feature/full-auto-mode",
+      "sha": "42bfaa02ea73ae511bcf521948987e19f2f5cd9b"
+    },
+    {
+      "branch": "feature/google-veo-provider",
+      "sha": "2ae6bae3ff5d9105cd29da884118da60fecd8157"
+    },
+    {
+      "branch": "feature/growth-learning-engine",
+      "sha": "a26a82f4b7f06d9f5370ab25d1ae2616cfd7a3fc"
+    },
+    {
+      "branch": "feature/multi-account-brain",
+      "sha": "9fe1d5a70b455d56e63bfe358f2eb0f798bb9f8a"
+    },
+    {
+      "branch": "feature/post-multi-account",
+      "sha": "2614eadcc4afca7dbd579adc3a5baa5748e24eef"
+    },
+    {
+      "branch": "feature/product-radar",
+      "sha": "a65fddbfd85ab56a3365fee527c5c08383c29474"
+    },
+    {
+      "branch": "feature/tiktok-oauth-foundation",
+      "sha": "c62390545b47c2df07bfd3439cc21889989da763"
+    },
+    {
+      "branch": "feature/tiktok-publishing-foundation",
+      "sha": "1297536e53c924b9b6af0c1e697a3721049f4829"
+    },
+    {
+      "branch": "feature/tiktok-shop-foundation",
+      "sha": "946b095ea87630aed1b4e0ad206b3fcfa099d879"
+    },
+    {
+      "branch": "feature/ui-control-center",
+      "sha": "ff85ee94f691facac9ed587f28f07e771d12efe0"
+    },
+    {
+      "branch": "feature/video-factory",
+      "sha": "7c6044a998f614fe9b8911f8ac48b5e3a40367ec"
+    },
+    {
+      "branch": "feature/video-provider-benchmark",
+      "sha": "fd405830e299cebbc346b2cebafc342b837412ee"
+    },
+    {
+      "branch": "main",
+      "sha": "dad413f9834efd0797206421bb67ef08e87342e0"
+    }
+  ]
+}

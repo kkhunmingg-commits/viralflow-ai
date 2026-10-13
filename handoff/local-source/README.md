@@ -1,6 +1,6 @@
 # Archived local helper source — WIP, not integrated
 
-These 25 small project-authored helper files previously existed only inside ignored
+These 25 small project-authored helper files plus two dependency manifests previously existed only inside ignored
 development/benchmark directories. Their exact bytes are preserved as `.source`
 files so TypeScript/ESLint/build discovery cannot execute or integrate them.
 `INDEX.json` records each original relative path, archive path, byte size and SHA-256.
