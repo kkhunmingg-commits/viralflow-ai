@@ -1,0 +1,16 @@
+import {readFile,writeFile,appendFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+const root=resolve('.video-benchmark/economy-20261013');
+const path=root+'/manifest.json';
+const m=JSON.parse(await readFile(path,'utf8'));
+const reviews={
+ 'mop-ltx8-interaction':{productFidelity:3,handQuality:5,temporalConsistency:4,motionQuality:3,promptAdherence:3,artifactSeverity:8,failureReason:'Lower shaft and white collar move vertically; a new large blue connector appears; mop separates from head. Mechanism does not reproduce reference spin demonstration.'},
+ 'mop-ltx8-fixed':{productFidelity:3,handQuality:4,temporalConsistency:4,motionQuality:3,promptAdherence:3,artifactSeverity:8,failureReason:'At two seconds an extra-looking detached grip appears halfway down the pole while the original arm extends above frame. Lower white collar and blue joint move vertically instead of fixed telescoping mechanism; mop-head geometry changes. Does not match reference physical demonstration.'}
+};
+for(const sample of m.samples){
+ if(sample.name in reviews)sample.visualReview={...reviews[sample.name as keyof typeof reviews],reviewBasis:'Assistant inspection of real half-second sampled frames, not paid vision or all-frame certification',nativeEightSeconds:sample.media?.duration>=8,usableFullGeneratedShot:false,audioTested:false};
+}
+m.requirementCorrection={reference:'C:/Users/luckz/Downloads/Hands_operating_spin_mop_bucket_20261013155051.mp4',referenceDuration:8,referenceDimensions:[720,1280],required:'Continuous realistic hand-operated product demonstration with correct physical mechanism for at least eight seconds',rejectedApproach:'Five-second product shot followed by still end card does not satisfy owner requirement',referenceFrame:root+'/owner-mop-reference.jpg',referenceAudioContent:'NOT_REVIEWED'};
+m.summary={...m.summary,generatedRequests:m.samples.length,conservativeCatalogTotalUsd:m.samples.reduce((sum:number,s:{estimateUsd:number})=>sum+s.estimateUsd,0),reservedTotalUsd:m.samples.reduce((sum:number,s:{reserveUsd:number})=>sum+s.reserveUsd,0),economyAdCandidate:null,nativeEightSecondWithin5ThbWinner:null,referenceMatchingUsableCount:0,correctedRequirementMet:false,actualBillingTotalUsd:null};
+await writeFile(path,JSON.stringify(m,null,2));
+console.log(JSON.stringify({requests:m.summary.generatedRequests,catalogEstimateUsd:m.summary.conservativeCatalogTotalUsd,reservedUsd:m.summary.reservedTotalUsd,actualBillingUsd:null,correctedRequirementMet:false}));

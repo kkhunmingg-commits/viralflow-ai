@@ -1,0 +1,15 @@
+import {readFile,writeFile,rename} from 'node:fs/promises';
+const path='.video-benchmark/economy-20261013/manifest.json';
+const m=JSON.parse(await readFile(path,'utf8'));
+if(m.latestAuthorization){
+ if(m.latestAuthorization.id!=='owner-economical-wan-one-20261013')throw new Error('Unexpected prior authorization');
+ console.log('Existing one-request authorization retained; no additional budget added.');
+}else{
+ const baseline=m.samples.reduce((sum:number,s:{reserveUsd:number})=>sum+s.reserveUsd,0);
+ if(m.budgetCapUsd!==1 || baseline!==.750753 || m.samples.length!==5)throw new Error('Unexpected ledger baseline');
+ m.previousBudgetCapUsd=m.budgetCapUsd;
+ m.latestAuthorization={id:'owner-economical-wan-one-20261013',ownerInstruction:'ทดลองดูเลยแต่อย่าให้เปลืองมาก',agentAnnouncedAdditionalCapUsd:.6,maxAdditionalUsd:.6,maxNewRequests:1,baselineReservedUsd:baseline,baselineSampleCount:5,allowedName:'mop-wan26-10-interaction',createdAt:new Date().toISOString()};
+ m.budgetCapUsd=1.350753;
+ await writeFile(path+'.tmp',JSON.stringify(m,null,2));await rename(path+'.tmp',path);
+ console.log(JSON.stringify({additionalCapUsd:.6,maxNewRequests:1,previousReservationsUsd:baseline,cumulativeReservationCapUsd:m.budgetCapUsd}));
+}

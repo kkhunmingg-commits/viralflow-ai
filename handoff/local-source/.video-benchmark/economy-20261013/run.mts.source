@@ -1,0 +1,62 @@
+import {readFile,writeFile,rename,open,mkdir} from 'node:fs/promises';
+import {existsSync} from 'node:fs';
+import {resolve,join} from 'node:path';
+import {createHash} from 'node:crypto';
+import {FalWanVideoProvider,createFalQueueClient} from '../../src/features/video/fal-wan';
+import {FFmpegVideoRenderer} from '../../src/features/video/renderer';
+import {preparePortraitProductReference} from '../../src/features/video-benchmark/provider-normalization';
+const root=resolve('.video-benchmark/economy-20261013'),manifestPath=join(root,'manifest.json');
+const action=process.argv[2],name=process.argv[3]??'beauty-wan480-a';
+const model=process.argv[4]??'fal-ai/wan/v2.2-a14b/image-to-video/turbo',resolution=process.argv[5]??'480p';
+const promptVariant=process.argv[6]??'a';
+const fixtures=JSON.parse(await readFile('benchmarks/stage-fal-wan.json','utf8'));
+const fixture=name.startsWith('mop-')?{id:'owner-mop',imagePath:join(root,'owner-mop-reference.jpg'),prompt:'A single continuous eight-second photorealistic product demonstration matching the supplied image. Close-up of the same beige spin-mop bucket with brown rim and round stainless-steel perforated spinner. The person keeps one hand naturally wrapped around the upright silver mop handle and the other hand resting firmly on the bucket rim. The handle hand presses the telescopic pole straight down twice in two slow controlled strokes; the centered mop head visibly rotates inside the metal spinner as the pole is pressed, then gently slows. The rim hand steadies the bucket. Keep both hands anatomically correct with consistent fingers and grips. Maintain the exact bucket, basket, mop, hand positions and indoor setting. The mop pole remains connected to the mop head and aligned with the spinner throughout. Stationary close-up camera, natural indoor lighting, realistic small movements. No cuts, no product transformations, no new objects, no overlays and no end card.'}:fixtures.find((x:{id:string})=>name.startsWith(x.id))??fixtures[0];
+await mkdir(root,{recursive:true});
+const lock=await open(join(root,'run.lock'),'wx').catch(()=>{throw new Error('Another run holds the lock; no paid submit allowed');});
+let key:string|undefined;
+async function persist(m:unknown){await writeFile(join(root,'manifest.tmp'),JSON.stringify(m,null,2));await rename(join(root,'manifest.tmp'),manifestPath);}
+try{
+  const m=existsSync(manifestPath)?JSON.parse(await readFile(manifestPath,'utf8')):{version:1,budgetCapUsd:1,fxPlanningThbPerUsd:33.53,fxSource:'https://wise.com/us/currency-converter/usd-to-thb-rate',samples:[]};
+  const extension=m.latestAuthorization;
+  if(m.budgetCapUsd!==1 && !(extension?.id==='owner-economical-wan-one-20261013' && extension.maxAdditionalUsd===.6 && extension.baselineReservedUsd===.750753 && m.budgetCapUsd===1.350753))throw new Error('Unexpected benchmark budget');
+  if(existsSync('.env.local'))process.loadEnvFile('.env.local');key=process.env.FAL_KEY;
+  if(!key)throw new Error('FAL_KEY_NOT_CONFIGURED');
+  const source=resolve(fixture.imagePath),reference=join(root,fixture.id+'-reference.jpg');
+  if(!existsSync(reference))await preparePortraitProductReference(source,reference);
+  const bytes=await readFile(reference),queue=createFalQueueClient(key);
+  const client={...queue,upload:async(file:Blob)=>`data:image/jpeg;base64,${Buffer.from(await file.arrayBuffer()).toString('base64')}`};
+  const provider=new FalWanVideoProvider({apiKey:key,model,resolution,aspectRatio:'9:16',durationSeconds:8,client,maxPollAttempts:144,timeoutMs:720_000,readRetryAttempts:1});
+  const priceUrl=new URL('https://api.fal.ai/v1/models/pricing');priceUrl.searchParams.set('endpoint_id',model);
+  const priced=await fetch(priceUrl,{headers:{Authorization:`Key ${key}`},redirect:'error',signal:AbortSignal.timeout(15_000)});
+  if(!priced.ok)throw new Error('READ_ONLY_PRICE_UNAVAILABLE');const body=await priced.json(),price=body.prices?.find((p:{endpoint_id:string})=>p.endpoint_id===model);
+  if(!price||price.currency!=='USD'||body.has_more||price.unit_price<=0)throw new Error('PRICE_INVALID');
+  const settings=provider.getSettings();
+  const estimate=Math.max(provider.estimateCost(),price.unit==='seconds'?price.unit_price*(settings.durationSeconds??0):price.unit==='videos'?price.unit_price:NaN);
+  const reserve=Math.ceil(estimate*1.1*1e6)/1e6;
+  if(!Number.isFinite(reserve)||reserve<=0)throw new Error('PRICE_INVALID');
+  let sample=m.samples.find((s:{name:string})=>s.name===name);
+  if(action==='quote'){console.log(JSON.stringify({name,model,resolution,settings,estimateUsd:estimate,reserveUsd:reserve,knownReservationUsd:m.samples.reduce((sum:number,s:{reserveUsd:number})=>sum+s.reserveUsd,0)}));}
+  else{
+    if(!['generate','recover'].includes(action))throw new Error('Explicit generate or recover action required');
+    if(sample&&sample.state==='COMPLETE'){console.log(JSON.stringify({name,state:'ALREADY_COMPLETE',output:sample.output}));}
+    else{
+      if(action==='recover'&&(!sample?.requestId))throw new Error('No known interaction to recover; no new POST');
+      if(action==='generate'&&sample)throw new Error('Existing paid attempt: recover only, never resubmit');
+      if(action==='generate'){
+        if(extension && (name!==extension.allowedName || model!=='wan/v2.6/image-to-video/flash' || m.samples.length!==extension.baselineSampleCount || reserve>extension.maxAdditionalUsd))throw new Error('ONE_NEW_WAN_ATTEMPT_ONLY');
+        if(m.samples.reduce((sum:number,s:{reserveUsd:number})=>sum+s.reserveUsd,0)+reserve>m.budgetCapUsd)throw new Error('BUDGET_CAP_BLOCKED');
+        const prompt=name.startsWith('mop-')?(promptVariant==='fixed-mechanism'?'Eight-second uninterrupted realistic home product demonstration, stationary camera. Exactly preserve the spin-mop bucket, spinner, mop, hands and room in the reference image. The lower silver shaft, white locking collar and mop head remain seated in the spinner at the SAME vertical height for the ENTIRE video. The mop head is never raised, removed or detached. Only the UPPER telescoping shaft moves a short distance downward INSIDE the fixed lower shaft when the upper hand gently presses it; the upper hand then releases pressure and repeats once. This internal telescoping motion makes the white cloth mop head and metal basket rotate together rapidly in place, visibly blurring the white fibers, then slow down naturally. The other hand rests steadily on the bucket rim. No upward lifting of the whole pole, no pulling the mop out, no new blue parts, no floating parts. Maintain five anatomically correct fingers on each hand, consistent grips, a straight connected shaft and unchanged bucket. Subtle, physically plausible motion; no cuts, no zoom, no text.':fixture.prompt):promptVariant==='stable'?'Single continuous premium studio product hero shot of exactly the bottle and cap in the reference. The entire bottle and its separate cap remain stationary on the table, upright and identical in size and shape for the whole shot. Only very soft studio lighting gently changes. Locked camera, no zoom and no orbit. Preserve the exact original printed VF LAB logo, SERUM B-01 and 30 mL text without rewriting or adding any letters. No people, no hands, no fingers, no pumping, no opening, no cap movement, no product use, no visual effects, no new objects and no scene changes. Preserve the original reference composition and all product parts.':fixture.prompt+' '+(promptVariant==='b'?'Second shot: a gentle lateral camera slide, keep the bottle and cap absolutely stationary.':'First shot: a subtle studio push-in, preserve every label and all product parts. No hands, no text overlay.');
+        sample={name,model,resolution,settings,estimateUsd:estimate,reserveUsd:reserve,actualCostUsd:null,costBasis:'CATALOG_ESTIMATE_NOT_BILLING_RECEIPT',state:'RESERVED',createdAt:new Date().toISOString(),imageSha256:createHash('sha256').update(bytes).digest('hex'),prompt};m.samples.push(sample);await persist(m);
+      }
+      const started=Date.now();let result;
+      try{
+        result=action==='recover'?await provider.retrieve(sample.requestId):await provider.generate({image:new Blob([bytes],{type:'image/jpeg'}),prompt:sample.prompt,resolution,aspectRatio:'9:16',durationSeconds:8,maxCostUsd:reserve,seed:promptVariant==='b'?1002:1001,
+          beforeSubmit:async()=>{sample.state='SUBMITTING';await persist(m);console.log(JSON.stringify({name,state:'SUBMITTING',reservedUsd:reserve}));},
+          onSubmitted:async(id:string)=>{sample.requestId=id;sample.state='ACCEPTED';await persist(m);console.log(JSON.stringify({name,state:'ACCEPTED',requestId:id}));}});
+        const output=join(root,name+'-source.mp4');await writeFile(output,result.bytes);sample.output=output;sample.state='COMPLETE';sample.latencyMs=Date.now()-started;sample.sha256=result.checksum;sample.media=await new FFmpegVideoRenderer().probe(output);sample.finishedAt=new Date().toISOString();await persist(m);
+        console.log(JSON.stringify({name,state:sample.state,requestId:sample.requestId,estimateUsd:sample.estimateUsd,actualCostUsd:null,latencyMs:sample.latencyMs,media:sample.media,output}));
+      }catch(error){sample.state=sample.requestId?'RECONCILIATION_REQUIRED':'SUBMISSION_UNKNOWN';sample.errorCode=error&&typeof error==='object'&&'code'in error?String(error.code):'PROVIDER_ERROR';await persist(m);console.log(JSON.stringify({name,state:sample.state,requestId:sample.requestId??null,errorCode:sample.errorCode}));process.exitCode=1;}
+    }
+  }
+}catch{console.log(JSON.stringify({state:'STOPPED',generationRetry:false,reason:'Preflight/budget/lock failed; no secret details logged'}));process.exitCode=1;}
+finally{key=undefined;delete process.env.FAL_KEY;await lock.close();const {unlink}=await import('node:fs/promises');await unlink(join(root,'run.lock')).catch(()=>{});}

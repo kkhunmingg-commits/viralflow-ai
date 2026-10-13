@@ -1,0 +1,16 @@
+import {readFile,writeFile,rename} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import {resolve,join} from 'node:path';
+import {FFmpegVideoRenderer} from '../../src/features/video/renderer';
+const root=resolve('.video-benchmark/economy-20261013'),name='mop-wan26-10-interaction';
+const m=JSON.parse(await readFile(join(root,'manifest.json'),'utf8'));
+const sample=m.samples.find((s:{name:string})=>s.name===name);
+if(sample?.state!=='COMPLETE')throw new Error('Only inspect a completed existing request; never submit.');
+const run=(args:string[])=>new Promise<void>((res,rej)=>{const p=spawn(resolve('node_modules/ffmpeg-static/ffmpeg.exe'),['-hide_banner','-loglevel','error','-y',...args],{windowsHide:true});p.on('error',rej);p.stderr.on('data',()=>{});p.on('close',code=>code===0?res():rej(new Error('Media inspection failed')));});
+await run(['-i',sample.output,'-vf','fps=2,scale=264:-1,tile=5x4','-frames:v','1',join(root,name+'-contact.jpg')]);
+for(const second of [2,4,6,8])await run(['-ss',String(second),'-i',sample.output,'-frames:v','1',join(root,name+'-'+second+'s.jpg')]);
+sample.media=await new FFmpegVideoRenderer().probe(sample.output);
+sample.priceEvidence={officialModelPage:'https://fal.ai/models/wan/v2.6/image-to-video/flash',officialSchema:'https://fal.ai/models/wan/v2.6/image-to-video/flash/api',audioOnQuoteUsdPerSecond:.05,silentRateFractionOfAudioOn:.5,silentCatalogEstimateUsd:.25,conservativePricingApiEstimateUsd:sample.estimateUsd,actualBillingUsd:null,actualBillingVerified:false,seed:1001,addedPaidAudio:false};
+m.summary={...m.summary,generatedRequests:m.samples.length,conservativeCatalogTotalUsd:m.samples.reduce((sum:number,s:{estimateUsd:number})=>sum+s.estimateUsd,0),reservedTotalUsd:m.samples.reduce((sum:number,s:{reserveUsd:number})=>sum+s.reserveUsd,0),actualBillingTotalUsd:null};
+await writeFile(join(root,'manifest.tmp'),JSON.stringify(m,null,2));await rename(join(root,'manifest.tmp'),join(root,'manifest.json'));
+console.log(JSON.stringify({requestId:sample.requestId,media:sample.media,latencyMs:sample.latencyMs,conservativeEstimateUsd:sample.estimateUsd,silentCatalogEstimateUsd:.25,reserveUsd:sample.reserveUsd,cumulativeReservedUsd:m.summary.reservedTotalUsd,actualBillingUsd:null}));

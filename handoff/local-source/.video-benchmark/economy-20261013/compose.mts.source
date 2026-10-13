@@ -1,0 +1,32 @@
+import {readFile,writeFile} from 'node:fs/promises';
+import {resolve,join} from 'node:path';
+import {spawn} from 'node:child_process';
+import {FFmpegVideoRenderer} from '../../src/features/video/renderer';
+const root=resolve('.video-benchmark/economy-20261013'),ffmpeg=resolve('node_modules/ffmpeg-static/ffmpeg.exe');
+const sample=process.argv[2]??'beauty-wan480-a',mode=process.argv[3]??'hybrid';
+const aiSeconds=Number(process.argv[4]??5);if(!Number.isFinite(aiSeconds)||aiSeconds<1||aiSeconds>5)throw new Error('Invalid observed usable segment');
+const input=join(root,sample+'-source.mp4'),output=join(root,sample+(mode==='hybrid'?'-ad8-hybrid':'-ad8-native')+'.mp4');
+const rate=44100,seconds=8,samples=rate*seconds,audio=Buffer.alloc(44+samples*2);
+audio.write('RIFF',0);audio.writeUInt32LE(audio.length-8,4);audio.write('WAVEfmt ',8);audio.writeUInt32LE(16,16);audio.writeUInt16LE(1,20);audio.writeUInt16LE(1,22);audio.writeUInt32LE(rate,24);audio.writeUInt32LE(rate*2,28);audio.writeUInt16LE(2,32);audio.writeUInt16LE(16,34);audio.write('data',36);audio.writeUInt32LE(samples*2,40);
+const notes=[261.63,329.63,392,523.25,220,261.63,329.63,440,174.61,220,261.63,349.23,196,246.94,293.66,392];
+for(let i=0;i<samples;i++){const t=i/rate,phase=t%0.5,f=notes[Math.min(15,Math.floor(t/.5))],env=Math.min(1,phase/.015)*Math.exp(-phase*5),fade=Math.min(1,t/.3,(8-t)/.6);const melody=(Math.sin(2*Math.PI*f*t)+.24*Math.sin(2*Math.PI*2*f*t)+.08*Math.sin(2*Math.PI*3*f*t))*.12*env;const kick=.035*Math.sin(2*Math.PI*(55*phase+18*(1-Math.exp(-phase*15))/15))*Math.exp(-phase*20);audio.writeInt16LE(Math.round(Math.max(-1,Math.min(1,(melody+kick)*fade))*32767),44+i*2);}
+await writeFile(join(root,'original-local-music.wav'),audio);
+await writeFile(join(root,'headline.txt'),'ดีไซน์เรียบง่าย ใส่ใจรายละเอียด');
+await writeFile(join(root,'brand.txt'),'VF LAB / SERUM B-01');
+await writeFile(join(root,'cta.txt'),'ดูรายละเอียดสินค้า');
+await writeFile(join(root,'disclosure.txt'),'ตัวอย่างทดสอบ • สินค้าสมมติ');
+const rel=(file:string)=>'.video-benchmark/economy-20261013/'+file;
+const font="fontfile='C\\:/Windows/Fonts/tahoma.ttf'";
+const overlay=[`drawtext=${font}:textfile='${rel('brand.txt')}':fontcolor=0xf3c7b0:fontsize=29:x=(w-text_w)/2:y=85`,
+ `drawtext=${font}:textfile='${rel('headline.txt')}':fontcolor=white:fontsize=32:x=(w-text_w)/2:y=152`,
+ `drawbox=x=150:y=1050:w=420:h=78:color=0xcf876d:t=fill`,
+ `drawtext=${font}:textfile='${rel('cta.txt')}':fontcolor=white:fontsize=32:x=(w-text_w)/2:y=1070`,
+ `drawtext=${font}:textfile='${rel('disclosure.txt')}':fontcolor=0xaeb5c2:fontsize=19:x=(w-text_w)/2:y=1200`].join(',');
+const args=['-nostdin','-hide_banner','-loglevel','error','-y','-i',input,...(mode==='hybrid'?['-loop','1','-i','benchmark-assets/beauty.jpg']:[]),'-i',join(root,'original-local-music.wav')];
+const normalize='scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2:color=0x181c26,setsar=1,fps=30,format=yuv420p';
+const filter=mode==='hybrid'?`[0:v]trim=duration=${aiSeconds},setpts=PTS-STARTPTS,${normalize}[a];[1:v]trim=duration=${8-aiSeconds},setpts=PTS-STARTPTS,scale=720:720,pad=720:1280:0:280:color=0x181c26,setsar=1,fps=30,format=yuv420p[b];[a][b]concat=n=2:v=1:a=0,${overlay}[v]`:`[0:v]trim=duration=8,setpts=PTS-STARTPTS,${normalize},${overlay}[v]`;
+args.push('-filter_complex',filter,'-map','[v]','-map',mode==='hybrid'?'2:a:0':'1:a:0','-t','8','-c:v','libx264','-preset','medium','-crf','20','-c:a','aac','-b:a','128k','-movflags','+faststart',output);
+await new Promise<void>((yes,no)=>{const p=spawn(ffmpeg,args,{windowsHide:true,stdio:['ignore','ignore','pipe']});let errors='';p.stderr.on('data',c=>{errors=(errors+c.toString()).slice(-2000)});p.on('error',no);p.on('close',code=>code===0?yes():no(new Error(errors)));});
+const media=await new FFmpegVideoRenderer().probe(output);
+const m=JSON.parse(await readFile(join(root,'manifest.json'),'utf8'));m.deliverables??=[];m.deliverables=m.deliverables.filter((d:{output:string})=>d.output!==output);m.deliverables.push({output,source:input,kind:mode==='hybrid'?'GENERATED_SHOT_PLUS_ORIGINAL_REFERENCE_ENDCARD':'8_SECONDS_GENERATED',generatedSeconds:mode==='hybrid'?aiSeconds:8,referenceEndcardSeconds:mode==='hybrid'?8-aiSeconds:0,media,music:'original-local-music.wav',voiceover:false,fixtureDisclosure:true,paidAudioCalls:0});await writeFile(join(root,'manifest.json'),JSON.stringify(m,null,2));
+console.log(JSON.stringify({output,media,mode,audio:'Original local instrumental, not voiceover',paidAdditionalCostUsd:0}));
