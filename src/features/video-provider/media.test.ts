@@ -41,6 +41,15 @@ it("validates real MP4/audio/frames, imports master, renders real crop and keeps
     const file=db.objects.get(String(result.storage_path))!;const finalPath=join(dir,"variation.mp4");await writeFile(finalPath,new Uint8Array(await file.arrayBuffer()));
     const actual=await new FFmpegVideoRenderer().probe(finalPath);expect(actual).toMatchObject({width:1080,height:1920,hasAudio:true,videoCodec:"h264",audioCodec:"aac"});expect(actual.duration).toBeCloseTo(8,1);
     expect(db.rows.media_assets.some(row=>row.source_type==="MOCK")).toBe(false);
+    // WAN 2.6 source length is 10s: exercise actual local trim/audio/frame checks without a provider call.
+    const wanPath=join(dir,"wan-length-fixture.mp4");
+    await run(["-f","lavfi","-i","testsrc2=size=360x640:rate=24:duration=10","-f","lavfi","-i","sine=frequency=440:sample_rate=32000:duration=10","-c:v","libx264","-preset","ultrafast","-pix_fmt","yuv420p","-c:a","aac",wanPath]);
+    const wanDb=fixtureDatabase(new Uint8Array(await readFile(imagePath)));
+    const wanMaster=await finalizeProviderMaster(wanDb.client,owner,{...input,provider:"fal_ai",estimated_cost_usd:.55},source,new Uint8Array(await readFile(wanPath)),null);
+    expect(wanMaster.quality_status).toBe("RETRY");
+    const wanRow=wanDb.rows.master_videos[0];expect(wanRow).toMatchObject({provider:"fal_ai",width:1080,height:1920,quality_explanation_json:{thaiNarrationVerified:false}});
+    expect(Number(wanRow.duration_seconds)).toBeCloseTo(8,1);
+    expect((wanRow.quality_explanation_json as {visualFrameEvidence:unknown[]}).visualFrameEvidence).toHaveLength(3);
     const textDb=fixtureDatabase(new Uint8Array(await readFile(imagePath)));textDb.rows.media_assets=[];
     const textJob={...input,provider:"gemini_omni_api" as const,estimated_cost_usd:2,checkpoint:{geminiRequest:{task:"text_to_video"},usageCostUsd:.82}};
     const textMaster=await finalizeProviderMaster(textDb.client,owner,textJob,source,bytes,null);

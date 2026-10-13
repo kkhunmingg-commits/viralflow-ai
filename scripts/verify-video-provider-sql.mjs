@@ -27,6 +27,7 @@ try{
   await db.exec('grant all on all tables in schema public to service_role;grant execute on all functions in schema public to service_role;');
   await db.exec(await readFile('supabase/migrations/20261012050849_video_provider_router.sql','utf8'));checks++;
   await db.exec(await readFile('supabase/migrations/20261012155931_gemini_omni_provider.sql','utf8'));checks++;
+  await db.exec(await readFile('supabase/migrations/20261013050032_fal_router_budget_readiness.sql','utf8'));checks++;
   for(let i=0;i<jobs.length;i++)await db.exec(`insert into video_provider_jobs(id,owner_id,tiktok_account_id,product_id,creative_project_id,selected_script_id,generation_job_id)values('${jobs[i]}','${owner}','${accounts[i%3]}','${jobs[i]}','${jobs[i]}','${jobs[i]}','${jobs[i]}');`);
   ok((await db.query('select count(*)::int as n from video_provider_jobs')).rows[0].n===21);
   await db.exec(`insert into video_provider_settings(owner_id)values('${owner}');set role authenticated;select set_config('request.jwt.claim.sub','${owner}',false);`);
@@ -37,10 +38,12 @@ try{
   await denied(`select claim_video_provider_job('${owner}','${jobs[0]}',gen_random_uuid())`);
   await denied(`select video_provider_dashboard('${owner}')`);
   await denied('select gemini_video_guard_version()');
+  await denied('select fal_budget_guard_version()');
   await db.exec(`select set_config('request.jwt.claim.sub','${other}',false);`);ok((await db.query('select id from video_provider_jobs')).rows.length===0);
-  await db.exec('set role anon');await denied('select id from video_provider_jobs');await denied('select gemini_video_guard_version()');
+  await db.exec('set role anon');await denied('select id from video_provider_jobs');await denied('select gemini_video_guard_version()');await denied('select fal_budget_guard_version()');
   await db.exec('reset role;set role service_role');
   ok((await db.query('select gemini_video_guard_version() as v')).rows[0].v==='gemini-omni-budget-v1');
+  ok((await db.query('select fal_budget_guard_version() as v')).rows[0].v==='fal-generation-budget-guards-v1');
   await db.exec(`update video_provider_jobs set provider='gemini_omni_api',provider_request_id='same-gemini-request' where id='${jobs[5]}';`);
   await denied(`update video_provider_jobs set provider='gemini_omni_api',provider_request_id='same-gemini-request' where id='${jobs[6]}';`);
   await denied(`update video_provider_jobs set provider='untrusted-provider' where id='${jobs[6]}';`);
@@ -75,10 +78,10 @@ try{
   ok(stats.actualMonth===null&&stats.unbilledMonth===1&&stats.estimatedMonth===.3);
   // Exercise the actual application ledger against real prepared SQL, not a mock version RPC.
   const localRpc={rpc:async(name,args={})=>{
-    if(!['gemini_video_guard_version','reserve_generation_budget'].includes(name))throw new Error('unexpected proof RPC');
+    if(!['gemini_video_guard_version','fal_budget_guard_version','reserve_generation_budget','begin_generation_submission','mark_generation_submitted','mark_generation_unknown'].includes(name))throw new Error('unexpected proof RPC');
     const literal=value=>value==null?'null':typeof value==='number'?String(value):`'${String(value).replaceAll("'","''")}'`;
     const named=Object.entries(args).map(([key,value])=>{assert.match(key,/^p_[a-z_]+$/);return `${key}=>${literal(value)}`;}).join(',');
-    try{const result=await db.query(`select * from public.${name}(${named})`);return{data:name==='gemini_video_guard_version'?result.rows[0][name]:result.rows[0],error:null};}
+    try{const result=await db.query(`select * from public.${name}(${named})`);return{data:name.endsWith('_guard_version')?result.rows[0][name]:result.rows[0],error:null};}
     catch{return{data:null,error:{message:'isolated RPC failed'}};}
   }};
   const day=new Date().toISOString().slice(0,10),ledger=new AtomicBudgetLedger(localRpc),savedInfo=console.info;
@@ -87,6 +90,14 @@ try{
     const input={ownerId:owner,accountId:accounts[0],generationJobId:jobs[10],autoRunId:null,runKey:'gemini-proof',logicalOperationKey:'gemini-proof',provider:'gemini',model:'gemini-omni-1.1-flash',reservedUsd:2,perVideoCapUsd:3,dailyCapUsd:3,monthlyCapUsd:6,runCapUsd:3,accountCapUsd:3,providerCapUsd:3,budgetDay:day,budgetMonth:`${day.slice(0,7)}-01`};
     const hold=await ledger.reserve(input);ok(hold.state==='RESERVED');ok((await ledger.reserve(input)).id===hold.id);
     await assert.rejects(ledger.reserve({...input,logicalOperationKey:'gemini-over-budget',reservedUsd:2}));checks++;
+    const falInput={...input,provider:'fal',model:'wan/v2.6/image-to-video/flash',runKey:'wan-proof',logicalOperationKey:'wan-proof',reservedUsd:.55,dailyCapUsd:5,monthlyCapUsd:10,accountCapUsd:5};
+    const falHold=await ledger.reserve(falInput);ok(falHold.state==='RESERVED');ok((await ledger.reserve(falInput)).id===falHold.id);
+    await ledger.begin(owner,falHold.id);await assert.rejects(ledger.begin(owner,falHold.id));checks++;
+    await ledger.uncertain(owner,falHold.id,null);await assert.rejects(ledger.begin(owner,falHold.id));checks++;
+    // The readiness marker itself must fail if a required atomic RPC is absent.
+    await db.exec('reset role;alter function public.begin_generation_submission(uuid,uuid) rename to proof_missing_submission;set role service_role');
+    await assert.rejects(ledger.reserve({...falInput,logicalOperationKey:'guard-missing-function'}));checks++;
+    await db.exec('reset role;alter function public.proof_missing_submission(uuid,uuid) rename to begin_generation_submission;set role service_role');
   }finally{console.info=savedInfo;}
   console.log(JSON.stringify({isolatedPostgres:'PASS',checks,accounts:3,queuedJobs:21,scope:'additive migration/RLS/private columns/account lease/stale fencing/budget concurrency/idempotency/actual billing/aggregates',paidCalls:0,tiktokCalls:0,remoteMigrationApplied:false}));
 }finally{await db.close();}

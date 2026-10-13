@@ -3,6 +3,18 @@ vi.mock("server-only",()=>({}));
 import {RoutedFalProvider} from "./fal";
 import {FAL_MODEL_ENDPOINTS} from "@/features/video/fal-models";
 describe("fal adapter read-only pricing and one submit",()=>{
+  it("WAN 2.6 quotes 10s with native audio at 720p and reserves the full generation before an 8s trim",async()=>{
+    const fetcher=vi.fn(async()=>new Response(JSON.stringify({prices:[{endpoint_id:FAL_MODEL_ENDPOINTS.WAN_26_FLASH,unit:"seconds",currency:"USD",unit_price:.05}],has_more:false}))) as unknown as typeof fetch;
+    const request=await new RoutedFalProvider("fixture-not-real",fetcher).prepare(FAL_MODEL_ENDPOINTS.WAN_26_FLASH,"https://example.invalid/reference.jpg","Natural motion with Thai narration");
+    expect(request.input).toMatchObject({duration:"10",resolution:"720p",generate_audio:true,enable_prompt_expansion:false,multi_shots:false,enable_safety_checker:true});
+    expect(request.settings.durationSeconds).toBe(10);expect(request.estimateUsd).toBe(.55);
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+  it("rejects an overlong WAN prompt before any metadata or generation call",async()=>{
+    const fetcher=vi.fn(),provider=new RoutedFalProvider("fixture-not-real",fetcher);
+    await expect(provider.prepare(FAL_MODEL_ENDPOINTS.WAN_26_FLASH,"https://example.invalid/reference.jpg","ก".repeat(1501))).rejects.toThrow("FAL_PROMPT_INVALID");
+    expect(fetcher).not.toHaveBeenCalled();
+  });
   it("reads a complete, matching request billing event",async()=>{const fetcher=vi.fn(async()=>new Response(JSON.stringify({billing_events:[{request_id:"known",endpoint_id:FAL_MODEL_ENDPOINTS.LTX_23_FAST,cost_total:.42}],has_more:false,next_cursor:null}))) as unknown as typeof fetch;
     const p=new RoutedFalProvider("test",fetcher),request={endpoint:FAL_MODEL_ENDPOINTS.LTX_23_FAST,input:{},estimateUsd:.5,settings:{} as never};expect(await p.billedCost(request,"known",new Date().toISOString())).toBe(.42);expect(String(vi.mocked(fetcher).mock.calls[0][0])).toContain("request_id=known");});
   it.each([{billing_events:[],has_more:false},{billing_events:[{request_id:"another",cost_total:.1}],has_more:false},{billing_events:[{request_id:"known",endpoint_id:FAL_MODEL_ENDPOINTS.LTX_23_FAST,cost_total:.1}],has_more:true}])("never invents billing for incomplete/mismatched events",async body=>{const p=new RoutedFalProvider("test",async()=>new Response(JSON.stringify(body)));expect(await p.billedCost({endpoint:FAL_MODEL_ENDPOINTS.LTX_23_FAST,input:{},estimateUsd:.5,settings:{} as never},"known",new Date().toISOString())).toBeNull();});

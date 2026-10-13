@@ -8,6 +8,7 @@ export class RoutedFalProvider {
   constructor(private key: string, private fetcher: typeof fetch = fetch, queue?: FalWanClient) { this.queue = queue ?? createFalQueueClient(key, fetcher); }
   async prepare(model: string, imageUrl: string, prompt: string): Promise<FalRequest> {
     if (!this.key) throw new Error("FAL_UNAVAILABLE");
+    if(model===FAL_MODEL_ENDPOINTS.WAN_26_FLASH&&(!prompt.trim()||prompt.length>1500))throw new Error("FAL_PROMPT_INVALID");
     const settings = resolveFalModelSettings({ model, durationSeconds: 8, aspectRatio: "9:16" });
     const input = buildFalModelInput(settings, { imageUrl, prompt });
     if (model !== FAL_MODEL_ENDPOINTS.LTX_098_DISTILLED) input.generate_audio = true;
