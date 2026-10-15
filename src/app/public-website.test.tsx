@@ -4,6 +4,7 @@ import Home, { metadata as homeMetadata } from "./page";
 import Privacy, { metadata as privacyMetadata } from "./(legal)/privacy/page";
 import Terms, { metadata as termsMetadata } from "./(legal)/terms/page";
 import Support from "./(legal)/support/page";
+import LegalLayout from "./(legal)/layout";
 
 describe("TikTok review public website", () => {
   it.each([
@@ -29,6 +30,17 @@ describe("TikTok review public website", () => {
     expect(html).toContain('href="/review-guide"');
     expect(html).toContain("ยังไม่เปิดขายสมาชิก");
     expect(html).toContain("ไม่ใช่ส่วนของ Login Kit / Content Posting");
+  });
+
+  it("shows the same VF artwork in homepage and public document headers", () => {
+    const home = renderToStaticMarkup(<Home />);
+    const legal = renderToStaticMarkup(<LegalLayout><Privacy /></LegalLayout>);
+    for (const html of [home, legal]) {
+      const header = html.match(/<header[\s\S]*?<\/header>/)?.[0];
+      expect(header).toContain('src="/brand/viral-flow-ai-vf.png?v=c50a95595c7c"');
+      expect(header).toContain('alt="Viral Flow AI"');
+      expect(header).not.toMatch(/>V(?:<span|<\/span>)/);
+    }
   });
 
   it("provides a real deletion-request contact without requesting credentials", () => {

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
+import { BrandIcon } from "@/components/brand-icon";
 import { SupportContact } from "./support-contact";
 
 export const metadata: Metadata = {
@@ -35,7 +36,7 @@ export default function Home() {
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-10 focus:rounded-lg focus:bg-[#242036] focus:p-4">ข้ามไปยังเนื้อหา</a>
       <header className="border-b border-white/8">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-5">
-          <Link href="/" aria-label="Viral Flow AI Homepage" className="flex items-center gap-3 text-lg font-bold tracking-tight"><span aria-hidden="true" className="grid size-10 place-items-center rounded-xl bg-gradient-to-br from-violet-500 to-blue-500 text-xl text-white">V</span><span>Viral Flow <span className="text-violet-300">AI</span></span></Link>
+          <Link href="/" aria-label="Viral Flow AI Homepage" className="flex items-center gap-3 text-lg font-bold tracking-tight"><BrandIcon priority /><span>Viral Flow <span className="text-violet-300">AI</span></span></Link>
           <nav aria-label="เมนูเว็บไซต์" className="flex flex-wrap items-center gap-5 text-sm text-slate-300">
             <Link className="hover:text-white" href="/product-guide">Product Guide</Link><Link className="hover:text-white" href="/support">Contact</Link>
             <Link className="hover:text-white" href="/privacy">Privacy Policy</Link><Link className="hover:text-white" href="/terms">Terms of Service</Link>

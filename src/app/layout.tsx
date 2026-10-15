@@ -6,7 +6,13 @@ const manrope = Manrope({ subsets: ["latin"], variable: "--font-manrope" });
 const thai = Noto_Sans_Thai({ subsets: ["thai"], variable: "--font-thai" });
 
 export const metadata: Metadata = {
-  title: { default: "ViralFlow AI", template: "%s · ViralFlow AI" },
+  applicationName: "Viral Flow AI",
+  title: { default: "Viral Flow AI", template: "%s · Viral Flow AI" },
+  icons: {
+    shortcut: "/favicon.ico?v=c50a95595c7c",
+    icon: { url: "/icon.png?v=c50a95595c7c", type: "image/png", sizes: "512x512" },
+    apple: { url: "/apple-touch-icon.png?v=c50a95595c7c", type: "image/png", sizes: "180x180" },
+  },
   description: "ศูนย์ควบคุมคอนเทนต์และข้อมูล TikTok Affiliate สำหรับประเทศไทย",
 };
 

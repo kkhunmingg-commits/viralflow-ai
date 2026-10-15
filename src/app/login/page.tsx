@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BrandIcon } from "@/components/brand-icon";
 import { LoginForm } from "./login-form";
 import { loginErrorMessage } from "./auth-flow";
 import "./login.css";
@@ -12,7 +13,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main className="auth-page">
       <div className="auth-layout">
         <section className="auth-story" aria-label="Viral Flow AI">
-          <div className="auth-brand"><span className="auth-brand-mark" aria-hidden="true">V<span>✦</span></span><span>Viral Flow <b>AI</b></span></div>
+          <div className="auth-brand"><BrandIcon size={45} className="auth-brand-mark" /><span>Viral Flow <b>AI</b></span></div>
           <div className="auth-story-main">
             <p className="auth-kicker"><span /> YOUR CONTENT COMMAND CENTER</p>
             <h1>Automate.<br />Publish.<br /><em>Learn. Grow.</em></h1>
@@ -22,7 +23,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <p className="auth-story-foot">CREATE WITH INTENT <span>·</span> GROW WITH EVIDENCE</p>
         </section>
         <section className="auth-panel" aria-labelledby="auth-heading">
-          <div className="auth-mobile-brand"><span className="auth-brand-mark" aria-hidden="true">V<span>✦</span></span><span>Viral Flow <b>AI</b></span></div>
+          <div className="auth-mobile-brand"><BrandIcon size={45} className="auth-brand-mark" /><span>Viral Flow <b>AI</b></span></div>
           <div className="auth-card">
             <div className="auth-card-accent" aria-hidden="true" />
             <p className="auth-card-kicker">WELCOME BACK</p>
