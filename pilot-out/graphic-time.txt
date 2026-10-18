@@ -1,0 +1,23 @@
+	Command being timed: "pnpm pilot:graphic pilot-out/graphic"
+	User time (seconds): 117.21
+	System time (seconds): 5.75
+	Percent of CPU this job got: 157%
+	Elapsed (wall clock) time (h:mm:ss or m:ss): 1:18.21
+	Average shared text size (kbytes): 0
+	Average unshared data size (kbytes): 0
+	Average stack size (kbytes): 0
+	Average total size (kbytes): 0
+	Maximum resident set size (kbytes): 11055424
+	Average resident set size (kbytes): 0
+	Major (requiring I/O) page faults: 72801
+	Minor (reclaiming a frame) page faults: 1651334
+	Voluntary context switches: 87760
+	Involuntary context switches: 10315
+	Swaps: 0
+	File system inputs: 5558800
+	File system outputs: 2224
+	Socket messages sent: 0
+	Socket messages received: 0
+	Signals delivered: 0
+	Page size (bytes): 4096
+	Exit status: 0
