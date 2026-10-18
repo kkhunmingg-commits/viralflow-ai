@@ -1,0 +1,719 @@
+{
+  "ranAt": "2026-10-18T22:20:47.228Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "machine": {
+    "cpus": 4,
+    "memGb": 16,
+    "note": "GitHub-hosted ubuntu-latest runner"
+  },
+  "assumptions": {
+    "machineThbPerHour": 6,
+    "thbPerUsd": 35,
+    "note": "Estimates only. No bill exists for runner time; actual spend comes from generation_costs."
+  },
+  "env": {
+    "creative": "evidence-rubric",
+    "tts": "voxcpm2"
+  },
+  "results": [
+    {
+      "label": "growth-1",
+      "mode": "GROWTH",
+      "story": {
+        "format": "NUMBER_SPOTLIGHT",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "0°C หมายถึงอะไร?",
+            "badge": "0°C"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำเกลือเย็นกว่า 0°C ได้",
+            "kicker": "เกลือกับน้ำแข็ง"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: มีตัวเลขในข้อเท็จจริงที่ตรวจแล้ว จึงใช้ตัวเลขเป็นจุดดึงสายตา; ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี"
+      },
+      "topic": {
+        "topic": "เกลือกับน้ำแข็ง",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-19T05:15:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "0°C หมายถึงอะไร?",
+      "voice": "0°C หมายถึงอะไร? น้ำเกลือเย็นกว่า 0°C ได้ ติดตามไว้ มีตอนต่อไป",
+      "caption": "0°C หมายถึงอะไร? น้ำเกลือเย็นกว่า 0°C ได้",
+      "hashtags": [
+        "#เกลือกับน้ำแข็ง",
+        "#ตัวเลขน่ารู้",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 608.727,
+        "cpuSeconds": 1198.3,
+        "avgCpuCores": 1.97,
+        "peakRssMb": 11206,
+        "renderSeconds": 608.116,
+        "creativeSeconds": 0.555
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 1.0133,
+      "costBasis": "ESTIMATE: 608 s render at 6 THB/hour",
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: caption-only by plan",
+        "PASS READABILITY: text on screen 96% of clip; 0 line(s) too fast or too short",
+        "PASS LOUDNESS: silent",
+        "PASS HOOK: hook on screen 0.0–2.4s",
+        "PASS TEXT_COVERAGE: text on screen 96% of clip (min 90%)",
+        "PASS PACING: 3 shot(s), longest 3.0s, 3 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-2",
+      "mode": "GROWTH",
+      "story": {
+        "format": "LIST",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "3 เรื่องของขวดเก็บความเย็น",
+            "badge": "3"
+          },
+          {
+            "role": "POINT",
+            "text": "ช่องกลางไม่มีอากาศ",
+            "kicker": "ข้อ 1"
+          },
+          {
+            "role": "POINT",
+            "text": "ความร้อนผ่านได้น้อย",
+            "kicker": "ข้อ 2"
+          },
+          {
+            "role": "POINT",
+            "text": "ผนังขวดมีสองชั้น",
+            "kicker": "ข้อ 3"
+          },
+          {
+            "role": "CTA",
+            "text": "เซฟไว้ดูอีกที"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: มีข้อเท็จจริงสั้นที่ตรวจแล้วอย่างน้อย 3 ข้อ จึงเล่าเป็นลิสต์ได้; ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี"
+      },
+      "topic": {
+        "topic": "ขวดเก็บความเย็น",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "RETRY",
+      "bankStatus": "REJECTED",
+      "rejection": [
+        "QUALITY_RETRY",
+        "CHECK_FAILED:VOICE",
+        "CHECK_FAILED:READABILITY"
+      ],
+      "slot": null,
+      "slotBasis": null,
+      "hook": "3 เรื่องของขวดเก็บความเย็น",
+      "voice": "3 เรื่องของขวดเก็บความเย็น ช่องกลางไม่มีอากาศ ความร้อนผ่านได้น้อย ผนังขวดมีสองชั้น เซฟไว้ดูอีกที",
+      "caption": "3 เรื่องของขวดเก็บความเย็น ช่องกลางไม่มีอากาศ",
+      "hashtags": [
+        "#ขวดเก็บความเย็น",
+        "#รู้ไว้ใช่ว่า",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 405.934,
+        "cpuSeconds": 785.5,
+        "avgCpuCores": 1.93,
+        "peakRssMb": 10633,
+        "renderSeconds": 405.338,
+        "creativeSeconds": 0.543
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.6753,
+      "costBasis": "ESTIMATE: 405 s render at 6 THB/hour",
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "FAIL VOICE: caption-only by plan",
+        "FAIL READABILITY: text on screen 94% of clip; 4 line(s) too fast or too short",
+        "PASS LOUDNESS: silent",
+        "PASS HOOK: hook on screen 0.0–2.0s",
+        "PASS TEXT_COVERAGE: text on screen 94% of clip (min 90%)",
+        "PASS PACING: 5 shot(s), longest 2.0s, 5 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-3",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ทายดู น้ำแข็งลอยน้ำ เพราะอะไร?",
+            "kicker": "ทายก่อน",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "ปลาอยู่ใต้น้ำแข็งได้",
+            "kicker": "เฉลย"
+          },
+          {
+            "role": "CTA",
+            "text": "อยากรู้เรื่องไหน คอมเมนต์ไว้"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: ตั้งคำถามให้ผู้ชมทายก่อนเฉลยด้วยข้อเท็จจริงที่ตรวจแล้ว; ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี"
+      },
+      "topic": {
+        "topic": "น้ำแข็งลอยน้ำ",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-19T12:30:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ทายดู น้ำแข็งลอยน้ำ เพราะอะไร?",
+      "voice": "ทายดู น้ำแข็งลอยน้ำ เพราะอะไร? ปลาอยู่ใต้น้ำแข็งได้ อยากรู้เรื่องไหน คอมเมนต์ไว้",
+      "caption": "ทายดู น้ำแข็งลอยน้ำ เพราะอะไร? ปลาอยู่ใต้น้ำแข็งได้",
+      "hashtags": [
+        "#น้ำแข็งลอยน้ำ",
+        "#ทายดู",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 195.7,
+        "cpuSeconds": 378.1,
+        "avgCpuCores": 1.93,
+        "peakRssMb": 11176,
+        "renderSeconds": 195.523,
+        "creativeSeconds": 0.109
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.3257,
+      "costBasis": "ESTIMATE: 195 s render at 6 THB/hour",
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.4 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.1s",
+        "PASS TEXT_COVERAGE: text on screen 91% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.1s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-4",
+      "mode": "GROWTH",
+      "story": {
+        "format": "EXPLAINER",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "เคยสงสัยไหม หม้อความดัน",
+            "kicker": "รู้หรือไม่"
+          },
+          {
+            "role": "POINT",
+            "text": "อย่าเปิดฝาขณะมีแรงดัน"
+          },
+          {
+            "role": "POINT",
+            "text": "อาหารจึงสุกเร็วขึ้น"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: อธิบายเหตุผลด้วยข้อเท็จจริงที่ตรวจแล้วแบบตรงไปตรงมา; ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี"
+      },
+      "topic": {
+        "topic": "หม้อความดัน",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-20T05:15:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "เคยสงสัยไหม หม้อความดัน",
+      "voice": "เคยสงสัยไหม หม้อความดัน อย่าเปิดฝาขณะมีแรงดัน อาหารจึงสุกเร็วขึ้น ติดตามไว้ มีตอนต่อไป",
+      "caption": "เคยสงสัยไหม หม้อความดัน อย่าเปิดฝาขณะมีแรงดัน",
+      "hashtags": [
+        "#หม้อความดัน",
+        "#รู้หรือไม่",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 356.245,
+        "cpuSeconds": 700.1,
+        "avgCpuCores": 1.97,
+        "peakRssMb": 11020,
+        "renderSeconds": 355.572,
+        "creativeSeconds": 0.622
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.5925,
+      "costBasis": "ESTIMATE: 356 s render at 6 THB/hour",
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: caption-only by plan",
+        "PASS READABILITY: text on screen 94% of clip; 0 line(s) too fast or too short",
+        "PASS LOUDNESS: silent",
+        "PASS HOOK: hook on screen 0.0–2.3s",
+        "PASS TEXT_COVERAGE: text on screen 94% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.3s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-5",
+      "mode": "GROWTH",
+      "story": {
+        "format": "NUMBER_SPOTLIGHT",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ทำไมต้อง 0°C?",
+            "badge": "0°C"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำเกลือเย็นกว่า 0°C ได้",
+            "kicker": "เกลือกับน้ำแข็ง"
+          },
+          {
+            "role": "CTA",
+            "text": "เซฟไว้ดูอีกที"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: มีตัวเลขในข้อเท็จจริงที่ตรวจแล้ว จึงใช้ตัวเลขเป็นจุดดึงสายตา; รูปแบบนี้เคยใช้ไม่นานมานี้ แต่เป็นตัวเลือกที่หลักฐานรองรับดีที่สุด"
+      },
+      "topic": {
+        "topic": "เกลือกับน้ำแข็ง",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-20T12:30:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ทำไมต้อง 0°C?",
+      "voice": "ทำไมต้อง 0°C? น้ำเกลือเย็นกว่า 0°C ได้ เซฟไว้ดูอีกที",
+      "caption": "ทำไมต้อง 0°C? น้ำเกลือเย็นกว่า 0°C ได้",
+      "hashtags": [
+        "#เกลือกับน้ำแข็ง",
+        "#ตัวเลขน่ารู้",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 179.118,
+        "cpuSeconds": 346.2,
+        "avgCpuCores": 1.93,
+        "peakRssMb": 11215,
+        "renderSeconds": 178.97,
+        "creativeSeconds": 0.094
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.2982,
+      "costBasis": "ESTIMATE: 179 s render at 6 THB/hour",
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.4 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–1.7s",
+        "PASS TEXT_COVERAGE: text on screen 95% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.3s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-6",
+      "mode": "GROWTH",
+      "story": {
+        "format": "LIST",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ขวดเก็บความเย็น ใน 3 ข้อ",
+            "badge": "3"
+          },
+          {
+            "role": "POINT",
+            "text": "ผนังขวดมีสองชั้น",
+            "kicker": "ข้อ 1"
+          },
+          {
+            "role": "POINT",
+            "text": "ความร้อนผ่านได้น้อย",
+            "kicker": "ข้อ 2"
+          },
+          {
+            "role": "POINT",
+            "text": "ช่องกลางไม่มีอากาศ",
+            "kicker": "ข้อ 3"
+          },
+          {
+            "role": "CTA",
+            "text": "เซฟไว้ดูอีกที"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: มีข้อเท็จจริงสั้นที่ตรวจแล้วอย่างน้อย 3 ข้อ จึงเล่าเป็นลิสต์ได้; รูปแบบนี้เคยใช้ไม่นานมานี้ แต่เป็นตัวเลือกที่หลักฐานรองรับดีที่สุด"
+      },
+      "topic": {
+        "topic": "ขวดเก็บความเย็น",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "RETRY",
+      "bankStatus": "REJECTED",
+      "rejection": [
+        "QUALITY_RETRY",
+        "CHECK_FAILED:VOICE",
+        "CHECK_FAILED:READABILITY"
+      ],
+      "slot": null,
+      "slotBasis": null,
+      "hook": "ขวดเก็บความเย็น ใน 3 ข้อ",
+      "voice": "ขวดเก็บความเย็น ใน 3 ข้อ ผนังขวดมีสองชั้น ความร้อนผ่านได้น้อย ช่องกลางไม่มีอากาศ เซฟไว้ดูอีกที",
+      "caption": "ขวดเก็บความเย็น ใน 3 ข้อ ผนังขวดมีสองชั้น",
+      "hashtags": [
+        "#ขวดเก็บความเย็น",
+        "#รู้ไว้ใช่ว่า",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 416.937,
+        "cpuSeconds": 824.2,
+        "avgCpuCores": 1.98,
+        "peakRssMb": 10611,
+        "renderSeconds": 416.787,
+        "creativeSeconds": 0.101
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.6945,
+      "costBasis": "ESTIMATE: 417 s render at 6 THB/hour",
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "FAIL VOICE: caption-only by plan",
+        "FAIL READABILITY: text on screen 91% of clip; 2 line(s) too fast or too short",
+        "PASS LOUDNESS: silent",
+        "PASS HOOK: hook on screen 0.0–1.9s",
+        "PASS TEXT_COVERAGE: text on screen 91% of clip (min 90%)",
+        "PASS PACING: 5 shot(s), longest 1.9s, 5 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-7",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ทายก่อนเฉลย: น้ำแข็งลอยน้ำ",
+            "kicker": "ทายก่อน",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำแข็งเบากว่าน้ำราว 9%",
+            "kicker": "เฉลย"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: ตั้งคำถามให้ผู้ชมทายก่อนเฉลยด้วยข้อเท็จจริงที่ตรวจแล้ว; รูปแบบนี้เคยใช้ไม่นานมานี้ แต่เป็นตัวเลือกที่หลักฐานรองรับดีที่สุด"
+      },
+      "topic": {
+        "topic": "น้ำแข็งลอยน้ำ",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-21T05:15:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ทายก่อนเฉลย: น้ำแข็งลอยน้ำ",
+      "voice": "ทายก่อนเฉลย: น้ำแข็งลอยน้ำ น้ำแข็งเบากว่าน้ำราว 9% ติดตามไว้ มีตอนต่อไป",
+      "caption": "ทายก่อนเฉลย: น้ำแข็งลอยน้ำ น้ำแข็งเบากว่าน้ำราว 9%",
+      "hashtags": [
+        "#น้ำแข็งลอยน้ำ",
+        "#ทายดู",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 345.427,
+        "cpuSeconds": 681.6,
+        "avgCpuCores": 1.97,
+        "peakRssMb": 10940,
+        "renderSeconds": 344.846,
+        "creativeSeconds": 0.529
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.5747,
+      "costBasis": "ESTIMATE: 345 s render at 6 THB/hour",
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: caption-only by plan",
+        "PASS READABILITY: text on screen 95% of clip; 0 line(s) too fast or too short",
+        "PASS LOUDNESS: silent",
+        "PASS HOOK: hook on screen 0.0–3.1s",
+        "PASS TEXT_COVERAGE: text on screen 95% of clip (min 90%)",
+        "PASS PACING: 3 shot(s), longest 3.1s, 3 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "affiliate-test-1",
+      "mode": "AFFILIATE",
+      "story": {
+        "format": "PRODUCT_DETAIL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี?"
+          },
+          {
+            "role": "POINT",
+            "text": "ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว"
+          },
+          {
+            "role": "POINT",
+            "text": "ความจุ 500 มิลลิลิตร"
+          },
+          {
+            "role": "CTA",
+            "text": "เช็กรายละเอียดก่อนสั่ง"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"
+      },
+      "topic": {
+        "topic": null,
+        "basis": "NONE"
+      },
+      "method": "REAL_IMAGE_MOTION",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-19T13:30:00+00:00",
+      "slotBasis": "AUDIENCE_DATA",
+      "hook": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี?",
+      "voice": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี? ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว ความจุ 500 มิลลิลิตร เช็กรายละเอียดก่อนสั่ง",
+      "caption": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี? ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว",
+      "hashtags": [
+        "#ขวดน้ำเก็บความเย็น",
+        "#ของมันต้องดู",
+        "#TikTokShop",
+        "#ของใช้ในบ้าน"
+      ],
+      "metrics": {
+        "wallSeconds": 329.108,
+        "cpuSeconds": 641.4,
+        "avgCpuCores": 1.95,
+        "peakRssMb": 11078,
+        "renderSeconds": 328.979,
+        "creativeSeconds": 0.079
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.5482,
+      "costBasis": "ESTIMATE: 329 s render at 6 THB/hour",
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.2 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.5s",
+        "PASS TEXT_COVERAGE: text on screen 96% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.5s, 3 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "affiliate-test-2",
+      "mode": "AFFILIATE",
+      "story": {
+        "format": "PRODUCT_DETAIL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้"
+          },
+          {
+            "role": "POINT",
+            "text": "ความจุ 500 มิลลิลิตร"
+          },
+          {
+            "role": "CTA",
+            "text": "ดูรายละเอียดสินค้าก่อนตัดสินใจ"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"
+      },
+      "topic": {
+        "topic": null,
+        "basis": "NONE"
+      },
+      "method": "REAL_IMAGE_MOTION",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-20T13:30:00+00:00",
+      "slotBasis": "AUDIENCE_DATA",
+      "hook": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้",
+      "voice": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้ ความจุ 500 มิลลิลิตร ดูรายละเอียดสินค้าก่อนตัดสินใจ",
+      "caption": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้ ความจุ 500 มิลลิลิตร",
+      "hashtags": [
+        "#ขวดน้ำเก็บความเย็น",
+        "#ของมันต้องดู",
+        "#TikTokShop",
+        "#ของใช้ในบ้าน"
+      ],
+      "metrics": {
+        "wallSeconds": 261.523,
+        "cpuSeconds": 509.5,
+        "avgCpuCores": 1.95,
+        "peakRssMb": 11136,
+        "renderSeconds": 260.874,
+        "creativeSeconds": 0.597
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.4347,
+      "costBasis": "ESTIMATE: 261 s render at 6 THB/hour",
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.5 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.0s",
+        "PASS TEXT_COVERAGE: text on screen 96% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.3s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "affiliate-test-3",
+      "mode": "AFFILIATE",
+      "story": {
+        "format": "PRODUCT_DETAIL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "จุดที่ควรดูของขวดน้ำเก็บความเย็น"
+          },
+          {
+            "role": "POINT",
+            "text": "ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว"
+          },
+          {
+            "role": "CTA",
+            "text": "เช็กรายละเอียดก่อนสั่ง"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"
+      },
+      "topic": {
+        "topic": null,
+        "basis": "NONE"
+      },
+      "method": "REAL_IMAGE_MOTION",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-21T13:30:00+00:00",
+      "slotBasis": "AUDIENCE_DATA",
+      "hook": "จุดที่ควรดูของขวดน้ำเก็บความเย็น",
+      "voice": "จุดที่ควรดูของขวดน้ำเก็บความเย็น ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว เช็กรายละเอียดก่อนสั่ง",
+      "caption": "จุดที่ควรดูของขวดน้ำเก็บความเย็น ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว",
+      "hashtags": [
+        "#ขวดน้ำเก็บความเย็น",
+        "#ของมันต้องดู",
+        "#TikTokShop",
+        "#ของใช้ในบ้าน"
+      ],
+      "metrics": {
+        "wallSeconds": 273.594,
+        "cpuSeconds": 534.3,
+        "avgCpuCores": 1.95,
+        "peakRssMb": 10843,
+        "renderSeconds": 273.444,
+        "creativeSeconds": 0.092
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.4555,
+      "costBasis": "ESTIMATE: 273 s render at 6 THB/hour",
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.2 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.6s",
+        "PASS TEXT_COVERAGE: text on screen 98% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.6s, 4 distinct framing(s)"
+      ]
+    }
+  ],
+  "bank": {
+    "growth": {
+      "attempts": 7,
+      "usable": 5,
+      "rejected": 2,
+      "actualUsd": 0,
+      "actualThbPerUsable": 0,
+      "estimatedThbPerUsable": 0.83484
+    },
+    "affiliateTestOnly": {
+      "attempts": 3,
+      "usable": 3,
+      "rejected": 0,
+      "actualUsd": 0,
+      "actualThbPerUsable": 0,
+      "estimatedThbPerUsable": 0.4794666666666667
+    }
+  },
+  "rebankSameMaster": {
+    "sameRow": true,
+    "rowsInBank": 10
+  },
+  "publishingQueueRows": 0
+}
