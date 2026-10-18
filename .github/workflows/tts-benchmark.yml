@@ -3,7 +3,7 @@ name: Thai TTS CPU benchmark
 # Runs only when this benchmark branch is pushed; it never deploys or posts anything.
 on:
   push:
-    branches: ['claude/tts-benchmark']
+    branches: ['claude/tts-benchmark', 'claude/phase2-full-path-pilot']
   workflow_dispatch:
 
 permissions:
@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   benchmark:
+    if: github.ref_name == 'claude/tts-benchmark'
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -45,3 +46,62 @@ jobs:
         with:
           name: thai-tts-benchmark
           path: tts-out/
+
+  full-path-pilot:
+    # Creative Brain -> Media Rights -> Thai TTS -> Local Composer -> QC -> stored master, on a local
+    # supabase stack that exists only inside this job. No hosted project, paid API or TikTok call.
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      APP_ENV: development
+      OPS_RECOVERY_ENABLED: 'false'
+      TIKTOK_PROVIDER: mock
+      TIKTOK_PUBLISHING_PROVIDER: mock
+      TIKTOK_SHOP_PROVIDER: mock
+      VIDEO_BENCHMARK_ALLOW_PAID: 'false'
+      CREATIVE_AI_PROVIDER: evidence-rubric
+      FFMPEG_BINARY: /usr/bin/ffmpeg
+      FFPROBE_BINARY: /usr/bin/ffprobe
+      THAI_TTS_PROVIDER: voxcpm2
+      VOXCPM_DEVICE: cpu
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - name: FFmpeg and local Thai TTS
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          python -m venv .venv-tts
+          .venv-tts/bin/pip install --extra-index-url https://download.pytorch.org/whl/cpu "voxcpm==2.0.3" soundfile Pillow
+          echo "THAI_TTS_PYTHON=$PWD/.venv-tts/bin/python" >> "$GITHUB_ENV"
+          echo "VOXCPM_MODEL=$(.venv-tts/bin/python -c 'from huggingface_hub import snapshot_download;print(snapshot_download("openbmb/VoxCPM2"))')" >> "$GITHUB_ENV"
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start a throwaway local Supabase with every migration
+        run: |
+          supabase start -x realtime,studio,edge-runtime,logflare,vector,supavisor
+          supabase status -o env > /tmp/sb.env
+          grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' /tmp/sb.env | sed -e 's/^API_URL=/SUPABASE_URL=/' -e 's/^ANON_KEY=/SUPABASE_ANON_KEY=/' -e 's/^SERVICE_ROLE_KEY=/SUPABASE_SERVICE_KEY=/' -e 's/"//g' >> "$GITHUB_ENV"
+          grep -E '^(API_URL|ANON_KEY)=' /tmp/sb.env | sed -e 's/^API_URL=/NEXT_PUBLIC_SUPABASE_URL=/' -e 's/^ANON_KEY=/NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/' -e 's/"//g' >> "$GITHUB_ENV"
+      - name: Draw original mock product media
+        run: .venv-tts/bin/python scripts/pilot/make_mock_product.py mock-media
+      - name: Run the full path
+        run: /usr/bin/time -v node --require ./scripts/pilot/server-only-shim.cjs --import tsx scripts/pilot/full-path-pilot.ts mock-media pilot-out 2> >(tee pilot-out-time.txt >&2)
+      - if: always()
+        run: mkdir -p pilot-out && cp pilot-out-time.txt pilot-out/ 2>/dev/null || true
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: full-path-pilot
+          path: pilot-out/

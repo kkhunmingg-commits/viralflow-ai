@@ -49,6 +49,20 @@ describe("local-only real creative runtime wiring (model transport separately mo
     await expect(generateEvidenceStrategyProject(state.client,"owner","project")).rejects.toThrow("CREATIVE_LLM_NOT_CONFIGURED");
     expect(mocks.context).not.toHaveBeenCalled();expect(mocks.plan).not.toHaveBeenCalled();expect(state.writes).toEqual([]);
   });
+  it("plans with the zero-cost evidence rubric only when the owner chose it, keeping review pending",async()=>{
+    mocks.env.creativeAIProvider="evidence-rubric";mocks.env.openAIApiKey="";const state=clientFor();
+    mocks.resources.mockResolvedValue({resources:{ownerId:"owner",now:new Date("2026-10-13T12:00:00Z"),realAccount:true,optedIn:true,affiliateEligible:true,adaptiveHistory:[],
+      facts:[{id:"fact-1",text:"ด้ามกดหมุนในตะแกรงของถัง",source:"OWNER_FOOTAGE",reference:"owner",verified:true,capturedAt:"2026-10-13T10:00:00Z",productId:"mop",role:"OBSERVATION"}],
+      assets:[{id:"clip",kind:"REAL_FOOTAGE",source:"OWNER",reference:"ledger",rightsConfirmed:true,reviewed:true,productId:"mop",durationSeconds:8}]}});
+    const result=await generateEvidenceStrategyProject(state.client,"owner","project");
+    expect(mocks.plan).not.toHaveBeenCalled();
+    expect(result).toMatchObject({cost:0,humanReview:"PENDING"});
+    const payload=state.rpc.mock.calls[0][1] as Row,generation=payload.p_generation as Row;
+    expect(generation).toMatchObject({provider:"local",model:"evidence-rubric-v1",input_tokens:0,output_tokens:0,estimated_cost:0});
+    const angles=payload.p_angles as Row[];
+    expect(angles.every(a=>(a.score_explanation_json as {productionStrategy:{review:unknown}}).productionStrategy.review===null)).toBe(true);
+    expect((generation.validated_output_json as {strategyPlan:{source:string}}).strategyPlan.source).toBe("DETERMINISTIC_EVIDENCE_RUBRIC");
+  });
   it("rejects non-participating accounts before claim or LLM invocation",async()=>{
     mocks.resources.mockResolvedValue({resources:{realAccount:true,optedIn:false}});const state=clientFor();
     await expect(generateEvidenceStrategyProject(state.client,"owner","project")).rejects.toThrow("CREATIVE_ACCOUNT_AUTOMATION_NOT_AUTHORIZED");
