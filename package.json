@@ -16,7 +16,8 @@
     "release:check": "tsx scripts/release-check.ts",
     "benchmark:video": "tsx scripts/video-provider-benchmark.ts",
     "worker:multi-account": "node scripts/multi-account-worker.mjs",
-    "verify:multi-account": "tsx scripts/verify-multi-account-sql.mjs"
+    "verify:multi-account": "tsx scripts/verify-multi-account-sql.mjs",
+    "test:google-vids-local": "tsx scripts/google-vids-local/server.ts"
   },
   "dependencies": {
     "@fal-ai/client": "1.10.1",
