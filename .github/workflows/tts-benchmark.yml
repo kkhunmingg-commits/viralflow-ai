@@ -100,7 +100,7 @@ jobs:
           echo "VOXCPM_MODEL=$(.venv-tts/bin/python -c 'from huggingface_hub import snapshot_download;print(snapshot_download("openbmb/VoxCPM2"))')" >> "$GITHUB_ENV"
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.121.0
       - name: Start a throwaway local Supabase with every migration
         run: |
           supabase start -x realtime,studio,edge-runtime,logflare,vector,supavisor
@@ -176,7 +176,7 @@ jobs:
           echo "VOXCPM_MODEL=$(.venv-tts/bin/python -c 'from huggingface_hub import snapshot_download;print(snapshot_download("openbmb/VoxCPM2"))')" >> "$GITHUB_ENV"
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.121.0
       - name: Start a throwaway local Supabase with every migration
         run: |
           supabase start -x realtime,studio,edge-runtime,logflare,vector,supavisor
