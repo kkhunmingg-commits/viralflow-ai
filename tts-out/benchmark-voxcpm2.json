@@ -1,0 +1,62 @@
+{
+  "engine": "voxcpm2",
+  "cpus": 4,
+  "python": "3.12.15",
+  "download_seconds": 15.6,
+  "model_bytes": 4960731866,
+  "load_seconds": 13.7,
+  "rss_after_load_mb": 11664.8,
+  "sample_rate": 48000,
+  "runs": [
+    {
+      "file": "voxcpm2-female-hook.wav",
+      "voice": "female",
+      "text": "รู้ไหม เรื่องนี้มีเหตุผล",
+      "audio_seconds": 1.76,
+      "synth_seconds": 67.54,
+      "rtf": 38.38
+    },
+    {
+      "file": "voxcpm2-female-graphic.wav",
+      "voice": "female",
+      "text": "รู้ไหม เรื่องนี้มีเหตุผล วางของใช้บ่อยไว้ใกล้มือ ติดตามไว้ ตอนต่อไปมีอีก",
+      "audio_seconds": 6.08,
+      "synth_seconds": 216.63,
+      "rtf": 35.63
+    },
+    {
+      "file": "voxcpm2-female-product.wav",
+      "voice": "female",
+      "text": "ขวดน้ำเก็บความเย็นใบนี้ ฝาเปิดมือเดียว ดูรายละเอียดก่อนตัดสินใจนะคะ",
+      "audio_seconds": 5.12,
+      "synth_seconds": 189.37,
+      "rtf": 36.99
+    },
+    {
+      "file": "voxcpm2-female-numbers.wav",
+      "voice": "female",
+      "text": "ความจุห้าร้อยมิลลิลิตร น้ำหนักเบา พกง่ายทุกวัน",
+      "audio_seconds": 4.16,
+      "synth_seconds": 147.42,
+      "rtf": 35.44
+    },
+    {
+      "file": "voxcpm2-male-graphic.wav",
+      "voice": "male",
+      "text": "รู้ไหม เรื่องนี้มีเหตุผล วางของใช้บ่อยไว้ใกล้มือ ติดตามไว้ ตอนต่อไปมีอีก",
+      "audio_seconds": 5.6,
+      "synth_seconds": 201.79,
+      "rtf": 36.03
+    },
+    {
+      "file": "voxcpm2-male-product.wav",
+      "voice": "male",
+      "text": "ขวดน้ำเก็บความเย็นใบนี้ ฝาเปิดมือเดียว ดูรายละเอียดก่อนตัดสินใจนะคะ",
+      "audio_seconds": 5.44,
+      "synth_seconds": 198.14,
+      "rtf": 36.42
+    }
+  ],
+  "peak_rss_mb": 11664.8,
+  "ok": true
+}
