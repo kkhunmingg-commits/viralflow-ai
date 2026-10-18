@@ -50,7 +50,8 @@ def serve(source, destination, *, worker_factory=None) -> None:
             raise ValueError("INVALID_RUNTIME_REQUEST")
         config = json.loads(first)
         if (not isinstance(config, dict) or not {"root", "profile", "componentRoot"}.issubset(config)
-                or not set(config).issubset({"root", "profile", "componentRoot", "roomId", "localModelFiles"})):
+                or not set(config).issubset({"root", "profile", "componentRoot", "roomId", "localModelFiles", "liveMode"})
+                or config.get("liveMode", "pro") not in ("pro", "lite")):
             raise ValueError("INVALID_RUNTIME_CONFIG")
         room_id = config.get("roomId")
         if room_id is not None and (not isinstance(room_id, str) or str(uuid.UUID(room_id)) != room_id):
@@ -69,7 +70,11 @@ def serve(source, destination, *, worker_factory=None) -> None:
         os.environ["AI_LIVE_MODELS_DIR"] = str(models)
         os.environ["HF_HUB_OFFLINE"] = "1"
         os.environ["TRANSFORMERS_OFFLINE"] = "1"
-        if profile == "cpu-dev":
+        lite = config.get("liveMode") == "lite"
+        if lite:
+            # LIVE Lite Auto: prepared presenter pack, no dev fallback, CPU/iGPU encoder.
+            os.environ.update({"AI_LIVE_DEV_FALLBACK": "false"})
+        elif profile == "cpu-dev":
             os.environ.update({"PRESENTER_PROVIDER": "dev_fallback", "AI_LIVE_DEV_FALLBACK": "true",
                                "APP_ENV": "development", "AI_LIVE_ENV": "development"})
         else:
@@ -98,7 +103,23 @@ def serve(source, destination, *, worker_factory=None) -> None:
                     brain = LocalBrainProvider(PendingLocalBrainRuntime(), product_store)
                 return brain, make_managed_local_tts(components, context_id="/".join(vars(scope).values()))
             worker_root = root / "worker" / "isolated" / room_id if room_id else root / "worker"
-            worker = LocalWorkerBoundary(worker_root, StreamCredentialStore(root / "live-credentials"), ai_provider_factory=local_providers)
+            if lite:
+                from cloud_tts import SpeechProvider, backend_from_env
+                from lite_brain import LiteRoutedBrain, NoLLMRuntime
+                from lite_mode import LiteWorkerBoundary
+                def lite_providers(scope, product_store):
+                    try:
+                        base = make_managed_local_brain(components, product_store)
+                    except SecurityError as exc:
+                        if exc.code not in ("LOCAL_BRAIN_MODEL_PENDING", "LOCAL_RUNTIME_MODEL_PENDING"):
+                            raise
+                        base = LocalBrainProvider(NoLLMRuntime(), product_store)
+                    return (LiteRoutedBrain(base),
+                            SpeechProvider(backend_from_env(), context_id="/".join(vars(scope).values())))
+                worker = LiteWorkerBoundary(worker_root, StreamCredentialStore(root / "live-credentials"),
+                                            ai_provider_factory=lite_providers)
+            else:
+                worker = LocalWorkerBoundary(worker_root, StreamCredentialStore(root / "live-credentials"), ai_provider_factory=local_providers)
         else:
             worker = worker_factory(root, profile, component_root)
         destination.write(b'{"ready":true}\n')

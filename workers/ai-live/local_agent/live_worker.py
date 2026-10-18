@@ -53,6 +53,12 @@ class _PreparedEngine:
     def close(self):
         self.engine.close()
 
+    def __getattr__(self, name):
+        # Optional LIVE Lite hooks pass through only when the engine has them.
+        if name in ("render_idle", "audio_received", "metrics"):
+            return getattr(self.engine, name)
+        raise AttributeError(name)
+
 
 @dataclass
 class _LocalSession:
@@ -155,7 +161,7 @@ class LocalWorkerBoundary:
                     else:
                         result = subprocess.run([executable, "-hide_banner", "-encoders"], capture_output=True,
                                                 timeout=3, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-                        codec_ready = result.returncode == 0 and b"libx264" in result.stdout
+                        codec_ready = result.returncode == 0 and self.encoder_config.video_codec.encode() in result.stdout
                     self._capability_cache = {"ready": capability.get("ready") is True and codec_ready,
                         "code": "READY" if capability.get("ready") is True and codec_ready else "WORKER_NOT_VALIDATED",
                         "encoder_ready": False, "presenter_ready": False,

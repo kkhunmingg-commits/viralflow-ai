@@ -59,7 +59,7 @@ class EncoderConfig:
     def __post_init__(self) -> None:
         if not 1 <= self.fps <= 60 or self.sample_rate != 16000 or self.channels != 1:
             raise ValueError("Encoder requires PCM16 mono 16kHz and fps in 1..60")
-        if self.video_codec not in ("libx264", "h264_nvenc"):
+        if self.video_codec not in ("libx264", "h264_nvenc", "h264_amf"):
             raise ValueError("Unsupported H.264 encoder")
         if min(self.video_bitrate_kbps, self.audio_bitrate_kbps, self.max_audio_buffer_ms,
                self.max_frame_bytes, self.input_queue_size, self.sink_queue_size) <= 0:
@@ -150,6 +150,9 @@ class InternalAVEncoder:
                        "-map", "0:v:0", "-map", "1:a:0", "-c:v", self.config.video_codec]
             if self.config.video_codec == "libx264":
                 command += ["-preset", "ultrafast", "-tune", "zerolatency", "-threads", "2"]
+            elif self.config.video_codec == "h264_amf":
+                # AMD integrated GPU (ROG Ally X); frees CPU for presenter compose.
+                command += ["-usage", "ultralowlatency", "-quality", "speed", "-rc", "cbr"]
             else:
                 command += ["-preset", "p1", "-tune", "ull"]
             command += ["-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", "-pix_fmt", "yuv420p",

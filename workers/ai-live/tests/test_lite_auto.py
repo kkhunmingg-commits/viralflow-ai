@@ -1,0 +1,326 @@
+"""LIVE Lite Auto: prepared presenter, routed brain, director, voice and destination gate.
+
+The synthetic pack and espeak-free fake transports here are unit-test
+boundaries; they are never represented as a customer presenter or voice.
+"""
+from __future__ import annotations
+
+import io
+import json
+import math
+import queue
+import sys
+import tempfile
+import threading
+import time
+import unittest
+import urllib.error
+import unittest.mock
+from pathlib import Path
+
+import numpy as np
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from av_encoder import EncoderConfig
+from cloud_tts import AzureSpeechBackend, CloudTTSError, SpeechProvider, UsageMeter, backend_from_env
+from lite_audio_features import FrameFeatureExtractor, OpennessTracker
+from lite_brain import UNKNOWN_SPOKEN, LiteRoutedBrain, NoLLMRuntime, similarity
+from lite_destination import LiteDestinationProvider, classify
+from lite_director import LiteShowDirector, product_script
+from lite_pack_builder import build_synthetic
+from lite_presenter_engine import LitePresenterEngine
+from lite_presenter_pack import PresenterPackError, load_pack
+from direct_stream import StreamError
+from local_brain import BrainRequest, BrainScope, InMemoryProductStore, LocalBrainProvider, ProductSnapshot
+
+SCOPE = BrainScope("owner", "account", "room")
+FACTS = {"price": 299, "currency": "THB", "colors": ["ดำ", "ขาว"],
+         "attributes": {"วัสดุ": "สแตนเลสค่ะ"},
+         "faq": {"ใส่น้ำร้อนได้ไหม": "ใส่น้ำร้อนได้ค่ะ", "ล้างเครื่องล้างจานได้ไหม": "ล้างมือดีกว่าค่ะ"}}
+
+
+def tone(seconds: float, amplitude: float = 0.3) -> bytes:
+    t = np.arange(int(16000 * seconds)) / 16000
+    return (np.sin(2 * math.pi * 220 * t) * amplitude * 32767).astype("<i2").tobytes()
+
+
+class AudioFeatureTests(unittest.TestCase):
+    def test_features_align_to_frames_without_dropping_samples(self):
+        extractor = FrameFeatureExtractor(25)
+        features = extractor.push(tone(0.3)) + extractor.push(tone(0.7))
+        self.assertEqual(len(features), 25)
+        self.assertTrue(all(feature.voiced for feature in features))
+
+    def test_openness_rises_with_speech_and_falls_in_silence(self):
+        extractor, tracker = FrameFeatureExtractor(25), OpennessTracker()
+        speaking = [tracker.update(f) for f in extractor.push(tone(0.4))]
+        silent = [tracker.update(f) for f in extractor.push(bytes(16000))]
+        self.assertGreater(max(speaking), 0.5)
+        self.assertLess(silent[-1], 0.05)
+
+
+class PresenterPackTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.pack = build_synthetic(Path(self.temp.name) / "pack", frames=12, output_size=(256, 448))
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_tampered_frame_is_rejected(self):
+        frame = self.pack.root / self.pack.frames[0].file
+        frame.write_bytes(frame.read_bytes() + b"x")
+        with self.assertRaises(PresenterPackError) as caught:
+            load_pack(self.pack.root)
+        self.assertEqual(caught.exception.code, "LITE_PACK_HASH_MISMATCH")
+
+    def test_real_likeness_requires_consent(self):
+        manifest = json.loads((self.pack.root / "manifest.json").read_text(encoding="utf-8"))
+        manifest.update(source="RECORDED_VIDEO", technical_test_only=False, consent=None)
+        (self.pack.root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaises(PresenterPackError) as caught:
+            load_pack(self.pack.root)
+        self.assertEqual(caught.exception.code, "LITE_PACK_CONSENT_REQUIRED")
+
+    def test_technical_pack_needs_explicit_opt_in(self):
+        engine = LitePresenterEngine(self.pack.root)
+        with self.assertRaises(PresenterPackError):
+            engine.prepare(self.pack.reference_path, 25)
+
+    def test_reference_must_match_pack(self):
+        other = Path(self.temp.name) / "other.jpg"
+        other.write_bytes(self.pack.reference_path.read_bytes() + b"\0")
+        engine = LitePresenterEngine(self.pack.root, allow_technical_test=True)
+        with self.assertRaises(PresenterPackError) as caught:
+            engine.prepare(other, 25)
+        self.assertEqual(caught.exception.code, "LITE_PACK_REFERENCE_MISMATCH")
+
+    def test_speech_yields_paced_jpeg_frames_and_idle_keeps_moving(self):
+        engine = LitePresenterEngine(self.pack.root, allow_technical_test=True)
+        engine.prepare(self.pack.reference_path, 25)
+        started = time.monotonic()
+        frames = list(engine.render_pcm16_chunk(tone(0.4)))
+        elapsed = time.monotonic() - started
+        self.assertEqual(len(frames), 10)
+        self.assertTrue(all(f.startswith(b"\xff\xd8") and f.endswith(b"\xff\xd9") for f in frames))
+        self.assertGreater(elapsed, 0.3)  # paced to the audio clock, not dumped at once
+        idle = list(engine.render_idle(0.12))
+        self.assertGreaterEqual(len(idle), 2)
+        metrics = engine.metrics()
+        self.assertEqual(metrics["technical_test_only"], True)
+        self.assertLess(metrics["compose_p95_ms"], 40)
+        engine.close()
+
+    def test_interrupt_stops_speech_frames(self):
+        engine = LitePresenterEngine(self.pack.root, allow_technical_test=True)
+        engine.prepare(self.pack.reference_path, 25)
+        frames = engine.render_pcm16_chunk(tone(1.0))
+        next(frames)
+        engine.interrupt()
+        self.assertLess(len(list(frames)), 5)
+        engine.close()
+
+
+def store_with(facts=FACTS) -> InMemoryProductStore:
+    store = InMemoryProductStore()
+    store.put(ProductSnapshot(SCOPE, "p1", "กระบอกน้ำ", "v1", facts))
+    return store
+
+
+class LiteBrainTests(unittest.TestCase):
+    def setUp(self):
+        self.brain = LiteRoutedBrain(LocalBrainProvider(NoLLMRuntime(), store_with()))
+
+    def ask(self, text):
+        return self.brain.generate(BrainRequest(SCOPE, text, "p1"))
+
+    def test_pro_template_answer_is_kept(self):
+        self.assertEqual(self.ask("ราคาเท่าไหร่").source, "authoritative_product")
+
+    def test_paraphrased_question_routes_to_stored_fact(self):
+        answer = self.ask("ใส่น้ำร้อนได้มั้ยคะ")
+        self.assertEqual((answer.text, answer.source), ("ใส่น้ำร้อนได้ค่ะ", "lite_routed_fact"))
+
+    def test_unmarked_question_routes_only_on_strong_match(self):
+        self.assertEqual(self.ask("เข้าเครื่องล้างจานได้ป่าว").text, "ล้างมือดีกว่าค่ะ")
+        self.assertEqual(self.ask("ขอบคุณนะ").source, "guarded_template")
+
+    def test_missing_fact_is_never_invented(self):
+        answer = self.ask("กันกระแทกไหม")
+        self.assertEqual((answer.text, answer.source), (UNKNOWN_SPOKEN, "guarded_unknown"))
+
+    def test_llm_router_can_only_pick_a_listed_fact(self):
+        class Picker(NoLLMRuntime):
+            def __init__(self, text):
+                self.text = text
+            def generate(self, messages, **kwargs):
+                return type("G", (), {"text": self.text, "first_token_ms": None,
+                                      "tokens_per_second": None, "completion_tokens": 1})()
+        for reply, expected in (("1", "ใส่น้ำร้อนได้ค่ะ"), ("ราคา 10 บาท", UNKNOWN_SPOKEN), ("9", UNKNOWN_SPOKEN)):
+            brain = LiteRoutedBrain(LocalBrainProvider(Picker(reply), store_with()))
+            facts = brain._candidates(BrainRequest(SCOPE, "x", "p1"))
+            index = [answer for _key, answer in facts].index("ใส่น้ำร้อนได้ค่ะ") + 1
+            if reply == "1":
+                brain.base.runtime.text = str(index)
+            self.assertEqual(brain.generate(BrainRequest(SCOPE, "เก็บอุณหภูมิตอนเติมของร้อนได้ไหม", "p1")).text,
+                             expected)
+
+    def test_one_gram_keys_do_not_match(self):
+        self.assertEqual(similarity("มีสีอะไร", "สี"), 0.0)
+
+
+class FakeSession:
+    def __init__(self):
+        self.scope, self.product_ids = SCOPE, ("p1",)
+        self.product_store = store_with()
+        self.current_product_id = "p1"
+        self.speaking = False
+        self.queued = []
+
+    def snapshot(self):
+        return {"paused": False, "comment_queue_depth": 0, "speech_queue_depth": 0}
+
+    def queue_speech(self, key, text, *, priority, product_id):
+        self.queued.append((key, text, priority, product_id))
+        return True
+
+
+class DirectorTests(unittest.TestCase):
+    def test_script_uses_only_present_facts(self):
+        lines = product_script("กระบอกน้ำ", {"price": 299, "currency": "THB"})
+        self.assertIn("ราคาตอนนี้ 299 บาทค่ะ", lines)
+        self.assertFalse(any("ส่ง" in line and "ฟรี" in line for line in lines))
+
+    def test_director_queues_low_priority_lines_when_quiet(self):
+        now = [0.0]
+        session = FakeSession()
+        director = LiteShowDirector(session, idle_gap_seconds=0.5, clock=lambda: now[0])
+        self.assertFalse(director.step())
+        now[0] = 1.0
+        self.assertTrue(director.step())
+        key, text, priority, product = session.queued[0]
+        self.assertEqual((priority, product), (10, "p1"))
+        session.speaking = True
+        now[0] = 5.0
+        self.assertFalse(director.step())
+
+
+class Response:
+    def __init__(self, body: bytes):
+        self._body = io.BytesIO(body)
+    def read(self, size=-1):
+        return self._body.read(size)
+    def close(self):
+        pass
+
+
+class SpeechTests(unittest.TestCase):
+    def test_cloud_voice_fails_closed_without_key(self):
+        with unittest.mock.patch.dict("os.environ", {"AI_LIVE_LITE_TTS": "azure"}, clear=False):
+            with self.assertRaises(CloudTTSError) as caught:
+                backend_from_env()
+        self.assertEqual(caught.exception.code, "TTS_CONFIG_INVALID")
+        with unittest.mock.patch.dict("os.environ", {"AI_LIVE_LITE_TTS": ""}):
+            with self.assertRaises(CloudTTSError):
+                backend_from_env()
+
+    def test_azure_streams_pcm_and_meters_characters(self):
+        seen = []
+        def transport(request, timeout):
+            seen.append(request)
+            return Response(tone(0.5))
+        meter = UsageMeter("azure-speech", price_usd_per_million=16.0, free_characters=0)
+        backend = AzureSpeechBackend(key="k" * 32, region="southeastasia", transport=transport, meter=meter)
+        provider = SpeechProvider(backend, context_id="c")
+        self.assertTrue(provider.warmup()["ready"])
+        pcm = b"".join(chunk.pcm16 for chunk in provider.stream_text("ราคา 299 บาทค่ะ", "u1"))
+        self.assertEqual(len(pcm), 16000)
+        self.assertIn(b"th-TH-PremwadeeNeural", seen[-1].data)
+        self.assertEqual(seen[-1].get_header("X-microsoft-outputformat"), "raw-16khz-16bit-mono-pcm")
+        usage = provider.usage()
+        self.assertGreater(usage["characters"], 0)
+        self.assertEqual(usage["cost_basis"], "OWNER_CONFIGURED_PRICE")
+        health = provider.health()
+        self.assertEqual((health["local"], health["requires_api_key"]), (False, True))
+
+    def test_auth_failure_is_reported_not_substituted(self):
+        def transport(request, timeout):
+            raise urllib.error.HTTPError(request.full_url, 401, "no", {}, None)
+        backend = AzureSpeechBackend(key="k" * 32, region="southeastasia", transport=transport,
+                                     meter=UsageMeter("azure-speech"))
+        provider = SpeechProvider(backend, context_id="c")
+        self.assertFalse(provider.warmup()["ready"])
+
+
+class DestinationTests(unittest.TestCase):
+    def test_loopback_test_server_is_technical_only(self):
+        destination = classify("rtmp://127.0.0.1:1935/live")
+        self.assertEqual((destination.kind, destination.commercial), ("TECHNICAL_TEST", False))
+
+    def test_tiktok_is_blocked_until_policy_verified(self):
+        for url in ("rtmps://push-rtmp-l11-sg01.tiktokcdn.com/game", "rtmp://live.tiktok.com/x"):
+            with self.assertRaises(StreamError) as caught:
+                classify(url)
+            self.assertEqual(caught.exception.code, "TIKTOK_AI_PRESENTER_POLICY_UNVERIFIED")
+
+    def test_public_platform_needs_owner_attestation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "attest.json"
+            with self.assertRaises(StreamError):
+                classify("rtmp://a.rtmp.youtube.com/live2", path)
+            path.write_text(json.dumps({"platforms": [{"platform": "youtube", "hosts": ["a.rtmp.youtube.com"],
+                "ai_presenter_allowed": True, "ai_voice_allowed": True, "evidence": "policy page reviewed",
+                "verified_at": "2026-10-18"}]}), encoding="utf-8")
+            destination = classify("rtmp://a.rtmp.youtube.com/live2", path)
+            self.assertEqual((destination.kind, destination.commercial), ("OWNER_ATTESTED_PLATFORM", True))
+            factory = LiteDestinationProvider(path)
+            factory("rtmp://127.0.0.1:1935/live", "key")
+            self.assertEqual(factory.last.kind, "TECHNICAL_TEST")
+
+
+class ProCompatibilityTests(unittest.TestCase):
+    def test_amd_encoder_is_accepted(self):
+        self.assertEqual(EncoderConfig(video_codec="h264_amf").video_codec, "h264_amf")
+        with self.assertRaises(ValueError):
+            EncoderConfig(video_codec="h264_qsv_typo")
+
+    def test_prepared_engine_forwards_only_optional_lite_hooks(self):
+        from local_agent.live_worker import _PreparedEngine
+        class Pro:
+            def close(self): pass
+        class Lite(Pro):
+            def render_idle(self, seconds): return iter(())
+        self.assertFalse(hasattr(_PreparedEngine(Pro(), "d", 25), "render_idle"))
+        self.assertTrue(callable(_PreparedEngine(Lite(), "d", 25).render_idle))
+        with self.assertRaises(AttributeError):
+            _PreparedEngine(Lite(), "d", 25).anything_else
+
+    def test_worker_core_emits_idle_frames_only_for_engines_that_offer_them(self):
+        from worker_core import LiveStore
+        jpeg = b"\xff\xd8idle\xff\xd9"
+        class Engine:
+            def __init__(self): self.idle_calls = 0
+            def prepare(self, reference, fps): pass
+            def render_pcm16_chunk(self, pcm): return iter(())
+            def render_idle(self, seconds):
+                self.idle_calls += 1
+                time.sleep(0.01)
+                yield jpeg
+            def close(self): pass
+        with tempfile.TemporaryDirectory() as temp:
+            store = LiveStore(Path(temp))
+            image = build_synthetic(Path(temp) / "p", frames=8, output_size=(64, 64)).reference_path.read_bytes()
+            reference = store.save_reference("o", image, "image/jpeg")
+            engine = Engine()
+            session_id, session = store.start_session("o", reference, 25, engine)
+            deadline = time.monotonic() + 2
+            while session.frames_generated < 3 and time.monotonic() < deadline:
+                time.sleep(0.02)
+            self.assertGreaterEqual(session.frames_generated, 3)
+            self.assertEqual(list(session.latency_samples), [])  # idle frames are not speech latency
+            store.stop_session("o", session_id)
+            store.close()
+
+
+if __name__ == "__main__":
+    unittest.main()

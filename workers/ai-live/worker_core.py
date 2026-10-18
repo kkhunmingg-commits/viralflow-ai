@@ -166,14 +166,16 @@ class Session:
                 })
             return result
 
-    def emit_frame(self, jpeg: bytes, received_at: float) -> None:
+    def emit_frame(self, jpeg: bytes, received_at: float, *, idle: bool = False) -> None:
         if not (jpeg.startswith(b"\xff\xd8") and jpeg.endswith(b"\xff\xd9")):
             raise ValueError("backend returned a non-JPEG frame")
         now = time.monotonic()
         with self.lock:
             self.frames_generated += 1
-            self.latency_ms = (now - received_at) * 1000
-            self.latency_samples.append(self.latency_ms)
+            if not idle:
+                # Idle presenter frames have no speech input; keep latency speech-only.
+                self.latency_ms = (now - received_at) * 1000
+                self.latency_samples.append(self.latency_ms)
             if self.inference_started_at is not None:
                 self.inference_delay_ms = round((now - self.inference_started_at) * 1000, 1)
             self.latest_frame = jpeg
@@ -385,12 +387,21 @@ class LiveStore:
                     session.status = "RUNNING"
                     session.last_audio_at = time.monotonic()
                     session.started_at = session.last_audio_at
+            # Optional engine hooks (LIVE Lite): engines without them behave exactly as before.
+            render_idle = getattr(session.engine, "render_idle", None)
+            audio_received = getattr(session.engine, "audio_received", None)
             while not session.stop_event.is_set():
                 if session.stream and session.stream.metrics()["status"] == "FAILED":
                     raise RuntimeError("ENCODER_FAILED")
                 try:
-                    item = session.audio.get(timeout=0.25)
+                    item = session.audio.get(timeout=0.02 if callable(render_idle) else 0.25)
                 except queue.Empty:
+                    if callable(render_idle):
+                        # Keep the presenter alive between utterances in short, interruptible bursts.
+                        for jpeg in render_idle(0.12):
+                            if session.stop_event.is_set() or not session.audio.empty():
+                                break
+                            session.emit_frame(jpeg, time.monotonic(), idle=True)
                     with session.lock:
                         if (
                             session.status == "RUNNING"
@@ -414,6 +425,8 @@ class LiveStore:
                 accepts_generation = getattr(session.stream, "accepts_speech_generation", None)
                 if callable(activity):
                     activity(True)
+                if callable(audio_received):
+                    audio_received(received_at)
                 # The engine must yield frames during inference, not after a
                 # complete video has been rendered to disk.
                 for jpeg in session.engine.render_pcm16_chunk(pcm):
