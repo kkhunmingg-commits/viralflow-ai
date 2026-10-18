@@ -13,6 +13,7 @@ describe("local real-media composer",()=>{
   it("wraps Thai at word boundaries counting only base characters",()=>{
     expect(wrapThaiCaption("ไม้ถูพื้นบิดน้ำได้ด้วยถังปั่น ไม่ต้องใช้มือ")).toEqual(["ไม้ถูพื้นบิดน้ำได้ด้วยถังปั่น","ไม่ต้องใช้มือ"]);
     expect(()=>wrapThaiCaption("ข้อความยาวมาก".repeat(10))).toThrow("caption_too_long");
+    expect(wrapThaiCaption("ติดตามไว้ ตอนต่อไปมีอีก",13,4)).toEqual(["ติดตามไว้","ตอนต่อไปมีอีก"]);
   });
   it("keeps caption text from injecting ASS overrides and validates timing",()=>{
     const ass=buildAssSubtitles([{text:"ลด{\\an8\\b0}ราคา",start:0,end:3}],8);

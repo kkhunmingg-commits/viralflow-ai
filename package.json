@@ -15,6 +15,7 @@
     "test": "vitest run --pool=threads --maxWorkers=1",
     "release:check": "tsx scripts/release-check.ts",
     "benchmark:video": "tsx scripts/video-provider-benchmark.ts",
+    "pilot:graphic": "tsx scripts/graphic-story-pilot.ts",
     "worker:multi-account": "node scripts/multi-account-worker.mjs",
     "verify:multi-account": "tsx scripts/verify-multi-account-sql.mjs"
   },

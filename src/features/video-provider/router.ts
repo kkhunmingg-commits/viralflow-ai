@@ -7,6 +7,8 @@ export function routeVideoJob(settings: ProviderSettings, job: RouterJob, snapsh
   if (job.nextRetryAt && Date.parse(job.nextRetryAt) > now.getTime()) return { action: "WAIT", provider: job.provider, reason: "BACKOFF", retryAt: job.nextRetryAt };
   if (["fal_ai", "gemini_omni_api"].includes(job.provider ?? "") && job.submission === "CONFIRMED_FAILED") return { action: "WAIT", provider: job.provider, reason: "PAID_RETRY_REQUIRES_NEW_OWNER_DECISION" };
   if (snapshot.productionMethod === "WAIT_FOR_EVIDENCE") return {action:"WAIT",provider:null,reason:"VERIFIED_CREATIVE_EVIDENCE_REQUIRED"};
+  // Drawn locally by Video Factory at zero cost; no provider is ever needed or paid.
+  if (snapshot.productionMethod === "ORIGINAL_GRAPHIC_STORY") return {action:"WAIT",provider:null,reason:"LOCAL_COMPOSER_ONLY"};
   if (["REAL_FOOTAGE_EDIT","REAL_IMAGE_MOTION"].includes(snapshot.productionMethod??"")) return {action:"ASSIST",provider:"google_vids_omni",reason:"REAL_MEDIA_EDIT_ONLY_NO_GENERATIVE_PRODUCT"};
   // Existing paid adapters use product-ad prompts/references. Do not reuse them for a non-evidentiary atmosphere plan.
   if (snapshot.productionMethod === "GENERATIVE_ATMOSPHERE") return {action:"ASSIST",provider:"google_vids_omni",reason:"ATMOSPHERE_ASSISTED_TRANSPORT_ONLY"};

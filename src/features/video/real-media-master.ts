@@ -2,6 +2,8 @@ import {writeFile} from "node:fs/promises";
 import {join} from "node:path";
 import type {SupabaseClient} from "@supabase/supabase-js";
 import {composeRealMedia,LOCAL_COMPOSER_MODEL,type ComposerClip} from "./local-composer";
+import {resolveNarration} from "./narration";
+import type {ThaiVoiceProvider} from "./thai-voice";
 import {currentRightsByAsset,mediaRightsViolations,type MediaRightsRecord} from "./media-rights";
 import {ownsVideoStoragePath} from "./storage";
 import {VIDEO_BUCKET,type TimedText} from "./types";
@@ -17,7 +19,7 @@ export interface RealMediaSelection {clips:Array<ComposerClip&{storagePath:strin
 export async function selectRealMedia(client:SupabaseClient,owner:string,input:{productId:string;accountId:string;creativeProjectId:string;evidenceIds:string[];at:Date}):Promise<RealMediaSelection>{
   const [visual,voices]=await Promise.all([
     input.evidenceIds.length?client.from("media_assets").select("id,product_id,asset_type,storage_path").eq("owner_id",owner).eq("product_id",input.productId).in("id",input.evidenceIds):{data:[],error:null},
-    // Narration is the owner's own upload for this project; generated or mock voice is never used here.
+    // Owner-recorded narration for this project. Licensed system TTS is resolved later with its provenance.
     client.from("media_assets").select("id,product_id,asset_type,storage_path,created_at").eq("owner_id",owner).eq("creative_project_id",input.creativeProjectId).eq("asset_type","VOICE").eq("source_type","UPLOAD").order("created_at",{ascending:false}).limit(5),
   ]);
   if(visual.error||voices.error)throw new Error("real_media_unavailable");
@@ -42,6 +44,24 @@ export async function selectRealMedia(client:SupabaseClient,owner:string,input:{
   return {clips,voice:voiceAsset?{assetId:String(voiceAsset.id),storagePath:String(voiceAsset.storage_path),rights:ledger.get(String(voiceAsset.id))!}:null};
 }
 
+/** The owner's own cleared narration for a project, if any (used by every local format). */
+export async function selectOwnerVoice(client:SupabaseClient,owner:string,input:{creativeProjectId:string;accountId:string;at:Date}){
+  const voices=await client.from("media_assets").select("id,storage_path,created_at").eq("owner_id",owner).eq("creative_project_id",input.creativeProjectId).eq("asset_type","VOICE").eq("source_type","UPLOAD").order("created_at",{ascending:false}).limit(5);
+  if(voices.error)throw new Error("real_media_unavailable");
+  const owned=(voices.data??[]).filter(v=>ownsVideoStoragePath(owner,String(v.storage_path)));
+  if(!owned.length)return null;
+  const rights=await client.from("media_asset_rights").select(RIGHTS_COLUMNS).eq("owner_id",owner).in("media_asset_id",owned.map(v=>String(v.id)));
+  if(rights.error)throw new Error("real_media_rights_unavailable");
+  const ledger=currentRightsByAsset((rights.data??[]) as MediaRightsRecord[]);
+  for(const voice of owned){const record=ledger.get(String(voice.id));
+    if(record?.asset_role==="VOICE"&&!mediaRightsViolations(record,{at:input.at,accountId:input.accountId}).length)return {assetId:String(voice.id),storagePath:String(voice.storage_path),rights:record};}
+  return null;
+}
+
+export async function downloadOwnerVoice(client:SupabaseClient,voice:{assetId:string;storagePath:string},path:string){
+  await download(client,voice.storagePath,path);return {assetId:voice.assetId,path};
+}
+
 async function download(client:SupabaseClient,storagePath:string,path:string){
   const {data,error}=await client.storage.from(VIDEO_BUCKET).download(storagePath);
   if(error||!data)throw new Error("real_media_download_failed");
@@ -49,14 +69,16 @@ async function download(client:SupabaseClient,storagePath:string,path:string){
   await writeFile(path,new Uint8Array(await data.arrayBuffer()));
 }
 
-export async function renderRealMediaMaster(client:SupabaseClient,owner:string,input:{selection:RealMediaSelection;captions:TimedText[];workDir:string;outputPath:string}){
+export async function renderRealMediaMaster(client:SupabaseClient,owner:string,input:{selection:RealMediaSelection;captions:TimedText[];script:string;tts:ThaiVoiceProvider|null;workDir:string;outputPath:string}){
   const clips=await Promise.all(input.selection.clips.map(async(clip,index)=>{
     const path=join(input.workDir,`source-${index}`);await download(client,clip.storagePath,path);return {...clip,path};
   }));
-  let voicePath:string|undefined;
-  if(input.selection.voice){voicePath=join(input.workDir,"voice");await download(client,input.selection.voice.storagePath,voicePath)}
-  const composed=await composeRealMedia({clips,captions:input.captions,voicePath,durationSeconds:8,workDir:input.workDir,outputPath:input.outputPath});
-  return {...composed,clips};
+  let ownerVoice:{assetId:string;path:string}|undefined;
+  if(input.selection.voice){ownerVoice={assetId:input.selection.voice.assetId,path:join(input.workDir,"voice")};await download(client,input.selection.voice.storagePath,ownerVoice.path)}
+  // A product ad needs spoken narration; caption-only is reserved for text-first Growth formats.
+  const narration=await resolveNarration({ownerVoice,script:input.script,workDir:input.workDir,tts:input.tts,allowCaptionOnly:false,maxSeconds:7.8});
+  const composed=await composeRealMedia({clips,captions:input.captions,voicePath:narration.voicePath,audioMode:narration.audioMode,durationSeconds:8,workDir:input.workDir,outputPath:input.outputPath});
+  return {...composed,clips,narration:narration.source};
 }
 
 /** Links an output to the exact rights seen at build time so a later revocation stops it. */

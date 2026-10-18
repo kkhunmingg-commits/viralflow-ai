@@ -6,7 +6,19 @@ import { evaluateCreativeRisk } from "./risk";
 import { creativeConceptSchema, type CreativeConcept } from "./schemas";
 
 export const CREATIVE_STRATEGY_VERSION = "evidence-production-strategy-v1";
-export type ProductionMethod = "REAL_FOOTAGE_EDIT" | "REAL_IMAGE_MOTION" | "GENERATIVE_ATMOSPHERE" | "WAIT_FOR_EVIDENCE";
+/** ORIGINAL_GRAPHIC_STORY: system-drawn typographic cards for Growth. No third-party media,
+ * so rights are inherent; every factual line still needs verified evidence. */
+/** A typographic card is on screen ~2.4 s; at 14 base characters per second that is ~33 characters. */
+export const GRAPHIC_CARD_MAX_CHARS = 32;
+export const graphicCardFits = (text: string) => { const n = [...text.trim().replace(/\p{M}/gu, "")].length; return n > 0 && n <= GRAPHIC_CARD_MAX_CHARS; };
+/** Hook, the spoken point with hook and call to action removed, and the call to action: one card each. */
+export function graphicCardCopy(hook: string, script: string, cta: string): [string, string, string] {
+  let middle = script.trim();
+  if (hook.trim() && middle.startsWith(hook.trim())) middle = middle.slice(hook.trim().length).trim();
+  if (cta.trim() && middle.endsWith(cta.trim())) middle = middle.slice(0, -cta.trim().length).trim();
+  return [hook.trim(), middle, cta.trim()];
+}
+export type ProductionMethod = "REAL_FOOTAGE_EDIT" | "REAL_IMAGE_MOTION" | "ORIGINAL_GRAPHIC_STORY" | "GENERATIVE_ATMOSPHERE" | "WAIT_FOR_EVIDENCE";
 
 /** Verified/reviewed fields must originate in trusted, owner-reviewed server records,
  * never request-body assertions. Unknown catalog metadata is not verification. */
@@ -152,6 +164,12 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
       concept: draft("DEMONSTRATION", `${name}: หนึ่งเรื่องที่ตรวจสอบได้`, "เรื่องนี้สังเกตจากอะไร?", fact, cta,
         ["คำถามเดียวจากหัวข้อที่มีข้อมูลจริง", "ภาพที่มีสิทธิ์พร้อมข้อเท็จจริงหนึ่งข้อและที่มา", "สรุปขอบเขตความรู้และชวนติดตาม"],
         ["เปิดด้วยคำถามภายในสองวินาที", "แสดงหลักฐานให้เวลาผู้ชมอ่าน", "จบโดยไม่ขายสินค้า"]) },
+    { id: "growth-graphic-explainer", required: undefined, method: "ORIGINAL_GRAPHIC_STORY" as const,
+      requiresAsset: false, requiresFact: true,
+      missing: "ข้อเท็จจริงที่ตรวจแล้วจากแหล่งที่ได้รับอนุญาต สำหรับเล่าด้วยกราฟิกต้นฉบับ",
+      concept: draft("DEMONSTRATION", `${name}: รู้ไหมว่า`, "รู้ไหม เรื่องนี้มีเหตุผล", fact, cta,
+        ["การ์ดตัวอักษรต้นฉบับ ตั้งคำถามเดียว", "การ์ดข้อเท็จจริงหนึ่งข้อพร้อมที่มา ไม่ใช้ภาพของผู้อื่น", "การ์ดสรุปและชวนติดตาม"],
+        ["ข้อความขึ้นทีละบรรทัดให้อ่านทัน", "พื้นหลังไล่สีเคลื่อนช้า ไม่ใช้เป็นหลักฐาน", "ปิดด้วยคำชวนติดตามที่อ่านจบในสองวินาที"]) },
     { id: "growth-pov-question", required: image ?? atmosphere, method: image ? "REAL_IMAGE_MOTION" as const : "GENERATIVE_ATMOSPHERE" as const,
       requiresAsset: false,
       missing: "หัวข้อจากแหล่งที่ได้รับอนุญาต และภาพบรรยากาศหรือภาพจริงที่มีสิทธิ์ใช้",
@@ -172,7 +190,9 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
     const missingEvidence = [...(requiresAsset && !d.required ? [d.missing] : []), ...(requiresFact && !facts.length ? ["หลักฐานข้อเท็จจริงที่ตรวจสอบแล้ว"] : []),
       ...(realVideoTooShort ? ["ต้องยืนยันว่าฟุตเทจจริงครอบคลุมแปดวินาที ไม่ยืดหรือเติมภาพเพื่ออ้างการสาธิตต่อเนื่อง"] : []),
       ...(!hasProduct && !topic ? ["หัวข้อที่มีข้อมูลจริง ห้ามอ้างว่าเป็นเทรนด์ที่ยืนยันแล้ว"] : []),
-      ...(!eligible ? ["สิทธิ์ Affiliate ของบัญชียังไม่ยืนยัน"] : [])];
+      ...(!eligible ? ["สิทธิ์ Affiliate ของบัญชียังไม่ยืนยัน"] : []),
+      ...(d.method === "ORIGINAL_GRAPHIC_STORY" && facts.length && !graphicCardCopy(d.concept.hook, d.concept.voiceScript, d.concept.cta).every(graphicCardFits)
+        ? [`ข้อเท็จจริงสั้นพอให้อ่านทันบนการ์ด (ไม่เกิน ${GRAPHIC_CARD_MAX_CHARS} ตัวอักษร)`] : [])];
     const ready = missingEvidence.length === 0;
     const risk = evaluateCreativeRisk(d.concept, facts.map(f => f.text).join(" "));
     const truth = checkProductTruth([d.concept.hook, d.concept.voiceScript, d.concept.caption].join(" "), facts.map(f => f.text));
@@ -181,7 +201,8 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
     const rubric = { evidenceFit: ready ? 40 : d.required ? 15 : 0, productionFeasibility: ready ? 30 : 0,
       modeFit: eligible ? 20 : 0, learningSupport };
     const score = rejected ? 0 : Object.values(rubric).reduce((a, b) => a + b, 0);
-    const reasons = [ready ? "มีหลักฐานและภาพที่รองรับวิธีผลิตนี้" : "ยังขาดหลักฐาน จึงยังผลิตไม่ได้", d.method === "REAL_IMAGE_MOTION"
+    const reasons = [ready ? "มีหลักฐานและภาพที่รองรับวิธีผลิตนี้" : "ยังขาดหลักฐาน จึงยังผลิตไม่ได้", d.method === "ORIGINAL_GRAPHIC_STORY"
+      ? "กราฟิกต้นฉบับที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น ต้นทุนเรนเดอร์เป็นศูนย์" : d.method === "REAL_IMAGE_MOTION"
       ? "ใช้ภาพจริงและตัดต่อ ไม่อ้างว่าการแพนภาพคือการสาธิต" : d.method === "REAL_FOOTAGE_EDIT"
         ? "การเคลื่อนไหวที่พิสูจน์สินค้าต้องมาจากวิดีโอจริง" : "ภาพสร้างใช้ได้เฉพาะบรรยากาศ ไม่ใช้ยืนยันข้อเท็จจริง",
       "คะแนนเป็นความเหมาะสมตามเกณฑ์ที่เปิดเผย ไม่ใช่โอกาสไวรัล", ...(learningSupport ? ["มีผลจริงเฉพาะบัญชีรองรับรูปแบบนี้"] : ["ยังไม่มีผลจริงรองรับว่ารูปแบบนี้ทำงานดีในบัญชีนี้"]),

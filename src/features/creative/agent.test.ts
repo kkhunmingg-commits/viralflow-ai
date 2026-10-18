@@ -117,6 +117,24 @@ describe("actual LLM creative strategy adapter with mocked network only", () => 
     expect(result.plan.concepts.every(c => c.production.method === "GENERATIVE_ATMOSPHERE" && c.status === "REVIEW_REQUIRED")).toBe(true);
     expect(result.plan.humanReviewRequired).toBe(true);
   });
+  it("accepts original graphic stories only for Growth, as graphics, with a cited fact and readable cards", async () => {
+    const growthInput = { ...input(false), facts: [{ id: "fact-1", text: "วางของใช้บ่อยไว้ใกล้มือ", source: "AUTHORIZED_SOURCE" as const,
+      reference: "authorized-source-record", verified: true, capturedAt: "2026-10-13T10:00:00Z", topic: "ไอเดียจัดโต๊ะ-2", role: "OBSERVATION" as const }] };
+    const graphic = (mutate: (c: CreativeAgentOutput["concepts"][number]) => void = () => {}) => {
+      const generated = output(false), c = generated.concepts[2];
+      c.production = { ...c.production, method: "ORIGINAL_GRAPHIC_STORY", visualRole: "ORIGINAL_GRAPHIC", depictsProductOperation: false, evidenceIds: ["fact-1"] };
+      c.claims = [{ text: "วางของใช้บ่อยไว้ใกล้มือ", evidenceIds: ["fact-1"] }] as typeof c.claims;
+      c.concept = { ...c.concept, hook: "รู้ไหม เรื่องนี้มีเหตุผล", voiceScript: "วางของใช้บ่อยไว้ใกล้มือ", cta: "ติดตามไว้" };
+      mutate(c); return generated;
+    };
+    const ok = await runCreativeAgent(growthInput, adapter(graphic()).provider);
+    expect(ok.plan.concepts[2].production.missingEvidence).toEqual([]);
+    expect(ok.plan.concepts[2].production.method).toBe("ORIGINAL_GRAPHIC_STORY");
+    for (const bad of [graphic(c => { c.production.visualRole = "PRODUCT_EVIDENCE"; }), graphic(c => { c.claims = []; }),
+      graphic(c => { c.concept.voiceScript = "ข้อความยาวมากเกินกว่าจะอ่านทันบนการ์ดหนึ่งใบในเวลาสั้นๆ"; })]) {
+      expect((await runCreativeAgent(growthInput, adapter(bad).provider)).plan.concepts[2].status).toBe("WAIT_FOR_EVIDENCE");
+    }
+  });
   it("does not treat an LLM assertion as verified trend evidence", async () => {
     const generated = output(false); generated.concepts[2].topicBasis = "OBSERVED";
     const result = await runCreativeAgent(input(false), adapter(generated).provider);
