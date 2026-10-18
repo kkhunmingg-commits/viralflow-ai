@@ -45,6 +45,8 @@ describe("video provider routing decisions (capability fixtures, not real Google
     }
     expect(routeVideoJob(settings,fresh,{...snapshot,productionMethod:"WAIT_FOR_EVIDENCE",geminiAvailable:true,geminiEstimateUsd:2}))
       .toMatchObject({action:"WAIT",provider:null,reason:"VERIFIED_CREATIVE_EVIDENCE_REQUIRED"});
+    expect(routeVideoJob(settings,fresh,{...snapshot,productionMethod:"ORIGINAL_GRAPHIC_STORY",geminiAvailable:true,geminiEstimateUsd:2}))
+      .toMatchObject({action:"WAIT",provider:null,reason:"LOCAL_COMPOSER_ONLY"});
   });
   it.each(["fal_ai","gemini_omni_api"] as const)("keeps known %s identity when a later strategy prohibits new generation",provider=>{
     for(const productionMethod of ["REAL_FOOTAGE_EDIT","REAL_IMAGE_MOTION","WAIT_FOR_EVIDENCE"] as const){

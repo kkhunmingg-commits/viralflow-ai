@@ -89,11 +89,23 @@ describe("evidence-grounded creative strategy", () => {
   });
   it("creates three Growth approaches with non-commerce calls to action", () => {
     const plan = planCreativeStrategy(growth());
-    expect(plan.concepts).toHaveLength(3);
+    expect(plan.concepts).toHaveLength(4);
     expect(plan.concepts.every(c => !/ตะกร้า|ซื้อ|สั่ง/.test(c.concept.cta))).toBe(true);
     expect(plan.concepts.some(c => /ติดตาม/.test(c.concept.cta))).toBe(true);
     expect(plan.trendStatus).toBe("OBSERVED");
     expect(plan.analysis.audience.status).toBe("OBSERVED");
+  });
+  it("offers a zero-cost original graphic story for Growth only when a short verified fact exists", () => {
+    const ready = planCreativeStrategy(growth({ assets: [], facts: [fact({ productId: undefined, topic: "จัดโต๊ะ", text: "วางของใช้บ่อยไว้ใกล้มือ", source: "AUTHORIZED_SOURCE" })] }));
+    const graphic = ready.concepts.find(c => c.id === "growth-graphic-explainer")!;
+    expect(graphic.production).toMatchObject({ method: "ORIGINAL_GRAPHIC_STORY", ready: true, missingEvidence: [] });
+    expect(graphic.status).toBe("REVIEW_REQUIRED");
+    expect(graphic.reasons.join(" ")).toContain("กราฟิกต้นฉบับ");
+    const long = planCreativeStrategy(growth({ assets: [], facts: [fact({ productId: undefined, topic: "จัดโต๊ะ", source: "AUTHORIZED_SOURCE",
+      text: "ข้อเท็จจริงนี้ยาวเกินกว่าจะอ่านทันบนการ์ดเดียวในเวลาสองวินาทีครึ่ง" })] }));
+    expect(long.concepts.find(c => c.id === "growth-graphic-explainer")?.status).toBe("WAIT_FOR_EVIDENCE");
+    expect(planCreativeStrategy(growth({ assets: [], facts: [] })).concepts.find(c => c.id === "growth-graphic-explainer")?.production.ready).toBe(false);
+    expect(planCreativeStrategy(product()).concepts.some(c => c.production.method === "ORIGINAL_GRAPHIC_STORY")).toBe(false);
   });
   it("permits generative atmosphere only for non-evidentiary Growth questions", () => {
     const plan = planCreativeStrategy(growth({ assets: [], facts: [] }));

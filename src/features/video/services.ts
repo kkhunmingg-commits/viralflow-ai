@@ -16,7 +16,9 @@ import {videoStoragePath} from "./storage";
 import {templateFor,variationPlan} from "./templates";
 import {isRoutedMaster,renderRoutedVariation} from "@/features/video-provider/variations";
 import {reviewedProductionConcept} from "@/features/creative/production-gate";
-import {recordRealMediaUsages,renderRealMediaMaster,selectRealMedia} from "./real-media-master";
+import {downloadOwnerVoice,recordRealMediaUsages,renderRealMediaMaster,selectOwnerVoice,selectRealMedia} from "./real-media-master";
+import {buildGraphicStoryboard,renderGraphicStoryMaster} from "./graphic-story";
+import {configuredThaiVoice} from "./thai-voice";
 import {VIDEO_BUCKET,VIDEO_DURATION_SECONDS,VIDEO_FACTORY_VERSION,type SimilarityMetadata,type VideoBudget,type VideoRenderInput} from "./types";
 
 type Row=Record<string,unknown>;
@@ -78,6 +80,7 @@ export async function buildMasterVideo(client:SupabaseClient,owner:string,projec
   const src=await source(client,owner,projectId),existing=await client.from("master_videos").select("*").eq("owner_id",owner).eq("creative_project_id",projectId).maybeSingle();
   if(existing.error)throw new Error(existing.error.message);
   if(src.productionMethod==="REAL_FOOTAGE_EDIT"||src.productionMethod==="REAL_IMAGE_MOTION")return buildRealMediaMaster(client,owner,projectId,src,existing.data as Row|null);
+  if(src.productionMethod==="ORIGINAL_GRAPHIC_STORY")return buildGraphicMaster(client,owner,projectId,src,existing.data as Row|null);
   if(src.productionMethod)throw new Error("REVIEWED_STRATEGY_REQUIRES_PROVIDER_OR_REAL_MEDIA_IMPORT");
   if(isRoutedMaster(existing.data?.provider))throw new Error("Resume provider job instead of replacing real footage with a template");
   if(existing.data&&["READY","APPROVED"].includes(existing.data.status)&&existing.data.quality_status==="PASS"){if(existing.data.generation_job_id)await recordZeroCost(client,owner,existing.data.generation_job_id);return existing.data}
@@ -128,11 +131,45 @@ async function buildRealMediaMaster(client:SupabaseClient,owner:string,projectId
   await beginJob(client,owner,job);
   const dir=join(tmpdir(),"viralflow-video",owner,masterId);await mkdir(dir,{recursive:true});
   try{
-    const composed=await renderRealMediaMaster(client,owner,{selection,captions:src.input.overlay,workDir:dir,outputPath:join(dir,"master.mp4")});
+    const composed=await renderRealMediaMaster(client,owner,{selection,captions:src.input.overlay,script:String(src.script.voice_script??""),tts:configuredThaiVoice(),workDir:dir,outputPath:join(dir,"master.mp4")});
     const videoPath=videoStoragePath(owner,"masters",masterId,"master.mp4"),videoUpload=await upload(client,videoPath,composed.media.path,"video/mp4");
     const asset=await client.from("media_assets").upsert({owner_id:owner,product_id:src.product.id,creative_project_id:projectId,asset_type:"VIDEO",source_type:"RENDERED",storage_path:videoPath,mime_type:"video/mp4",width:composed.media.width,height:composed.media.height,duration_seconds:composed.media.duration,provider:composed.provider,model:composed.model,checksum:videoUpload.checksum},{onConflict:"owner_id,storage_path"});
     if(asset.error)throw new Error(asset.error.message);
-    const explanation={composer:composed.model,checks:composed.checks,loudnessLufs:composed.loudnessLufs,sources:selection.clips.map(c=>({assetId:c.assetId,rightsId:c.rights.id})),voice:selection.voice?.assetId??null,requiresHumanReview:true};
+    const explanation={composer:composed.model,checks:composed.checks,loudnessLufs:composed.loudnessLufs,sources:selection.clips.map(c=>({assetId:c.assetId,rightsId:c.rights.id})),
+      narration:composed.narration,aiGeneratedVoice:composed.narration.kind==="SYSTEM_TTS",requiresHumanReview:true};
+    const quality=composed.passed?"PASS":"RETRY",score=Math.round(100*composed.checks.filter(c=>c.passed).length/composed.checks.length);
+    const update=await client.from("master_videos").update({storage_path:videoPath,duration_seconds:composed.media.duration,width:composed.media.width,height:composed.media.height,fps:composed.media.fps,quality_score:score,quality_status:quality,quality_explanation_json:explanation,status:"READY"}).eq("owner_id",owner).eq("id",masterId);
+    if(update.error)throw new Error(update.error.message);
+    await recordZeroCost(client,owner,String(job.id));
+    await client.from("generation_jobs").update({status:"COMPLETED",output_json:{masterId,storagePath:videoPath,checks:composed.checks,version:VIDEO_FACTORY_VERSION},completed_at:new Date().toISOString()}).eq("owner_id",owner).eq("id",job.id);
+    return {...row,storage_path:videoPath,quality_score:score,quality_status:quality,status:"READY"};
+  }catch(error){await failJob(client,owner,String(job.id),error);await client.from("master_videos").update({status:"FAILED",quality_status:"RETRY"}).eq("owner_id",owner).eq("id",masterId);throw error}
+  finally{await rm(dir,{recursive:true,force:true})}
+}
+
+/** Growth clip drawn entirely by the system: gradient cards with Thai copy, plus owner or licensed
+ * TTS narration, or a planned caption-only cut. No third-party media, zero render cost. */
+async function buildGraphicMaster(client:SupabaseClient,owner:string,projectId:string,src:Awaited<ReturnType<typeof source>>,existing:Row|null){
+  if(isRoutedMaster(existing?.provider as string|undefined))throw new Error("Resume provider job instead of replacing it with a local render");
+  if(existing&&["READY","APPROVED"].includes(String(existing.status))&&existing.quality_status==="PASS")return existing;
+  const storyboard=buildGraphicStoryboard({seed:projectId,hook:String(src.script.hook_text??""),script:String(src.script.voice_script??""),cta:String(src.script.cta_text??"")});
+  const masterId=String(existing?.id??randomUUID()),job=await jobFor(client,owner,masterJobKey(projectId,String(src.script.id)),{creativeProjectId:projectId,scriptId:src.script.id,strategy:"LOCAL_TEMPLATE",productionMethod:src.productionMethod},"MASTER_RENDER");
+  const row={id:masterId,owner_id:owner,tiktok_account_id:src.project.tiktok_account_id,product_id:src.project.product_id,creative_project_id:projectId,selected_script_id:src.script.id,generation_job_id:job.id,provider:"local-ffmpeg",model:"graphic-story-v1",render_strategy:"LOCAL_TEMPLATE",duration_seconds:8,width:1080,height:1920,fps:30,estimated_cost_usd:0,status:"PROCESSING",quality_explanation_json:{}};
+  const saved=existing?await client.from("master_videos").update(row).eq("owner_id",owner).eq("id",masterId):await client.from("master_videos").insert(row);
+  if(saved.error)throw new Error(saved.error.message);
+  await client.from("generation_jobs").update({master_video_id:masterId,creative_project_id:projectId}).eq("owner_id",owner).eq("id",job.id);
+  await beginJob(client,owner,job);
+  const dir=join(tmpdir(),"viralflow-video",owner,masterId);await mkdir(dir,{recursive:true});
+  try{
+    const startedAt=Date.now(),voice=await selectOwnerVoice(client,owner,{creativeProjectId:projectId,accountId:String(src.account.id),at:new Date()});
+    const ownerVoice=voice?await downloadOwnerVoice(client,voice,join(dir,"owner-voice")):undefined;
+    const composed=await renderGraphicStoryMaster({storyboard,script:String(src.script.voice_script??""),tts:configuredThaiVoice(),ownerVoice,workDir:dir,outputPath:join(dir,"master.mp4")});
+    if(voice)await recordRealMediaUsages(client,owner,masterId,{clips:[],voice});
+    const videoPath=videoStoragePath(owner,"masters",masterId,"master.mp4"),videoUpload=await upload(client,videoPath,composed.media.path,"video/mp4");
+    const asset=await client.from("media_assets").upsert({owner_id:owner,product_id:src.product.id,creative_project_id:projectId,asset_type:"VIDEO",source_type:"RENDERED",storage_path:videoPath,mime_type:"video/mp4",width:composed.media.width,height:composed.media.height,duration_seconds:composed.media.duration,provider:composed.provider,model:"graphic-story-v1",checksum:videoUpload.checksum},{onConflict:"owner_id,storage_path"});
+    if(asset.error)throw new Error(asset.error.message);
+    const explanation={composer:"graphic-story-v1",checks:composed.checks,loudnessLufs:composed.loudnessLufs,narration:composed.narration,aiGeneratedVoice:composed.narration.kind==="SYSTEM_TTS",
+      originalGraphics:true,renderSeconds:Number(((Date.now()-startedAt)/1000).toFixed(1)),requiresHumanReview:true};
     const quality=composed.passed?"PASS":"RETRY",score=Math.round(100*composed.checks.filter(c=>c.passed).length/composed.checks.length);
     const update=await client.from("master_videos").update({storage_path:videoPath,duration_seconds:composed.media.duration,width:composed.media.width,height:composed.media.height,fps:composed.media.fps,quality_score:score,quality_status:quality,quality_explanation_json:explanation,status:"READY"}).eq("owner_id",owner).eq("id",masterId);
     if(update.error)throw new Error(update.error.message);
