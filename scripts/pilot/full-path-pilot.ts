@@ -5,7 +5,7 @@
  * Run: node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/full-path-pilot.ts <mock-media-dir> <out-dir> */
 import {copyFile,mkdir,readFile,writeFile} from "node:fs/promises";
 import {join} from "node:path";
-import {randomUUID} from "node:crypto";
+import {createHash,randomUUID} from "node:crypto";
 import {createClient,type SupabaseClient} from "@supabase/supabase-js";
 import {approveEvidenceCreative,createProjectFromAssignment,generateEvidenceStrategyProject} from "../../src/features/creative/services";
 import {addContentEvidence,recordMediaRights,reviewMediaRights} from "../../src/features/video/media-rights-service";
@@ -37,9 +37,11 @@ async function sandbox(admin:SupabaseClient,owner:string,mode:"AFFILIATE"|"GROWT
 
 async function uploadMedia(admin:SupabaseClient,owner:string,productId:string,file:string,type:"VIDEO"|"PRODUCT_IMAGE",duration:number|null){
   const path=videoStoragePath(owner,"products",productId,`${randomUUID()}-${file}`);
-  must(await admin.storage.from(videoStorageBucket).upload(path,await readFile(join(mediaDir,file)),{contentType:type==="VIDEO"?"video/mp4":"image/png"}),"upload");
+  const bytes=await readFile(join(mediaDir,file));
+  must(await admin.storage.from(videoStorageBucket).upload(path,bytes,{contentType:type==="VIDEO"?"video/mp4":"image/png"}),"upload");
   const asset=must(await admin.from("media_assets").insert({owner_id:owner,product_id:productId,asset_type:type,source_type:"UPLOAD",storage_path:path,
-    mime_type:type==="VIDEO"?"video/mp4":"image/png",width:1080,height:1920,duration_seconds:duration}).select("id").single(),"asset");
+    mime_type:type==="VIDEO"?"video/mp4":"image/png",width:1080,height:1920,duration_seconds:duration,provider:"owner-upload",model:"pilot-original-drawing",
+    checksum:createHash("sha256").update(bytes).digest("hex")}).select("id").single(),"asset");
   return String(asset.id);
 }
 
