@@ -1,3 +1,4 @@
+import type { StoryHistory } from "./storyteller";
 import type { CreativeContext } from "./types";
 import { analyzeTrendIntelligence, type TrendObservation } from "../growth-manager/topics";
 import { analyzeCreativeLearning, type CreativeOutcome } from "../analytics/creative-learning";
@@ -12,6 +13,8 @@ export interface CreativeIntelligenceResources {
   facts: StrategyFact[]; assets: StrategyAsset[];
   trends: TrendObservation[]; outcomes: CreativeOutcome[]; costs?: ProductionCostAttempt[];
   adaptiveHistory?: CreativeLearningHistory[];
+  /** Formats, hooks and topics this account was planned with recently, newest first. */
+  storyHistory?: StoryHistory;
 }
 
 /** Shared orchestration over existing Creative Brain, Trend and Analytics contracts. No API or media submission. */
@@ -25,7 +28,7 @@ export function planExistingCreativeContext(context: CreativeContext, resources:
     account: {id: context.account.id,mode: context.account.mode,affiliateEligible: resources.affiliateEligible},
     // Growth is not forced through a dummy product or a commerce CTA.
     product: context.account.mode === "AFFILIATE" ? {id: context.product.id,title: context.product.title,mechanism: resources.mechanism ?? "UNKNOWN"} : undefined,
-    facts: resources.facts,assets: resources.assets,trends: trend,costs: resources.costs,
+    facts: resources.facts,assets: resources.assets,trends: trend,costs: resources.costs,history: resources.storyHistory,
     learning: {accountId: context.account.id,source: resources.realAccount ? "REAL" : "MOCK",evidenceIds: learning.evidenceIds,
       preferredHook: learning.preferredHook,preferredAngle: learning.preferredAngle,confidence: learning.confidence}});
   return {strategy,trend,learning,contextSource: resources.realAccount ? "REAL_ACCOUNT_RECORD" as const : "MOCK_OR_UNVERIFIED_ACCOUNT" as const,

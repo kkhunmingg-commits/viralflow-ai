@@ -1,3 +1,4 @@
+import type {StoryHistory} from "./storyteller";
 import type {SupabaseClient} from "@supabase/supabase-js";
 import type {CreativeContext} from "./types";
 import {planExistingCreativeContext} from "./intelligence";
@@ -13,6 +14,23 @@ const optionalMissing=(error:{code?:string}|null)=>error&&["42P01","PGRST205"].i
 const metric=(value:unknown)=>typeof value==="number"&&Number.isFinite(value)&&value>=0?value:null;
 
 /** Owner/account-scoped reads only; never calls OAuth, providers, tokens, scheduler, or publishing. */
+/** What the storyteller planned for this account's last selected concepts, newest first, so the next
+ * clip rotates format, hook and topic. Missing or legacy rows simply contribute nothing. */
+export async function readStoryHistory(client:SupabaseClient,owner:string,accountId:string):Promise<StoryHistory>{
+  const projects=await client.from("creative_projects").select("selected_angle_id,created_at").eq("owner_id",owner).eq("tiktok_account_id",accountId)
+    .order("created_at",{ascending:false}).limit(20);
+  const ids=(projects.data??[]).filter(p=>p.selected_angle_id).map(p=>String(p.selected_angle_id)).slice(0,12);
+  if(projects.error||!ids.length)return {formats:[],hooks:[],topics:[]};
+  const angles=await client.from("creative_angles").select("id,hook,score_explanation_json").eq("owner_id",owner).in("id",ids);
+  if(angles.error)return {formats:[],hooks:[],topics:[]};
+  const byId=new Map((angles.data??[]).map(a=>[String(a.id),a as Row]));
+  const ordered=ids.map(id=>byId.get(id)).filter((a):a is Row=>Boolean(a));
+  const strategy=(a:Row)=>((a.score_explanation_json as Row|null)?.productionStrategy as {plan?:{topic?:string|null;concepts?:Array<{id:string;production?:{story?:{format?:string}}}>};conceptId?:string}|undefined);
+  return {formats:ordered.map(a=>{const s=strategy(a);return s?.plan?.concepts?.find(c=>c.id===s.conceptId)?.production?.story?.format}).filter((f):f is string=>Boolean(f)),
+    hooks:ordered.map(a=>String(a.hook??"")).filter(Boolean),
+    topics:ordered.map(a=>strategy(a)?.plan?.topic).filter((t):t is string=>Boolean(t))};
+}
+
 export async function readCreativeIntelligenceResources(client:SupabaseClient,owner:string,context:CreativeContext,
   options:{now?:Date;trends?:TrendObservation[]}={}) {
   const now=options.now??new Date(),accountId=context.account.id;
@@ -82,7 +100,8 @@ export async function readCreativeIntelligenceResources(client:SupabaseClient,ow
     .filter((a):a is NonNullable<typeof a>=>a!==null);
   const facts=((evidence.data??[]) as ContentEvidenceRow[]).map(row=>strategyFactFromEvidence(row,now)).filter(f=>f.verified);
   const clearedAssetCount=strategyAssets.filter(a=>a.rightsConfirmed&&a.reviewed).length;
-  const resources:CreativeIntelligenceResources={ownerId:owner,now,optedIn,affiliateEligible,realAccount,adaptiveHistory:history,
+  const storyHistory=await readStoryHistory(client,owner,accountId);
+  const resources:CreativeIntelligenceResources={ownerId:owner,now,optedIn,affiliateEligible,realAccount,adaptiveHistory:history,storyHistory,
     facts,trends:options.trends??[],outcomes,mechanism:"UNKNOWN",assets:strategyAssets};
   return {resources,evidenceReadiness:{availableAssetCount:availableAssets.length,rightsClearedAssetCount:clearedAssetCount,verifiedProductFactCount:facts.length,
     reason:clearedAssetCount||facts.length?"ใช้เฉพาะสื่อและข้อเท็จจริงที่บันทึกสิทธิ์และตรวจแล้ว":"ภาพอัปโหลดและข้อมูลสินค้าเดิมยังไม่ใช่หลักฐานที่ผ่านการตรวจสิทธิ์และความถูกต้อง",

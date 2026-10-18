@@ -4,6 +4,9 @@ import { chooseGrowthTopics, type TopicEvidence, type TrendIntelligenceReport } 
 import { checkProductTruth } from "../compliance/compliance";
 import { evaluateCreativeRisk } from "./risk";
 import { creativeConceptSchema, type CreativeConcept } from "./schemas";
+import { claimIssues, type ClaimVisual } from "./claims";
+import { EMPTY_HISTORY, planGrowthStory, planProductStory, storyHashtags, type PlannedStory, type StoryHistory } from "./storyteller";
+import { beatTimeline, type StoryPlan } from "../video/story-director";
 
 export const CREATIVE_STRATEGY_VERSION = "evidence-production-strategy-v1";
 /** ORIGINAL_GRAPHIC_STORY: system-drawn typographic cards for Growth. No third-party media,
@@ -56,10 +59,14 @@ export interface CreativeStrategyInput {
   learning?: { accountId: string; source: "REAL" | "MOCK"; evidenceIds: string[];
     preferredAngle: string | null; preferredHook: string | null; confidence: number };
   costs?: ProductionCostAttempt[];
+  /** What this account published recently, so formats, hooks and topics rotate instead of repeating. */
+  history?: StoryHistory;
 }
 export interface StrategyConcept {
   id: string; concept: CreativeConcept;
-  production: { method: ProductionMethod; ready: boolean; evidenceIds: string[]; missingEvidence: string[] };
+  production: { method: ProductionMethod; ready: boolean; evidenceIds: string[]; missingEvidence: string[];
+    /** Beat-by-beat story the renderer cuts to; absent on legacy concepts. */
+    story?: StoryPlan };
   status: "REVIEW_REQUIRED" | "WAIT_FOR_EVIDENCE" | "REJECTED";
   score: number; confidence: number | null; reasons: string[];
   rubric: { evidenceFit: number; productionFeasibility: number; modeFit: number; learningSupport: number };
@@ -67,6 +74,8 @@ export interface StrategyConcept {
 }
 export interface CreativeStrategyPlan {
   version: typeof CREATIVE_STRATEGY_VERSION; source: "DETERMINISTIC_EVIDENCE_RUBRIC" | "LLM_EVIDENCE_STRATEGY"; accountId: string;
+  /** Where the topic came from; an owner-evidence topic is the owner's choice, not a measured trend. */
+  topicBasis?: "TREND_OBSERVATION" | "CATEGORY_HYPOTHESIS" | "CATEGORY_INTELLIGENCE" | "OWNER_EVIDENCE" | "NONE";
   concepts: StrategyConcept[]; selectedConceptId: string; fingerprint: string;
   trendStatus: "OBSERVED" | "UNKNOWN"; topic: string | null;
   analysis: { problem: string | null; sellingPoints: string[];
@@ -123,6 +132,21 @@ function draft(angleType: CreativeConcept["angleType"], title: string, hook: str
     modelSignals: { hookStrength: 0, novelty: 0, visualFeasibility: 0 } });
 }
 
+/** A concept whose overlay, scenes and narration all follow the planned beats, so captions never
+ * leave a gap and every scene has a job. Visual notes map onto hook, points and close. */
+function storyDraft(angleType: CreativeConcept["angleType"], title: string, planned: PlannedStory, subject: string, commerce: boolean,
+  visuals: [string, string, string], motions: [string, string, string]): CreativeConcept {
+  const { beats } = planned.story, windows = beatTimeline(beats, null, 8);
+  const role = (i: number) => beats[i].role === "HOOK" ? 0 : beats[i].role === "CTA" ? 2 : 1;
+  const points = beats.filter(b => b.role === "POINT").map(b => b.text), hook = beats[0].text, cta = beats.at(-1)!.text;
+  return creativeConceptSchema.parse({ angleType, title, hook, coreMessage: points.join(" ").slice(0, 180), voiceScript: beats.map(b => b.text).join(" "),
+    overlayText: beats.map((b, i) => ({ start: windows[i].start, end: windows[i].end, text: b.text })),
+    scenePlan: beats.map((_, i) => ({ start: windows[i].start, end: windows[i].end, visual: visuals[role(i)], motion: motions[role(i)] })),
+    cta, caption: `${hook} ${points[0] ?? ""}`.trim().slice(0, 300), hashtags: storyHashtags(planned.story.format, subject, commerce),
+    visualStrategy: `${planned.story.format}: ${visuals.join(" → ")}`.slice(0, 240),
+    modelSignals: { hookStrength: 0, novelty: 0, visualFeasibility: 0 } });
+}
+
 /** Extends Creative Brain with deterministic, inspectable planning before generation.
  * This function neither generates media nor asserts human creative approval. */
 export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStrategyPlan {
@@ -131,7 +155,15 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
     ? input.trends.observations.find(o => (o.accountFit === "OWN_ACCOUNT" || o.accountFit === "OBSERVED_AUDIENCE_MATCH") &&
       o.productFit !== "MISMATCH") : undefined;
   // Category Intelligence can propose a topic, but is not social-trend evidence.
-  const topic = applicableTrend?.topic ?? input.trends?.hypotheses[0]?.topic ?? chooseGrowthTopics(input.topics ?? [], input.now)[0] ?? null;
+  const history = input.history ?? EMPTY_HISTORY;
+  const intelligenceTopic = applicableTrend?.topic ?? input.trends?.hypotheses[0]?.topic ?? chooseGrowthTopics(input.topics ?? [], input.now)[0] ?? null;
+  // Without trend data, Growth can still teach from topics the owner documented with verified facts;
+  // the least recently used one goes next. This is labelled as the owner's choice, never as a trend.
+  const ownerTopics = input.product ? [] : [...new Set(input.facts.filter(f => f.topic?.trim() && f.verified && f.source !== "MOCK").map(f => f.topic!.trim()))]
+    .toSorted((a, b) => (history.topics.indexOf(a) < 0 ? -1 : history.topics.length - history.topics.indexOf(a)) - (history.topics.indexOf(b) < 0 ? -1 : history.topics.length - history.topics.indexOf(b)) || a.localeCompare(b));
+  const topic = intelligenceTopic ?? ownerTopics[0] ?? null;
+  const topicBasis: CreativeStrategyPlan["topicBasis"] = applicableTrend ? "TREND_OBSERVATION" : input.trends?.hypotheses[0] ? "CATEGORY_HYPOTHESIS"
+    : intelligenceTopic ? "CATEGORY_INTELLIGENCE" : topic ? "OWNER_EVIDENCE" : "NONE";
   const facts = verifiedFacts(input, topic), assets = approvedAssets(input, topic);
   const footage = assets.find(a => a.kind === "REAL_FOOTAGE"), image = assets.find(a => a.kind === "REAL_IMAGE");
   const comparison = assets.find(a => a.kind === "COMPARISON_FOOTAGE"), atmosphere = assets.find(a => a.kind === "ATMOSPHERE");
@@ -143,24 +175,34 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
   const fact = facts[0]?.text.slice(0, 75) ?? "พิจารณาเฉพาะสิ่งที่เห็น อย่าเพิ่งสรุปผลที่ยังไม่ได้ทดสอบ";
   const name = (input.product?.title ?? topic ?? "หัวข้อที่ต้องการทดลอง").slice(0, 35);
   const hasProduct = Boolean(input.product);
+  const seed = `${input.account.id}:${input.product?.id ?? topic}:${history.hooks.length}`;
+  const pointFacts = facts.filter(f => !hasProduct || f.role !== "PROBLEM");
+  const productStory = (format: "PRODUCT_DETAIL" | "DEMONSTRATION" | "COMPARISON") => planProductStory(format, input.product?.title ?? name, pointFacts, history, seed);
+  const growthStory = topic && !hasProduct ? planGrowthStory(topic, facts, history, seed) : null;
+  const productVisuals = {
+    demonstration: [["ภาพจริงระยะใกล้ให้เห็นมือและจุดหมุนก่อนเริ่ม", "ใช้ช็อตสาธิตจริงต่อเนื่อง ไม่สร้างแกนหรือชิ้นส่วนเพิ่ม", "คงภาพผลที่สังเกตได้จริงและชื่อสินค้า"],
+      ["ครอปโดยไม่บังแกนหรือข้อต่อ", "รักษาความเร็วจริง ไม่กลับด้านเพื่อบิดความหมาย", "หยุดคำอธิบายก่อนจบช็อตจริง"]],
+    detail: [["ภาพสินค้าจริงเต็มชิ้น ระบุว่าเป็นภาพนิ่ง", "ครอปรายละเอียดที่เห็นได้จริง ไม่อ้างว่าสาธิตการทำงาน", "กลับสู่ภาพเต็มพร้อมชวนตรวจรายละเอียด"],
+      ["แพนช้าในกรอบภาพจริง", "ขยายเฉพาะจุดที่มีอยู่ในภาพ", "ไม่สร้างมือหรือกลไกให้เคลื่อนไหว"]],
+    comparison: [["ระบุสิ่งที่จะเปรียบเทียบและเงื่อนไขจากหลักฐานจริง", "แสดงวิดีโอเปรียบเทียบจริง ไม่ใช้ภาพ AI แทนผลทดสอบ", "บอกขอบเขตที่หลักฐานรองรับ ไม่สรุปเหนือคู่แข่ง"],
+      ["แสดงเงื่อนไขสั้น ๆ", "คงเวลาและมาตราส่วนที่เทียบกันได้", "ไม่ตัดช็อตเพื่อซ่อนผลที่ขัดแย้ง"]],
+    graphic: [["การ์ดตัวอักษรต้นฉบับ ตั้งคำถามเดียว", "การ์ดข้อเท็จจริงจากแหล่งที่ตรวจแล้ว ไม่ใช้ภาพของผู้อื่น", "การ์ดสรุปและชวนติดตาม"],
+      ["ข้อความเด้งขึ้นตามจังหวะเสียง", "ตัดการ์ดตามจังหวะพูด พร้อมกราฟิกเน้นตัวเลขหรือข้อ", "ปิดด้วยคำชวนที่อ่านจบทัน"]],
+  } as const;
+  const sd = (angle: CreativeConcept["angleType"], title: string, planned: PlannedStory, subject: string, v: readonly (readonly string[])[]) =>
+    storyDraft(angle, title, planned, subject, commerce, [...v[0]] as [string, string, string], [...v[1]] as [string, string, string]);
   const drafts = hasProduct ? [
     // A demonstration claim needs footage the ledger attests shows the product operating, not a still turned into video.
     { id: "real-demonstration", required: assets.find(a => a.kind === "REAL_FOOTAGE" && a.depictsOperation !== false), method: "REAL_FOOTAGE_EDIT" as const,
-      missing: "วิดีโอสาธิตสินค้าจริงที่มีสิทธิ์ใช้และตรวจแกน จุดหมุน และมือแล้ว",
-      concept: draft("DEMONSTRATION", `${name}: ดูหนึ่งจังหวะจริง`, "จุดนี้ทำงานอย่างไร?", "ดูการทำงานจากวิดีโอจริง", cta,
-        ["ภาพจริงระยะใกล้ให้เห็นมือและจุดหมุนก่อนเริ่ม", "ใช้ช็อตสาธิตจริงต่อเนื่อง ไม่สร้างแกนหรือชิ้นส่วนเพิ่ม", "คงภาพผลที่สังเกตได้จริงและชื่อสินค้า"],
-        ["ครอปโดยไม่บังแกนหรือข้อต่อ", "รักษาความเร็วจริง ไม่กลับด้านเพื่อบิดความหมาย", "หยุดคำอธิบายก่อนจบช็อตจริง"]) },
+      missing: "วิดีโอสาธิตสินค้าจริงที่มีสิทธิ์ใช้และตรวจแกน จุดหมุน และมือแล้ว", visual: "REAL_FOOTAGE_OPERATION" as ClaimVisual,
+      planned: productStory("DEMONSTRATION"), angle: "DEMONSTRATION" as const, title: `${name}: ดูหนึ่งจังหวะจริง`, visuals: productVisuals.demonstration },
     { id: "real-image-detail", required: image, method: "REAL_IMAGE_MOTION" as const,
-      missing: "ภาพสินค้าจริงที่ยืนยันสิทธิ์และตรวจความตรงรุ่นแล้ว",
-      concept: draft("REVIEW_DISCOVERY", `${name}: ดูรายละเอียดก่อนเลือก`, "ก่อนเลือก ดูส่วนนี้ก่อน", "ดูจากภาพสินค้าจริง", cta,
-        ["ภาพสินค้าจริงเต็มชิ้น ระบุว่าเป็นภาพนิ่ง", "ครอปรายละเอียดที่เห็นได้จริง ไม่อ้างว่าสาธิตการทำงาน", "กลับสู่ภาพเต็มพร้อมชวนตรวจรายละเอียด"],
-        ["แพนช้าในกรอบภาพจริง", "ขยายเฉพาะจุดที่มีอยู่ในภาพ", "ไม่สร้างมือหรือกลไกให้เคลื่อนไหว"]) },
+      missing: "ภาพสินค้าจริงที่ยืนยันสิทธิ์และตรวจความตรงรุ่นแล้ว", visual: "REAL_IMAGE" as ClaimVisual,
+      planned: productStory("PRODUCT_DETAIL"), angle: "REVIEW_DISCOVERY" as const, title: `${name}: ดูรายละเอียดก่อนเลือก`, visuals: productVisuals.detail },
     { id: "evidence-comparison", required: comparison, method: "REAL_FOOTAGE_EDIT" as const,
       missing: "วิดีโอเปรียบเทียบจริงภายใต้เงื่อนไขเดียวกันและหลักฐานของข้อความที่จะกล่าว",
-      requiresFact: true,
-      concept: draft("COMPARISON", `${name}: เทียบจากหลักฐาน`, "เทียบให้เห็น ไม่ต้องเดา", fact, cta,
-        ["ระบุสิ่งที่จะเปรียบเทียบและเงื่อนไขจากหลักฐานจริง", "แสดงวิดีโอเปรียบเทียบจริง ไม่ใช้ภาพ AI แทนผลทดสอบ", "บอกขอบเขตที่หลักฐานรองรับ ไม่สรุปเหนือคู่แข่ง"],
-        ["แสดงเงื่อนไขสั้น ๆ", "คงเวลาและมาตราส่วนที่เทียบกันได้", "ไม่ตัดช็อตเพื่อซ่อนผลที่ขัดแย้ง"]) },
+      requiresFact: true, visual: "REAL_FOOTAGE" as ClaimVisual,
+      planned: productStory("COMPARISON"), angle: "COMPARISON" as const, title: `${name}: เทียบจากหลักฐาน`, visuals: productVisuals.comparison },
   ] : [
     { id: "growth-one-point", required: footage ?? image, method: footage ? "REAL_FOOTAGE_EDIT" as const : "REAL_IMAGE_MOTION" as const,
       missing: "หัวข้อและข้อเท็จจริงจากแหล่งที่ได้รับอนุญาต พร้อมภาพที่มีสิทธิ์ใช้", requiresFact: true,
@@ -170,9 +212,10 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
     { id: "growth-graphic-explainer", required: undefined, method: "ORIGINAL_GRAPHIC_STORY" as const,
       requiresAsset: false, requiresFact: true,
       missing: "ข้อเท็จจริงที่ตรวจแล้วจากแหล่งที่ได้รับอนุญาต สำหรับเล่าด้วยกราฟิกต้นฉบับ",
-      concept: draft("DEMONSTRATION", `${name}: รู้ไหมว่า`, "รู้ไหม เรื่องนี้มีเหตุผล", fact, cta,
+      visual: "ORIGINAL_GRAPHIC" as ClaimVisual, ...(growthStory ? { planned: growthStory, angle: "DEMONSTRATION" as const, title: `${name}: ${growthStory.story.format}`, visuals: productVisuals.graphic }
+        : { concept: draft("DEMONSTRATION", `${name}: รู้ไหมว่า`, "รู้ไหม เรื่องนี้มีเหตุผล", fact, cta,
         ["การ์ดตัวอักษรต้นฉบับ ตั้งคำถามเดียว", "การ์ดข้อเท็จจริงหนึ่งข้อพร้อมที่มา ไม่ใช้ภาพของผู้อื่น", "การ์ดสรุปและชวนติดตาม"],
-        ["ข้อความขึ้นทีละบรรทัดให้อ่านทัน", "พื้นหลังไล่สีเคลื่อนช้า ไม่ใช้เป็นหลักฐาน", "ปิดด้วยคำชวนติดตามที่อ่านจบในสองวินาที"]) },
+        ["ข้อความขึ้นทีละบรรทัดให้อ่านทัน", "พื้นหลังไล่สีเคลื่อนช้า ไม่ใช้เป็นหลักฐาน", "ปิดด้วยคำชวนติดตามที่อ่านจบในสองวินาที"]) }) },
     { id: "growth-pov-question", required: image ?? atmosphere, method: image ? "REAL_IMAGE_MOTION" as const : "GENERATIVE_ATMOSPHERE" as const,
       requiresAsset: false,
       missing: "หัวข้อจากแหล่งที่ได้รับอนุญาต และภาพบรรยากาศหรือภาพจริงที่มีสิทธิ์ใช้",
@@ -185,7 +228,9 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
         ["เปิดด้วยข้อสังเกตที่หลักฐานรองรับ", "เล่าข้อเท็จจริงเดียวจากที่มา ไม่สร้างคำรับรอง", "ปิดด้วยคำถามสิ่งที่ยังไม่รู้และชวนบันทึก"],
         ["ภาพจริงหรือกราฟิกจากข้อมูลที่ตรวจได้", "หนึ่งประเด็นต่อช็อต ไม่มีรีวิวสมมติ", "ปิดเรื่องภายในแปดวินาที"]) },
   ];
-  const concepts: StrategyConcept[] = drafts.map(d => {
+  const concepts: StrategyConcept[] = drafts.map(raw => {
+    const d = { ...raw, concept: "planned" in raw && raw.planned ? sd(raw.angle, raw.title, raw.planned, input.product?.title ?? topic ?? name, raw.visuals) : (raw as { concept: CreativeConcept }).concept };
+    const story = "planned" in raw ? raw.planned?.story : undefined;
     const requiresFact = "requiresFact" in d && d.requiresFact;
     const requiresAsset = !("requiresAsset" in d && d.requiresAsset === false);
     const realVideoTooShort = d.required && (d.required.kind === "REAL_FOOTAGE" || d.required.kind === "COMPARISON_FOOTAGE") &&
@@ -194,12 +239,17 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
       ...(realVideoTooShort ? ["ต้องยืนยันว่าฟุตเทจจริงครอบคลุมแปดวินาที ไม่ยืดหรือเติมภาพเพื่ออ้างการสาธิตต่อเนื่อง"] : []),
       ...(!hasProduct && !topic ? ["หัวข้อที่มีข้อมูลจริง ห้ามอ้างว่าเป็นเทรนด์ที่ยืนยันแล้ว"] : []),
       ...(!eligible ? ["สิทธิ์ Affiliate ของบัญชียังไม่ยืนยัน"] : []),
-      ...(d.method === "ORIGINAL_GRAPHIC_STORY" && facts.length && !graphicCardCopy(d.concept.hook, d.concept.voiceScript, d.concept.cta).every(graphicCardFits)
+      ...(d.method === "ORIGINAL_GRAPHIC_STORY" && facts.length && !(story ? story.beats.every(b => graphicCardFits(b.text)) : graphicCardCopy(d.concept.hook, d.concept.voiceScript, d.concept.cta).every(graphicCardFits))
         ? [`ข้อเท็จจริงสั้นพอให้อ่านทันบนการ์ด (ไม่เกิน ${GRAPHIC_CARD_MAX_CHARS} ตัวอักษร)`] : [])];
     const ready = missingEvidence.length === 0;
     const risk = evaluateCreativeRisk(d.concept, facts.map(f => f.text).join(" "));
     const truth = checkProductTruth([d.concept.hook, d.concept.voiceScript, d.concept.caption].join(" "), facts.map(f => f.text));
-    const rejected = risk.status === "REJECT" || truth.status === "REJECT";
+    // What is said must match what is shown: no demonstration claim without operating footage.
+    // The demonstration concept only becomes ready with operating footage, so it is judged as if that footage were present.
+    const visual: ClaimVisual = "visual" in raw && raw.visual ? raw.visual
+      : d.method === "REAL_FOOTAGE_EDIT" ? "REAL_FOOTAGE" : d.method === "GENERATIVE_ATMOSPHERE" ? "GENERATIVE" : "REAL_IMAGE";
+    const claims = story ? claimIssues(story.beats.filter(b => b.role !== "HOOK" || !/^[0-9]/.test(b.text)).map(b => b.text), visual, [...facts.map(f => f.text), input.product?.title ?? "", topic ?? ""]) : [];
+    const rejected = risk.status === "REJECT" || truth.status === "REJECT" || claims.length > 0;
     const learningSupport = learning?.preferredAngle === d.concept.angleType ? Math.round(learning.confidence * 10) : 0;
     const rubric = { evidenceFit: ready ? 40 : d.required ? 15 : 0, productionFeasibility: ready ? 30 : 0,
       modeFit: eligible ? 20 : 0, learningSupport };
@@ -209,9 +259,11 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
       ? "ใช้ภาพจริงและตัดต่อ ไม่อ้างว่าการแพนภาพคือการสาธิต" : d.method === "REAL_FOOTAGE_EDIT"
         ? "การเคลื่อนไหวที่พิสูจน์สินค้าต้องมาจากวิดีโอจริง" : "ภาพสร้างใช้ได้เฉพาะบรรยากาศ ไม่ใช้ยืนยันข้อเท็จจริง",
       "คะแนนเป็นความเหมาะสมตามเกณฑ์ที่เปิดเผย ไม่ใช่โอกาสไวรัล", ...(learningSupport ? ["มีผลจริงเฉพาะบัญชีรองรับรูปแบบนี้"] : ["ยังไม่มีผลจริงรองรับว่ารูปแบบนี้ทำงานดีในบัญชีนี้"]),
-      ...risk.reasons, ...truth.issues.map(i => i.message)];
+      ...(story ? [`วิธีเล่า ${story.format}: ${story.basis}`] : []),
+      ...risk.reasons, ...truth.issues.map(i => i.message), ...claims.map(c => `คำพูดไม่ตรงกับภาพหรือหลักฐาน (${c.code}): ${c.text}`)];
     return { id: d.id, concept: d.concept, production: { method: ready ? d.method : "WAIT_FOR_EVIDENCE", ready,
-      evidenceIds: [...(d.required ? [d.required.id] : []), ...(requiresFact ? facts.map(f => f.id) : []), ...(applicableTrend ? [applicableTrend.key] : [])], missingEvidence },
+      evidenceIds: [...(d.required ? [d.required.id] : []), ...(requiresFact ? facts.map(f => f.id) : []), ...(applicableTrend ? [applicableTrend.key] : [])], missingEvidence,
+      ...(story ? { story } : {}) },
       status: rejected ? "REJECTED" : ready ? "REVIEW_REQUIRED" : "WAIT_FOR_EVIDENCE", score,
       confidence: ready ? Number(((rubric.evidenceFit + rubric.productionFeasibility) / 100).toFixed(2)) : null,
       // Switching production method must not erase the spend on rejected earlier methods.
@@ -222,7 +274,7 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
   const payload: Pick<CreativeStrategyPlan, "version" | "accountId" | "concepts" | "selectedConceptId"> = {
     version: CREATIVE_STRATEGY_VERSION, accountId: input.account.id, concepts, selectedConceptId };
   return { ...payload, source: "DETERMINISTIC_EVIDENCE_RUBRIC", fingerprint: strategyFingerprint(payload),
-    trendStatus: applicableTrend ? "OBSERVED" : "UNKNOWN", topic,
+    trendStatus: applicableTrend ? "OBSERVED" : "UNKNOWN", topic, topicBasis,
     analysis: { problem: facts.find(f => f.role === "PROBLEM")?.text ?? null,
       sellingPoints: facts.filter(f => f.role === "SELLING_POINT").map(f => f.text),
       audience: applicableTrend && applicableTrend.audience !== "UNKNOWN"
@@ -233,6 +285,8 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
     humanReviewRequired: true, predictedVirality: "UNKNOWN", confidenceBasis: "EVIDENCE_COMPLETENESS_NOT_PERFORMANCE",
     warnings: ["ความสร้างสรรค์ ความถูกต้อง และสิทธิ์ในสื่อยังต้องให้มนุษย์ตรวจ ก่อนผลิตและเผยแพร่", "ต้นทุนต่อคลิปใช้ได้รวมงานเสียและการสร้างซ้ำ; หากบิลไม่ยืนยันจะแสดง UNKNOWN",
       ...(!applicableTrend ? ["ไม่มีข้อมูลเทรนด์จริงที่ยืนยันความเหมาะสมกับบัญชี แนวคิดนี้เป็นสมมติฐานเพื่อทดลอง"] : []),
+      ...(topicBasis === "OWNER_EVIDENCE" ? ["หัวข้อมาจากข้อเท็จจริงที่เจ้าของบันทึกไว้ ไม่ใช่เทรนด์ที่วัดได้"] : []),
+      "วิธีเล่าเรื่องและ Hook เลือกด้วยกฎที่เปิดเผย (Rule-Based) ไม่ใช่ LLM",
       ...(input.product?.mechanism !== "SIMPLE" && hasProduct ? ["กลไกซับซ้อนหรือยังไม่ทราบ ห้ามสร้างการทำงานของสินค้าใหม่ด้วยภาพ AI"] : [])] };
 }
 
