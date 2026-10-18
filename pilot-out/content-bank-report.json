@@ -1,0 +1,592 @@
+{
+  "ranAt": "2026-10-18T21:10:36.425Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "machine": {
+    "cpus": 4,
+    "memGb": 16,
+    "note": "GitHub-hosted ubuntu-latest runner"
+  },
+  "assumptions": {
+    "machineThbPerHour": 6,
+    "thbPerUsd": 35,
+    "note": "Estimates only. No bill exists for runner time; actual spend comes from generation_costs."
+  },
+  "env": {
+    "creative": "evidence-rubric",
+    "tts": "voxcpm2"
+  },
+  "results": [
+    {
+      "label": "growth-1",
+      "mode": "GROWTH",
+      "story": {
+        "format": "NUMBER_SPOTLIGHT",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ตัวเลขนี้เกี่ยวกับเกลือกับน้ำแข็ง",
+            "badge": "0"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำเกลือเย็นกว่า 0°C ได้",
+            "kicker": "เกลือกับน้ำแข็ง"
+          },
+          {
+            "role": "CTA",
+            "text": "เซฟไว้ดูอีกที"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: มีตัวเลขในข้อเท็จจริงที่ตรวจแล้ว จึงใช้ตัวเลขเป็นจุดดึงสายตา; ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี"
+      },
+      "topic": {
+        "topic": "เกลือกับน้ำแข็ง",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "RETRY",
+      "bankStatus": "REJECTED",
+      "rejection": [
+        "QUALITY_RETRY",
+        "CHECK_FAILED:LOUDNESS"
+      ],
+      "slot": null,
+      "slotBasis": null,
+      "hook": "ตัวเลขนี้เกี่ยวกับเกลือกับน้ำแข็ง",
+      "voice": "ตัวเลขนี้เกี่ยวกับเกลือกับน้ำแข็ง น้ำเกลือเย็นกว่า 0°C ได้ เซฟไว้ดูอีกที",
+      "caption": "ตัวเลขนี้เกี่ยวกับเกลือกับน้ำแข็ง น้ำเกลือเย็นกว่า 0°C ได้",
+      "hashtags": [
+        "#เกลือกับน้ำแข็ง",
+        "#ตัวเลขน่ารู้",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 83.547,
+        "cpuSeconds": 142,
+        "avgCpuCores": 1.7,
+        "peakRssMb": 11057,
+        "renderSeconds": 82.971,
+        "creativeSeconds": 0.522
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.138,
+      "costBasis": "ESTIMATE: 83 s render at 6 THB/hour"
+    },
+    {
+      "label": "growth-2",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ทายก่อนเฉลย: ขวดเก็บความเย็น",
+            "kicker": "ทายก่อน",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "ช่องกลางเป็นสุญญากาศ",
+            "kicker": "เฉลย"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: ตั้งคำถามให้ผู้ชมทายก่อนเฉลยด้วยข้อเท็จจริงที่ตรวจแล้ว; ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี"
+      },
+      "topic": {
+        "topic": "ขวดเก็บความเย็น",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-19T05:15:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ทายก่อนเฉลย: ขวดเก็บความเย็น",
+      "voice": "ทายก่อนเฉลย: ขวดเก็บความเย็น ช่องกลางเป็นสุญญากาศ ติดตามไว้ มีตอนต่อไป",
+      "caption": "ทายก่อนเฉลย: ขวดเก็บความเย็น ช่องกลางเป็นสุญญากาศ",
+      "hashtags": [
+        "#ขวดเก็บความเย็น",
+        "#ทายดู",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 75.685,
+        "cpuSeconds": 137.3,
+        "avgCpuCores": 1.81,
+        "peakRssMb": 10854,
+        "renderSeconds": 75.571,
+        "creativeSeconds": 0.067
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1258,
+      "costBasis": "ESTIMATE: 76 s render at 6 THB/hour"
+    },
+    {
+      "label": "growth-3",
+      "mode": "GROWTH",
+      "story": {
+        "format": "EXPLAINER",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "เคยสงสัยไหม น้ำแข็งลอยน้ำ",
+            "kicker": "รู้หรือไม่"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำแข็งเบากว่าน้ำราว 9%"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำขยายตัวเมื่อแข็งตัว"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: อธิบายเหตุผลด้วยข้อเท็จจริงที่ตรวจแล้วแบบตรงไปตรงมา; ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี"
+      },
+      "topic": {
+        "topic": "น้ำแข็งลอยน้ำ",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-19T12:30:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "เคยสงสัยไหม น้ำแข็งลอยน้ำ",
+      "voice": "เคยสงสัยไหม น้ำแข็งลอยน้ำ น้ำแข็งเบากว่าน้ำราว 9% น้ำขยายตัวเมื่อแข็งตัว ติดตามไว้ มีตอนต่อไป",
+      "caption": "เคยสงสัยไหม น้ำแข็งลอยน้ำ น้ำแข็งเบากว่าน้ำราว 9%",
+      "hashtags": [
+        "#น้ำแข็งลอยน้ำ",
+        "#รู้หรือไม่",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 120.358,
+        "cpuSeconds": 183,
+        "avgCpuCores": 1.52,
+        "peakRssMb": 10864,
+        "renderSeconds": 120.241,
+        "creativeSeconds": 0.063
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.2003,
+      "costBasis": "ESTIMATE: 120 s render at 6 THB/hour"
+    },
+    {
+      "label": "growth-4",
+      "mode": "GROWTH",
+      "story": {
+        "format": "NUMBER_SPOTLIGHT",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "120 หมายถึงอะไร?",
+            "badge": "120"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำเดือดได้ถึงราว 120°C",
+            "kicker": "หม้อความดัน"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: มีตัวเลขในข้อเท็จจริงที่ตรวจแล้ว จึงใช้ตัวเลขเป็นจุดดึงสายตา; รูปแบบนี้เคยใช้ไม่นานมานี้ แต่เป็นตัวเลือกที่หลักฐานรองรับดีที่สุด"
+      },
+      "topic": {
+        "topic": "หม้อความดัน",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-20T05:15:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "120 หมายถึงอะไร?",
+      "voice": "120 หมายถึงอะไร? น้ำเดือดได้ถึงราว 120°C ติดตามไว้ มีตอนต่อไป",
+      "caption": "120 หมายถึงอะไร? น้ำเดือดได้ถึงราว 120°C",
+      "hashtags": [
+        "#หม้อความดัน",
+        "#ตัวเลขน่ารู้",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 81.377,
+        "cpuSeconds": 151.6,
+        "avgCpuCores": 1.86,
+        "peakRssMb": 11222,
+        "renderSeconds": 81.224,
+        "creativeSeconds": 0.079
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1353,
+      "costBasis": "ESTIMATE: 81 s render at 6 THB/hour"
+    },
+    {
+      "label": "growth-5",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ทายก่อนเฉลย: เกลือกับน้ำแข็ง",
+            "kicker": "ทายก่อน",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำเกลือเย็นกว่า 0°C ได้",
+            "kicker": "เฉลย"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: ตั้งคำถามให้ผู้ชมทายก่อนเฉลยด้วยข้อเท็จจริงที่ตรวจแล้ว; รูปแบบนี้เคยใช้ไม่นานมานี้ แต่เป็นตัวเลือกที่หลักฐานรองรับดีที่สุด"
+      },
+      "topic": {
+        "topic": "เกลือกับน้ำแข็ง",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-20T12:30:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ทายก่อนเฉลย: เกลือกับน้ำแข็ง",
+      "voice": "ทายก่อนเฉลย: เกลือกับน้ำแข็ง น้ำเกลือเย็นกว่า 0°C ได้ ติดตามไว้ มีตอนต่อไป",
+      "caption": "ทายก่อนเฉลย: เกลือกับน้ำแข็ง น้ำเกลือเย็นกว่า 0°C ได้",
+      "hashtags": [
+        "#เกลือกับน้ำแข็ง",
+        "#ทายดู",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 87.379,
+        "cpuSeconds": 163.8,
+        "avgCpuCores": 1.87,
+        "peakRssMb": 10691,
+        "renderSeconds": 87.262,
+        "creativeSeconds": 0.061
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.145,
+      "costBasis": "ESTIMATE: 87 s render at 6 THB/hour"
+    },
+    {
+      "label": "growth-6",
+      "mode": "GROWTH",
+      "story": {
+        "format": "EXPLAINER",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "เคยสงสัยไหม ขวดเก็บความเย็น",
+            "kicker": "รู้หรือไม่"
+          },
+          {
+            "role": "POINT",
+            "text": "ช่องกลางเป็นสุญญากาศ"
+          },
+          {
+            "role": "POINT",
+            "text": "ความร้อนผ่านได้น้อย"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: อธิบายเหตุผลด้วยข้อเท็จจริงที่ตรวจแล้วแบบตรงไปตรงมา; รูปแบบนี้เคยใช้ไม่นานมานี้ แต่เป็นตัวเลือกที่หลักฐานรองรับดีที่สุด"
+      },
+      "topic": {
+        "topic": "ขวดเก็บความเย็น",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-21T05:15:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "เคยสงสัยไหม ขวดเก็บความเย็น",
+      "voice": "เคยสงสัยไหม ขวดเก็บความเย็น ช่องกลางเป็นสุญญากาศ ความร้อนผ่านได้น้อย ติดตามไว้ มีตอนต่อไป",
+      "caption": "เคยสงสัยไหม ขวดเก็บความเย็น ช่องกลางเป็นสุญญากาศ",
+      "hashtags": [
+        "#ขวดเก็บความเย็น",
+        "#รู้หรือไม่",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 97.777,
+        "cpuSeconds": 185.3,
+        "avgCpuCores": 1.9,
+        "peakRssMb": 10260,
+        "renderSeconds": 97.493,
+        "creativeSeconds": 0.229
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1623,
+      "costBasis": "ESTIMATE: 97 s render at 6 THB/hour"
+    },
+    {
+      "label": "growth-7",
+      "mode": "GROWTH",
+      "story": {
+        "format": "NUMBER_SPOTLIGHT",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ตัวเลขนี้เกี่ยวกับน้ำแข็งลอยน้ำ",
+            "badge": "9%"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำแข็งเบากว่าน้ำราว 9%",
+            "kicker": "น้ำแข็งลอยน้ำ"
+          },
+          {
+            "role": "CTA",
+            "text": "เซฟไว้ดูอีกที"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: มีตัวเลขในข้อเท็จจริงที่ตรวจแล้ว จึงใช้ตัวเลขเป็นจุดดึงสายตา; รูปแบบนี้เคยใช้ไม่นานมานี้ แต่เป็นตัวเลือกที่หลักฐานรองรับดีที่สุด"
+      },
+      "topic": {
+        "topic": "น้ำแข็งลอยน้ำ",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "RETRY",
+      "bankStatus": "REJECTED",
+      "rejection": [
+        "QUALITY_RETRY",
+        "CHECK_FAILED:LOUDNESS",
+        "CHECK_FAILED:PACING"
+      ],
+      "slot": null,
+      "slotBasis": null,
+      "hook": "ตัวเลขนี้เกี่ยวกับน้ำแข็งลอยน้ำ",
+      "voice": "ตัวเลขนี้เกี่ยวกับน้ำแข็งลอยน้ำ น้ำแข็งเบากว่าน้ำราว 9% เซฟไว้ดูอีกที",
+      "caption": "ตัวเลขนี้เกี่ยวกับน้ำแข็งลอยน้ำ น้ำแข็งเบากว่าน้ำราว 9%",
+      "hashtags": [
+        "#น้ำแข็งลอยน้ำ",
+        "#ตัวเลขน่ารู้",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 68.798,
+        "cpuSeconds": 120,
+        "avgCpuCores": 1.74,
+        "peakRssMb": 11044,
+        "renderSeconds": 68.579,
+        "creativeSeconds": 0.166
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1142,
+      "costBasis": "ESTIMATE: 69 s render at 6 THB/hour"
+    },
+    {
+      "label": "affiliate-test-1",
+      "mode": "AFFILIATE",
+      "story": {
+        "format": "PRODUCT_DETAIL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้"
+          },
+          {
+            "role": "POINT",
+            "text": "ความจุ 500 มิลลิลิตร"
+          },
+          {
+            "role": "CTA",
+            "text": "ดูรายละเอียดสินค้าก่อนตัดสินใจ"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"
+      },
+      "topic": {
+        "topic": null,
+        "basis": "NONE"
+      },
+      "method": "REAL_IMAGE_MOTION",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-19T13:30:00+00:00",
+      "slotBasis": "AUDIENCE_DATA",
+      "hook": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้",
+      "voice": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้ ความจุ 500 มิลลิลิตร ดูรายละเอียดสินค้าก่อนตัดสินใจ",
+      "caption": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้ ความจุ 500 มิลลิลิตร",
+      "hashtags": [
+        "#ขวดน้ำเก็บความเย็น",
+        "#ของมันต้องดู",
+        "#TikTokShop",
+        "#ของใช้ในบ้าน"
+      ],
+      "metrics": {
+        "wallSeconds": 72.794,
+        "cpuSeconds": 121.2,
+        "avgCpuCores": 1.66,
+        "peakRssMb": 11075,
+        "renderSeconds": 71.234,
+        "creativeSeconds": 1.423
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1187,
+      "costBasis": "ESTIMATE: 71 s render at 6 THB/hour"
+    },
+    {
+      "label": "affiliate-test-2",
+      "mode": "AFFILIATE",
+      "story": {
+        "format": "PRODUCT_DETAIL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี?"
+          },
+          {
+            "role": "POINT",
+            "text": "ความจุ 500 มิลลิลิตร"
+          },
+          {
+            "role": "CTA",
+            "text": "ดูรายละเอียดสินค้าก่อนตัดสินใจ"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"
+      },
+      "topic": {
+        "topic": null,
+        "basis": "NONE"
+      },
+      "method": "REAL_IMAGE_MOTION",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-20T13:30:00+00:00",
+      "slotBasis": "AUDIENCE_DATA",
+      "hook": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี?",
+      "voice": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี? ความจุ 500 มิลลิลิตร ดูรายละเอียดสินค้าก่อนตัดสินใจ",
+      "caption": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี? ความจุ 500 มิลลิลิตร",
+      "hashtags": [
+        "#ขวดน้ำเก็บความเย็น",
+        "#ของมันต้องดู",
+        "#TikTokShop",
+        "#ของใช้ในบ้าน"
+      ],
+      "metrics": {
+        "wallSeconds": 66.531,
+        "cpuSeconds": 115.8,
+        "avgCpuCores": 1.74,
+        "peakRssMb": 10205,
+        "renderSeconds": 66.246,
+        "creativeSeconds": 0.24
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1103,
+      "costBasis": "ESTIMATE: 66 s render at 6 THB/hour"
+    },
+    {
+      "label": "affiliate-test-3",
+      "mode": "AFFILIATE",
+      "story": {
+        "format": "PRODUCT_DETAIL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "จุดที่ควรดูของขวดน้ำเก็บความเย็น"
+          },
+          {
+            "role": "POINT",
+            "text": "ความจุ 500 มิลลิลิตร"
+          },
+          {
+            "role": "CTA",
+            "text": "อ่านรายละเอียดในหน้าสินค้า"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"
+      },
+      "topic": {
+        "topic": null,
+        "basis": "NONE"
+      },
+      "method": "REAL_IMAGE_MOTION",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-21T13:30:00+00:00",
+      "slotBasis": "AUDIENCE_DATA",
+      "hook": "จุดที่ควรดูของขวดน้ำเก็บความเย็น",
+      "voice": "จุดที่ควรดูของขวดน้ำเก็บความเย็น ความจุ 500 มิลลิลิตร อ่านรายละเอียดในหน้าสินค้า",
+      "caption": "จุดที่ควรดูของขวดน้ำเก็บความเย็น ความจุ 500 มิลลิลิตร",
+      "hashtags": [
+        "#ขวดน้ำเก็บความเย็น",
+        "#ของมันต้องดู",
+        "#TikTokShop",
+        "#ของใช้ในบ้าน"
+      ],
+      "metrics": {
+        "wallSeconds": 68.643,
+        "cpuSeconds": 120.5,
+        "avgCpuCores": 1.76,
+        "peakRssMb": 10990,
+        "renderSeconds": 68.518,
+        "creativeSeconds": 0.063
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.114,
+      "costBasis": "ESTIMATE: 68 s render at 6 THB/hour"
+    }
+  ],
+  "bank": {
+    "growth": {
+      "attempts": 7,
+      "usable": 5,
+      "rejected": 2,
+      "actualUsd": 0,
+      "actualThbPerUsable": 0,
+      "estimatedThbPerUsable": 0.20418000000000003
+    },
+    "affiliateTestOnly": {
+      "attempts": 3,
+      "usable": 3,
+      "rejected": 0,
+      "actualUsd": 0,
+      "actualThbPerUsable": 0,
+      "estimatedThbPerUsable": 0.11433333333333333
+    }
+  },
+  "rebankSameMaster": {
+    "sameRow": true,
+    "rowsInBank": 10
+  },
+  "publishingQueueRows": 0
+}
