@@ -1,0 +1,6 @@
+{"step":"owner","owner":"cf44e1d2-ae97-4a18-93a4-19457cd59603"}
+Error: permission: no data
+    at must (/home/runner/work/viralflow-ai/viralflow-ai/scripts/pilot/full-path-pilot.ts:19:123)
+    at sandbox (/home/runner/work/viralflow-ai/viralflow-ai/scripts/pilot/full-path-pilot.ts:33:3)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async main (/home/runner/work/viralflow-ai/viralflow-ai/scripts/pilot/full-path-pilot.ts:87:19)
