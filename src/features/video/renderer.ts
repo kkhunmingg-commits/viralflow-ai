@@ -2,8 +2,8 @@ import {spawn} from "node:child_process";
 import {existsSync} from "node:fs";
 import {stat} from "node:fs/promises";
 import {join} from "node:path";
-import ffmpegPath from "ffmpeg-static";
 import ffprobeStatic from "ffprobe-static";
+import {ffmpegBinary} from "./ffmpeg-binary";
 import {VIDEO_DURATION_SECONDS,VIDEO_FPS,VIDEO_HEIGHT,VIDEO_WIDTH,type RenderedVideo,type VideoRenderInput,type VideoRenderer} from "./types";
 
 const run=(binary:string,args:string[])=>new Promise<string>((resolve,reject)=>{
@@ -17,7 +17,7 @@ const esc=(text:string)=>text.normalize("NFKC").replace(/[\\':,%\[\]]/g,m=>`\\${
 export class FFmpegVideoRenderer implements VideoRenderer {
   readonly provider="local-ffmpeg";
   readonly model="ffmpeg-template-v1";
-  private ffmpeg=(()=>{if(process.env.FFMPEG_BINARY)return process.env.FFMPEG_BINARY;const local=join(process.cwd(),"node_modules","ffmpeg-static",process.platform==="win32"?"ffmpeg.exe":"ffmpeg");return existsSync(local)?local:ffmpegPath})();
+  private ffmpeg=ffmpegBinary();
   private ffprobe=(()=>{if(process.env.FFPROBE_BINARY)return process.env.FFPROBE_BINARY;const local=join(process.cwd(),"node_modules","ffprobe-static","bin",process.platform,process.arch==="arm64"?"arm64":"x64",process.platform==="win32"?"ffprobe.exe":"ffprobe");return existsSync(local)?local:ffprobeStatic.path})();
   async render(input:VideoRenderInput,productImagePath:string,voicePath:string,outputPath:string){
     if(!this.ffmpeg)throw new Error("FFmpeg binary is unavailable");

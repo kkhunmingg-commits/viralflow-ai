@@ -93,6 +93,34 @@ describe("existing creative service intelligence reads", () => {
     }
     expect(queries.find(q => q.table === "media_assets")?.filters).toContainEqual({ key: "product_id", kind: "eq", value: "mop" });
   });
+  it("confirms rights only from an approved, in-scope ledger record and cites only unrevoked evidence", async () => {
+    const { context, tables } = setup();
+    const record = { id: "rights-1", owner_id: owner, media_asset_id: "upload-1", product_id: "mop", origin_source: "OWNER_CREATED",
+      asset_role: "REAL_FOOTAGE", allows_commercial: true, allows_edit: true, platform_scope: ["TIKTOK"], account_scope: null,
+      review_state: "APPROVED", expires_at: null, revoked_at: null };
+    const fact = { id: "fact-1", owner_id: owner, product_id: "mop", topic: null, statement: "ไม้ถูพื้นบิดน้ำได้ด้วยถังปั่น", source: "PDP",
+      source_reference: "https://shop.example/mop", role: "SELLING_POINT", captured_at: "2026-10-12T00:00:00Z", revoked_at: null };
+    const cases: Array<[Row, number]> = [[record, 1], [{ ...record, review_state: "PENDING" }, 0], [{ ...record, account_scope: ["old-sales"] }, 0],
+      [{ ...record, product_id: "other-product" }, 0], [{ ...record, revoked_at: "2026-10-13T11:00:00Z" }, 0], [{ ...record, owner_id: otherOwner }, 0]];
+    for (const [rights, cleared] of cases) {
+      tables.media_asset_rights = [rights];
+      tables.content_evidence = [fact, { ...fact, id: "fact-revoked", revoked_at: "2026-10-13T11:00:00Z" }, { ...fact, id: "fact-other", owner_id: otherOwner }];
+      const { client } = memoryClient(tables);
+      const result = await readCreativeIntelligence(client, owner, context, { now });
+      expect(result.evidenceReadiness.rightsClearedAssetCount).toBe(cleared);
+      expect(result.evidenceReadiness.verifiedProductFactCount).toBe(1);
+      // A cleared owner clip is the only thing that moves the strategist off WAIT_FOR_EVIDENCE; a human review still follows.
+      expect(result.strategy.concepts.some(c => c.production.method === "REAL_FOOTAGE_EDIT" && c.production.ready && c.status === "REVIEW_REQUIRED")).toBe(cleared === 1);
+      expect(result.paidCalls).toBe(0); expect(result.postingCalls).toBe(0);
+    }
+  });
+  it("stays fail-closed when the ledger tables are not migrated yet", async () => {
+    const { context, tables } = setup();
+    const { client } = memoryClient(tables, { media_asset_rights: "42P01", content_evidence: "42P01" });
+    const result = await readCreativeIntelligence(client, owner, context, { now });
+    expect(result.evidenceReadiness.rightsClearedAssetCount).toBe(0);
+    expect(result.strategy.concepts.every(c => c.status === "WAIT_FOR_EVIDENCE")).toBe(true);
+  });
   it.each(["not-opted-in", "expired", "mock-account", "revoked-account"])("does not read sales account Analytics when %s", async condition => {
     const { context, tables } = setup();
     if (condition === "not-opted-in") tables.auto_account_discovery[0].can_execute = false;

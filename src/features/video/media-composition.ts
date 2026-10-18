@@ -1,12 +1,11 @@
 import "server-only";
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import ffmpegPath from "ffmpeg-static";
 import { FFmpegVideoRenderer } from "./renderer";
+import { ffmpegBinary } from "./ffmpeg-binary";
 import { preparePortraitProductReference } from "@/features/video-benchmark/provider-normalization";
 import type { TimedText } from "./types";
 
@@ -53,8 +52,7 @@ export async function composeGeneratedVideo(sourcePath: string, outputPath: stri
   const renderer = new FFmpegVideoRenderer(), source = await renderer.probe(sourcePath);
   if (source.duration < options.durationSeconds - .12) throw new Error("generated_source_too_short");
   if (!options.voicePath && (!options.preserveAudio || !source.hasAudio)) throw new Error("video_voice_unavailable");
-  const local = join(process.cwd(), "node_modules", "ffmpeg-static", process.platform === "win32" ? "ffmpeg.exe" : "ffmpeg");
-  const binary = process.env.FFMPEG_BINARY || (existsSync(local) ? local : ffmpegPath);
+  const binary = ffmpegBinary();
   if (!binary) throw new Error("ffmpeg_unavailable");
   const [width, height] = options.resolution === "1080p" ? [1080, 1920] : options.resolution === "480p" ? [480, 854] : [720, 1280];
   const text = options.overlay.filter(item => item.text.trim()).slice(0, 3).map((item, index) =>
