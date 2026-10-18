@@ -25,6 +25,9 @@ export function bankAcceptance(input: AcceptanceInput) {
   for (const v of input.rightsViolations) reasons.push(`RIGHTS:${v}`);
   if (input.duplicateOf) reasons.push(`DUPLICATE_OF:${input.duplicateOf}`);
   if (input.narrationKind === "NONE") reasons.push("NO_NARRATION");
+  // Caption-only is allowed by the renderer for planned text-first cuts, but the bank wants a voiced clip;
+  // a render that fell back to captions (for example after a failed TTS take) goes back for another render.
+  if (input.narrationKind === "CAPTION_ONLY") reasons.push("NARRATION_FELL_BACK_TO_CAPTIONS");
   return { accepted: reasons.length === 0, reasons };
 }
 

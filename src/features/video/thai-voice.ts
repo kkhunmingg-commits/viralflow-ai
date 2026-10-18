@@ -1,4 +1,5 @@
 import {spawn} from "node:child_process";
+import {spokenThai} from "./spoken-thai";
 import {existsSync} from "node:fs";
 import {rename} from "node:fs/promises";
 import {ffmpegBinary} from "./ffmpeg-binary";
@@ -26,7 +27,7 @@ export class LocalCommandThaiVoice implements ThaiVoiceProvider{
     if(!command.length)throw new Error("thai_tts_not_configured");
   }
   async synthesize(input:{text:string;outputPath:string;maxSeconds:number}){
-    const text=input.text.normalize("NFC").replace(/\s+/g," ").trim();
+    const text=spokenThai(input.text);
     if(!text||text.length>400)throw new Error("thai_tts_text_invalid");
     await new Promise<void>((resolve,reject)=>{
       const child=spawn(this.command[0],this.command.slice(1),{windowsHide:true,stdio:["pipe","ignore","pipe"]}),errors:Buffer[]=[];
@@ -35,7 +36,7 @@ export class LocalCommandThaiVoice implements ThaiVoiceProvider{
       child.stderr.on("data",d=>errors.push(Buffer.from(d)));
       child.on("error",error=>{failed=error});
       child.on("close",code=>{clearTimeout(timer);if(failed||code!==0)reject(failed??new Error(`thai_tts_failed: ${Buffer.concat(errors).toString().slice(-400)}`));else resolve()});
-      child.stdin.end(JSON.stringify({text,voice:this.voiceDescription,output:input.outputPath}));
+      child.stdin.end(JSON.stringify({text,voice:this.voiceDescription,output:input.outputPath,max_seconds:input.maxSeconds}));
     });
     const media=await new FFmpegVideoRenderer().probe(input.outputPath);
     if(!media.hasAudio||!(media.duration>.5))throw new Error("thai_tts_output_invalid");
@@ -54,6 +55,7 @@ export class LocalCommandThaiVoice implements ThaiVoiceProvider{
 }
 
 const MAX_TEMPO=1.12;
+export {spokenThai} from "./spoken-thai";
 function run(command:string,args:string[]){
   return new Promise<void>((resolve,reject)=>{const child=spawn(command,args,{windowsHide:true,stdio:"ignore"});
     child.on("error",reject);child.on("close",code=>code===0?resolve():reject(new Error("thai_tts_fit_failed")))});

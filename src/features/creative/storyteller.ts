@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { StoryBeat, StoryFormat, StoryPlan } from "../video/story-director";
+import { spokenThai } from "../video/spoken-thai";
 
 /** Rule-based storytelling. It reads the verified facts, the topic or product and what this account
  * published recently, then picks a narrative format and hook. It is deterministic and inspectable;
@@ -43,7 +44,7 @@ function pickFresh(options: string[], used: string[], seed: string) {
   for (let i = 0; i < fitting.length; i++) { const o = fitting[(start + i) % fitting.length]; if (!recent.has(o)) return o; }
   return fitting[start];
 }
-const spoken = (beats: StoryBeat[]) => beats.reduce((n, b) => n + base(b.text), 0);
+const spoken = (beats: StoryBeat[]) => beats.reduce((n, b) => n + base(spokenThai(b.text)), 0);
 const firstNumber = (text: string) => /[0-9][0-9.,]*\s*(%|°C)?/.exec(text)?.[0].trim() ?? null;
 
 interface GrowthFact { id: string; text: string }

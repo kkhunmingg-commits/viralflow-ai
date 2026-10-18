@@ -11,6 +11,9 @@ describe("content bank policy", () => {
     expect(bankAcceptance({ ...ok, qualityStatus: "RETRY", checks: [{ name: "VOICE", passed: false }], rightsViolations: ["ACCOUNT_OUT_OF_SCOPE"], duplicateOf: "x" }).reasons)
       .toEqual(["QUALITY_RETRY", "CHECK_FAILED:VOICE", "EDIT_CHECKS_MISSING", "RIGHTS:ACCOUNT_OUT_OF_SCOPE", "DUPLICATE_OF:x"]);
   });
+  it("sends a clip that fell back to captions back for another render", () => {
+    expect(bankAcceptance({ ...ok, narrationKind: "CAPTION_ONLY" }).reasons).toEqual(["NARRATION_FELL_BACK_TO_CAPTIONS"]);
+  });
   it("treats the same lines as the same clip regardless of spacing", () => {
     expect(creativeFingerprint(["ทายดู  ขวด", "เฉลย"])).toBe(creativeFingerprint(["ทายดู ขวด", " เฉลย "]));
     expect(creativeFingerprint(["a", "b"])).not.toBe(creativeFingerprint(["b", "a"]));

@@ -3,7 +3,7 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {describe,expect,it} from "vitest";
 import {ffmpegBinary} from "./ffmpeg-binary";
-import {configuredThaiVoice,LocalCommandThaiVoice,VOXCPM2_LICENSE} from "./thai-voice";
+import {configuredThaiVoice,LocalCommandThaiVoice,spokenThai,VOXCPM2_LICENSE} from "./thai-voice";
 
 const fakeTts=async(dir:string,seconds:number)=>{const file=join(dir,`tts-${seconds}.mjs`);
   await writeFile(file,`import {spawnSync} from "node:child_process";import {writeFileSync} from "node:fs";let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);
@@ -11,6 +11,10 @@ const fakeTts=async(dir:string,seconds:number)=>{const file=join(dir,`tts-${seco
   return file};
 
 describe("local Thai TTS provider",()=>{
+  it("speaks symbols as Thai words",()=>{
+    expect(spokenThai("ทำไมต้อง 0°C?")).toBe("ทำไมต้อง 0 องศาเซลเซียส?");
+    expect(spokenThai("ทายก่อนเฉลย: เบากว่าน้ำราว 9%")).toBe("ทายก่อนเฉลย เบากว่าน้ำราว 9 เปอร์เซ็นต์");
+  });
   it("sends normalised text and a designed voice, then checks the output length",async()=>{
     const dir=await mkdtemp(join(tmpdir(),"viralflow-tts-"));
     try{

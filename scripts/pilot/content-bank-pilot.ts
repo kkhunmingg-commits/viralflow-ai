@@ -50,7 +50,7 @@ const TOPICS:Array<{topic:string;source:string;facts:string[]}>=[
 ];
 
 interface ClipResult{label:string;mode:string;error?:string;story?:unknown;topic?:unknown;method?:string;quality?:string;bankStatus?:string;
-  rejection?:unknown;slot?:unknown;slotBasis?:unknown;hook?:string;voice?:string;caption?:string;hashtags?:unknown;metrics?:unknown;costActualUsd?:number;costEstimatedThb?:unknown;costBasis?:unknown;checks?:unknown}
+  rejection?:unknown;slot?:unknown;slotBasis?:unknown;hook?:string;voice?:string;caption?:string;hashtags?:unknown;metrics?:unknown;costActualUsd?:number;costEstimatedThb?:unknown;costBasis?:unknown;checks?:unknown;narration?:unknown}
 
 async function produce(admin:SupabaseClient,user:SupabaseClient,owner:string,assignmentId:string,label:string,mode:string):Promise<ClipResult>{
   try{
@@ -62,8 +62,9 @@ async function produce(admin:SupabaseClient,user:SupabaseClient,owner:string,ass
       bankStatus:String(item.status),rejection:item.rejection_reasons,slot:item.planned_slot_at,slotBasis:item.slot_basis,hook:String(r.script.hook_text),voice:String(r.script.voice_script),
       caption:String(item.caption),hashtags:item.hashtags,metrics:{...metrics,renderSeconds:r.timings.renderSeconds,creativeSeconds:r.timings.creativeSeconds},
       costActualUsd:Number(item.cost_actual_usd),costEstimatedThb:item.cost_estimated_thb,costBasis:item.cost_basis,
+      narration:(r.master.quality_explanation_json as Row|null)?.narration,
       checks:((r.master.quality_explanation_json as Row|null)?.checks as Array<Row>|undefined)?.map(c=>`${c.passed?"PASS":"FAIL"} ${c.name}: ${c.detail??""}`)};
-    log(`${label}.bank`,{status:result.bankStatus,rejection:result.rejection,format:(result.story as {format?:string}|undefined)?.format,hook:result.hook,checks:result.checks,slot:result.slot,metrics:result.metrics});
+    log(`${label}.bank`,{status:result.bankStatus,rejection:result.rejection,format:(result.story as {format?:string}|undefined)?.format,hook:result.hook,narration:result.narration,checks:result.checks,slot:result.slot,metrics:result.metrics});
     return result;
   }catch(error){const message=error instanceof Error?error.message:String(error);log(`${label}.failed`,{message});return {label,mode,error:message}}
 }
