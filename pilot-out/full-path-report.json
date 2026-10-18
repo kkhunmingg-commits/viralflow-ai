@@ -1,0 +1,17 @@
+{
+  "ranAt": "2026-10-18T18:42:06.255Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "results": {
+    "affiliate": {
+      "error": "CREATIVE_INTELLIGENCE_SOURCE_UNAVAILABLE"
+    },
+    "growth": {
+      "error": "CREATIVE_INTELLIGENCE_SOURCE_UNAVAILABLE"
+    }
+  },
+  "publishingGuard": {},
+  "env": {
+    "creative": "evidence-rubric",
+    "tts": "voxcpm2"
+  }
+}

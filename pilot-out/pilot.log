@@ -1,0 +1,5 @@
+{"step":"owner","owner":"8cae10d9-ca8a-4040-b84a-e43c8153add7"}
+{"step":"affiliate.rights","clip":"8c0d8940-1aff-41fc-98d6-927775f3df6c","still":"bc0a036f-55d4-4d44-93cf-b5a6221f004a","rights":["08c1e629-aadc-4352-8d91-a1b8639e12d5","7c11f7c2-669a-45c3-b598-b28ccc5d1878"]}
+{"step":"affiliate.failed","error":"CREATIVE_INTELLIGENCE_SOURCE_UNAVAILABLE"}
+{"step":"growth.failed","error":"CREATIVE_INTELLIGENCE_SOURCE_UNAVAILABLE"}
+{"step":"done","ok":false}
