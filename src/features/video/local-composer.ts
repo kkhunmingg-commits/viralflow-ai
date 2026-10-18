@@ -43,11 +43,16 @@ export function wrapThaiCaption(text:string,maxChars=20,maxLines=2){
   // Writers put spaces between Thai phrases; breaking there first avoids splitting compounds such as ต่อ|ไป.
   // A phrase too long for one line is split into words on lines of its own, never glued to the previous phrase.
   const words=(phrase:string)=>[...new Intl.Segmenter("th",{granularity:"word"}).segment(phrase)].map(s=>s.segment);
+  // Two balanced lines read better than a full line and an orphan (น้ำขยายตัวเมื่อแข็ง|ตัว).
+  const split=(phrase:string)=>{const w=words(phrase);let best:string[]|null=null,width=Infinity;
+    for(let i=1;i<w.length;i++){const a=w.slice(0,i).join(""),b=w.slice(i).join(""),m=Math.max(visibleLength(a),visibleLength(b));
+      if(m<=maxChars&&m<width){best=[a.trim(),b.trim()];width=m}}
+    return best??pack(w)};
   const lines:string[]=[];
   for(const phrase of clean.split(" ")){
     const last=lines.at(-1);
     if(last!==undefined&&visibleLength(`${last} ${phrase}`)<=maxChars){lines[lines.length-1]=`${last} ${phrase}`;continue}
-    if(visibleLength(phrase)<=maxChars)lines.push(phrase);else lines.push(...pack(words(phrase)));
+    if(visibleLength(phrase)<=maxChars)lines.push(phrase);else lines.push(...split(phrase));
   }
   if(lines.length>maxLines)throw new Error("caption_too_long");
   return lines;
@@ -138,7 +143,14 @@ export function imageShot(index:number,clip:ComposerClip,seconds:number){
 
 /** Build ffmpeg arguments. Images get a slow pan across original pixels; footage is trimmed and
  * held on its last frame if short. Source audio is dropped because clip audio rights are not attested. */
-export function composerArgs(input:{clips:ComposerClip[];durations:number[];voicePath?:string;durationSeconds:number;outputPath:string}){
+/** Gain that brings measured narration to the target. Single-pass loudnorm undershoots on clips this
+ * short (pilots measured -16.4 LUFS against -14), so the voice is measured after a gentle compressor
+ * and then set linearly; the limiter only catches the peaks the compressor left. */
+export const VOICE_COMPRESSOR="acompressor=threshold=0.125:ratio=3:attack=5:release=120";
+export function voiceGainDb(measuredLufs:number|null){
+  return measuredLufs===null||!Number.isFinite(measuredLufs)?null:Math.max(-30,Math.min(40,LOUDNESS_TARGET-measuredLufs));
+}
+export function composerArgs(input:{clips:ComposerClip[];durations:number[];voicePath?:string;voiceGainDb?:number|null;durationSeconds:number;outputPath:string}){
   const args=["-nostdin","-hide_banner","-loglevel","error","-y"];
   input.clips.forEach((clip,i)=>{
     const seg=input.durations[i];
@@ -161,7 +173,7 @@ export function composerArgs(input:{clips:ComposerClip[];durations:number[];voic
   });
   const concat=`${input.clips.map((_,i)=>`[v${i}]`).join("")}concat=n=${input.clips.length}:v=1:a=0,ass=subtitles.ass:fontsdir=fonts,format=yuv420p[v]`;
   const audio=input.voicePath
-    ?`[${audioIndex}:a]aresample=48000,loudnorm=I=${LOUDNESS_TARGET}:TP=-1.5:LRA=11,apad,atrim=0:${input.durationSeconds},afade=t=out:st=${(input.durationSeconds-.3).toFixed(2)}:d=0.3[a]`
+    ?`[${audioIndex}:a]aresample=48000,${typeof input.voiceGainDb==="number"?`${VOICE_COMPRESSOR},volume=${input.voiceGainDb.toFixed(2)}dB,alimiter=limit=0.84:level=false`:`loudnorm=I=${LOUDNESS_TARGET}:TP=-1.5:LRA=11`},apad,atrim=0:${input.durationSeconds},afade=t=out:st=${(input.durationSeconds-.3).toFixed(2)}:d=0.3[a]`
     :`[${audioIndex}:a]atrim=0:${input.durationSeconds}[a]`;
   args.push("-filter_complex",[...chains,concat,audio].join(";"),"-map","[v]","-map","[a]","-t",String(input.durationSeconds),"-r",String(FPS),
     "-c:v","libx264","-preset","medium","-crf","20","-pix_fmt","yuv420p","-c:a","aac","-b:a","128k","-ar","48000","-movflags","+faststart",input.outputPath);
@@ -179,9 +191,9 @@ function runFfmpeg(binary:string,args:string[],cwd:string,timeoutMs=180_000){
   });
 }
 
-export async function measureLoudness(path:string){
+export async function measureLoudness(path:string,before=""){
   const binary=ffmpegBinary();if(!binary)throw new Error("ffmpeg_unavailable");
-  const stderr=await runFfmpeg(binary,["-nostdin","-hide_banner","-nostats","-i",path,"-map","0:a:0","-af","ebur128=framelog=quiet","-f","null","-"],process.cwd(),60_000);
+  const stderr=await runFfmpeg(binary,["-nostdin","-hide_banner","-nostats","-i",path,"-map","0:a:0","-af",`${before?`${before},`:""}ebur128=framelog=quiet`,"-f","null","-"],process.cwd(),60_000);
   const match=/Integrated loudness:\s*I:\s*(-?[\d.]+|-inf)\s*LUFS/.exec(stderr);
   return match&&match[1]!=="-inf"?Number(match[1]):null;
 }
@@ -235,7 +247,7 @@ export function editQc(clips:ComposerClip[],durations:number[],textEvents:Compos
   const covered=new Set<number>();for(const e of events)for(let t=Math.ceil(Math.max(0,e.start)*10);t<Math.floor(Math.min(durationSeconds,e.end)*10);t++)covered.add(t);
   const coverage=covered.size/(durationSeconds*10);
   const hook=events.filter(e=>e.start<=.3).sort((a,b)=>b.end-a.end)[0];
-  const longest=Math.max(...durations),varied=new Set(clips.map(c=>c.kind==="GRAPHIC"?`G${c.headline}`:`${c.assetId}:${c.motion??"clip"}`)).size;
+  const longest=Math.max(...durations),varied=new Set(clips.map(c=>c.kind==="GRAPHIC"?`G${c.headline}:${c.palette?.join("")}`:`${c.assetId}:${c.motion??"clip"}`)).size;
   return [
     {name:"HOOK",passed:Boolean(hook)&&hook.end-hook.start>=1.2,detail:hook?`hook on screen ${hook.start.toFixed(1)}–${hook.end.toFixed(1)}s`:"no text in the first 0.3s"},
     {name:"TEXT_COVERAGE",passed:coverage>=MIN_COVERAGE,detail:`text on screen ${(coverage*100).toFixed(0)}% of clip (min ${MIN_COVERAGE*100}%)`},
@@ -256,7 +268,7 @@ export async function composeRealMedia(input:ComposeRealMediaInput):Promise<Comp
     // Planned shots hold their card for the whole beat; the cut flash separates them.
     return clip.headline?.trim()?[{text:clip.headline,start:start+(clip.seconds?.04:.15),end:start+durations[i]-(clip.seconds?0:.1)}]:[]});
   await writeFile(join(input.workDir,"subtitles.ass"),buildAssSubtitles(input.captions,input.durationSeconds,cards,[...shotOverlays(input.clips,durations),...input.overlays??[]]),"utf8");
-  await runFfmpeg(binary,composerArgs({clips:input.clips,durations,voicePath:input.voicePath,durationSeconds:input.durationSeconds,outputPath:input.outputPath}),input.workDir);
+  await runFfmpeg(binary,composerArgs({clips:input.clips,durations,voicePath:input.voicePath,voiceGainDb:input.voicePath?voiceGainDb(await measureLoudness(input.voicePath,`aresample=48000,${VOICE_COMPRESSOR}`)):null,durationSeconds:input.durationSeconds,outputPath:input.outputPath}),input.workDir);
   const media=await new FFmpegVideoRenderer().probe(input.outputPath);
   const loudnessLufs=input.voicePath?await measureLoudness(input.outputPath):null;
   const checks=[...composerQc(media,loudnessLufs,{durationSeconds:input.durationSeconds,hasVoice:Boolean(input.voicePath),audioMode:input.audioMode,textEvents:[...cards,...input.captions]}),

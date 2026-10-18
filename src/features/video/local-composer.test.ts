@@ -4,12 +4,18 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {describe,expect,it} from "vitest";
 import {ffmpegBinary} from "./ffmpeg-binary";
-import {buildAssSubtitles,composeRealMedia,composerArgs,composerQc,segmentDurations,wrapThaiCaption} from "./local-composer";
+import {buildAssSubtitles,composeRealMedia,composerArgs,composerQc,segmentDurations,voiceGainDb,wrapThaiCaption} from "./local-composer";
 
 const ffmpeg=(args:string[])=>{const r=spawnSync(ffmpegBinary()!,["-hide_banner","-loglevel","error","-y",...args]);if(r.status!==0)throw new Error(String(r.stderr));return r.stdout};
 const media={path:"x",duration:8,width:1080,height:1920,fps:30,videoCodec:"h264",audioCodec:"aac",hasAudio:true,sizeBytes:1};
 
 describe("local real-media composer",()=>{
+  it("sets narration to the loudness target with a measured linear gain instead of one-pass loudnorm",()=>{
+    expect(voiceGainDb(-22.4)).toBeCloseTo(8.4);expect(voiceGainDb(null)).toBeNull();expect(voiceGainDb(-80)).toBe(40);
+    const args=composerArgs({clips:[{assetId:"g",path:"",kind:"GRAPHIC",headline:"x"}],durations:[8],voicePath:"v.wav",voiceGainDb:6,durationSeconds:8,outputPath:"o.mp4"});
+    const graph=args[args.indexOf("-filter_complex")+1];
+    expect(graph).toContain("volume=6.00dB,alimiter");expect(graph).not.toContain("loudnorm");
+  });
   it("wraps Thai at word boundaries counting only base characters",()=>{
     expect(wrapThaiCaption("ไม้ถูพื้นบิดน้ำได้ด้วยถังปั่น ไม่ต้องใช้มือ")).toEqual(["ไม้ถูพื้นบิดน้ำได้ด้วยถังปั่น","ไม่ต้องใช้มือ"]);
     expect(()=>wrapThaiCaption("ข้อความยาวมาก".repeat(10))).toThrow("caption_too_long");

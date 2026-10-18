@@ -34,6 +34,13 @@ describe("rule-based storyteller", () => {
     expect(shortLabel("ขวดน้ำเก็บความเย็น ฟ้าเย็น 500 มล.", 18)).toBe("ขวดน้ำเก็บความเย็น");
     expect(storyHashtags("LIST", "ขวดเก็บความเย็น", false)).toEqual(["#ขวดเก็บความเย็น", "#รู้ไว้ใช่ว่า", "#สาระน่ารู้"]);
   });
+  it("speaks a selling point the account has not used recently before repeating one", () => {
+    const points = [{ id: "s1", text: "ความจุ 500 มิลลิลิตร" }, { id: "s2", text: "ฝาสีดำมีห่วงหิ้ว" }];
+    const plan = planProductStory("PRODUCT_DETAIL", "ขวดน้ำเก็บความเย็น", points, { ...EMPTY_HISTORY, lines: ["ความจุ 500 มิลลิลิตร"] }, "a");
+    expect(plan.factIds[0]).toBe("s2");
+    const growth = planGrowthStory("น้ำแข็ง", [{ id: "a", text: "น้ำขยายตัวเมื่อแข็งตัว" }, { id: "b", text: "ปลาอยู่ใต้น้ำแข็งได้" }], { formats: ["EXPLAINER"], hooks: [], topics: [], lines: ["น้ำขยายตัวเมื่อแข็งตัว"] }, "s")!;
+    expect(growth.factIds[0]).toBe("b");
+  });
   it("flags lines that say more than the visuals or evidence show", () => {
     expect(claimIssues(["ดูการทำงานจากวิดีโอจริง"], "REAL_IMAGE", [])[0].code).toBe("DEMONSTRATION_WITHOUT_FOOTAGE");
     expect(claimIssues(["ดูการทำงานจากวิดีโอจริง"], "REAL_FOOTAGE_OPERATION", [])).toEqual([]);

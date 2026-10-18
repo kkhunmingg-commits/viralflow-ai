@@ -52,6 +52,13 @@ describe("story director",()=>{
     const clips=directGraphicStory(story,beatTimeline(story.beats,null,8));
     expect(clips.map(c=>[c.kind,c.badge,c.kicker])).toEqual([["GRAPHIC","3",undefined],["GRAPHIC",undefined,"ข้อ 1"],["GRAPHIC",undefined,undefined]]);
   });
+  it("cuts a long graphic beat into two cards so no frame holds past one shot",()=>{
+    const story={format:"EXPLAINER" as const,basis:"t",beats:[{role:"HOOK" as const,text:"เคยสงสัยไหม"},{role:"POINT" as const,text:"ช่องกลางไม่มีอากาศ ความร้อนผ่านได้น้อย"}]};
+    const clips=directGraphicStory(story,[{start:0,end:2},{start:2,end:8}]);
+    expect(clips.map(c=>c.seconds)).toEqual([2,3,3]);
+    expect(clips[2].palette).toEqual([...clips[1].palette!].reverse());
+    expect(clips[2].headline).toBe(clips[1].headline);
+  });
   it("finds the product in a still against a gradient, ignoring the background",async()=>{
     const dir=await mkdtemp(join(tmpdir(),"viralflow-subject-"));
     try{

@@ -101,6 +101,12 @@ const GRAPHIC_PALETTES:Record<string,Array<[string,string]>>={
 /** Graphic formats: one card per beat, the format's palette, and its kicker/badge motion graphics. */
 export function directGraphicStory(story:StoryPlan,windows:BeatWindow[]):ComposerClip[]{
   const palettes=GRAPHIC_PALETTES[story.format]??GRAPHIC_PALETTES.EXPLAINER;
-  return story.beats.map((beat,i)=>({assetId:`graphic-${i+1}`,path:"",kind:"GRAPHIC" as const,headline:beat.text,palette:palettes[i%palettes.length],
-    seconds:windows[i].end-windows[i].start,kicker:beat.kicker,badge:beat.badge}));
+  // A beat longer than one shot gets a second card in the reversed palette, so the frame changes on rhythm.
+  return story.beats.flatMap((beat,i)=>{
+    const palette=palettes[i%palettes.length],seconds=windows[i].end-windows[i].start;
+    const card=(n:string,p:[string,string],s:number)=>({assetId:`graphic-${i+1}${n}`,path:"",kind:"GRAPHIC" as const,headline:beat.text,palette:p,seconds:s,kicker:beat.kicker,badge:beat.badge});
+    if(seconds<=MAX_SHOT)return [card("",palette,seconds)];
+    const first=Math.round(seconds/2*30)/30;
+    return [card("",palette,first),card("b",[palette[1],palette[0]],seconds-first)];
+  });
 }

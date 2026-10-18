@@ -5,8 +5,14 @@ import type { StoryBeat, StoryFormat, StoryPlan } from "../video/story-director"
  * published recently, then picks a narrative format and hook. It is deterministic and inspectable;
  * it is not a language model and does not claim to predict what will go viral. */
 export const STORYTELLER_MODE = "RULE_BASED_STORYTELLER_V1";
-export interface StoryHistory { formats: string[]; hooks: string[]; topics: string[] }
-export const EMPTY_HISTORY: StoryHistory = { formats: [], hooks: [], topics: [] };
+/** Newest first. `lines` holds every beat the account's recent clips spoke, so a fact is not repeated while others wait. */
+export interface StoryHistory { formats: string[]; hooks: string[]; topics: string[]; lines?: string[] }
+export const EMPTY_HISTORY: StoryHistory = { formats: [], hooks: [], topics: [], lines: [] };
+/** Facts not spoken recently go first; among spoken ones, the longest ago goes first. Order is otherwise kept. */
+function freshFirst<T extends { text: string }>(facts: T[], history: StoryHistory) {
+  const lines = (history.lines ?? []).map(norm), age = (t: string) => { const i = lines.indexOf(norm(t)); return i < 0 ? Infinity : i; };
+  return facts.map((f, i) => ({ f, i })).toSorted((a, b) => age(b.f.text) - age(a.f.text) || a.i - b.i).map(x => x.f);
+}
 
 const base = (text: string) => [...text.normalize("NFC").replace(/\p{M}/gu, "").replace(/\s+/g, "")].length;
 /** Cards stay readable at ~32 base characters. VoxCPM2 measured 8–10 base characters a second, and the
@@ -38,7 +44,7 @@ function pickFresh(options: string[], used: string[], seed: string) {
   return fitting[start];
 }
 const spoken = (beats: StoryBeat[]) => beats.reduce((n, b) => n + base(b.text), 0);
-const firstNumber = (text: string) => /[0-9][0-9.,]*\s*%?/.exec(text)?.[0].trim() ?? null;
+const firstNumber = (text: string) => /[0-9][0-9.,]*\s*(%|°C)?/.exec(text)?.[0].trim() ?? null;
 
 interface GrowthFact { id: string; text: string }
 export interface PlannedStory { story: StoryPlan; factIds: string[] }
@@ -54,7 +60,7 @@ const FORMAT_REASON: Record<string, string> = {
 /** Growth: choose among formats the evidence supports, preferring ones this account has not used
  * lately, so a run of clips does not repeat the same template. Returns null without facts. */
 export function planGrowthStory(topic: string, facts: GrowthFact[], history: StoryHistory, seed: string): PlannedStory | null {
-  const usable = facts.map(f => ({ ...f, text: norm(f.text) })).filter(f => fitsCard(f.text));
+  const usable = freshFirst(facts.map(f => ({ ...f, text: norm(f.text) })).filter(f => fitsCard(f.text)), history);
   if (!usable.length) return null;
   const t = shortLabel(topic) ?? "เรื่องนี้";
   const listFacts = usable.filter(f => base(f.text) <= LIST_POINT_MAX).slice(0, 3);
@@ -75,7 +81,7 @@ export function planGrowthStory(topic: string, facts: GrowthFact[], history: Sto
       if (hook) beats = [{ role: "HOOK", text: hook, badge: "3" }, ...listFacts.map((f, i) => ({ role: "POINT" as const, text: f.text, kicker: `ข้อ ${i + 1}` })), { role: "CTA", text: cta }];
     } else if (format === "NUMBER_SPOTLIGHT" && numeric) {
       const n = firstNumber(numeric.text)!;
-      const hook = pickFresh([`${n} หมายถึงอะไร?`, `ตัวเลขนี้เกี่ยวกับ${t}`, `จำตัวเลขนี้ไว้`], history.hooks, s);
+      const hook = pickFresh([`${n} หมายถึงอะไร?`, `ทำไมต้อง ${n}?`, `${t} กับเลข ${n}`], history.hooks, s);
       used = [numeric];
       if (hook) beats = [{ role: "HOOK", text: hook, badge: n }, { role: "POINT", text: numeric.text, kicker: t }, { role: "CTA", text: cta }];
     } else if (format === "QUIZ_REVEAL") {
@@ -111,9 +117,10 @@ export function planProductStory(format: Extract<StoryFormat, "PRODUCT_DETAIL" |
   const fallbackPoint: Record<typeof format, string> = { PRODUCT_DETAIL: "ดูรายละเอียดจากภาพสินค้า", DEMONSTRATION: "ดูจังหวะนี้จากวิดีโอจริง", COMPARISON: "ดูความต่างจากวิดีโอเทียบจริง" };
   const hook = pickFresh(hooks[format], history.hooks, s) ?? `ดู${n}`;
   const cta = pickFresh(["ดูรายละเอียดสินค้าก่อนตัดสินใจ", "เช็กรายละเอียดก่อนสั่ง", "อ่านรายละเอียดในหน้าสินค้า"], history.hooks, s) ?? "ดูรายละเอียดสินค้าก่อนตัดสินใจ";
-  const points = facts.map(f => ({ ...f, text: norm(f.text) })).filter(f => fitsCard(f.text));
+  const points = freshFirst(facts.map(f => ({ ...f, text: norm(f.text) })).filter(f => fitsCard(f.text)), history);
   const beats: StoryBeat[] = [{ role: "HOOK", text: hook }], used: GrowthFact[] = [];
-  for (const f of points) { if (spoken([...beats, { role: "POINT", text: f.text }, { role: "CTA", text: cta }]) > SPOKEN_BUDGET || used.length === 2) break; beats.push({ role: "POINT", text: f.text }); used.push(f); }
+  // A point that does not fit the narration budget is skipped, not the end of the list.
+  for (const f of points) { if (used.length === 2) break; if (spoken([...beats, { role: "POINT", text: f.text }, { role: "CTA", text: cta }]) > SPOKEN_BUDGET) continue; beats.push({ role: "POINT", text: f.text }); used.push(f); }
   if (!used.length) beats.push({ role: "POINT", text: fallbackPoint[format] });
   beats.push({ role: "CTA", text: cta });
   return { story: { format, beats, basis: `${STORYTELLER_MODE}: ${used.length ? "พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว" : "ไม่มีจุดขายที่ตรวจแล้วสั้นพอ จึงพูดเฉพาะสิ่งที่เห็นในภาพ"}` }, factIds: used.map(f => f.id) };

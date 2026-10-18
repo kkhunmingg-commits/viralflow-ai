@@ -43,14 +43,14 @@ async function measured<T>(work:()=>Promise<T>){
 
 // Owner-recorded facts for Growth topics, each checked against the named public reference.
 const TOPICS:Array<{topic:string;source:string;facts:string[]}>=[
-  {topic:"ขวดเก็บความเย็น",source:"https://en.wikipedia.org/wiki/Vacuum_flask",facts:["ผนังขวดมีสองชั้น","ช่องกลางเป็นสุญญากาศ","ความร้อนผ่านได้น้อย"]},
+  {topic:"ขวดเก็บความเย็น",source:"https://en.wikipedia.org/wiki/Vacuum_flask",facts:["ผนังขวดมีสองชั้น","ช่องกลางไม่มีอากาศ","ความร้อนผ่านได้น้อย"]},
   {topic:"น้ำแข็งลอยน้ำ",source:"https://en.wikipedia.org/wiki/Ice",facts:["น้ำแข็งเบากว่าน้ำราว 9%","น้ำขยายตัวเมื่อแข็งตัว","ปลาอยู่ใต้น้ำแข็งได้"]},
   {topic:"หม้อความดัน",source:"https://en.wikipedia.org/wiki/Pressure_cooking",facts:["น้ำเดือดได้ถึงราว 120°C","อาหารจึงสุกเร็วขึ้น","อย่าเปิดฝาขณะมีแรงดัน"]},
   {topic:"เกลือกับน้ำแข็ง",source:"https://en.wikipedia.org/wiki/Freezing-point_depression",facts:["เกลือทำให้จุดเยือกแข็งต่ำลง","น้ำเกลือเย็นกว่า 0°C ได้"]},
 ];
 
 interface ClipResult{label:string;mode:string;error?:string;story?:unknown;topic?:unknown;method?:string;quality?:string;bankStatus?:string;
-  rejection?:unknown;slot?:unknown;slotBasis?:unknown;hook?:string;voice?:string;caption?:string;hashtags?:unknown;metrics?:unknown;costActualUsd?:number;costEstimatedThb?:unknown;costBasis?:unknown}
+  rejection?:unknown;slot?:unknown;slotBasis?:unknown;hook?:string;voice?:string;caption?:string;hashtags?:unknown;metrics?:unknown;costActualUsd?:number;costEstimatedThb?:unknown;costBasis?:unknown;checks?:unknown}
 
 async function produce(admin:SupabaseClient,user:SupabaseClient,owner:string,assignmentId:string,label:string,mode:string):Promise<ClipResult>{
   try{
@@ -61,8 +61,9 @@ async function produce(admin:SupabaseClient,user:SupabaseClient,owner:string,ass
     const result:ClipResult={label,mode,story:r.selected.story,topic:{topic:r.selected.topic,basis:r.selected.topicBasis},method:r.selected.method,quality:String(r.master.quality_status),
       bankStatus:String(item.status),rejection:item.rejection_reasons,slot:item.planned_slot_at,slotBasis:item.slot_basis,hook:String(r.script.hook_text),voice:String(r.script.voice_script),
       caption:String(item.caption),hashtags:item.hashtags,metrics:{...metrics,renderSeconds:r.timings.renderSeconds,creativeSeconds:r.timings.creativeSeconds},
-      costActualUsd:Number(item.cost_actual_usd),costEstimatedThb:item.cost_estimated_thb,costBasis:item.cost_basis};
-    log(`${label}.bank`,{status:result.bankStatus,rejection:result.rejection,slot:result.slot,metrics:result.metrics});
+      costActualUsd:Number(item.cost_actual_usd),costEstimatedThb:item.cost_estimated_thb,costBasis:item.cost_basis,
+      checks:((r.master.quality_explanation_json as Row|null)?.checks as Array<Row>|undefined)?.map(c=>`${c.passed?"PASS":"FAIL"} ${c.name}: ${c.detail??""}`)};
+    log(`${label}.bank`,{status:result.bankStatus,rejection:result.rejection,format:(result.story as {format?:string}|undefined)?.format,hook:result.hook,checks:result.checks,slot:result.slot,metrics:result.metrics});
     return result;
   }catch(error){const message=error instanceof Error?error.message:String(error);log(`${label}.failed`,{message});return {label,mode,error:message}}
 }
