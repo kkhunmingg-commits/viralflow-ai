@@ -1,0 +1,36 @@
+{
+  "engine": "espeak-ng",
+  "cpus": 4,
+  "python": "3.12.15",
+  "runs": [
+    {
+      "file": "espeak-ng-hook.wav",
+      "text": "รู้ไหม เรื่องนี้มีเหตุผล",
+      "audio_seconds": 3.11,
+      "synth_seconds": 0.02,
+      "rtf": 0.007
+    },
+    {
+      "file": "espeak-ng-graphic.wav",
+      "text": "รู้ไหม เรื่องนี้มีเหตุผล วางของใช้บ่อยไว้ใกล้มือ ติดตามไว้ ตอนต่อไปมีอีก",
+      "audio_seconds": 7.94,
+      "synth_seconds": 0.02,
+      "rtf": 0.002
+    },
+    {
+      "file": "espeak-ng-product.wav",
+      "text": "ขวดน้ำเก็บความเย็นใบนี้ ฝาเปิดมือเดียว ดูรายละเอียดก่อนตัดสินใจนะคะ",
+      "audio_seconds": 7.89,
+      "synth_seconds": 0.015,
+      "rtf": 0.002
+    },
+    {
+      "file": "espeak-ng-numbers.wav",
+      "text": "ความจุห้าร้อยมิลลิลิตร น้ำหนักเบา พกง่ายทุกวัน",
+      "audio_seconds": 5.36,
+      "synth_seconds": 0.018,
+      "rtf": 0.003
+    }
+  ],
+  "ok": true
+}
