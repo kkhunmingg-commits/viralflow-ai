@@ -1,0 +1,14 @@
+{
+  "ranAt": "2026-10-18T18:54:36.657Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "results": {
+    "affiliate": {
+      "error": "permission denied for table generation_jobs"
+    }
+  },
+  "publishingGuard": {},
+  "env": {
+    "creative": "evidence-rubric",
+    "tts": "voxcpm2"
+  }
+}

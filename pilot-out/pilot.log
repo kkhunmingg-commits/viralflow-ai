@@ -1,0 +1,5 @@
+{"step":"owner","owner":"8ea8d706-3e95-4910-9409-a208b478f9f5"}
+{"step":"affiliate.rights","clip":"3c1e9784-9b02-4f1e-91bf-06c54c6924ca","still":"8e0e21a1-ad59-42d5-bcdf-94906d625a4d","rights":["38b85e63-ebc0-4ebc-a25a-377d415bded5","931ff2fe-9084-430c-8ac4-78c06fe2692d"]}
+{"step":"affiliate.creative","selected":"real-demonstration","method":"REAL_FOOTAGE_EDIT","ready":true,"missing":[],"concepts":[{"id":"real-demonstration","status":"REVIEW_REQUIRED","method":"REAL_FOOTAGE_EDIT"},{"id":"real-image-detail","status":"REVIEW_REQUIRED","method":"REAL_IMAGE_MOTION"},{"id":"evidence-comparison","status":"WAIT_FOR_EVIDENCE","method":"WAIT_FOR_EVIDENCE"}]}
+{"step":"affiliate.failed","error":"permission denied for table generation_jobs"}
+{"step":"done","ok":false}
