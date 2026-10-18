@@ -1,0 +1,168 @@
+{
+  "ranAt": "2026-10-18T23:38:30.534Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "results": {
+    "affiliate": {
+      "projectId": "9e76b055-752d-436e-8fbc-e4b49da3cce2",
+      "masterId": "c7e3a74f-81f6-4787-aeec-8d3d09752af0",
+      "selected": {
+        "id": "real-image-detail",
+        "method": "REAL_IMAGE_MOTION",
+        "story": {
+          "format": "PRODUCT_DETAIL",
+          "beats": [
+            {
+              "role": "HOOK",
+              "text": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้"
+            },
+            {
+              "role": "POINT",
+              "text": "ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว"
+            },
+            {
+              "role": "CTA",
+              "text": "ดูรายละเอียดสินค้าก่อนตัดสินใจ"
+            }
+          ],
+          "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"
+        },
+        "topic": null,
+        "topicBasis": "NONE",
+        "warnings": [
+          "ความสร้างสรรค์ ความถูกต้อง และสิทธิ์ในสื่อยังต้องให้มนุษย์ตรวจ ก่อนผลิตและเผยแพร่",
+          "ต้นทุนต่อคลิปใช้ได้รวมงานเสียและการสร้างซ้ำ; หากบิลไม่ยืนยันจะแสดง UNKNOWN",
+          "ไม่มีข้อมูลเทรนด์จริงที่ยืนยันความเหมาะสมกับบัญชี แนวคิดนี้เป็นสมมติฐานเพื่อทดลอง",
+          "วิธีเล่าเรื่องและ Hook เลือกด้วยกฎที่เปิดเผย (Rule-Based) ไม่ใช่ LLM",
+          "กลไกซับซ้อนหรือยังไม่ทราบ ห้ามสร้างการทำงานของสินค้าใหม่ด้วยภาพ AI"
+        ]
+      },
+      "script": {
+        "hook_text": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้",
+        "voice_script": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้ ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว ดูรายละเอียดสินค้าก่อนตัดสินใจ",
+        "cta_text": "ดูรายละเอียดสินค้าก่อนตัดสินใจ",
+        "caption": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้ ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว",
+        "hashtags_json": [
+          "#ขวดน้ำเก็บความเย็น",
+          "#ของมันต้องดู",
+          "#TikTokShop"
+        ]
+      },
+      "master": {
+        "id": "c7e3a74f-81f6-4787-aeec-8d3d09752af0",
+        "status": "READY",
+        "quality_status": "PASS",
+        "quality_score": 100,
+        "quality_explanation_json": {
+          "story": {
+            "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว",
+            "beats": [
+              {
+                "role": "HOOK",
+                "text": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้"
+              },
+              {
+                "role": "POINT",
+                "text": "ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว"
+              },
+              {
+                "role": "CTA",
+                "text": "ดูรายละเอียดสินค้าก่อนตัดสินใจ"
+              }
+            ],
+            "format": "PRODUCT_DETAIL"
+          },
+          "checks": [
+            {
+              "name": "DURATION",
+              "detail": "8.00s",
+              "passed": true
+            },
+            {
+              "name": "RESOLUTION",
+              "detail": "1080x1920",
+              "passed": true
+            },
+            {
+              "name": "AUDIO_TRACK",
+              "detail": "aac",
+              "passed": true
+            },
+            {
+              "name": "VOICE",
+              "detail": "narration present",
+              "passed": true
+            },
+            {
+              "name": "LOUDNESS",
+              "detail": "-14.3 LUFS (target -14±2)",
+              "passed": true
+            },
+            {
+              "name": "HOOK",
+              "detail": "hook on screen 0.0–1.7s",
+              "passed": true
+            },
+            {
+              "name": "TEXT_COVERAGE",
+              "detail": "text on screen 96% of clip (min 90%)",
+              "passed": true
+            },
+            {
+              "name": "PACING",
+              "detail": "4 shot(s), longest 2.2s, 4 distinct framing(s)",
+              "passed": true
+            }
+          ],
+          "sources": [
+            {
+              "assetId": "4ca4d0d6-a67e-40ea-a9c6-abe07b3a3e01",
+              "rightsId": "692026b1-ac9d-4033-b0c0-5443f17971b3"
+            }
+          ],
+          "composer": "real-media-composer-v1",
+          "narration": {
+            "kind": "SYSTEM_TTS",
+            "license": {
+              "voice": "DESIGNED_NO_REFERENCE",
+              "engine": "voxcpm",
+              "modelId": "openbmb/VoxCPM2",
+              "sources": [
+                "https://huggingface.co/openbmb/VoxCPM2",
+                "https://pypi.org/project/voxcpm/",
+                "https://github.com/OpenBMB/VoxCPM"
+              ],
+              "checkedAt": "2026-10-18",
+              "aiGenerated": true,
+              "modelLicense": "Apache-2.0",
+              "commercialUse": true,
+              "engineLicense": "Apache-2.0"
+            },
+            "provider": "voxcpm2-local",
+            "durationSeconds": 4.96
+          },
+          "loudnessLufs": -14.3,
+          "renderSeconds": 48.2,
+          "aiGeneratedVoice": true,
+          "requiresHumanReview": true
+        },
+        "storage_path": "owner/69a121de-5c04-42d5-851c-7e60aa6435be/masters/c7e3a74f-81f6-4787-aeec-8d3d09752af0/master.mp4",
+        "model": "real-media-composer-v1",
+        "estimated_cost_usd": 0
+      },
+      "timings": {
+        "creativeSeconds": 0.554,
+        "renderSeconds": 48.312
+      }
+    }
+  },
+  "publishingGuard": {
+    "sandbox": [],
+    "otherAccount": [
+      "ACCOUNT_OUT_OF_SCOPE"
+    ]
+  },
+  "env": {
+    "creative": "evidence-rubric",
+    "tts": "voxcpm2"
+  }
+}

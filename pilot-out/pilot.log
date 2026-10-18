@@ -1,0 +1,5 @@
+{"step":"owner","owner":"69a121de-5c04-42d5-851c-7e60aa6435be"}
+{"step":"affiliate.rights","clip":"db82d003-16ef-4677-aedb-ec0194a41be8","still":"4ca4d0d6-a67e-40ea-a9c6-abe07b3a3e01","rights":["611861b0-a058-481d-a184-b457a4f91373","692026b1-ac9d-4033-b0c0-5443f17971b3"]}
+{"step":"affiliate.creative","selected":"real-image-detail","method":"REAL_IMAGE_MOTION","ready":true,"missing":[],"topic":null,"topicBasis":"NONE","story":{"format":"PRODUCT_DETAIL","beats":[{"role":"HOOK","text":"ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้"},{"role":"POINT","text":"ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว"},{"role":"CTA","text":"ดูรายละเอียดสินค้าก่อนตัดสินใจ"}],"basis":"RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"},"concepts":[{"id":"real-image-detail","status":"REVIEW_REQUIRED","method":"REAL_IMAGE_MOTION"},{"id":"real-demonstration","status":"WAIT_FOR_EVIDENCE","method":"WAIT_FOR_EVIDENCE"},{"id":"evidence-comparison","status":"WAIT_FOR_EVIDENCE","method":"WAIT_FOR_EVIDENCE"}]}
+{"step":"affiliate.master","status":"READY","quality":"PASS","score":100,"timings":{"creativeSeconds":0.554,"renderSeconds":48.312}}
+{"step":"done","ok":true}
