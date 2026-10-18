@@ -1,0 +1,6 @@
+{"step":"owner","owner":"702776c5-e538-4bfc-ad42-91f80c3b29e5"}
+Error: asset: null value in column "provider" of relation "media_assets" violates not-null constraint
+    at must (/home/runner/work/viralflow-ai/viralflow-ai/scripts/pilot/full-path-pilot.ts:19:123)
+    at uploadMedia (/home/runner/work/viralflow-ai/viralflow-ai/scripts/pilot/full-path-pilot.ts:41:15)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async main (/home/runner/work/viralflow-ai/viralflow-ai/scripts/pilot/full-path-pilot.ts:88:14)
