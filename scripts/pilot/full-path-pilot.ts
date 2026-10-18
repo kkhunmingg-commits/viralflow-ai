@@ -53,10 +53,11 @@ async function clearRights(admin:SupabaseClient,owner:string,assetId:string,role
   await reviewMediaRights(admin,owner,id,"APPROVED");return id;
 }
 
-async function runProject(user:SupabaseClient,owner:string,assignmentId:string,label:string){
+async function runProject(admin:SupabaseClient,user:SupabaseClient,owner:string,assignmentId:string,label:string){
   const timings:Record<string,number>={};let t=Date.now();
-  const project=await createProjectFromAssignment(user,owner,assignmentId);
-  const generated=await generateEvidenceStrategyProject(user,owner,String(project.id));timings.creativeSeconds=(Date.now()-t)/1000;
+  // Planning runs as the auto worker does (service role); review and rendering run as the signed-in owner.
+  const project=await createProjectFromAssignment(admin,owner,assignmentId);
+  const generated=await generateEvidenceStrategyProject(admin,owner,String(project.id),{forAutoWorker:true});timings.creativeSeconds=(Date.now()-t)/1000;
   const plan=generated.intelligence.plan,selected=plan.concepts.find(c=>c.id===plan.selectedConceptId)!;
   log(`${label}.creative`,{selected:selected.id,method:selected.production.method,ready:selected.production.ready,missing:selected.production.missingEvidence,
     concepts:plan.concepts.map(c=>({id:c.id,status:c.status,method:c.production.method}))});
@@ -101,7 +102,7 @@ async function main(){
 
   const results:Record<string,unknown>={};
   for(const [label,s] of [["affiliate",affiliate],["growth",growth]] as const){
-    try{results[label]=await runProject(user,owner,s.assignmentId,label)}catch(error){results[label]={error:error instanceof Error?error.message:String(error)};log(`${label}.failed`,results[label] as object)}
+    try{results[label]=await runProject(admin,user,owner,s.assignmentId,label)}catch(error){results[label]={error:error instanceof Error?error.message:String(error)};log(`${label}.failed`,results[label] as object)}
   }
 
   // Publishing guard: the cleared media must not reach any account outside its scope.
@@ -118,6 +119,7 @@ async function main(){
     env:{creative:process.env.CREATIVE_AI_PROVIDER,tts:process.env.THAI_TTS_PROVIDER??"none"}};
   await writeFile(join(outDir,"full-path-report.json"),JSON.stringify(report,null,2));
   for(const f of ["mock-bottle.mp4","mock-bottle.png"])await copyFile(join(mediaDir,f),join(outDir,f));
-  log("done",{ok:Object.values(results).every(r=>!(r as {error?:string}).error)});
+  const ok=Object.values(results).every(r=>!(r as {error?:string}).error);
+  log("done",{ok});if(!ok)process.exitCode=1;
 }
 main().catch(error=>{console.error(error);process.exit(1)});
