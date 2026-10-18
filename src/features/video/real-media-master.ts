@@ -1,0 +1,74 @@
+import {writeFile} from "node:fs/promises";
+import {join} from "node:path";
+import type {SupabaseClient} from "@supabase/supabase-js";
+import {composeRealMedia,LOCAL_COMPOSER_MODEL,type ComposerClip} from "./local-composer";
+import {currentRightsByAsset,mediaRightsViolations,type MediaRightsRecord} from "./media-rights";
+import {ownsVideoStoragePath} from "./storage";
+import {VIDEO_BUCKET,type TimedText} from "./types";
+
+type Row=Record<string,unknown>;
+const RIGHTS_COLUMNS="id,media_asset_id,product_id,origin_source,asset_role,allows_commercial,allows_edit,platform_scope,account_scope,review_state,expires_at,revoked_at,proof_sha256";
+const VISUAL_ROLES=new Set(["REAL_IMAGE","REAL_FOOTAGE","COMPARISON_FOOTAGE"]);
+
+export interface RealMediaSelection {clips:Array<ComposerClip&{storagePath:string;rights:MediaRightsRecord}>;voice:{assetId:string;storagePath:string;rights:MediaRightsRecord}|null}
+
+/** Re-checks every source at render time: the reviewer's evidence ids, this owner and product,
+ * and a rights record that is valid for this account now. Anything else stops the render. */
+export async function selectRealMedia(client:SupabaseClient,owner:string,input:{productId:string;accountId:string;creativeProjectId:string;evidenceIds:string[];at:Date}):Promise<RealMediaSelection>{
+  const [visual,voices]=await Promise.all([
+    input.evidenceIds.length?client.from("media_assets").select("id,product_id,asset_type,storage_path").eq("owner_id",owner).eq("product_id",input.productId).in("id",input.evidenceIds):{data:[],error:null},
+    // Narration is the owner's own upload for this project; generated or mock voice is never used here.
+    client.from("media_assets").select("id,product_id,asset_type,storage_path,created_at").eq("owner_id",owner).eq("creative_project_id",input.creativeProjectId).eq("asset_type","VOICE").eq("source_type","UPLOAD").order("created_at",{ascending:false}).limit(5),
+  ]);
+  if(visual.error||voices.error)throw new Error("real_media_unavailable");
+  const assets=[...(visual.data??[]),...(voices.data??[])].filter(a=>ownsVideoStoragePath(owner,String(a.storage_path)));
+  const rights=assets.length?await client.from("media_asset_rights").select(RIGHTS_COLUMNS).eq("owner_id",owner).in("media_asset_id",assets.map(a=>String(a.id))):{data:[],error:null};
+  if(rights.error)throw new Error("real_media_rights_unavailable");
+  const ledger=currentRightsByAsset((rights.data??[]) as MediaRightsRecord[]);
+  const cleared=(asset:Row)=>{const record=ledger.get(String(asset.id));
+    return record&&mediaRightsViolations(record,{at:input.at,accountId:input.accountId}).length===0?record:null};
+  // Keep the reviewer's order; facts share the evidence id list and are simply not media.
+  const byId=new Map((visual.data??[]).filter(a=>ownsVideoStoragePath(owner,String(a.storage_path))).map(a=>[String(a.id),a as Row]));
+  const clips:RealMediaSelection["clips"]=[];
+  for(const id of input.evidenceIds){
+    const asset=byId.get(id);if(!asset)continue;
+    const record=cleared(asset);
+    if(!record||record.product_id!==input.productId||!VISUAL_ROLES.has(record.asset_role))throw new Error("REAL_MEDIA_RIGHTS_NOT_CLEARED");
+    clips.push({assetId:id,storagePath:String(asset.storage_path),kind:asset.asset_type==="VIDEO"?"VIDEO":"IMAGE",path:"",rights:record});
+  }
+  if(!clips.length)throw new Error("REAL_MEDIA_EVIDENCE_REQUIRED");
+  if(clips.length>6)throw new Error("REAL_MEDIA_TOO_MANY_CLIPS");
+  const voiceAsset=(voices.data??[]).find(v=>{const record=cleared(v as Row);return record?.asset_role==="VOICE"});
+  return {clips,voice:voiceAsset?{assetId:String(voiceAsset.id),storagePath:String(voiceAsset.storage_path),rights:ledger.get(String(voiceAsset.id))!}:null};
+}
+
+async function download(client:SupabaseClient,storagePath:string,path:string){
+  const {data,error}=await client.storage.from(VIDEO_BUCKET).download(storagePath);
+  if(error||!data)throw new Error("real_media_download_failed");
+  if(data.size>200_000_000)throw new Error("real_media_too_large");
+  await writeFile(path,new Uint8Array(await data.arrayBuffer()));
+}
+
+export async function renderRealMediaMaster(client:SupabaseClient,owner:string,input:{selection:RealMediaSelection;captions:TimedText[];workDir:string;outputPath:string}){
+  const clips=await Promise.all(input.selection.clips.map(async(clip,index)=>{
+    const path=join(input.workDir,`source-${index}`);await download(client,clip.storagePath,path);return {...clip,path};
+  }));
+  let voicePath:string|undefined;
+  if(input.selection.voice){voicePath=join(input.workDir,"voice");await download(client,input.selection.voice.storagePath,voicePath)}
+  const composed=await composeRealMedia({clips,captions:input.captions,voicePath,durationSeconds:8,workDir:input.workDir,outputPath:input.outputPath});
+  return {...composed,clips};
+}
+
+/** Links an output to the exact rights seen at build time so a later revocation stops it. */
+export async function recordRealMediaUsages(client:SupabaseClient,owner:string,masterId:string,selection:RealMediaSelection){
+  const sources=[...selection.clips.map(c=>({assetId:c.assetId,rights:c.rights})),...(selection.voice?[selection.voice]:[])];
+  const rows=sources.map(source=>({owner_id:owner,media_asset_id:source.assetId,rights_id:source.rights.id,master_video_id:masterId,
+    rights_snapshot:{...source.rights,composer:LOCAL_COMPOSER_MODEL,recordedAt:new Date().toISOString()}}));
+  // The unique index is partial, so PostgREST cannot upsert against it; insert only what is missing.
+  const existing=await client.from("media_asset_usages").select("media_asset_id").eq("owner_id",owner).eq("master_video_id",masterId);
+  if(existing.error)throw new Error("real_media_usage_record_failed");
+  const recorded=new Set((existing.data??[]).map(r=>String(r.media_asset_id))),missing=rows.filter(r=>!recorded.has(r.media_asset_id));
+  if(!missing.length)return;
+  const result=await client.from("media_asset_usages").insert(missing);
+  if(result.error)throw new Error("real_media_usage_record_failed");
+}

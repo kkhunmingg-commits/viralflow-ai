@@ -1,8 +1,12 @@
 import "server-only";
 import {createHash,randomUUID} from "node:crypto";
+import {mkdir,rm,writeFile} from "node:fs/promises";
+import {tmpdir} from "node:os";
+import {join} from "node:path";
 import {z} from "zod";
 import type {SupabaseClient} from "@supabase/supabase-js";
 import {ownsVideoStoragePath,videoStorageBucket,videoStoragePath} from "./storage";
+import {FFmpegVideoRenderer} from "./renderer";
 import {currentRightsByAsset,mediaRightsViolations,type MediaRightsRecord} from "./media-rights";
 
 const THIRD_PARTY=["COMMISSIONED","LICENSED_STOCK","MERCHANT_LICENSED"] as const;
@@ -117,7 +121,7 @@ export async function revokeContentEvidence(admin:SupabaseClient,owner:string,ev
 export async function listRightsWorkspace(client:SupabaseClient,owner:string,at=new Date()){
   const [assets,rights,evidence]=await Promise.all([
     client.from("media_assets").select("id,product_id,asset_type,source_type,storage_path,created_at").eq("owner_id",owner)
-      .in("source_type",["UPLOAD","PRODUCT"]).in("asset_type",["PRODUCT_IMAGE","IMAGE","VIDEO"]).order("created_at",{ascending:false}).limit(100),
+      .in("source_type",["UPLOAD","PRODUCT"]).in("asset_type",["PRODUCT_IMAGE","IMAGE","VIDEO","VOICE"]).order("created_at",{ascending:false}).limit(100),
     client.from("media_asset_rights").select("id,media_asset_id,product_id,origin_source,asset_role,rightsholder,license_type,allows_commercial,allows_edit,platform_scope,account_scope,review_state,expires_at,revoked_at,proof_sha256,attested_at")
       .eq("owner_id",owner).order("attested_at",{ascending:false}).limit(500),
     client.from("content_evidence").select("id,product_id,statement,source,source_reference,role,captured_at,revoked_at").eq("owner_id",owner)
@@ -136,4 +140,34 @@ export async function listRightsWorkspace(client:SupabaseClient,owner:string,at=
     return {...a,productTitle:titles.get(String(a.product_id))??"",rights:record??null,blockers};
   });
   return {items,evidence:evidence.data??[]};
+}
+
+const VOICE_TYPES:Record<string,string>={"audio/mpeg":"mp3","audio/mp4":"m4a","audio/x-m4a":"m4a","audio/wav":"wav","audio/x-wav":"wav","audio/webm":"webm","audio/ogg":"ogg"};
+
+/** The owner's own narration for one creative project. It is recorded as owner-created VOICE media
+ * and still needs the separate review step before the composer will use it. */
+export async function saveOwnerVoice(admin:SupabaseClient,owner:string,projectId:string,file:FormDataEntryValue|null){
+  if(!(file instanceof File)||!file.size||file.size>MAX_PROOF_BYTES)throw new Error("voice_invalid");
+  const extension=VOICE_TYPES[file.type];if(!extension)throw new Error("voice_invalid");
+  const project=await admin.from("creative_projects").select("id,product_id").eq("owner_id",owner).eq("id",projectId).maybeSingle();
+  failed(project.error,"project_unavailable");if(!project.data)throw new Error("project_not_found");
+  const bytes=new Uint8Array(await file.arrayBuffer()),dir=join(tmpdir(),"viralflow-voice",randomUUID());await mkdir(dir,{recursive:true});
+  let duration:number;
+  try{
+    const path=join(dir,"voice");await writeFile(path,bytes);const media=await new FFmpegVideoRenderer().probe(path);
+    // Narration must fit the 8-second clip; longer audio would be cut mid-sentence.
+    if(!media.hasAudio||!(media.duration>.5&&media.duration<=8))throw new Error("voice_duration_invalid");
+    duration=media.duration;
+  }catch(error){throw error instanceof Error&&error.message==="voice_duration_invalid"?error:new Error("voice_invalid")}
+  finally{await rm(dir,{recursive:true,force:true})}
+  const productId=String(project.data.product_id),storagePath=videoStoragePath(owner,"products",productId,`voice-${randomUUID()}.${extension}`);
+  const upload=await admin.storage.from(videoStorageBucket).upload(storagePath,bytes,{contentType:file.type,upsert:false});failed(upload.error,"voice_upload_failed");
+  const asset=await admin.from("media_assets").insert({owner_id:owner,product_id:productId,creative_project_id:projectId,asset_type:"VOICE",source_type:"UPLOAD",
+    storage_path:storagePath,mime_type:file.type,duration_seconds:duration,checksum:createHash("sha256").update(bytes).digest("hex")}).select("id").single();
+  if(asset.error){await admin.storage.from(videoStorageBucket).remove([storagePath]);throw new Error("voice_save_failed")}
+  const rights=await admin.from("media_asset_rights").insert({owner_id:owner,media_asset_id:asset.data.id,product_id:productId,origin_source:"OWNER_CREATED",asset_role:"VOICE",
+    source_reference:"Owner-recorded narration",rightsholder:"Owner",license_type:"OWNER_ORIGINAL",allows_commercial:true,allows_edit:true,allows_promotion:true,
+    platform_scope:["TIKTOK"],territory:["TH"],likeness_constraints:"Owner's own voice",attested_by:owner}).select("id").single();
+  failed(rights.error,"voice_rights_save_failed");
+  return {assetId:String(asset.data.id),rightsId:String(rights.data!.id)};
 }

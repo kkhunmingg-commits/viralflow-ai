@@ -1,7 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 vi.mock("server-only", () => ({}));
-const { parseMediaRightsForm, readRightsProof, recordMediaRights, reviewMediaRights, revokeMediaRights } = await import("./media-rights-service");
+const { parseMediaRightsForm, readRightsProof, recordMediaRights, reviewMediaRights, revokeMediaRights, saveOwnerVoice } = await import("./media-rights-service");
+import { spawnSync } from "node:child_process";
+import { readFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ffmpegBinary } from "./ffmpeg-binary";
+const tone = (seconds: number) => { const dir = mkdtempSync(join(tmpdir(), "voice-")), path = join(dir, "v.mp3");
+  spawnSync(ffmpegBinary()!, ["-loglevel", "error", "-f", "lavfi", "-i", `sine=frequency=200:duration=${seconds}`, "-ac", "1", "-b:a", "64k", path]);
+  const bytes = readFileSync(path); rmSync(dir, { recursive: true, force: true }); return new File([bytes], "v.mp3", { type: "audio/mpeg" }); };
 
 const owner = "11111111-1111-4111-8111-111111111111", assetId = "33333333-3333-4333-8333-333333333333";
 type Call = { table: string; op: string; payload?: unknown; filters: Array<[string, unknown]> };
@@ -82,4 +90,17 @@ describe("media rights attestation", () => {
     await expect(revokeMediaRights(pending.admin, owner, "r1", "")).rejects.toThrow();
     await revokeMediaRights(pending.admin, owner, "r1", "แบรนด์ยกเลิกสิทธิ์");
   });
+  it("stores the owner's narration as PENDING owner-created voice for the project", async () => {
+    const project = { id: "proj", owner_id: owner, product_id: asset.product_id };
+    const { admin, calls, uploads } = fakeAdmin({ creative_projects: [project] });
+    await saveOwnerVoice(admin, owner, "proj", tone(4));
+    expect(uploads[0]).toMatch(new RegExp(`^owner/${owner}/products/${asset.product_id}/voice-.*\\.mp3$`));
+    expect(calls.find(c => c.table === "media_assets" && c.op === "insert")?.payload).toMatchObject({ asset_type: "VOICE", source_type: "UPLOAD", creative_project_id: "proj" });
+    const rights = calls.find(c => c.table === "media_asset_rights" && c.op === "insert")?.payload;
+    expect(rights).toMatchObject({ origin_source: "OWNER_CREATED", asset_role: "VOICE", attested_by: owner });
+    expect(rights).not.toHaveProperty("review_state");
+    await expect(saveOwnerVoice(admin, owner, "proj", tone(9))).rejects.toThrow("voice_duration_invalid");
+    await expect(saveOwnerVoice(admin, owner, "proj", new File(["x"], "v.exe", { type: "application/octet-stream" }))).rejects.toThrow("voice_invalid");
+    await expect(saveOwnerVoice(fakeAdmin({ creative_projects: [] }).admin, owner, "proj", tone(4))).rejects.toThrow("project_not_found");
+  }, 60_000);
 });
