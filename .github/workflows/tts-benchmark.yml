@@ -115,6 +115,12 @@ jobs:
             echo "::error title=full-path pilot::$(tail -n 40 pilot-out/pilot.log | tr '\n' '|' | cut -c1-3500)"; exit 1
           fi
           echo "::notice title=full-path pilot::$(grep -E '"step"' pilot-out/pilot.log | tr '\n' '|' | cut -c1-3500)"
+      - name: Graphic story with Thai TTS
+        if: always()
+        run: |
+          /usr/bin/time -v -o pilot-out/graphic-time.txt pnpm pilot:graphic pilot-out/graphic > pilot-out/graphic.log 2>&1 || echo "::error title=graphic pilot::$(tail -n 30 pilot-out/graphic.log | tr '\n' '|' | cut -c1-3000)"
+          rm -rf pilot-out/graphic/work
+          echo "::notice title=graphic pilot::$(grep -E 'renderSeconds|"kind"|"passed": (true|false)$' pilot-out/graphic.log | tr '\n' '|' | cut -c1-1000)"
       # Artifact downloads are blocked where results are reviewed, so results also go to a throwaway branch.
       - name: Publish results to a results branch
         if: always()

@@ -21,7 +21,9 @@ const must=(result:{data:unknown;error:{message:string}|null},what:string):Row=>
 async function sandbox(admin:SupabaseClient,owner:string,mode:"AFFILIATE"|"GROWTH",title:string){
   const now=new Date().toISOString(),day=now.slice(0,10);
   const account=must(await admin.from("tiktok_accounts").insert({owner_id:owner,display_name:`Pilot sandbox ${mode} (no TikTok login)`,mode,
-    is_mock:false,authorization_status:"authorized",account_notes:"Throwaway pilot record in a local database. No TikTok token exists."}).select("id").single(),"account");
+    is_mock:false,authorization_status:"authorized",
+    // effective_mode is generated: Affiliate needs these shop flags, Growth ignores them.
+    ...(mode==="AFFILIATE"?{follower_count:1000,shop_creator_eligible:true,ecommerce_permission:true,cart_enabled:true}:{}),account_notes:"Throwaway pilot record in a local database. No TikTok token exists."}).select("id").single(),"account");
   const product=must(await admin.from("products").insert({owner_id:owner,external_provider:"pilot-mock",external_product_id:randomUUID(),title,slug:`pilot-${randomUUID()}`,
     category_key:"home",current_price:199,commission_rate:.1,commission_amount:19.9,review_count:0,units_sold:0,status:"available",
     provider_metadata:{pilot:true,note:"Fictional product drawn for pipeline testing"},first_seen_at:now,last_seen_at:now}).select("id").single(),"product");
@@ -96,12 +98,10 @@ async function main(){
     await addContentEvidence(admin,owner,{productId:affiliate.productId,statement,source:"OWNER_FOOTAGE",sourceReference:"Visible in the pilot test media",role:"SELLING_POINT",capturedAt:day});
   log("affiliate.rights",{clip,still,rights});
 
-  // Growth: no media at all; one short verified fact for an original graphic story.
-  const growth=await sandbox(admin,owner,"GROWTH","หัวข้อจัดโต๊ะ (บัญชีทดสอบ)");
-  await addContentEvidence(admin,owner,{productId:growth.productId,statement:"วางของใช้บ่อยไว้ใกล้มือ",source:"AUTHORIZED_SOURCE",sourceReference:"Pilot fact written for this test",role:"OBSERVATION",capturedAt:day});
-
+  // Growth needs a real topic from trend discovery before any fact applies, so it is not seeded here;
+  // the graphic story format is rendered separately by scripts/graphic-story-pilot.ts with the same TTS.
   const results:Record<string,unknown>={};
-  for(const [label,s] of [["affiliate",affiliate],["growth",growth]] as const){
+  for(const [label,s] of [["affiliate",affiliate]] as const){
     try{results[label]=await runProject(admin,user,owner,s.assignmentId,label)}catch(error){results[label]={error:error instanceof Error?error.message:String(error)};log(`${label}.failed`,results[label] as object)}
   }
 
