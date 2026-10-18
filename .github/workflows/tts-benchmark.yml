@@ -97,7 +97,7 @@ jobs:
       - name: Draw original mock product media
         run: .venv-tts/bin/python scripts/pilot/make_mock_product.py mock-media
       - name: Run the full path
-        run: /usr/bin/time -v node --require ./scripts/pilot/server-only-shim.cjs --import tsx scripts/pilot/full-path-pilot.ts mock-media pilot-out 2> >(tee pilot-out-time.txt >&2)
+        run: /usr/bin/time -v node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/full-path-pilot.ts mock-media pilot-out 2> >(tee pilot-out-time.txt >&2)
       - if: always()
         run: mkdir -p pilot-out && cp pilot-out-time.txt pilot-out/ 2>/dev/null || true
       - uses: actions/upload-artifact@v6

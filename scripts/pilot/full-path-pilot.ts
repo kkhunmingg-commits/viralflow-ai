@@ -2,7 +2,7 @@
  * Creative Brain -> Media Rights -> Thai TTS -> Local Composer -> Quality Check -> stored master video.
  * Product media is original test media drawn by scripts/pilot/make_mock_product.py; the sandbox
  * account has no TikTok credentials and every rights record is scoped to it.
- * Run: node --require ./scripts/pilot/server-only-shim.cjs --import tsx scripts/pilot/full-path-pilot.ts <mock-media-dir> <out-dir> */
+ * Run: node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/full-path-pilot.ts <mock-media-dir> <out-dir> */
 import {copyFile,mkdir,readFile,writeFile} from "node:fs/promises";
 import {join} from "node:path";
 import {randomUUID} from "node:crypto";
