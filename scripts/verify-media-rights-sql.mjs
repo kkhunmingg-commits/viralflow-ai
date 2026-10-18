@@ -79,6 +79,8 @@ try{
   ok((await violations('VARIATION',v2)).includes('REVOKED'));
   await denied(`update media_asset_rights set revoked_at=null,revocation_reason=null where id='${r2}'`,/final/);
   await denied(`update media_asset_rights set revocation_reason='edited' where id='${r2}'`,/final/);
+  // A revoked record stays as history; the owner can record new permission, but only one live record per asset.
+  {const r=await rights(a2);ok(r&&r!==r2);await denied(`insert into media_asset_rights(owner_id,media_asset_id,origin_source,asset_role,source_reference,rightsholder,license_type,attested_by) values('${owner}','${a2}','OWNER_CREATED','REAL_FOOTAGE','x','Owner','OWNER_ORIGINAL','${owner}')`,/unique|duplicate/);}
   ok((await one(`select status from publishing_queue where id='${q1}'`)).status==='UPLOADING');
 
   // Evidence must name a product or topic.

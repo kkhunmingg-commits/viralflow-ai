@@ -20,7 +20,7 @@ create table public.media_asset_rights (
  reviewed_by uuid, reviewed_at timestamptz,
  expires_at timestamptz, revoked_at timestamptz, revocation_reason text,
  created_at timestamptz not null default now(), updated_at timestamptz not null default now(),
- unique(owner_id,id), unique(owner_id,media_asset_id),
+ unique(owner_id,id),
  -- Third-party media needs a stored proof; owner-made or original graphics still need a reference.
  check(origin_source in ('OWNER_CREATED','ORIGINAL_GRAPHIC') or proof_sha256 is not null),
  check(review_state='PENDING' or (reviewed_by is not null and reviewed_at is not null)),
@@ -29,6 +29,8 @@ create table public.media_asset_rights (
  foreign key(owner_id,media_asset_id) references public.media_assets(owner_id,id) on delete cascade,
  foreign key(owner_id,product_id) references public.products(owner_id,id) on delete cascade
 );
+-- One live record per asset; rejected or revoked records stay as history and a new record replaces them.
+create unique index media_asset_rights_current on public.media_asset_rights(owner_id,media_asset_id) where revoked_at is null and review_state<>'REJECTED';
 -- Which reviewed source assets an output was built from, with the rights seen at build time.
 create table public.media_asset_usages (
  id uuid primary key default gen_random_uuid(), owner_id uuid not null references public.profiles(id) on delete cascade,

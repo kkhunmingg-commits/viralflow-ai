@@ -6,7 +6,7 @@ import type {CreativeOutcome} from "../analytics/creative-learning";
 import type {TrendObservation} from "../growth-manager/topics";
 import {ownsVideoStoragePath} from "../video/storage";
 import {readCreativeAttribution} from "./self-learning";
-import {strategyAssetFromLedger,strategyFactFromEvidence,type ContentEvidenceRow,type MediaRightsRecord} from "../video/media-rights";
+import {currentRightsByAsset,strategyAssetFromLedger,strategyFactFromEvidence,type ContentEvidenceRow,type MediaRightsRecord} from "../video/media-rights";
 
 type Row=Record<string,unknown>;
 const optionalMissing=(error:{code?:string}|null)=>error&&["42P01","PGRST205"].includes(error.code??"");
@@ -76,7 +76,7 @@ export async function readCreativeIntelligenceResources(client:SupabaseClient,ow
     client.from("content_evidence").select("id,product_id,topic,statement,source,source_reference,role,captured_at,revoked_at").eq("owner_id",owner).eq("product_id",context.product.id),
   ]);
   if((rights.error&&!optionalMissing(rights.error))||(evidence.error&&!optionalMissing(evidence.error)))throw new Error("CREATIVE_INTELLIGENCE_SOURCE_UNAVAILABLE");
-  const ledger=new Map(((rights.data??[]) as MediaRightsRecord[]).map(r=>[r.media_asset_id,r]));
+  const ledger=currentRightsByAsset((rights.data??[]) as MediaRightsRecord[]);
   const strategyAssets=availableAssets.map(a=>strategyAssetFromLedger({id:String(a.id),product_id:a.product_id?String(a.product_id):null,asset_type:String(a.asset_type),
     source_type:String(a.source_type),storage_path:String(a.storage_path),duration_seconds:metric(a.duration_seconds)},ledger.get(String(a.id)),{at:now,accountId}))
     .filter((a):a is NonNullable<typeof a>=>a!==null);

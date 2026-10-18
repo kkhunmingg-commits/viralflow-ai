@@ -23,6 +23,16 @@ export function mediaRightsViolations(record:MediaRightsRecord|null|undefined,us
   return reasons.sort();
 }
 
+/** Rejected and revoked records stay as history; a live record supersedes them. */
+export function currentRightsByAsset(records:MediaRightsRecord[]){
+  const current=new Map<string,MediaRightsRecord>();
+  for(const record of records){
+    const seen=current.get(record.media_asset_id),live=!record.revoked_at&&record.review_state!=="REJECTED";
+    if(!seen||live)current.set(record.media_asset_id,record);
+  }
+  return current;
+}
+
 const STRATEGY_KINDS:Record<string,StrategyAsset["kind"]>={REAL_IMAGE:"REAL_IMAGE",REAL_FOOTAGE:"REAL_FOOTAGE",COMPARISON_FOOTAGE:"COMPARISON_FOOTAGE"};
 /** Rights come only from the reviewed ledger; an asset without a valid record stays unconfirmed. */
 export function strategyAssetFromLedger(asset:{id:string;product_id:string|null;asset_type:string;source_type:string;storage_path:string;duration_seconds:number|null},
