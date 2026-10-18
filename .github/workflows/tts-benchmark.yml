@@ -11,7 +11,8 @@ permissions:
 
 jobs:
   benchmark:
-    if: github.ref_name == 'claude/tts-benchmark'
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
@@ -46,8 +47,19 @@ jobs:
         with:
           name: thai-tts-benchmark
           path: tts-out/
+      - name: Publish results to a results branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results && cp -r tts-out /tmp/results/ 2>/dev/null || true
+          cd /tmp/results && git init -q -b results && git add -A
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "TTS benchmark results ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/tts-results-${{ github.run_id }}
 
   full-path-pilot:
+    permissions:
+      contents: write
     # Creative Brain -> Media Rights -> Thai TTS -> Local Composer -> QC -> stored master, on a local
     # supabase stack that exists only inside this job. No hosted project, paid API or TikTok call.
     runs-on: ubuntu-latest
@@ -97,11 +109,19 @@ jobs:
       - name: Draw original mock product media
         run: .venv-tts/bin/python scripts/pilot/make_mock_product.py mock-media
       - name: Run the full path
-        run: /usr/bin/time -v node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/full-path-pilot.ts mock-media pilot-out 2> >(tee pilot-out-time.txt >&2)
-      - if: always()
-        run: mkdir -p pilot-out && cp pilot-out-time.txt pilot-out/ 2>/dev/null || true
-      - uses: actions/upload-artifact@v6
+        run: |
+          mkdir -p pilot-out
+          if ! /usr/bin/time -v -o pilot-out/time.txt node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/full-path-pilot.ts mock-media pilot-out > pilot-out/pilot.log 2>&1; then
+            echo "::error title=full-path pilot::$(tail -n 40 pilot-out/pilot.log | tr '\n' '|' | cut -c1-3500)"; exit 1
+          fi
+          echo "::notice title=full-path pilot::$(grep -E '"step"' pilot-out/pilot.log | tr '\n' '|' | cut -c1-3500)"
+      # Artifact downloads are blocked where results are reviewed, so results also go to a throwaway branch.
+      - name: Publish results to a results branch
         if: always()
-        with:
-          name: full-path-pilot
-          path: pilot-out/
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results && cp -r pilot-out /tmp/results/ 2>/dev/null || true
+          cd /tmp/results && git init -q -b results && git add -A
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Full-path pilot results ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}
