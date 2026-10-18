@@ -1,0 +1,2 @@
+Package: espeak-ng
+Version: 1.51+dfsg-12build1
