@@ -1,5 +1,7 @@
 import {spawn} from "node:child_process";
 import {existsSync} from "node:fs";
+import {rename} from "node:fs/promises";
+import {ffmpegBinary} from "./ffmpeg-binary";
 import {FFmpegVideoRenderer} from "./renderer";
 
 /** Provenance stored with every synthesized narration so the output can be audited later. */
@@ -37,10 +39,24 @@ export class LocalCommandThaiVoice implements ThaiVoiceProvider{
     });
     const media=await new FFmpegVideoRenderer().probe(input.outputPath);
     if(!media.hasAudio||!(media.duration>.5))throw new Error("thai_tts_output_invalid");
-    // Narration longer than the clip would be cut mid-sentence; the script must be shortened instead.
-    if(media.duration>input.maxSeconds)throw new Error("thai_tts_too_long");
-    return {path:input.outputPath,durationSeconds:media.duration};
+    if(media.duration<=input.maxSeconds)return {path:input.outputPath,durationSeconds:media.duration};
+    // Narration longer than the clip would be cut mid-sentence. A slight overrun is sped up, which keeps
+    // pitch and stays natural up to about 12%; anything longer means the script must be shortened.
+    if(media.duration>input.maxSeconds*MAX_TEMPO)throw new Error("thai_tts_too_long");
+    const fitted=`${input.outputPath}.fit.wav`;
+    const ffmpeg=ffmpegBinary();if(!ffmpeg)throw new Error("thai_tts_too_long");
+    await run(ffmpeg,["-loglevel","error","-y","-i",input.outputPath,"-filter:a",`atempo=${(media.duration/(input.maxSeconds*.98)).toFixed(4)}`,fitted]);
+    await rename(fitted,input.outputPath);
+    const sped=await new FFmpegVideoRenderer().probe(input.outputPath);
+    if(!(sped.duration<=input.maxSeconds))throw new Error("thai_tts_too_long");
+    return {path:input.outputPath,durationSeconds:sped.duration};
   }
+}
+
+const MAX_TEMPO=1.12;
+function run(command:string,args:string[]){
+  return new Promise<void>((resolve,reject)=>{const child=spawn(command,args,{windowsHide:true,stdio:"ignore"});
+    child.on("error",reject);child.on("close",code=>code===0?resolve():reject(new Error("thai_tts_fit_failed")))});
 }
 
 /** THAI_TTS_PROVIDER=voxcpm2 with THAI_TTS_PYTHON pointing at an environment where voxcpm is installed. */

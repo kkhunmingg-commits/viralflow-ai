@@ -152,7 +152,7 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
         ["ครอปโดยไม่บังแกนหรือข้อต่อ", "รักษาความเร็วจริง ไม่กลับด้านเพื่อบิดความหมาย", "หยุดคำอธิบายก่อนจบช็อตจริง"]) },
     { id: "real-image-detail", required: image, method: "REAL_IMAGE_MOTION" as const,
       missing: "ภาพสินค้าจริงที่ยืนยันสิทธิ์และตรวจความตรงรุ่นแล้ว",
-      concept: draft("REVIEW_DISCOVERY", `${name}: ดูรายละเอียดก่อนเลือก`, "ก่อนเลือก ดูส่วนนี้ก่อน", "สังเกตรายละเอียดจากภาพสินค้าจริง", cta,
+      concept: draft("REVIEW_DISCOVERY", `${name}: ดูรายละเอียดก่อนเลือก`, "ก่อนเลือก ดูส่วนนี้ก่อน", "ดูจากภาพสินค้าจริง", cta,
         ["ภาพสินค้าจริงเต็มชิ้น ระบุว่าเป็นภาพนิ่ง", "ครอปรายละเอียดที่เห็นได้จริง ไม่อ้างว่าสาธิตการทำงาน", "กลับสู่ภาพเต็มพร้อมชวนตรวจรายละเอียด"],
         ["แพนช้าในกรอบภาพจริง", "ขยายเฉพาะจุดที่มีอยู่ในภาพ", "ไม่สร้างมือหรือกลไกให้เคลื่อนไหว"]) },
     { id: "evidence-comparison", required: comparison, method: "REAL_FOOTAGE_EDIT" as const,

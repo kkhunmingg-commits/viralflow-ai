@@ -21,6 +21,9 @@ describe("local Thai TTS provider",()=>{
       expect(JSON.parse(await readFile(join(dir,"a.wav.json"),"utf8"))).toMatchObject({text:"สวัสดี ครับ",voice:"calm narrator"});
       const long=new LocalCommandThaiVoice([process.execPath,await fakeTts(dir,9)]);
       await expect(long.synthesize({text:"ยาว",outputPath:join(dir,"b.wav"),maxSeconds:7.8})).rejects.toThrow("thai_tts_too_long");
+      const slight=await new LocalCommandThaiVoice([process.execPath,await fakeTts(dir,8.5)]).synthesize({text:"เกือบพอดี",outputPath:join(dir,"e.wav"),maxSeconds:7.8});
+      expect(slight.durationSeconds).toBeLessThanOrEqual(7.8);
+      expect(slight.durationSeconds).toBeGreaterThan(7.4);
       await expect(voice.synthesize({text:" ",outputPath:join(dir,"c.wav"),maxSeconds:7.8})).rejects.toThrow("thai_tts_text_invalid");
       await expect(new LocalCommandThaiVoice([process.execPath,"-e","process.exit(3)"]).synthesize({text:"ก",outputPath:join(dir,"d.wav"),maxSeconds:7.8})).rejects.toThrow("thai_tts_failed");
     }finally{await rm(dir,{recursive:true,force:true})}
