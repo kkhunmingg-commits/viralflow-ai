@@ -18,6 +18,10 @@ export function storedProductionStrategy(angle: Row): StoredProductionStrategy |
 }
 /** Called again at Video Factory/provider execution; selecting a draft is not approval. */
 export function reviewedProductionMethod(source: {angle: Row;script: Row;account: Row;product: Row}, owner: string) {
+  return reviewedProductionConcept(source, owner)?.production.method ?? null;
+}
+/** The human-reviewed concept, including the evidence ids the reviewer saw. */
+export function reviewedProductionConcept(source: {angle: Row;script: Row;account: Row;product: Row}, owner: string) {
   const stored = storedProductionStrategy(source.angle);
   if (!stored) {
     // A strategy script remains gated even if its angle metadata was accidentally
@@ -28,6 +32,5 @@ export function reviewedProductionMethod(source: {angle: Row;script: Row;account
   if (stored.productId !== source.product.id || stored.plan.accountId !== source.account.id ||
       stored.scriptDigest !== creativeScriptDigest(source.script) || stored.review?.reviewedBy !== owner ||
       stored.review.conceptId !== stored.conceptId) throw new Error("HUMAN_CREATIVE_REVIEW_REQUIRED");
-  const concept = assertHumanProductionReview(stored.plan, stored.review);
-  return concept.production.method;
+  return assertHumanProductionReview(stored.plan, stored.review);
 }

@@ -15,7 +15,8 @@ import {masterJobKey,nextJobAttempt,variationJobKey,variationRunId} from "./jobs
 import {videoStoragePath} from "./storage";
 import {templateFor,variationPlan} from "./templates";
 import {isRoutedMaster,renderRoutedVariation} from "@/features/video-provider/variations";
-import {reviewedProductionMethod} from "@/features/creative/production-gate";
+import {reviewedProductionConcept} from "@/features/creative/production-gate";
+import {recordRealMediaUsages,renderRealMediaMaster,selectRealMedia} from "./real-media-master";
 import {VIDEO_BUCKET,VIDEO_DURATION_SECONDS,VIDEO_FACTORY_VERSION,type SimilarityMetadata,type VideoBudget,type VideoRenderInput} from "./types";
 
 type Row=Record<string,unknown>;
@@ -61,8 +62,8 @@ async function source(client:SupabaseClient,owner:string,projectId:string){
   if(!script||!angle||!account||!product)throw new Error("Selected creative source is incomplete");
   if(angle.policy_status!=="SAFE"||script.status==="REJECTED")throw new Error("Creative risk status must be SAFE");
   const input:VideoRenderInput={productTitle:String(product.title),hook:String(script.hook_text),cta:String(script.cta_text),overlay:script.overlay_text_json as VideoRenderInput["overlay"],scenes:script.scene_plan_json as VideoRenderInput["scenes"],template:templateFor(String(angle.angle_type))};
-  const productionMethod=reviewedProductionMethod({angle,script,account,product},owner);
-  return {project,script,angle,account,product,input,...(productionMethod?{productionMethod}:{})};
+  const concept=reviewedProductionConcept({angle,script,account,product},owner),productionMethod=concept?.production.method;
+  return {project,script,angle,account,product,input,...(productionMethod?{productionMethod,evidenceIds:concept!.production.evidenceIds}:{})};
 }
 async function spend(client:SupabaseClient,owner:string){
   const now=new Date(),day=now.toISOString().slice(0,10),month=day.slice(0,7);
@@ -75,8 +76,9 @@ function budget(account:Row,spent:{daySpend:number;monthSpend:number}):VideoBudg
 
 export async function buildMasterVideo(client:SupabaseClient,owner:string,projectId:string,visionProvider?:FrameVisionProvider){
   const src=await source(client,owner,projectId),existing=await client.from("master_videos").select("*").eq("owner_id",owner).eq("creative_project_id",projectId).maybeSingle();
-  if(src.productionMethod)throw new Error("REVIEWED_STRATEGY_REQUIRES_PROVIDER_OR_REAL_MEDIA_IMPORT");
   if(existing.error)throw new Error(existing.error.message);
+  if(src.productionMethod==="REAL_FOOTAGE_EDIT"||src.productionMethod==="REAL_IMAGE_MOTION")return buildRealMediaMaster(client,owner,projectId,src,existing.data as Row|null);
+  if(src.productionMethod)throw new Error("REVIEWED_STRATEGY_REQUIRES_PROVIDER_OR_REAL_MEDIA_IMPORT");
   if(isRoutedMaster(existing.data?.provider))throw new Error("Resume provider job instead of replacing real footage with a template");
   if(existing.data&&["READY","APPROVED"].includes(existing.data.status)&&existing.data.quality_status==="PASS"){if(existing.data.generation_job_id)await recordZeroCost(client,owner,existing.data.generation_job_id);return existing.data}
   const decision=chooseVideoStrategy({existingApprovedMaster:existing.data?.status==="APPROVED",hasUsableAssets:true,qualityRequirement:85,budget:budget(src.account,await spend(client,owner)),availability:{freeCredit:false,lowCostPaid:false,premium:false,paidAllowed:false}});
@@ -107,6 +109,36 @@ export async function buildMasterVideo(client:SupabaseClient,owner:string,projec
     await recordZeroCost(client,owner,String(job.id));
     await client.from("generation_jobs").update({status:"COMPLETED",output_json:{masterId,storagePath:videoPath,quality,rendered,version:VIDEO_FACTORY_VERSION},completed_at:new Date().toISOString()}).eq("owner_id",owner).eq("id",job.id);
     return {...row,storage_path:videoPath,quality_score:quality.score,quality_status:quality.status,status};
+  }catch(error){await failJob(client,owner,String(job.id),error);await client.from("master_videos").update({status:"FAILED",quality_status:"RETRY"}).eq("owner_id",owner).eq("id",masterId);throw error}
+  finally{await rm(dir,{recursive:true,force:true})}
+}
+
+/** Reviewed real product media, composed locally at zero cost. The result is always held for
+ * human review; it is never auto-approved, and silent output cannot pass quality. */
+async function buildRealMediaMaster(client:SupabaseClient,owner:string,projectId:string,src:Awaited<ReturnType<typeof source>>,existing:Row|null){
+  if(isRoutedMaster(existing?.provider as string|undefined))throw new Error("Resume provider job instead of replacing real footage with a template");
+  if(existing&&["READY","APPROVED"].includes(String(existing.status))&&existing.quality_status==="PASS")return existing;
+  const selection=await selectRealMedia(client,owner,{productId:String(src.product.id),accountId:String(src.account.id),creativeProjectId:projectId,evidenceIds:src.evidenceIds??[],at:new Date()});
+  const masterId=String(existing?.id??randomUUID()),job=await jobFor(client,owner,masterJobKey(projectId,String(src.script.id)),{creativeProjectId:projectId,scriptId:src.script.id,strategy:"LOCAL_TEMPLATE",productionMethod:src.productionMethod,assetIds:selection.clips.map(c=>c.assetId)},"MASTER_RENDER");
+  const row={id:masterId,owner_id:owner,tiktok_account_id:src.project.tiktok_account_id,product_id:src.project.product_id,creative_project_id:projectId,selected_script_id:src.script.id,generation_job_id:job.id,provider:"local-ffmpeg",model:"real-media-composer-v1",render_strategy:"LOCAL_TEMPLATE",duration_seconds:8,width:1080,height:1920,fps:30,estimated_cost_usd:0,status:"PROCESSING",quality_explanation_json:{}};
+  const saved=existing?await client.from("master_videos").update(row).eq("owner_id",owner).eq("id",masterId):await client.from("master_videos").insert(row);
+  if(saved.error)throw new Error(saved.error.message);
+  await client.from("generation_jobs").update({master_video_id:masterId,creative_project_id:projectId}).eq("owner_id",owner).eq("id",job.id);
+  await recordRealMediaUsages(client,owner,masterId,selection);
+  await beginJob(client,owner,job);
+  const dir=join(tmpdir(),"viralflow-video",owner,masterId);await mkdir(dir,{recursive:true});
+  try{
+    const composed=await renderRealMediaMaster(client,owner,{selection,captions:src.input.overlay,workDir:dir,outputPath:join(dir,"master.mp4")});
+    const videoPath=videoStoragePath(owner,"masters",masterId,"master.mp4"),videoUpload=await upload(client,videoPath,composed.media.path,"video/mp4");
+    const asset=await client.from("media_assets").upsert({owner_id:owner,product_id:src.product.id,creative_project_id:projectId,asset_type:"VIDEO",source_type:"RENDERED",storage_path:videoPath,mime_type:"video/mp4",width:composed.media.width,height:composed.media.height,duration_seconds:composed.media.duration,provider:composed.provider,model:composed.model,checksum:videoUpload.checksum},{onConflict:"owner_id,storage_path"});
+    if(asset.error)throw new Error(asset.error.message);
+    const explanation={composer:composed.model,checks:composed.checks,loudnessLufs:composed.loudnessLufs,sources:selection.clips.map(c=>({assetId:c.assetId,rightsId:c.rights.id})),voice:selection.voice?.assetId??null,requiresHumanReview:true};
+    const quality=composed.passed?"PASS":"RETRY",score=Math.round(100*composed.checks.filter(c=>c.passed).length/composed.checks.length);
+    const update=await client.from("master_videos").update({storage_path:videoPath,duration_seconds:composed.media.duration,width:composed.media.width,height:composed.media.height,fps:composed.media.fps,quality_score:score,quality_status:quality,quality_explanation_json:explanation,status:"READY"}).eq("owner_id",owner).eq("id",masterId);
+    if(update.error)throw new Error(update.error.message);
+    await recordZeroCost(client,owner,String(job.id));
+    await client.from("generation_jobs").update({status:"COMPLETED",output_json:{masterId,storagePath:videoPath,checks:composed.checks,version:VIDEO_FACTORY_VERSION},completed_at:new Date().toISOString()}).eq("owner_id",owner).eq("id",job.id);
+    return {...row,storage_path:videoPath,quality_score:score,quality_status:quality,status:"READY"};
   }catch(error){await failJob(client,owner,String(job.id),error);await client.from("master_videos").update({status:"FAILED",quality_status:"RETRY"}).eq("owner_id",owner).eq("id",masterId);throw error}
   finally{await rm(dir,{recursive:true,force:true})}
 }
