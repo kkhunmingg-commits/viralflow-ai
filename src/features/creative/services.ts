@@ -9,7 +9,7 @@ import { scoreCreativeConcept } from "./scoring";
 import { CREATIVE_SCORE_VERSION,PROMPT_VERSION,type CreativeProjectRow } from "./types";
 import { canStartCreativeProject,nextProjectStatus } from "./lifecycle";
 import { readCreativeIntelligenceResources } from "./intelligence-service";
-import { CREATIVE_STRATEGY_VERSION, assertHumanProductionReview } from "./strategist";
+import { CREATIVE_STRATEGY_VERSION, assertHumanProductionReview, planCreativeStrategy, type CreativeStrategyInput } from "./strategist";
 import { creativeScriptDigest, storedProductionStrategy } from "./production-gate";
 import {discoverTrendCandidates,googleSearchDiscoverySource,tikTokTrendDiscoverySource,ownAccountPerformanceSource,ownPerformanceObservations} from "../growth-manager/trend-discovery";
 import {createCreativeAgent} from "./agent";
@@ -98,9 +98,25 @@ export async function getCreativeProjectDetail(client:SupabaseClient,owner:strin
   return {...source,angles:angles.data??[],scripts:scripts.data??[],generations:generations.data??[]};
 }
 /** Real LLM planning + account-scoped experimentation. Mock is an explicit test-only path above. */
+const EVIDENCE_RUBRIC_MODEL="evidence-rubric-v1";
+/** The paid LLM strategist, or null when the owner explicitly chose the zero-cost evidence rubric.
+ * A missing LLM configuration still stops generation; it never silently degrades to template copy. */
+function configuredCreativeAgent(){
+  if(serverEnv.creativeAIProvider==="evidence-rubric")return null;
+  return createCreativeAgent({provider:serverEnv.creativeAIProvider,apiKey:serverEnv.openAIApiKey,model:serverEnv.creativeAIModel});
+}
+/** Same evidence gates and human review as the LLM path, with fixed Thai copy and no token spend. */
+function evidenceRubricCreative(context:Awaited<ReturnType<typeof loadCreativeContext>>["context"],
+  resources:Awaited<ReturnType<typeof readCreativeIntelligenceResources>>["resources"],discovery:{intelligence:CreativeStrategyInput["trends"]}){
+  const plan=planCreativeStrategy({now:resources.now,account:{id:context.account.id,mode:context.account.mode,affiliateEligible:resources.affiliateEligible},
+    product:context.account.mode==="AFFILIATE"?{id:context.product.id,title:context.product.title,mechanism:resources.mechanism??"UNKNOWN"}:undefined,
+    facts:resources.facts,assets:resources.assets,costs:resources.costs,trends:discovery.intelligence});
+  return {plan,arms:[] as Array<{conceptId:string;arm:Parameters<typeof sealCreativeAttribution>[0]["arm"]}>,output:null,decision:null,
+    usage:{inputTokens:0,outputTokens:0},promptVersion:EVIDENCE_RUBRIC_MODEL};
+}
 export async function generateEvidenceStrategyProject(client:SupabaseClient,owner:string,projectId:string,options:{forAutoWorker?:boolean}={}){
-  const provider=createCreativeAgent({provider:serverEnv.creativeAIProvider,apiKey:serverEnv.openAIApiKey,model:serverEnv.creativeAIModel});
-  if(knownCreativeGenerationCost(provider.model,0,0)===null)throw new Error("CREATIVE_MODEL_PRICING_UNKNOWN");
+  const provider=configuredCreativeAgent();
+  if(provider&&knownCreativeGenerationCost(provider.model,0,0)===null)throw new Error("CREATIVE_MODEL_PRICING_UNKNOWN");
   const {context,project}=await loadCreativeContext(client,owner,projectId);
   if(project.status==="GENERATING"||options.forAutoWorker&&project.status==="FAILED")throw new Error("CREATIVE_GENERATION_REVIEW_REQUIRED");
   const now=new Date(),{resources}=await readCreativeIntelligenceResources(client,owner,context,{now});
@@ -113,7 +129,8 @@ export async function generateEvidenceStrategyProject(client:SupabaseClient,owne
   const discovery=await discoverTrendCandidates([publicTrendSource,tikTokTrendDiscoverySource(),
     ownAccountPerformanceSource(async()=>ownPerformanceObservations(resources.adaptiveHistory??[],owner,context.account.id,now))],
     {accountId:context.account.id,region:resources.region,productCategoryKey:context.account.mode==="AFFILIATE"?context.product.category:undefined},now);
-  const intelligence=await planSelfLearningCreative(context,resources,provider,{cycleKey:projectId,availableSlots:1,discovery}),plan=intelligence.plan;
+  const intelligence=provider?await planSelfLearningCreative(context,resources,provider,{cycleKey:projectId,availableSlots:1,discovery})
+    :evidenceRubricCreative(context,resources,discovery),plan=intelligence.plan;
   const angleIds=plan.concepts.map(()=>randomUUID()),createdAt=new Date().toISOString();
   const scripts=plan.concepts.map((s,index)=>({id:randomUUID(),owner_id:owner,creative_project_id:projectId,creative_angle_id:angleIds[index],duration_seconds:8,
     hook_text:s.concept.hook,voice_script:s.concept.voiceScript,overlay_text_json:s.concept.overlayText,scene_plan_json:s.concept.scenePlan,cta_text:s.concept.cta,
@@ -123,11 +140,11 @@ export async function generateEvidenceStrategyProject(client:SupabaseClient,owne
     policy_status:s.status==="REJECTED"?"REJECT":"REVIEW",is_selected:false,created_at:createdAt,
     score_explanation_json:{scoreMeaning:"No fixed creative score; LLM reasoning + observed experiment objective",reasons:s.reasons,confidenceBasis:plan.confidenceBasis,
       ...(intelligence.arms.find(a=>a.conceptId===s.id)?{creativeAttribution:sealCreativeAttribution({ownerId:owner,arm:intelligence.arms.find(a=>a.conceptId===s.id)!.arm,
-        spokenHook:s.concept.hook,format:intelligence.output.concepts.find(c=>c.id===s.id)!.format,conceptId:s.id,planFingerprint:plan.fingerprint,
-        scriptDigest:creativeScriptDigest(scripts[index]),decision:s.id===plan.selectedConceptId?intelligence.decision.proposal:null,createdAt})}:{}),
+        spokenHook:s.concept.hook,format:intelligence.output!.concepts.find(c=>c.id===s.id)!.format,conceptId:s.id,planFingerprint:plan.fingerprint,
+        scriptDigest:creativeScriptDigest(scripts[index]),decision:s.id===plan.selectedConceptId?intelligence.decision!.proposal:null,createdAt})}:{}),
       productionStrategy:{plan,conceptId:s.id,productId:context.product.id,scriptDigest:creativeScriptDigest(scripts[index]),review:null}}}));
-  const cost=knownCreativeGenerationCost(provider.model,intelligence.usage.inputTokens,intelligence.usage.outputTokens);
-  const generation={id:generationId,owner_id:owner,creative_project_id:projectId,provider:provider.provider,model:provider.model,
+  const cost=provider?knownCreativeGenerationCost(provider.model,intelligence.usage.inputTokens,intelligence.usage.outputTokens):0;
+  const generation={id:generationId,owner_id:owner,creative_project_id:projectId,provider:provider?.provider??"local",model:provider?.model??EVIDENCE_RUBRIC_MODEL,
     prompt_version:intelligence.promptVersion,input_tokens:intelligence.usage.inputTokens,output_tokens:intelligence.usage.outputTokens,estimated_cost:cost,
     raw_response_json:{source:plan.source,humanReview:"PENDING",costBasis:"TEXT_TOKEN_RATE_ESTIMATE_NOT_ACTUAL_BILL"},
     validated_output_json:{concepts:plan.concepts.map(c=>c.concept),strategyPlan:plan,agentOutput:intelligence.output,

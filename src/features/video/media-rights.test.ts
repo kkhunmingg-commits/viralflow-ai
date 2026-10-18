@@ -23,6 +23,8 @@ describe("media rights ledger", () => {
   it("confirms a strategy asset only for a clean record of the same product", () => {
     expect(strategyAssetFromLedger(asset, record, use)).toMatchObject({ kind: "REAL_FOOTAGE", source: "OWNER", rightsConfirmed: true, reviewed: true });
     expect(strategyAssetFromLedger(asset, undefined, use)).toMatchObject({ kind: "REAL_FOOTAGE", rightsConfirmed: false, reviewed: false });
+    expect(strategyAssetFromLedger(asset, record, use)?.depictsOperation).toBe(false);
+    expect(strategyAssetFromLedger(asset, { ...record, depicts_product_operation: true }, use)?.depictsOperation).toBe(true);
     expect(strategyAssetFromLedger(asset, { ...record, product_id: "p2" }, use)?.rightsConfirmed).toBe(false);
     expect(strategyAssetFromLedger(asset, { ...record, allows_edit: false }, use)?.rightsConfirmed).toBe(false);
     expect(strategyAssetFromLedger(asset, { ...record, asset_role: "MUSIC" }, use)).toBeNull();

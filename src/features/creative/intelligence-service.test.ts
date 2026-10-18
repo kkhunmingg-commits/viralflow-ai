@@ -97,7 +97,7 @@ describe("existing creative service intelligence reads", () => {
     const { context, tables } = setup();
     const record = { id: "rights-1", owner_id: owner, media_asset_id: "upload-1", product_id: "mop", origin_source: "OWNER_CREATED",
       asset_role: "REAL_FOOTAGE", allows_commercial: true, allows_edit: true, platform_scope: ["TIKTOK"], account_scope: null,
-      review_state: "APPROVED", expires_at: null, revoked_at: null };
+      review_state: "APPROVED", expires_at: null, revoked_at: null, depicts_product_operation: true };
     const fact = { id: "fact-1", owner_id: owner, product_id: "mop", topic: null, statement: "ไม้ถูพื้นบิดน้ำได้ด้วยถังปั่น", source: "PDP",
       source_reference: "https://shop.example/mop", role: "SELLING_POINT", captured_at: "2026-10-12T00:00:00Z", revoked_at: null };
     const cases: Array<[Row, number]> = [[record, 1], [{ ...record, review_state: "PENDING" }, 0], [{ ...record, account_scope: ["old-sales"] }, 0],

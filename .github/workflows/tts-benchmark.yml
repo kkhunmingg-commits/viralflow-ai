@@ -1,0 +1,133 @@
+name: Thai TTS CPU benchmark
+
+# Runs only when this benchmark branch is pushed; it never deploys or posts anything.
+on:
+  push:
+    branches: ['claude/tts-benchmark', 'claude/phase2-full-path-pilot']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      OUT_DIR: tts-out
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Machine
+        run: nproc; free -m; lscpu | grep 'Model name'
+      - name: Install CPU-only VoxCPM2 and licence tooling
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --extra-index-url https://download.pytorch.org/whl/cpu "voxcpm==2.0.3" soundfile pip-licenses
+          sudo apt-get update && sudo apt-get install -y espeak-ng
+          mkdir -p tts-out
+          pip-licenses --format=json --with-urls > tts-out/python-licenses.json
+          pip-licenses --format=markdown --order=license | tee tts-out/python-licenses.md
+          dpkg -s espeak-ng | grep -E '^(Version|Package)' > tts-out/espeak-ng-version.txt
+      - name: espeak-ng baseline
+        run: python scripts/thai-tts/benchmark.py espeak-ng
+      - name: VoxCPM2 on CPU
+        run: /usr/bin/time -v python scripts/thai-tts/benchmark.py voxcpm2 2> tts-out/voxcpm2-time.txt; tail -25 tts-out/voxcpm2-time.txt
+      - name: App adapter end to end
+        run: |
+          echo '{"text":"รู้ไหม เรื่องนี้มีเหตุผล","voice":"A warm, clear Thai female narrator","output":"tts-out/adapter-check.wav"}' \
+            | VOXCPM_MODEL=$(python -c 'from huggingface_hub import snapshot_download;print(snapshot_download("openbmb/VoxCPM2"))') VOXCPM_DEVICE=cpu python scripts/thai-tts/voxcpm2_tts.py
+          python -c 'import soundfile as sf;print(sf.info("tts-out/adapter-check.wav"))'
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: thai-tts-benchmark
+          path: tts-out/
+      - name: Publish results to a results branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results && cp -r tts-out /tmp/results/ 2>/dev/null || true
+          cd /tmp/results && git init -q -b results && git add -A
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "TTS benchmark results ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/tts-results-${{ github.run_id }}
+
+  full-path-pilot:
+    permissions:
+      contents: write
+    # Creative Brain -> Media Rights -> Thai TTS -> Local Composer -> QC -> stored master, on a local
+    # supabase stack that exists only inside this job. No hosted project, paid API or TikTok call.
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    env:
+      APP_ENV: development
+      OPS_RECOVERY_ENABLED: 'false'
+      TIKTOK_PROVIDER: mock
+      TIKTOK_PUBLISHING_PROVIDER: mock
+      TIKTOK_SHOP_PROVIDER: mock
+      VIDEO_BENCHMARK_ALLOW_PAID: 'false'
+      CREATIVE_AI_PROVIDER: evidence-rubric
+      FFMPEG_BINARY: /usr/bin/ffmpeg
+      FFPROBE_BINARY: /usr/bin/ffprobe
+      THAI_TTS_PROVIDER: voxcpm2
+      VOXCPM_DEVICE: cpu
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - name: FFmpeg and local Thai TTS
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          python -m venv .venv-tts
+          .venv-tts/bin/pip install --extra-index-url https://download.pytorch.org/whl/cpu "voxcpm==2.0.3" soundfile Pillow
+          echo "THAI_TTS_PYTHON=$PWD/.venv-tts/bin/python" >> "$GITHUB_ENV"
+          echo "VOXCPM_MODEL=$(.venv-tts/bin/python -c 'from huggingface_hub import snapshot_download;print(snapshot_download("openbmb/VoxCPM2"))')" >> "$GITHUB_ENV"
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start a throwaway local Supabase with every migration
+        run: |
+          supabase start -x realtime,studio,edge-runtime,logflare,vector,supavisor
+          supabase status -o env > /tmp/sb.env
+          grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' /tmp/sb.env | sed -e 's/^API_URL=/SUPABASE_URL=/' -e 's/^ANON_KEY=/SUPABASE_ANON_KEY=/' -e 's/^SERVICE_ROLE_KEY=/SUPABASE_SERVICE_KEY=/' -e 's/"//g' >> "$GITHUB_ENV"
+          grep -E '^(API_URL|ANON_KEY)=' /tmp/sb.env | sed -e 's/^API_URL=/NEXT_PUBLIC_SUPABASE_URL=/' -e 's/^ANON_KEY=/NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/' -e 's/"//g' >> "$GITHUB_ENV"
+      - name: Draw original mock product media
+        run: .venv-tts/bin/python scripts/pilot/make_mock_product.py mock-media
+      - name: Run the full path
+        run: |
+          mkdir -p pilot-out
+          if ! /usr/bin/time -v -o pilot-out/time.txt node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/full-path-pilot.ts mock-media pilot-out > pilot-out/pilot.log 2>&1; then
+            echo "::error title=full-path pilot::$(tail -n 40 pilot-out/pilot.log | tr '\n' '|' | cut -c1-3500)"; exit 1
+          fi
+          echo "::notice title=full-path pilot::$(grep -E '"step"' pilot-out/pilot.log | tr '\n' '|' | cut -c1-3500)"
+      - name: Graphic story with Thai TTS
+        if: always()
+        run: |
+          /usr/bin/time -v -o pilot-out/graphic-time.txt pnpm pilot:graphic pilot-out/graphic > pilot-out/graphic.log 2>&1 || echo "::error title=graphic pilot::$(tail -n 30 pilot-out/graphic.log | tr '\n' '|' | cut -c1-3000)"
+          rm -rf pilot-out/graphic/work
+          echo "::notice title=graphic pilot::$(grep -E 'renderSeconds|"kind"|"passed": (true|false)$' pilot-out/graphic.log | tr '\n' '|' | cut -c1-1000)"
+      # Artifact downloads are blocked where results are reviewed, so results also go to a throwaway branch.
+      - name: Publish results to a results branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results && cp -r pilot-out /tmp/results/ 2>/dev/null || true
+          cd /tmp/results && git init -q -b results && git add -A
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Full-path pilot results ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}

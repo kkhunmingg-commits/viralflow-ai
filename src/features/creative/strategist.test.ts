@@ -54,6 +54,11 @@ describe("evidence-grounded creative strategy", () => {
     expect(plan.concepts.find(c => c.id === "real-image-detail")?.production.method).toBe("REAL_IMAGE_MOTION");
     expect(plan.concepts.every(c => c.production.method !== "GENERATIVE_ATMOSPHERE")).toBe(true);
   });
+  it("does not claim a demonstration from footage the ledger says shows no operation", () => {
+    const plan = planCreativeStrategy(product({ assets: [asset("REAL_FOOTAGE", { depictsOperation: false }), asset("REAL_IMAGE")] }));
+    expect(plan.concepts.find(c => c.id === "real-demonstration")?.status).toBe("WAIT_FOR_EVIDENCE");
+    expect(plan.selectedConceptId).toBe("real-image-detail");
+  });
   it("requires real demonstration footage to cover the actual eight-second timeline", () => {
     for (const durationSeconds of [undefined, 5]) {
       const plan = planCreativeStrategy(product({ assets: [asset("REAL_FOOTAGE", { durationSeconds })] }));

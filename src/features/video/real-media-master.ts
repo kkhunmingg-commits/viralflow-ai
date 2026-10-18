@@ -9,7 +9,7 @@ import {ownsVideoStoragePath} from "./storage";
 import {VIDEO_BUCKET,type TimedText} from "./types";
 
 type Row=Record<string,unknown>;
-const RIGHTS_COLUMNS="id,media_asset_id,product_id,origin_source,asset_role,allows_commercial,allows_edit,platform_scope,account_scope,review_state,expires_at,revoked_at,proof_sha256";
+const RIGHTS_COLUMNS="id,media_asset_id,product_id,origin_source,asset_role,allows_commercial,allows_edit,platform_scope,account_scope,review_state,expires_at,revoked_at,depicts_product_operation,proof_sha256";
 const VISUAL_ROLES=new Set(["REAL_IMAGE","REAL_FOOTAGE","COMPARISON_FOOTAGE"]);
 
 export interface RealMediaSelection {clips:Array<ComposerClip&{storagePath:string;rights:MediaRightsRecord}>;voice:{assetId:string;storagePath:string;rights:MediaRightsRecord}|null}
