@@ -7,7 +7,7 @@ type Row = Record<string, unknown>;
 type Result = { data: Row[] | Row | null; error: { code: string } | null };
 interface Query extends PromiseLike<Result> {
   select(columns: string): Query; eq(key: string, value: unknown): Query; in(key: string, values: unknown[]): Query;
-  gte(key: string, value: string): Query; order(key: string, options: { ascending: boolean }): Query;
+  gte(key: string, value: string): Query; is(key: string, value: null): Query; order(key: string, options: { ascending: boolean }): Query;
   limit(count: number): Query; maybeSingle(): Promise<Result>;
 }
 interface RecordedQuery { table: string; columns: string; filters: Array<{ key: string; kind: string; value: unknown }>; }
@@ -19,7 +19,7 @@ function memoryClient(tables: Record<string, Row[]>, errors: Record<string, stri
     const result = (single: boolean): Result => {
       if (errors[table]) return { data: null, error: { code: errors[table] } };
       let rows = [...(tables[table] ?? [])].filter(row => record.filters.every(f =>
-        f.kind === "eq" ? row[f.key] === f.value : f.kind === "in" ? (f.value as unknown[]).includes(row[f.key])
+        f.kind === "eq" ? row[f.key] === f.value : f.kind === "is" ? row[f.key] == null : f.kind === "in" ? (f.value as unknown[]).includes(row[f.key])
           : typeof row[f.key] === "string" && String(row[f.key]) >= String(f.value)));
       if (ordering) {
         const o = ordering;
@@ -33,6 +33,7 @@ function memoryClient(tables: Record<string, Row[]>, errors: Record<string, stri
       eq(key, value) { record.filters.push({ key, kind: "eq", value }); return query; },
       in(key, value) { record.filters.push({ key, kind: "in", value }); return query; },
       gte(key, value) { record.filters.push({ key, kind: "gte", value }); return query; },
+      is(key, value) { record.filters.push({ key, kind: "is", value }); return query; },
       order(key, options) { ordering = { key, ascending: options.ascending }; return query; },
       limit(count) { max = count; return query; },
       maybeSingle() { return Promise.resolve(result(true)); },

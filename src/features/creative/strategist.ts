@@ -262,7 +262,9 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
       ...(story ? [`วิธีเล่า ${story.format}: ${story.basis}`] : []),
       ...risk.reasons, ...truth.issues.map(i => i.message), ...claims.map(c => `คำพูดไม่ตรงกับภาพหรือหลักฐาน (${c.code}): ${c.text}`)];
     return { id: d.id, concept: d.concept, production: { method: ready ? d.method : "WAIT_FOR_EVIDENCE", ready,
-      evidenceIds: [...(d.required ? [d.required.id] : []), ...(requiresFact ? facts.map(f => f.id) : []), ...(applicableTrend ? [applicableTrend.key] : [])], missingEvidence,
+      // An image edit may cut between every cleared still of the product, so all of them are cited for review.
+      evidenceIds: [...(d.required ? [d.required.id] : []), ...(d.method === "REAL_IMAGE_MOTION" && d.required?.kind === "REAL_IMAGE"
+        ? assets.filter(a => a.kind === "REAL_IMAGE" && a.id !== d.required!.id).slice(0, 3).map(a => a.id) : []), ...(requiresFact ? facts.map(f => f.id) : []), ...(applicableTrend ? [applicableTrend.key] : [])], missingEvidence,
       ...(story ? { story } : {}) },
       status: rejected ? "REJECTED" : ready ? "REVIEW_REQUIRED" : "WAIT_FOR_EVIDENCE", score,
       confidence: ready ? Number(((rubric.evidenceFit + rubric.productionFeasibility) / 100).toFixed(2)) : null,

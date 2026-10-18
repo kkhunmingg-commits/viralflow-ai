@@ -99,16 +99,20 @@ export async function revokeMediaRights(admin:SupabaseClient,owner:string,rights
   if(!(result.data??[]).length)throw new Error("media_rights_not_found");
 }
 
-export const contentEvidenceSchema=z.object({productId:z.string().uuid(),statement:z.string().trim().min(1).max(500),
+// A fact belongs to a product, to a Growth topic the owner documents, or both.
+export const contentEvidenceSchema=z.object({productId:z.string().uuid().optional(),topic:z.string().trim().min(1).max(160).optional(),statement:z.string().trim().min(1).max(500),
   source:z.enum(["PDP","LABEL","OWNER_FOOTAGE","AUTHORIZED_SOURCE"]),sourceReference:z.string().trim().min(1).max(2000),
-  role:z.enum(["PROBLEM","SELLING_POINT","OBSERVATION"]).nullable(),capturedAt:z.string().date().or(z.string().datetime({offset:true}))});
+  role:z.enum(["PROBLEM","SELLING_POINT","OBSERVATION"]).nullable(),capturedAt:z.string().date().or(z.string().datetime({offset:true}))})
+  .refine(v=>Boolean(v.productId||v.topic),"product_or_topic_required");
 
 /** A fact the Creative Agent may cite. The owner checked it against the named source. */
 export async function addContentEvidence(admin:SupabaseClient,owner:string,input:z.infer<typeof contentEvidenceSchema>){
-  const product=await admin.from("products").select("id").eq("owner_id",owner).eq("id",input.productId).maybeSingle();
-  failed(product.error,"product_unavailable");if(!product.data)throw new Error("product_not_found");
+  if(input.productId){
+    const product=await admin.from("products").select("id").eq("owner_id",owner).eq("id",input.productId).maybeSingle();
+    failed(product.error,"product_unavailable");if(!product.data)throw new Error("product_not_found");
+  }else if(!input.topic)throw new Error("product_or_topic_required");
   const capturedAt=new Date(input.capturedAt);if(!(capturedAt.getTime()<=Date.now()))throw new Error("evidence_captured_in_future");
-  const row=await admin.from("content_evidence").insert({owner_id:owner,product_id:input.productId,statement:input.statement,source:input.source,
+  const row=await admin.from("content_evidence").insert({owner_id:owner,product_id:input.productId??null,topic:input.topic??null,statement:input.statement,source:input.source,
     source_reference:input.sourceReference,role:input.role,captured_at:capturedAt.toISOString(),verified_by:owner}).select("id").single();
   failed(row.error,"evidence_save_failed");return {id:String(row.data!.id)};
 }
