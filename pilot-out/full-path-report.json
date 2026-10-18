@@ -1,0 +1,160 @@
+{
+  "ranAt": "2026-10-18T22:38:19.396Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "results": {
+    "affiliate": {
+      "projectId": "df150e69-f8af-4ece-a331-a0dda7489d8b",
+      "masterId": "ed35d982-c46b-4561-9276-5a8e98cc5e06",
+      "selected": {
+        "id": "real-image-detail",
+        "method": "REAL_IMAGE_MOTION",
+        "story": {
+          "format": "PRODUCT_DETAIL",
+          "beats": [
+            {
+              "role": "HOOK",
+              "text": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี?"
+            },
+            {
+              "role": "POINT",
+              "text": "ความจุ 500 มิลลิลิตร"
+            },
+            {
+              "role": "POINT",
+              "text": "ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว"
+            },
+            {
+              "role": "CTA",
+              "text": "เช็กรายละเอียดก่อนสั่ง"
+            }
+          ],
+          "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"
+        },
+        "topic": null,
+        "topicBasis": "NONE",
+        "warnings": [
+          "ความสร้างสรรค์ ความถูกต้อง และสิทธิ์ในสื่อยังต้องให้มนุษย์ตรวจ ก่อนผลิตและเผยแพร่",
+          "ต้นทุนต่อคลิปใช้ได้รวมงานเสียและการสร้างซ้ำ; หากบิลไม่ยืนยันจะแสดง UNKNOWN",
+          "ไม่มีข้อมูลเทรนด์จริงที่ยืนยันความเหมาะสมกับบัญชี แนวคิดนี้เป็นสมมติฐานเพื่อทดลอง",
+          "วิธีเล่าเรื่องและ Hook เลือกด้วยกฎที่เปิดเผย (Rule-Based) ไม่ใช่ LLM",
+          "กลไกซับซ้อนหรือยังไม่ทราบ ห้ามสร้างการทำงานของสินค้าใหม่ด้วยภาพ AI"
+        ]
+      },
+      "script": {
+        "hook_text": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี?",
+        "voice_script": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี? ความจุ 500 มิลลิลิตร ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว เช็กรายละเอียดก่อนสั่ง",
+        "cta_text": "เช็กรายละเอียดก่อนสั่ง",
+        "caption": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี? ความจุ 500 มิลลิลิตร",
+        "hashtags_json": [
+          "#ขวดน้ำเก็บความเย็น",
+          "#ของมันต้องดู",
+          "#TikTokShop"
+        ]
+      },
+      "master": {
+        "id": "ed35d982-c46b-4561-9276-5a8e98cc5e06",
+        "status": "READY",
+        "quality_status": "RETRY",
+        "quality_score": 88,
+        "quality_explanation_json": {
+          "story": {
+            "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว",
+            "beats": [
+              {
+                "role": "HOOK",
+                "text": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี?"
+              },
+              {
+                "role": "POINT",
+                "text": "ความจุ 500 มิลลิลิตร"
+              },
+              {
+                "role": "POINT",
+                "text": "ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว"
+              },
+              {
+                "role": "CTA",
+                "text": "เช็กรายละเอียดก่อนสั่ง"
+              }
+            ],
+            "format": "PRODUCT_DETAIL"
+          },
+          "checks": [
+            {
+              "name": "DURATION",
+              "detail": "8.00s",
+              "passed": true
+            },
+            {
+              "name": "RESOLUTION",
+              "detail": "1080x1920",
+              "passed": true
+            },
+            {
+              "name": "AUDIO_TRACK",
+              "detail": "aac",
+              "passed": true
+            },
+            {
+              "name": "VOICE",
+              "detail": "no narration; owner voice or licensed TTS required",
+              "passed": false
+            },
+            {
+              "name": "LOUDNESS",
+              "detail": "silent",
+              "passed": true
+            },
+            {
+              "name": "HOOK",
+              "detail": "hook on screen 0.0–2.6s",
+              "passed": true
+            },
+            {
+              "name": "TEXT_COVERAGE",
+              "detail": "text on screen 96% of clip (min 90%)",
+              "passed": true
+            },
+            {
+              "name": "PACING",
+              "detail": "4 shot(s), longest 2.6s, 3 distinct framing(s)",
+              "passed": true
+            }
+          ],
+          "sources": [
+            {
+              "assetId": "8af6f6b0-3f61-4b82-8b6d-2bf7067b6c51",
+              "rightsId": "05eafc17-9f86-4c44-a782-b5f453099670"
+            }
+          ],
+          "composer": "real-media-composer-v1",
+          "narration": {
+            "kind": "NONE",
+            "reason": "thai_tts_too_long"
+          },
+          "loudnessLufs": null,
+          "renderSeconds": 541.9,
+          "aiGeneratedVoice": false,
+          "requiresHumanReview": true
+        },
+        "storage_path": "owner/0927aecf-f586-46d2-bbe3-6158025dbcb1/masters/ed35d982-c46b-4561-9276-5a8e98cc5e06/master.mp4",
+        "model": "real-media-composer-v1",
+        "estimated_cost_usd": 0
+      },
+      "timings": {
+        "creativeSeconds": 0.468,
+        "renderSeconds": 541.954
+      }
+    }
+  },
+  "publishingGuard": {
+    "sandbox": [],
+    "otherAccount": [
+      "ACCOUNT_OUT_OF_SCOPE"
+    ]
+  },
+  "env": {
+    "creative": "evidence-rubric",
+    "tts": "voxcpm2"
+  }
+}

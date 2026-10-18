@@ -1,0 +1,5 @@
+{"step":"owner","owner":"0927aecf-f586-46d2-bbe3-6158025dbcb1"}
+{"step":"affiliate.rights","clip":"f4fa4887-3791-4f45-970f-2aafb649c58d","still":"8af6f6b0-3f61-4b82-8b6d-2bf7067b6c51","rights":["71e0bab1-7187-40c9-8764-48e67a3c706f","05eafc17-9f86-4c44-a782-b5f453099670"]}
+{"step":"affiliate.creative","selected":"real-image-detail","method":"REAL_IMAGE_MOTION","ready":true,"missing":[],"topic":null,"topicBasis":"NONE","story":{"format":"PRODUCT_DETAIL","beats":[{"role":"HOOK","text":"ขวดน้ำเก็บความเย็น ดูจุดไหนดี?"},{"role":"POINT","text":"ความจุ 500 มิลลิลิตร"},{"role":"POINT","text":"ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว"},{"role":"CTA","text":"เช็กรายละเอียดก่อนสั่ง"}],"basis":"RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"},"concepts":[{"id":"real-image-detail","status":"REVIEW_REQUIRED","method":"REAL_IMAGE_MOTION"},{"id":"real-demonstration","status":"WAIT_FOR_EVIDENCE","method":"WAIT_FOR_EVIDENCE"},{"id":"evidence-comparison","status":"WAIT_FOR_EVIDENCE","method":"WAIT_FOR_EVIDENCE"}]}
+{"step":"affiliate.master","status":"READY","quality":"RETRY","score":88,"timings":{"creativeSeconds":0.468,"renderSeconds":541.954}}
+{"step":"done","ok":true}
