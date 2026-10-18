@@ -6,6 +6,7 @@ export interface MediaRightsRecord {
   id:string; media_asset_id:string; product_id:string|null; origin_source:string; asset_role:string;
   allows_commercial:boolean; allows_edit:boolean; platform_scope:string[]; account_scope:string[]|null;
   review_state:"PENDING"|"APPROVED"|"REJECTED"; expires_at:string|null; revoked_at:string|null;
+  depicts_product_operation?:boolean;
 }
 export interface MediaUse {at:Date;accountId:string;platform?:"TIKTOK"}
 
@@ -42,7 +43,8 @@ export function strategyAssetFromLedger(asset:{id:string;product_id:string|null;
   // The record must also attest that the media shows this exact product.
   const allowed=mediaRightsViolations(record,use).length===0&&record?.product_id===asset.product_id;
   return {id:asset.id,kind,source:asset.source_type==="UPLOAD"?"OWNER":"AUTHORIZED_CATALOG",reference:asset.storage_path,
-    productId:asset.product_id??undefined,durationSeconds:asset.duration_seconds??undefined,rightsConfirmed:allowed,reviewed:allowed};
+    productId:asset.product_id??undefined,durationSeconds:asset.duration_seconds??undefined,rightsConfirmed:allowed,reviewed:allowed,
+    ...(record?{depictsOperation:record.depicts_product_operation===true}:{})};
 }
 
 export interface ContentEvidenceRow {id:string;product_id:string|null;topic:string|null;statement:string;source:StrategyFact["source"];

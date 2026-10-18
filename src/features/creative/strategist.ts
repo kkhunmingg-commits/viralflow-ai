@@ -32,6 +32,8 @@ export interface StrategyAsset {
   source: "OWNER" | "AUTHORIZED_CATALOG" | "MOCK"; reference: string;
   rightsConfirmed: boolean; reviewed: boolean; productId?: string; topic?: string;
   durationSeconds?: number;
+  /** False when the rights ledger says the clip does not show the product operating; undefined keeps legacy assets eligible. */
+  depictsOperation?: boolean;
 }
 export interface ProductionCostAttempt {
   id: string; method: Exclude<ProductionMethod, "WAIT_FOR_EVIDENCE">;
@@ -142,7 +144,8 @@ export function planCreativeStrategy(input: CreativeStrategyInput): CreativeStra
   const name = (input.product?.title ?? topic ?? "หัวข้อที่ต้องการทดลอง").slice(0, 35);
   const hasProduct = Boolean(input.product);
   const drafts = hasProduct ? [
-    { id: "real-demonstration", required: footage, method: "REAL_FOOTAGE_EDIT" as const,
+    // A demonstration claim needs footage the ledger attests shows the product operating, not a still turned into video.
+    { id: "real-demonstration", required: assets.find(a => a.kind === "REAL_FOOTAGE" && a.depictsOperation !== false), method: "REAL_FOOTAGE_EDIT" as const,
       missing: "วิดีโอสาธิตสินค้าจริงที่มีสิทธิ์ใช้และตรวจแกน จุดหมุน และมือแล้ว",
       concept: draft("DEMONSTRATION", `${name}: ดูหนึ่งจังหวะจริง`, "จุดนี้ทำงานอย่างไร?", "ดูการทำงานจากวิดีโอจริง", cta,
         ["ภาพจริงระยะใกล้ให้เห็นมือและจุดหมุนก่อนเริ่ม", "ใช้ช็อตสาธิตจริงต่อเนื่อง ไม่สร้างแกนหรือชิ้นส่วนเพิ่ม", "คงภาพผลที่สังเกตได้จริงและชื่อสินค้า"],

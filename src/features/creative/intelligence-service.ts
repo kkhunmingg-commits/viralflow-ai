@@ -71,7 +71,7 @@ export async function readCreativeIntelligenceResources(client:SupabaseClient,ow
   const availableAssets=(assets.data??[]).filter(a=>ownsVideoStoragePath(owner,String(a.storage_path))&&["PRODUCT_IMAGE","IMAGE","VIDEO"].includes(a.asset_type));
   // Upload/catalog presence does not attest rights or product identity; only the reviewed ledger does.
   const [rights,evidence]=await Promise.all([
-    availableAssets.length?client.from("media_asset_rights").select("id,media_asset_id,product_id,origin_source,asset_role,allows_commercial,allows_edit,platform_scope,account_scope,review_state,expires_at,revoked_at")
+    availableAssets.length?client.from("media_asset_rights").select("id,media_asset_id,product_id,origin_source,asset_role,allows_commercial,allows_edit,platform_scope,account_scope,review_state,expires_at,revoked_at,depicts_product_operation")
       .eq("owner_id",owner).in("media_asset_id",availableAssets.map(a=>String(a.id))):{data:[],error:null},
     client.from("content_evidence").select("id,product_id,topic,statement,source,source_reference,role,captured_at,revoked_at").eq("owner_id",owner).eq("product_id",context.product.id),
   ]);
