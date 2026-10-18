@@ -1,0 +1,102 @@
+{
+  "ranAt": "2026-10-18T19:09:14.850Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "results": {
+    "affiliate": {
+      "projectId": "e1533c03-61dd-4b4c-8b20-39c42738f609",
+      "masterId": "0191dc92-457a-4b1b-b1d8-8c156402b4f9",
+      "selected": {
+        "id": "real-demonstration",
+        "method": "REAL_FOOTAGE_EDIT"
+      },
+      "script": {
+        "hook_text": "จุดนี้ทำงานอย่างไร?",
+        "voice_script": "จุดนี้ทำงานอย่างไร? ดูการทำงานจากวิดีโอจริง ดูรายละเอียดสินค้าก่อนตัดสินใจ",
+        "cta_text": "ดูรายละเอียดสินค้าก่อนตัดสินใจ",
+        "caption": "ขวดน้ำเก็บความเย็น ฟ้าเย็น 500 มล. : ดูหนึ่งจังหวะจริง: ดูการทำงานจากวิดีโอจริง"
+      },
+      "master": {
+        "id": "0191dc92-457a-4b1b-b1d8-8c156402b4f9",
+        "status": "READY",
+        "quality_status": "PASS",
+        "quality_score": 100,
+        "quality_explanation_json": {
+          "checks": [
+            {
+              "name": "DURATION",
+              "detail": "8.00s",
+              "passed": true
+            },
+            {
+              "name": "RESOLUTION",
+              "detail": "1080x1920",
+              "passed": true
+            },
+            {
+              "name": "AUDIO_TRACK",
+              "detail": "aac",
+              "passed": true
+            },
+            {
+              "name": "VOICE",
+              "detail": "narration present",
+              "passed": true
+            },
+            {
+              "name": "LOUDNESS",
+              "detail": "-15.2 LUFS (target -14±2)",
+              "passed": true
+            }
+          ],
+          "sources": [
+            {
+              "assetId": "35814943-e435-4fd3-8a05-040c073b3023",
+              "rightsId": "2a06f4c7-6173-4fbc-bd83-20c02116255a"
+            }
+          ],
+          "composer": "real-media-composer-v1",
+          "narration": {
+            "kind": "SYSTEM_TTS",
+            "license": {
+              "voice": "DESIGNED_NO_REFERENCE",
+              "engine": "voxcpm",
+              "modelId": "openbmb/VoxCPM2",
+              "sources": [
+                "https://huggingface.co/openbmb/VoxCPM2",
+                "https://pypi.org/project/voxcpm/",
+                "https://github.com/OpenBMB/VoxCPM"
+              ],
+              "checkedAt": "2026-10-18",
+              "aiGenerated": true,
+              "modelLicense": "Apache-2.0",
+              "commercialUse": true,
+              "engineLicense": "Apache-2.0"
+            },
+            "provider": "voxcpm2-local",
+            "durationSeconds": 7.04
+          },
+          "loudnessLufs": -15.2,
+          "aiGeneratedVoice": true,
+          "requiresHumanReview": true
+        },
+        "storage_path": "owner/d78ed098-d895-4809-b822-6cef9ff852e8/masters/0191dc92-457a-4b1b-b1d8-8c156402b4f9/master.mp4",
+        "model": "real-media-composer-v1",
+        "estimated_cost_usd": 0
+      },
+      "timings": {
+        "creativeSeconds": 0.868,
+        "renderSeconds": 292.572
+      }
+    }
+  },
+  "publishingGuard": {
+    "sandbox": [],
+    "otherAccount": [
+      "ACCOUNT_OUT_OF_SCOPE"
+    ]
+  },
+  "env": {
+    "creative": "evidence-rubric",
+    "tts": "voxcpm2"
+  }
+}

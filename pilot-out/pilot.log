@@ -1,0 +1,5 @@
+{"step":"owner","owner":"d78ed098-d895-4809-b822-6cef9ff852e8"}
+{"step":"affiliate.rights","clip":"35814943-e435-4fd3-8a05-040c073b3023","still":"8c520c17-2c0c-4ed6-a168-626c938d71d3","rights":["2a06f4c7-6173-4fbc-bd83-20c02116255a","5db253e0-6786-48a0-9abe-c38cc495f532"]}
+{"step":"affiliate.creative","selected":"real-demonstration","method":"REAL_FOOTAGE_EDIT","ready":true,"missing":[],"concepts":[{"id":"real-demonstration","status":"REVIEW_REQUIRED","method":"REAL_FOOTAGE_EDIT"},{"id":"real-image-detail","status":"REVIEW_REQUIRED","method":"REAL_IMAGE_MOTION"},{"id":"evidence-comparison","status":"WAIT_FOR_EVIDENCE","method":"WAIT_FOR_EVIDENCE"}]}
+{"step":"affiliate.master","status":"READY","quality":"PASS","score":100,"timings":{"creativeSeconds":0.868,"renderSeconds":292.572}}
+{"step":"done","ok":true}
