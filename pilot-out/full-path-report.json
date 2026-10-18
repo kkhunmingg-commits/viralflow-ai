@@ -1,0 +1,17 @@
+{
+  "ranAt": "2026-10-18T18:48:01.690Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "results": {
+    "affiliate": {
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    },
+    "growth": {
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    }
+  },
+  "publishingGuard": {},
+  "env": {
+    "creative": "evidence-rubric",
+    "tts": "voxcpm2"
+  }
+}
