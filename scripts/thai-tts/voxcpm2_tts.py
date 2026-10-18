@@ -10,6 +10,9 @@ Checked against the voxcpm 2.0.3 wheel: generate() has no seed argument, so torc
 import json
 import os
 import sys
+import time
+
+import numpy as np
 
 import soundfile as sf
 import torch
@@ -17,36 +20,55 @@ from voxcpm import VoxCPM
 
 
 # A take may run on past the text (pilots saw takes that never ended and hit the 10-minute timeout).
-# With a length budget, generation is capped just past what the clip can use and a long take is redone
-# with the next seed, so a bad take costs seconds instead of minutes.
+# With a length budget the take is streamed and stopped as soon as it passes what the clip can use,
+# then redone with the next seed; a time budget stops retrying and keeps the shortest take.
 MAX_TAKES = 3
 OVERRUN = 1.15
+
+
+def take_audio(model, text: str, cap_seconds):
+    if cap_seconds is None:
+        return model.generate(text=text, cfg_value=2.0, inference_timesteps=10)
+    rate, chunks, total = model.tts_model.sample_rate, [], 0
+    stream = model.generate_streaming(text=text, cfg_value=2.0, inference_timesteps=10)
+    try:
+        for chunk in stream:
+            chunk = np.asarray(chunk, dtype=np.float32).reshape(-1)
+            chunks.append(chunk)
+            total += len(chunk)
+            if total / rate > cap_seconds:
+                break
+    finally:
+        stream.close()
+    return np.concatenate(chunks) if chunks else np.zeros(0, dtype=np.float32)
 
 
 def main() -> None:
     request = json.load(sys.stdin)
     text, voice, output = request["text"], request["voice"], request["output"]
     max_seconds = request.get("max_seconds")
+    cap = float(max_seconds) * OVERRUN if max_seconds else None
+    budget = float(os.environ.get("VOXCPM_TIME_BUDGET", "420"))
     seed = int(os.environ.get("VOXCPM_SEED", "42"))
+    started = time.monotonic()
     model = VoxCPM.from_pretrained(os.environ.get("VOXCPM_MODEL", "openbmb/VoxCPM2"), load_denoiser=False,
                                    optimize=False, device=os.environ.get("VOXCPM_DEVICE") or None)
-    tts = model.tts_model
-    options = {}
-    if max_seconds:
-        latents_per_second = tts.audio_vae.sample_rate / (tts.patch_size * tts.chunk_size)
-        options = {"max_len": int(float(max_seconds) * OVERRUN * latents_per_second) + 2, "retry_badcase": False}
-    best = None
-    for take in range(MAX_TAKES if max_seconds else 1):
+    rate, best = model.tts_model.sample_rate, None
+    for take in range(MAX_TAKES if cap else 1):
         torch.manual_seed(seed + take)
         # Voice design: a text description in parentheses, no reference recording, so nobody is cloned.
-        wav = model.generate(text=f"({voice}){text}", cfg_value=2.0, inference_timesteps=10, **options)
-        seconds = len(wav) / tts.sample_rate
-        if best is None or seconds < best[0]:
+        wav = take_audio(model, f"({voice}){text}", cap)
+        seconds = len(wav) / rate
+        if seconds > 0.5 and (best is None or seconds < best[0]):
             best = (seconds, wav)
-        if not max_seconds or seconds < float(max_seconds) * OVERRUN * 0.97:
+        if cap is None or seconds <= cap:
             break
-        print(f"take {take + 1}: {seconds:.1f}s reached the length cap, trying the next seed", file=sys.stderr)
-    sf.write(output, best[1], tts.sample_rate)
+        print(f"take {take + 1}: passed {cap:.1f}s, trying the next seed", file=sys.stderr)
+        if time.monotonic() - started > budget:
+            break
+    if best is None:
+        sys.exit("no usable take")
+    sf.write(output, best[1], rate)
 
 
 if __name__ == "__main__":
