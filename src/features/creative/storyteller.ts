@@ -61,10 +61,13 @@ const FORMAT_REASON: Record<string, string> = {
 /** Growth: choose among formats the evidence supports, preferring ones this account has not used
  * lately, so a run of clips does not repeat the same template. Returns null without facts. */
 export function planGrowthStory(topic: string, facts: GrowthFact[], history: StoryHistory, seed: string): PlannedStory | null {
-  const usable = freshFirst(facts.map(f => ({ ...f, text: norm(f.text) })).filter(f => fitsCard(f.text)), history);
-  if (!usable.length) return null;
+  // Facts are recorded cause first, so a quiz answer and an explanation open with the first fact;
+  // freshness only picks which further fact follows it and which number to spotlight.
+  const ordered = facts.map(f => ({ ...f, text: norm(f.text) })).filter(f => fitsCard(f.text));
+  if (!ordered.length) return null;
+  const usable = freshFirst(ordered, history), cause = ordered[0];
   const t = shortLabel(topic) ?? "เรื่องนี้";
-  const listFacts = usable.filter(f => base(f.text) <= LIST_POINT_MAX).slice(0, 3);
+  const listPick = usable.filter(f => base(f.text) <= LIST_POINT_MAX).slice(0, 3), listFacts = ordered.filter(f => listPick.includes(f));
   const numeric = usable.find(f => { const n = firstNumber(f.text); return n !== null && base(n) <= 6; });
   const eligible: StoryFormat[] = ["EXPLAINER", "QUIZ_REVEAL", ...(numeric ? ["NUMBER_SPOTLIGHT" as const] : []), ...(listFacts.length === 3 ? ["LIST" as const] : [])];
   // Recency penalty: the most recent format costs the most; anything older than the window is free again.
@@ -87,11 +90,11 @@ export function planGrowthStory(topic: string, facts: GrowthFact[], history: Sto
       if (hook) beats = [{ role: "HOOK", text: hook, badge: n }, { role: "POINT", text: numeric.text, kicker: t }, { role: "CTA", text: cta }];
     } else if (format === "QUIZ_REVEAL") {
       const hook = pickFresh([`ทายก่อนเฉลย: ${t}`, `รู้คำตอบไหม? ${t}`, `ทายดู ${t} เพราะอะไร?`], history.hooks, s);
-      used = [usable[0]];
-      if (hook) beats = [{ role: "HOOK", text: hook, kicker: "ทายก่อน", badge: "?" }, { role: "POINT", text: usable[0].text, kicker: "เฉลย" }, { role: "CTA", text: cta }];
+      used = [cause];
+      if (hook) beats = [{ role: "HOOK", text: hook, kicker: "ทายก่อน", badge: "?" }, { role: "POINT", text: cause.text, kicker: "เฉลย" }, { role: "CTA", text: cta }];
     } else {
       const hook = pickFresh([`เคยสงสัยไหม ${t}`, `ความลับของ${t}`, `หลายคนไม่รู้ ${t}`], history.hooks, s);
-      used = usable.slice(0, 2);
+      used = [cause, ...usable.filter(f => f !== cause && f.id !== cause.id)].slice(0, 2);
       if (hook) beats = [{ role: "HOOK", text: hook, kicker: "รู้หรือไม่" }, ...used.map(f => ({ role: "POINT" as const, text: f.text })), { role: "CTA", text: cta }];
     }
     if (!beats) continue;
