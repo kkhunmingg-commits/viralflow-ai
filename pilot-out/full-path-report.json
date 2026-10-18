@@ -1,0 +1,168 @@
+{
+  "ranAt": "2026-10-18T21:24:43.146Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "results": {
+    "affiliate": {
+      "projectId": "ea905058-6542-4801-98f2-ecec813ff69c",
+      "masterId": "2edd38a9-55f2-4d68-8a22-b7f7afd83f55",
+      "selected": {
+        "id": "real-image-detail",
+        "method": "REAL_IMAGE_MOTION",
+        "story": {
+          "format": "PRODUCT_DETAIL",
+          "beats": [
+            {
+              "role": "HOOK",
+              "text": "จุดที่ควรดูของขวดน้ำเก็บความเย็น"
+            },
+            {
+              "role": "POINT",
+              "text": "ความจุ 500 มิลลิลิตร"
+            },
+            {
+              "role": "CTA",
+              "text": "อ่านรายละเอียดในหน้าสินค้า"
+            }
+          ],
+          "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"
+        },
+        "topic": null,
+        "topicBasis": "NONE",
+        "warnings": [
+          "ความสร้างสรรค์ ความถูกต้อง และสิทธิ์ในสื่อยังต้องให้มนุษย์ตรวจ ก่อนผลิตและเผยแพร่",
+          "ต้นทุนต่อคลิปใช้ได้รวมงานเสียและการสร้างซ้ำ; หากบิลไม่ยืนยันจะแสดง UNKNOWN",
+          "ไม่มีข้อมูลเทรนด์จริงที่ยืนยันความเหมาะสมกับบัญชี แนวคิดนี้เป็นสมมติฐานเพื่อทดลอง",
+          "วิธีเล่าเรื่องและ Hook เลือกด้วยกฎที่เปิดเผย (Rule-Based) ไม่ใช่ LLM",
+          "กลไกซับซ้อนหรือยังไม่ทราบ ห้ามสร้างการทำงานของสินค้าใหม่ด้วยภาพ AI"
+        ]
+      },
+      "script": {
+        "hook_text": "จุดที่ควรดูของขวดน้ำเก็บความเย็น",
+        "voice_script": "จุดที่ควรดูของขวดน้ำเก็บความเย็น ความจุ 500 มิลลิลิตร อ่านรายละเอียดในหน้าสินค้า",
+        "cta_text": "อ่านรายละเอียดในหน้าสินค้า",
+        "caption": "จุดที่ควรดูของขวดน้ำเก็บความเย็น ความจุ 500 มิลลิลิตร",
+        "hashtags_json": [
+          "#ขวดน้ำเก็บความเย็น",
+          "#ของมันต้องดู",
+          "#TikTokShop"
+        ]
+      },
+      "master": {
+        "id": "2edd38a9-55f2-4d68-8a22-b7f7afd83f55",
+        "status": "READY",
+        "quality_status": "PASS",
+        "quality_score": 100,
+        "quality_explanation_json": {
+          "story": {
+            "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว",
+            "beats": [
+              {
+                "role": "HOOK",
+                "text": "จุดที่ควรดูของขวดน้ำเก็บความเย็น"
+              },
+              {
+                "role": "POINT",
+                "text": "ความจุ 500 มิลลิลิตร"
+              },
+              {
+                "role": "CTA",
+                "text": "อ่านรายละเอียดในหน้าสินค้า"
+              }
+            ],
+            "format": "PRODUCT_DETAIL"
+          },
+          "checks": [
+            {
+              "name": "DURATION",
+              "detail": "8.00s",
+              "passed": true
+            },
+            {
+              "name": "RESOLUTION",
+              "detail": "1080x1920",
+              "passed": true
+            },
+            {
+              "name": "AUDIO_TRACK",
+              "detail": "aac",
+              "passed": true
+            },
+            {
+              "name": "VOICE",
+              "detail": "narration present",
+              "passed": true
+            },
+            {
+              "name": "LOUDNESS",
+              "detail": "-14.2 LUFS (target -14±2)",
+              "passed": true
+            },
+            {
+              "name": "HOOK",
+              "detail": "hook on screen 0.0–2.2s",
+              "passed": true
+            },
+            {
+              "name": "TEXT_COVERAGE",
+              "detail": "text on screen 100% of clip (min 90%)",
+              "passed": true
+            },
+            {
+              "name": "PACING",
+              "detail": "4 shot(s), longest 2.2s, 4 distinct framing(s)",
+              "passed": true
+            }
+          ],
+          "sources": [
+            {
+              "assetId": "627f6b5e-b25f-4ce9-b343-48e85a523e45",
+              "rightsId": "2f0382d8-991d-4fe3-8c89-b2e31698e35e"
+            }
+          ],
+          "composer": "real-media-composer-v1",
+          "narration": {
+            "kind": "SYSTEM_TTS",
+            "license": {
+              "voice": "DESIGNED_NO_REFERENCE",
+              "engine": "voxcpm",
+              "modelId": "openbmb/VoxCPM2",
+              "sources": [
+                "https://huggingface.co/openbmb/VoxCPM2",
+                "https://pypi.org/project/voxcpm/",
+                "https://github.com/OpenBMB/VoxCPM"
+              ],
+              "checkedAt": "2026-10-18",
+              "aiGenerated": true,
+              "modelLicense": "Apache-2.0",
+              "commercialUse": true,
+              "engineLicense": "Apache-2.0"
+            },
+            "provider": "voxcpm2-local",
+            "durationSeconds": 5.28
+          },
+          "loudnessLufs": -14.2,
+          "renderSeconds": 48.7,
+          "aiGeneratedVoice": true,
+          "requiresHumanReview": true
+        },
+        "storage_path": "owner/bc500b70-2945-4840-adc6-11742bbda659/masters/2edd38a9-55f2-4d68-8a22-b7f7afd83f55/master.mp4",
+        "model": "real-media-composer-v1",
+        "estimated_cost_usd": 0
+      },
+      "timings": {
+        "creativeSeconds": 0.715,
+        "renderSeconds": 48.737
+      }
+    }
+  },
+  "publishingGuard": {
+    "sandbox": [],
+    "otherAccount": [
+      "ACCOUNT_OUT_OF_SCOPE"
+    ]
+  },
+  "env": {
+    "creative": "evidence-rubric",
+    "tts": "voxcpm2"
+  }
+}

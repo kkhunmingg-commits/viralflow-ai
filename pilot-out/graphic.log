@@ -1,0 +1,97 @@
+$ tsx scripts/graphic-story-pilot.ts pilot-out/graphic
+{
+  "renderedAt": "2026-10-18T21:25:53.839Z",
+  "renderSeconds": 70.03,
+  "costTHB": 0,
+  "costBasis": "local CPU only; no paid API, model download or upload",
+  "machine": {
+    "cpus": 4,
+    "cpuModel": "Intel(R) Xeon(R) 6973P-C",
+    "memoryGB": 16,
+    "ffmpeg": "/usr/bin/ffmpeg"
+  },
+  "copy": {
+    "hook": "รู้ไหม เรื่องนี้มีเหตุผล",
+    "point": "วางของใช้บ่อยไว้ใกล้มือ",
+    "cta": "ติดตามไว้ ตอนต่อไปมีอีก"
+  },
+  "narration": {
+    "kind": "SYSTEM_TTS",
+    "provider": "voxcpm2-local",
+    "license": {
+      "engine": "voxcpm",
+      "engineLicense": "Apache-2.0",
+      "modelId": "openbmb/VoxCPM2",
+      "modelLicense": "Apache-2.0",
+      "voice": "DESIGNED_NO_REFERENCE",
+      "commercialUse": true,
+      "aiGenerated": true,
+      "checkedAt": "2026-10-18",
+      "sources": [
+        "https://huggingface.co/openbmb/VoxCPM2",
+        "https://pypi.org/project/voxcpm/",
+        "https://github.com/OpenBMB/VoxCPM"
+      ]
+    },
+    "durationSeconds": 5.44
+  },
+  "media": {
+    "path": "/home/runner/work/viralflow-ai/viralflow-ai/pilot-out/graphic/graphic-story.mp4",
+    "duration": 8,
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "videoCodec": "h264",
+    "audioCodec": "aac",
+    "hasAudio": true,
+    "sizeBytes": 790732
+  },
+  "loudnessLufs": -14.4,
+  "checks": [
+    {
+      "name": "DURATION",
+      "passed": true,
+      "detail": "8.00s"
+    },
+    {
+      "name": "RESOLUTION",
+      "passed": true,
+      "detail": "1080x1920"
+    },
+    {
+      "name": "AUDIO_TRACK",
+      "passed": true,
+      "detail": "aac"
+    },
+    {
+      "name": "VOICE",
+      "passed": true,
+      "detail": "narration present"
+    },
+    {
+      "name": "LOUDNESS",
+      "passed": true,
+      "detail": "-14.4 LUFS (target -14±2)"
+    },
+    {
+      "name": "HOOK",
+      "passed": true,
+      "detail": "hook on screen 0.0–1.7s"
+    },
+    {
+      "name": "TEXT_COVERAGE",
+      "passed": true,
+      "detail": "text on screen 94% of clip (min 90%)"
+    },
+    {
+      "name": "PACING",
+      "passed": true,
+      "detail": "4 shot(s), longest 2.2s, 4 distinct framing(s)"
+    }
+  ],
+  "passed": true,
+  "limits": [
+    "Pipeline proof only: not shown to viewers, so no evidence that it performs on TikTok",
+    "Visual style is a fixed gradient and text template; human review is still required before posting"
+  ]
+}
