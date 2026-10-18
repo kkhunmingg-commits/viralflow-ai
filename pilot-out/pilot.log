@@ -1,0 +1,5 @@
+{"step":"owner","owner":"9dee5d69-fe8b-4abd-a7a7-bac3e441e5f9"}
+{"step":"affiliate.rights","clip":"4b560e3d-5ab8-4c0e-8825-0cf91a2c93c2","still":"a01d9803-161e-4f78-9f38-056f373fbc0e","rights":["8807a240-0653-4770-8168-b0e513fe3437","c2d54112-7b41-4b92-9dd7-273e7865b2c2"]}
+{"step":"affiliate.creative","selected":"real-image-detail","method":"REAL_IMAGE_MOTION","ready":true,"missing":[],"topic":null,"topicBasis":"NONE","story":{"format":"PRODUCT_DETAIL","beats":[{"role":"HOOK","text":"จุดที่ควรดูของขวดน้ำเก็บความเย็น"},{"role":"POINT","text":"ความจุ 500 มิลลิลิตร"},{"role":"CTA","text":"อ่านรายละเอียดในหน้าสินค้า"}],"basis":"RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"},"concepts":[{"id":"real-image-detail","status":"REVIEW_REQUIRED","method":"REAL_IMAGE_MOTION"},{"id":"real-demonstration","status":"WAIT_FOR_EVIDENCE","method":"WAIT_FOR_EVIDENCE"},{"id":"evidence-comparison","status":"WAIT_FOR_EVIDENCE","method":"WAIT_FOR_EVIDENCE"}]}
+{"step":"affiliate.master","status":"READY","quality":"PASS","score":100,"timings":{"creativeSeconds":0.246,"renderSeconds":72.63}}
+{"step":"done","ok":true}
