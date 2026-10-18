@@ -4,7 +4,7 @@ import {z} from "zod";
 import {createClient} from "@/lib/supabase/server";
 import {createAdminClient} from "@/lib/supabase/admin";
 import {enforceOwnerMutationRateLimit} from "@/lib/security/rate-limit";
-import {addContentEvidence,contentEvidenceSchema,parseMediaRightsForm,readRightsProof,recordMediaRights,reviewMediaRights,revokeContentEvidence,revokeMediaRights} from "@/features/video/media-rights-service";
+import {addContentEvidence,contentEvidenceSchema,parseMediaRightsForm,readRightsProof,recordMediaRights,reviewMediaRights,revokeContentEvidence,revokeMediaRights,saveOwnerVoice} from "@/features/video/media-rights-service";
 const uuid=z.string().uuid();
 async function auth(){const userClient=await createClient(),{data}=await userClient.auth.getUser();if(!data.user)throw new Error("Authentication required");await enforceOwnerMutationRateLimit("media-rights",data.user.id);return {client:createAdminClient(),owner:data.user.id}}
 const done=()=>revalidatePath("/video-factory/rights");
@@ -26,4 +26,8 @@ export async function addContentEvidenceAction(formData:FormData){
 }
 export async function revokeContentEvidenceAction(formData:FormData){
   const id=uuid.parse(formData.get("evidenceId")),{client,owner}=await auth();await revokeContentEvidence(client,owner,id);done();
+}
+export async function uploadOwnerVoiceAction(formData:FormData){
+  const projectId=uuid.parse(formData.get("projectId"));z.literal("on").parse(formData.get("ownVoice"));
+  const {client,owner}=await auth();await saveOwnerVoice(client,owner,projectId,formData.get("voice"));done();revalidatePath(`/creative-studio/${projectId}`);
 }
