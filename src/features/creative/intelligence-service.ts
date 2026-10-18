@@ -6,6 +6,7 @@ import type {CreativeOutcome} from "../analytics/creative-learning";
 import type {TrendObservation} from "../growth-manager/topics";
 import {ownsVideoStoragePath} from "../video/storage";
 import {readCreativeAttribution} from "./self-learning";
+import {strategyAssetFromLedger,strategyFactFromEvidence,type ContentEvidenceRow,type MediaRightsRecord} from "../video/media-rights";
 
 type Row=Record<string,unknown>;
 const optionalMissing=(error:{code?:string}|null)=>error&&["42P01","PGRST205"].includes(error.code??"");
@@ -68,13 +69,24 @@ export async function readCreativeIntelligenceResources(client:SupabaseClient,ow
     }
   }
   const availableAssets=(assets.data??[]).filter(a=>ownsVideoStoragePath(owner,String(a.storage_path))&&["PRODUCT_IMAGE","IMAGE","VIDEO"].includes(a.asset_type));
+  // Upload/catalog presence does not attest rights or product identity; only the reviewed ledger does.
+  const [rights,evidence]=await Promise.all([
+    availableAssets.length?client.from("media_asset_rights").select("id,media_asset_id,product_id,origin_source,asset_role,allows_commercial,allows_edit,platform_scope,account_scope,review_state,expires_at,revoked_at")
+      .eq("owner_id",owner).in("media_asset_id",availableAssets.map(a=>String(a.id))):{data:[],error:null},
+    client.from("content_evidence").select("id,product_id,topic,statement,source,source_reference,role,captured_at,revoked_at").eq("owner_id",owner).eq("product_id",context.product.id),
+  ]);
+  if((rights.error&&!optionalMissing(rights.error))||(evidence.error&&!optionalMissing(evidence.error)))throw new Error("CREATIVE_INTELLIGENCE_SOURCE_UNAVAILABLE");
+  const ledger=new Map(((rights.data??[]) as MediaRightsRecord[]).map(r=>[r.media_asset_id,r]));
+  const strategyAssets=availableAssets.map(a=>strategyAssetFromLedger({id:String(a.id),product_id:a.product_id?String(a.product_id):null,asset_type:String(a.asset_type),
+    source_type:String(a.source_type),storage_path:String(a.storage_path),duration_seconds:metric(a.duration_seconds)},ledger.get(String(a.id)),{at:now,accountId}))
+    .filter((a):a is NonNullable<typeof a>=>a!==null);
+  const facts=((evidence.data??[]) as ContentEvidenceRow[]).map(row=>strategyFactFromEvidence(row,now)).filter(f=>f.verified);
+  const clearedAssetCount=strategyAssets.filter(a=>a.rightsConfirmed&&a.reviewed).length;
   const resources:CreativeIntelligenceResources={ownerId:owner,now,optedIn,affiliateEligible,realAccount,adaptiveHistory:history,
-    facts:[],trends:options.trends??[],outcomes,mechanism:"UNKNOWN",
-    // Upload/catalog presence does not attest rights, real product identity, or correct mechanism operation.
-    assets:availableAssets.map(a=>({id:String(a.id),kind:a.asset_type==="VIDEO"?"REAL_FOOTAGE":"REAL_IMAGE",source:a.source_type==="UPLOAD"?"OWNER":"AUTHORIZED_CATALOG",
-      reference:String(a.storage_path),productId:String(a.product_id),durationSeconds:metric(a.duration_seconds)??undefined,rightsConfirmed:false,reviewed:false}))};
-  return {resources,evidenceReadiness:{availableAssetCount:availableAssets.length,verifiedProductFactCount:0,
-    reason:"ภาพอัปโหลดและข้อมูลสินค้าเดิมยังไม่ใช่หลักฐานที่ผ่านการตรวจสิทธิ์และความถูกต้อง",analyticsWindow:"Latest 200 snapshots within 30 days; partial coverage is not total account performance"}};
+    facts,trends:options.trends??[],outcomes,mechanism:"UNKNOWN",assets:strategyAssets};
+  return {resources,evidenceReadiness:{availableAssetCount:availableAssets.length,rightsClearedAssetCount:clearedAssetCount,verifiedProductFactCount:facts.length,
+    reason:clearedAssetCount||facts.length?"ใช้เฉพาะสื่อและข้อเท็จจริงที่บันทึกสิทธิ์และตรวจแล้ว":"ภาพอัปโหลดและข้อมูลสินค้าเดิมยังไม่ใช่หลักฐานที่ผ่านการตรวจสิทธิ์และความถูกต้อง",
+    analyticsWindow:"Latest 200 snapshots within 30 days; partial coverage is not total account performance"}};
 }
 
 /** Retained diagnostic summary for existing callers; production creative generation uses the LLM orchestrator. */
