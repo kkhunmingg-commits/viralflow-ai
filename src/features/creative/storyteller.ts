@@ -79,11 +79,11 @@ export function planGrowthStory(topic: string, facts: GrowthFact[], history: Sto
       used = [numeric];
       if (hook) beats = [{ role: "HOOK", text: hook, badge: n }, { role: "POINT", text: numeric.text, kicker: t }, { role: "CTA", text: cta }];
     } else if (format === "QUIZ_REVEAL") {
-      const hook = pickFresh([`ทายดู ${t} ทำไมได้ผล?`, `คิดว่า${t}ทำงานยังไง?`, `ทายก่อนเฉลย: ${t}`], history.hooks, s);
+      const hook = pickFresh([`ทายก่อนเฉลย: ${t}`, `รู้คำตอบไหม? ${t}`, `ทายดู ${t} เพราะอะไร?`], history.hooks, s);
       used = [usable[0]];
       if (hook) beats = [{ role: "HOOK", text: hook, kicker: "ทายก่อน", badge: "?" }, { role: "POINT", text: usable[0].text, kicker: "เฉลย" }, { role: "CTA", text: cta }];
     } else {
-      const hook = pickFresh([`${t} ทำงานยังไง?`, `เคยสงสัยไหม ${t}`, `ความลับของ${t}`], history.hooks, s);
+      const hook = pickFresh([`เคยสงสัยไหม ${t}`, `ความลับของ${t}`, `หลายคนไม่รู้ ${t}`], history.hooks, s);
       used = usable.slice(0, 2);
       if (hook) beats = [{ role: "HOOK", text: hook, kicker: "รู้หรือไม่" }, ...used.map(f => ({ role: "POINT" as const, text: f.text })), { role: "CTA", text: cta }];
     }
