@@ -1,0 +1,86 @@
+{
+  "ranAt": "2026-10-18T19:31:30.318Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "results": {
+    "affiliate": {
+      "projectId": "27cddbfe-c925-4f28-b5bf-846333cf46a7",
+      "masterId": "eac96c90-61d9-4f12-acae-7e3eedf92ee6",
+      "selected": {
+        "id": "real-image-detail",
+        "method": "REAL_IMAGE_MOTION"
+      },
+      "script": {
+        "hook_text": "ก่อนเลือก ดูส่วนนี้ก่อน",
+        "voice_script": "ก่อนเลือก ดูส่วนนี้ก่อน สังเกตรายละเอียดจากภาพสินค้าจริง ดูรายละเอียดสินค้าก่อนตัดสินใจ",
+        "cta_text": "ดูรายละเอียดสินค้าก่อนตัดสินใจ",
+        "caption": "ขวดน้ำเก็บความเย็น ฟ้าเย็น 500 มล. : ดูรายละเอียดก่อนเลือก: สังเกตรายละเอียดจากภาพสินค้าจริง"
+      },
+      "master": {
+        "id": "eac96c90-61d9-4f12-acae-7e3eedf92ee6",
+        "status": "READY",
+        "quality_status": "RETRY",
+        "quality_score": 80,
+        "quality_explanation_json": {
+          "checks": [
+            {
+              "name": "DURATION",
+              "detail": "8.00s",
+              "passed": true
+            },
+            {
+              "name": "RESOLUTION",
+              "detail": "1080x1920",
+              "passed": true
+            },
+            {
+              "name": "AUDIO_TRACK",
+              "detail": "aac",
+              "passed": true
+            },
+            {
+              "name": "VOICE",
+              "detail": "no narration; owner voice or licensed TTS required",
+              "passed": false
+            },
+            {
+              "name": "LOUDNESS",
+              "detail": "silent",
+              "passed": true
+            }
+          ],
+          "sources": [
+            {
+              "assetId": "5d13d499-76f0-4e4c-9064-9da54dbb0539",
+              "rightsId": "3e5a30b5-d699-4563-9acf-b75657502fab"
+            }
+          ],
+          "composer": "real-media-composer-v1",
+          "narration": {
+            "kind": "NONE",
+            "reason": "thai_tts_too_long"
+          },
+          "loudnessLufs": null,
+          "aiGeneratedVoice": false,
+          "requiresHumanReview": true
+        },
+        "storage_path": "owner/10571f0f-9919-4aa1-8269-c50e84a4f9e3/masters/eac96c90-61d9-4f12-acae-7e3eedf92ee6/master.mp4",
+        "model": "real-media-composer-v1",
+        "estimated_cost_usd": 0
+      },
+      "timings": {
+        "creativeSeconds": 0.338,
+        "renderSeconds": 362.321
+      }
+    }
+  },
+  "publishingGuard": {
+    "sandbox": [],
+    "otherAccount": [
+      "ACCOUNT_OUT_OF_SCOPE"
+    ]
+  },
+  "env": {
+    "creative": "evidence-rubric",
+    "tts": "voxcpm2"
+  }
+}
