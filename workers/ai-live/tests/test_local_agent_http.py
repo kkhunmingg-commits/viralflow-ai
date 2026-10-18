@@ -180,6 +180,19 @@ class LoopbackHTTPTests(unittest.TestCase):
                                           headers={"Content-Type": "application/json"})
         self.assertEqual((status, result["code"]), (400, "INVALID_START_REQUEST"))
 
+    def test_start_accepts_only_the_optional_live_mode_key(self) -> None:
+        token = self.pair()
+        base = {"grant": {}, "accountId": ACCOUNT, "productIds": [PRODUCT],
+                "presenterId": "ffffffff-ffff-4fff-8fff-ffffffffffff", "microphoneId": None}
+        status, _, result = self.request("POST", "/v1/sessions/start", self.json_body({**base, "liveMode": "lite"}),
+                                          token=token, headers={"Content-Type": "application/json"})
+        self.assertNotEqual(result.get("code"), "INVALID_START_REQUEST")  # shape accepted; grant check follows
+        status, _, result = self.request("POST", "/v1/sessions/start",
+                                          self.json_body({**base, "liveMode": "lite", "mode": "lite"}),
+                                          token=token, headers={"Content-Type": "application/json"})
+        self.assertEqual((status, result["code"]), (400, "INVALID_START_REQUEST"))
+        self.assertEqual(self.worker.calls, [])
+
     def test_slow_body_times_out(self) -> None:
         with patch("local_agent.http_server.SOCKET_TIMEOUT_SECONDS", 0.1), \
              patch("local_agent.http_server.BODY_DEADLINE_SECONDS", 0.2):

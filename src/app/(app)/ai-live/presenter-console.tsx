@@ -5,7 +5,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
-import { LocalLiveClient, type LocalMachineView, type LocalPresenterCard } from "@/features/ai-live/local-client";
+import { LocalLiveClient, type LiveMode, type LocalMachineView, type LocalPresenterCard } from "@/features/ai-live/local-client";
 import { customerRoomRuntime, machineForAccount, type CustomerRoomRuntime } from "@/features/ai-live/customer-room-view";
 import { PassivePresenterRequests } from "@/features/ai-live/passive-presenter-requests";
 import { customerConnectionQuality, customerLiveStatus } from "@/features/ai-live/customer-stream-status";
@@ -67,8 +67,10 @@ function machineDescription(view: LocalMachineView | null): string {
   }
 }
 
-export function LivePresenterConsole({ accounts, products, accountId, productId, productIds, onReferenceChange, onProductChange, onAccountChange, onRuntimeChange, controlsRef, embedded = false }: {
+export function LivePresenterConsole({ accounts, products, accountId, productId, productIds, onReferenceChange, onProductChange, onAccountChange, onRuntimeChange, controlsRef, embedded = false, liveMode = "pro" }: {
   accounts: Choice[]; products: ProductChoice[]; accountId?: string; productId?: string; productIds?: string[];
+  /** LIVE Pro (default) or LIVE Lite Auto, which never uses a microphone. */
+  liveMode?: LiveMode;
   onProductChange?: (productId: string) => void;
   onReferenceChange?: (reference: File | null) => void;
   onAccountChange?: (accountId: string) => void; onRuntimeChange?: (runtime: CustomerRoomRuntime) => void;
@@ -90,6 +92,8 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
   const [systemPreview, setSystemPreview] = useState<string | null>(null);
   const [microphoneReady, setMicrophoneReady] = useState(false);
   const [microphoneLabel, setMicrophoneLabel] = useState("");
+  const microphoneRequired = liveMode !== "lite";
+  const microphoneSatisfied = !microphoneRequired || microphoneReady;
   const [pairCode, setPairCode] = useState("");
   const [action, setActionState] = useState<Action>(null);
   const [passivePresenterReads] = useState(() => new PassivePresenterRequests());
@@ -283,7 +287,7 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
       const result = machine?.paired ? await client.checkHardware(signal) : await client.discover(signal);
       if (result.deviceAuthorized && presenter && accountSelectionReady && productSelectionReady) {
         await client.prepareAI(signal, { accountId: selectedAccount, productIds: selectedProductIds,
-          presenter, microphoneId: microphoneReady ? "default" : null });
+          presenter, microphoneId: microphoneRequired && microphoneReady ? "default" : null, liveMode });
       }
       return client.snapshot();
     }); }
@@ -294,11 +298,12 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
   async function startLive() {
     if (action || !machine?.canStart || !accountSelectionReady
       || selectedMachine?.sessionActive || machine.capacity?.status !== "VERIFIED" || !machine.capacity.canStartAnotherRoom
-      || !productSelectionReady || !presenter || !microphoneReady) return;
+      || !productSelectionReady || !presenter || !microphoneSatisfied) return;
     setAction("start"); setError(null);
     try {
       await requestMachine((client, signal) => client.start({
-        accountId: selectedAccount, productIds: selectedProductIds, presenter, microphoneId: "default",
+        accountId: selectedAccount, productIds: selectedProductIds, presenter,
+        microphoneId: microphoneRequired ? "default" : null, liveMode,
       }, signal));
     } catch { if (mountedRef.current) setError("เริ่ม AI LIVE ไม่สำเร็จ กรุณาตรวจสอบเครื่องแล้วลองอีกครั้ง"); }
     finally { if (mountedRef.current) setAction(null); }
@@ -394,9 +399,9 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
 
   useEffect(() => {
     onRuntimeChange?.(customerRoomRuntime({ accountId: selectedAccount, machine, imageReady: !!presenter,
-      microphoneReady, productsReady: productSelectionReady,
+      microphoneReady: microphoneSatisfied, productsReady: productSelectionReady,
       busy: !!action, accountReady: accountSelectionReady }));
-  }, [onRuntimeChange, selectedAccount, machine, presenter, microphoneReady, productSelectionReady, action, accountSelectionReady]);
+  }, [onRuntimeChange, selectedAccount, machine, presenter, microphoneSatisfied, productSelectionReady, action, accountSelectionReady]);
 
   async function checkUpdates() {
     if (action || !machine?.paired) return;
@@ -422,7 +427,7 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
   const showPairing = machine && !machine.paired && !["NOT_INSTALLED", "OFFLINE", "INSTALLING"].includes(machine.state);
   const canStart = !!selectedMachine?.canStart && selectedMachine.deviceAuthorized && !selectedMachine.sessionActive && !action
     && machine?.capacity?.status === "VERIFIED" && machine.capacity.canStartAnotherRoom
-    && accountSelectionReady && productSelectionReady && !!presenter && microphoneReady;
+    && accountSelectionReady && productSelectionReady && !!presenter && microphoneSatisfied;
   const components = machine?.components;
   const liveStatus = components?.state === "READY" && !selectedMachine?.canStart && !selectedMachine?.sessionActive
     ? "กำลังเตรียมพร้อม" : customerLiveStatus(selectedMachine, action === "start" || action === "stop" ? action : null);
@@ -493,12 +498,13 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
           </select>
         </label>}
         {products.length === 0 && <p className="ai-live-help">ยังไม่มีสินค้าให้เลือก</p>}
-        <div className="ai-live-field"><span>ไมโครโฟน</span>
+        {microphoneRequired ? <div className="ai-live-field"><span>ไมโครโฟน</span>
           <div className="ai-live-microphone-row">
             <span className="ai-live-microphone-name">{microphoneReady ? microphoneLabel : "ยังไม่ได้ตรวจสอบไมโครโฟน"}</span>
             <button type="button" className="ai-live-secondary" disabled={!!selectedMachine?.sessionActive} onClick={() => void chooseMicrophone()}>{microphoneReady ? "ตรวจสอบอีกครั้ง" : "ตรวจสอบไมโครโฟน"}</button>
           </div><small>ระบบจะใช้ไมโครโฟนเริ่มต้นของเครื่อง และขอสิทธิ์เมื่อคุณกดตรวจสอบเท่านั้น</small>
-        </div>
+        </div> : <div className="ai-live-field"><span>ไมโครโฟน</span>
+          <small>LIVE Lite Auto ไม่ใช้ไมโครโฟน พิธีกร AI จะพูดอัตโนมัติ</small></div>}
         <div className="ai-live-live-actions">
           <button className="primary-action" type="button" disabled={!canStart} onClick={() => void startLive()}>{action === "start" ? "กำลังเตรียม..." : "เริ่ม LIVE"}</button>
           <button className="danger-action" type="button" disabled={!selectedMachine?.sessionActive || !!action} onClick={() => void stopLive()}>{action === "stop" ? "กำลังหยุด..." : "หยุด LIVE"}</button>

@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { customerMetric, readinessLabel, type CustomerRoomRuntime, type LiveReadinessKey } from "@/features/ai-live/customer-room-view";
-import type { LocalPresenterCard } from "@/features/ai-live/local-client";
+import type { LiveMode, LocalPresenterCard } from "@/features/ai-live/local-client";
 import { LivePresenterConsole, type PresenterConsoleHandle } from "./presenter-console";
 import { PresenterStudio } from "./presenter-studio";
 import { liveObservationSummary } from "./live-observation-summary";
@@ -22,6 +22,11 @@ type RoomDraft = { title: string; category: string; durationMinutes: string; pro
 const readinessNames: Record<LiveReadinessKey, string> = {
   image: "ภาพ", audio: "เสียง", brain: "AI", presenter: "คน LIVE", products: "สินค้า", connection: "การเชื่อมต่อ", backupVoice: "เสียงสำรอง",
 };
+const liveModeChoices: { mode: LiveMode; label: string; description: string }[] = [
+  { mode: "pro", label: "LIVE Pro", description: "คน LIVE แบบเต็มรูปแบบ ใช้ไมโครโฟนของเครื่อง" },
+  { mode: "lite", label: "LIVE Lite Auto", description: "พิธีกร AI อัตโนมัติ สำหรับเครื่องสเปกต่ำ (ไม่ใช้ไมค์)" },
+];
+const liteModeNotice = "โหมดทดสอบทางเทคนิค ยังไม่รองรับ TikTok LIVE เชิงพาณิชย์จนกว่าจะยืนยันนโยบาย";
 const emptyDraft: RoomDraft = { title: "", category: "", durationMinutes: "", productIds: [], presenterName: null, reference: null };
 
 export function AiLiveControlRoom({ accounts, products, observations = [] }: {
@@ -33,6 +38,8 @@ export function AiLiveControlRoom({ accounts, products, observations = [] }: {
   const [studioOpen, setStudioOpen] = useState(false);
   const [presenters, setPresenters] = useState<LocalPresenterCard[]>([]);
   const [clock, setClock] = useState<number | null>(null);
+  // LIVE Pro stays the default; the choice applies to the next START LIVE.
+  const [liveMode, setLiveMode] = useState<LiveMode>("pro");
   const controls = useRef<PresenterConsoleHandle | null>(null);
   const roomElement = useRef<HTMLElement | null>(null);
   const focusedAccount = selectedAccount;
@@ -76,7 +83,8 @@ export function AiLiveControlRoom({ accounts, products, observations = [] }: {
       <select value={focusedAccount} onChange={(event) => openRoom(event.target.value)}>{accounts.map((account) => <option value={account.id} key={account.id}>{account.label}</option>)}</select></label>
       <div className="live-card-actions"><button type="button" onClick={() => openRoom(focusedAccount)}>เตรียมห้อง</button>
         <button type="button" className="primary-action" disabled={!runtime?.canStart || runtime.accountId !== focusedAccount} onClick={() => void controls.current?.start()}>เริ่ม LIVE</button>
-        <button type="button" className="live-text-danger" disabled={!focusedActive} onClick={() => void controls.current?.stop(focusedAccount)}>หยุด LIVE</button></div></section>}
+        <button type="button" className="live-text-danger" disabled={!focusedActive} onClick={() => void controls.current?.stop(focusedAccount)}>หยุด LIVE</button></div>
+      <LiveModeChoice value={liveMode} disabled={focusedActive} onChange={setLiveMode} /></section>}
     <section className="live-overview" aria-label="ภาพรวม AI LIVE">
       <div><span>กำลัง LIVE บนเครื่องนี้</span><strong>{customerMetric(runtime?.canManagePresenters ? runtime.rooms.filter((room) => room.status === "กำลัง LIVE").length : null, " บัญชี")}</strong></div>
       <div><span>ห้องที่เลือกพร้อมเริ่ม</span><strong>{customerMetric(runtime?.canManagePresenters ? runtime.canStart ? 1 : 0 : null, " บัญชี")}</strong></div>
@@ -156,7 +164,7 @@ export function AiLiveControlRoom({ accounts, products, observations = [] }: {
         <button type="button" className="primary-action" disabled={!runtime?.canStart || runtime.accountId !== focusedAccount} onClick={() => void controls.current?.start()}>เริ่ม LIVE</button></div>
       <LivePresenterConsole accounts={runtimeAccounts} products={filteredProducts} accountId={focusedAccount} productId={focusedActive ? runtime.currentProductId ?? "" : currentDraft.productIds[0] ?? ""}
         productIds={currentDraft.productIds} onReferenceChange={(file) => updateDraft({ reference: file, presenterName: null })}
-        onAccountChange={openRoom} controlsRef={controls} onRuntimeChange={updateRuntime} embedded />
+        onAccountChange={openRoom} controlsRef={controls} onRuntimeChange={updateRuntime} liveMode={liveMode} embedded />
       <section className="live-conversation" aria-labelledby="live-conversation-title"><header className="live-section-heading"><h3 id="live-conversation-title">ระหว่าง LIVE</h3></header>
         <dl className="live-room-metrics"><div><dt>ผู้ชม</dt><dd>{customerMetric(currentObservation?.viewers)}</dd></div><div><dt>ความคิดเห็น</dt><dd>{customerMetric(currentObservation?.comments)}</dd></div><div><dt>ยอดขาย</dt><dd>{customerMetric(currentObservation?.sales)}</dd></div><div><dt>ขายแล้ว</dt><dd>{customerMetric(currentObservation?.units)}</dd></div>
           <div><dt>ยอดขาย / ชั่วโมง</dt><dd>{customerMetric(currentObservation?.salesPerHour)}</dd></div><div><dt>สถานะคน LIVE</dt><dd>{currentObservation?.presenterState === "SPEAKING" ? "กำลังพูด" : currentObservation?.presenterState === "IDLE" ? "รอพูด" : "ยังไม่มีข้อมูล"}</dd></div>
@@ -171,6 +179,18 @@ export function AiLiveControlRoom({ accounts, products, observations = [] }: {
       </section>
     </section>
   </div>;
+}
+
+/** Mode for the next START LIVE. Lite is a technical test mode and makes no platform claim. */
+export function LiveModeChoice({ value, disabled = false, onChange }: { value: LiveMode; disabled?: boolean; onChange: (mode: LiveMode) => void }) {
+  return <>
+    <fieldset className="live-mode-choice" disabled={disabled}><legend>โหมด LIVE</legend>
+      {liveModeChoices.map((choice) => <label key={choice.mode} className={value === choice.mode ? "selected" : ""}>
+        <input type="radio" name="live-mode" value={choice.mode} checked={value === choice.mode} onChange={() => onChange(choice.mode)} />
+        <span><strong>{choice.label}</strong><small>{choice.description}</small></span></label>)}
+    </fieldset>
+    {value === "lite" && <p className="live-mode-notice" role="note">{liteModeNotice}</p>}
+  </>;
 }
 
 function scheduledTime(value: string | null | undefined): string {

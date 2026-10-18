@@ -5,11 +5,26 @@ export type { LocalMachineView } from "./local-contract";
 const AGENT_ORIGIN = "http://127.0.0.1:8766";
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Json = Record<string, unknown>;
+/** "pro" is the original realtime presenter; "lite" is LIVE Lite Auto (no microphone). */
+export type LiveMode = "pro" | "lite";
+export const DEFAULT_LIVE_MODE: LiveMode = "pro";
+export function isLiveMode(value: unknown): value is LiveMode {
+  return value === "pro" || value === "lite";
+}
 interface StartLocalLive {
   accountId: string;
   productIds: string[];
   presenter: File;
   microphoneId: string | null;
+  /** Missing means LIVE Pro, so older callers keep their exact request shape. */
+  liveMode?: LiveMode;
+}
+/** Only Lite adds a request key; Pro requests stay byte-identical for older agents. */
+function liveModeField(input: { liveMode?: unknown; microphoneId: string | null }): { liveMode?: "lite" } {
+  const mode = input.liveMode ?? DEFAULT_LIVE_MODE;
+  if (!isLiveMode(mode)) throw new Error("โหมด LIVE ไม่ถูกต้อง");
+  if (mode === "lite" && input.microphoneId !== null) throw new Error("โหมด LIVE Lite Auto ไม่ใช้ไมโครโฟน");
+  return mode === "lite" ? { liveMode: "lite" } : {};
 }
 export interface LocalPresenterCard {
   id: string; name: string; voiceLabel: string; assignedAccountIds: string[];
@@ -238,6 +253,7 @@ export class LocalLiveClient {
       if (!uuid.test(input.accountId) || !input.productIds.length || input.productIds.length > 10
         || input.productIds.some((id) => !uuid.test(id)) || !["image/jpeg", "image/png"].includes(input.presenter.type)
         || !input.presenter.size || input.presenter.size > 4 * 1024 * 1024) throw new Error("กรุณาเลือกบัญชี สินค้า และคน LIVE");
+      const mode = liveModeField(input);
       const context = await this.cloudRequest("/api/ai-live/product-context", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deviceId: this.deviceId, accountId: input.accountId, productIds: input.productIds }),
@@ -249,7 +265,7 @@ export class LocalLiveClient {
       }, signal);
       if (typeof reference.presenterId !== "string" || !uuid.test(reference.presenterId)) throw new Error("เตรียมคน LIVE ไม่สำเร็จ");
       selection = { accountId: input.accountId, productIds: input.productIds,
-        presenterId: reference.presenterId, microphoneId: input.microphoneId };
+        presenterId: reference.presenterId, microphoneId: input.microphoneId, ...mode };
     }
     await this.request("/v1/ai/warmup", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(selection) }, signal);
@@ -340,8 +356,11 @@ export class LocalLiveClient {
     return this.checkComponents(signal);
   }
 
-  async start(input: { accountId: string; productIds: string[]; presenter: File; microphoneId: string }, signal?: AbortSignal): Promise<LocalMachineView> {
+  async start(input: { accountId: string; productIds: string[]; presenter: File; microphoneId: string | null; liveMode?: LiveMode }, signal?: AbortSignal): Promise<LocalMachineView> {
     if (!this.current.canStart || !this.current.deviceAuthorized || !this.token || !this.deviceId) throw new Error("AI LIVE ยังไม่พร้อมสำหรับการเริ่มไลฟ์");
+    const mode = liveModeField(input);
+    // LIVE Pro still requires the checked default microphone, exactly as before.
+    if (!mode.liveMode && typeof input.microphoneId !== "string") throw new Error("กรุณาตรวจสอบไมโครโฟน");
     if (!uuid.test(input.accountId) || !input.productIds.length || input.productIds.some((id) => !uuid.test(id))) throw new Error("กรุณาเลือกบัญชีและสินค้า");
     if (!["image/jpeg", "image/png"].includes(input.presenter.type) || input.presenter.size > 4 * 1024 * 1024) throw new Error("กรุณาเลือกภาพที่รองรับ ขนาดไม่เกิน 4 MB");
     const challenge = await this.request("/v1/challenge", {}, signal);
@@ -363,7 +382,7 @@ export class LocalLiveClient {
     if (typeof reference.presenterId !== "string" || !uuid.test(reference.presenterId)) throw new Error("เตรียมพรีเซนเตอร์ไม่สำเร็จ");
     const result = await this.request("/v1/sessions/start", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ grant, accountId: input.accountId, productIds: input.productIds, presenterId: reference.presenterId, microphoneId: input.microphoneId }),
+      body: JSON.stringify({ grant, accountId: input.accountId, productIds: input.productIds, presenterId: reference.presenterId, microphoneId: input.microphoneId, ...mode }),
     }, signal);
     if (typeof result.sessionId === "string" && uuid.test(result.sessionId)) this.sessionId = result.sessionId;
     this.current = projectLocalMachine(result, true);

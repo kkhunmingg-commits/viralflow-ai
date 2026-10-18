@@ -25,4 +25,12 @@ describe("customer AI LIVE screen", () => {
     expect(html).not.toContain("กำลัง LIVE");
     expect(html).not.toMatch(/OBS|TikTok Studio|Virtual Camera|Virtual Audio|RTMPS?|FFmpeg|MuseTalk|CUDA|NVENC|8766/);
   });
+  it("hides the microphone choice in LIVE Lite Auto and keeps it for the default LIVE Pro", () => {
+    const pro = renderToStaticMarkup(<LivePresenterConsole accounts={[]} products={[]} />);
+    expect(pro).toContain("ตรวจสอบไมโครโฟน");
+    const lite = renderToStaticMarkup(<LivePresenterConsole accounts={[]} products={[]} liveMode="lite" />);
+    expect(lite).not.toContain("ตรวจสอบไมโครโฟน");
+    expect(lite).toContain("LIVE Lite Auto ไม่ใช้ไมโครโฟน");
+    expect(lite).toMatch(/<button[^>]*disabled=""[^>]*>เริ่ม LIVE<\/button>/);
+  });
 });

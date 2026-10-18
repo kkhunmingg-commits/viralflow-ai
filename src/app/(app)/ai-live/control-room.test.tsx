@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 vi.mock("client-only", () => ({}));
-import { AiLiveControlRoom } from "./control-room";
+import { AiLiveControlRoom, LiveModeChoice } from "./control-room";
 
 const accounts = [{ id: "account-a", label: "@Alice", connected: true }, { id: "account-b", label: "@Bob", connected: true }];
 describe("consumer multi-account AI LIVE room", () => {
@@ -69,5 +69,26 @@ describe("consumer multi-account AI LIVE room", () => {
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>START LIVE<\/button>/);
     expect(html).toContain("ยังไม่มีข้อมูลความคิดเห็น");
     expect(html).toContain("ยังไม่มีข้อมูลการพูด");
+  });
+  it("offers LIVE Pro and LIVE Lite Auto next to START LIVE with Pro selected by default", () => {
+    const html = renderToStaticMarkup(<AiLiveControlRoom accounts={accounts} products={[]} />);
+    expect(html).toContain("<legend>โหมด LIVE</legend>");
+    expect(html).toMatch(/<input[^>]*checked=""[^>]*value="pro"/);
+    expect(html).not.toMatch(/<input[^>]*checked=""[^>]*value="lite"/);
+    expect(html).toContain("LIVE Lite Auto");
+    expect(html).toContain("พิธีกร AI อัตโนมัติ สำหรับเครื่องสเปกต่ำ (ไม่ใช้ไมค์)");
+    expect(html).not.toContain("โหมดทดสอบทางเทคนิค");
+    // Pro keeps the microphone check exactly as before.
+    expect(html).toContain("ตรวจสอบไมโครโฟน");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>START LIVE<\/button>/);
+  });
+  it("shows the technical-test notice for Lite without claiming TikTok LIVE support", () => {
+    const html = renderToStaticMarkup(<LiveModeChoice value="lite" onChange={() => undefined} />);
+    expect(html).toMatch(/<input[^>]*checked=""[^>]*value="lite"/);
+    expect(html).toContain("โหมดทดสอบทางเทคนิค ยังไม่รองรับ TikTok LIVE เชิงพาณิชย์จนกว่าจะยืนยันนโยบาย");
+    expect(html).not.toMatch(/รองรับ TikTok LIVE แล้ว/);
+    const locked = renderToStaticMarkup(<LiveModeChoice value="pro" disabled onChange={() => undefined} />);
+    expect(locked).toMatch(/<fieldset[^>]*disabled=""/);
+    expect(locked).not.toContain("โหมดทดสอบทางเทคนิค");
   });
 });

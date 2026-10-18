@@ -27,6 +27,9 @@ MAX_REFERENCES = 5
 VERSIONS = {"web": "0.5.0", "agent": "0.5.0", "worker": "0.5.0",
             "model": "musetalk-unvalidated"}
 PROVIDER_MODE = "LOCAL_GPU"
+# "pro" is the original realtime presenter; "lite" is LIVE Lite Auto (no microphone).
+LIVE_MODES = ("pro", "lite")
+DEFAULT_LIVE_MODE = "pro"
 REALTIME_VALIDATED = False  # Release gate; no environment or browser override.
 
 
@@ -36,6 +39,20 @@ class AgentError(RuntimeError):
         self.status = status
         self.code = code
         self.message = message
+
+
+def live_mode_from(body: dict, microphone_id: object) -> str:
+    """Strict optional mode; absent means the unchanged LIVE Pro path."""
+    mode = body.get("liveMode", DEFAULT_LIVE_MODE)
+    if type(mode) is not str or mode not in LIVE_MODES:
+        raise AgentError(422, "LIVE_MODE_INVALID", "โหมด LIVE ไม่ถูกต้อง")
+    if mode == "lite" and microphone_id is not None:
+        raise AgentError(422, "MICROPHONE_NOT_ALLOWED", "โหมด LIVE Lite Auto ไม่ใช้ไมโครโฟน")
+    return mode
+
+
+def supports_live_mode(worker: object, mode: str) -> bool:
+    return mode == DEFAULT_LIVE_MODE or mode in getattr(worker, "live_modes", ())
 
 
 @runtime_checkable
@@ -568,9 +585,10 @@ class LocalAgent:
             raise self._safe_error(exc) from None
         warmup = getattr(self._worker, "warmup", None)
         arguments = ()
+        options: dict[str, str] = {}
         if selection is not None:
             if (not isinstance(selection, dict)
-                    or set(selection) != {"accountId", "productIds", "presenterId", "microphoneId"}
+                    or set(selection) - {"liveMode"} != {"accountId", "productIds", "presenterId", "microphoneId"}
                     or not isinstance(selection["accountId"], str)
                     or not isinstance(selection["presenterId"], str)
                     or not isinstance(selection["productIds"], list)
@@ -583,6 +601,11 @@ class LocalAgent:
             if (not context or context[0] <= self._now() or tuple(selection["productIds"]) != context[1]
                     or not reference or reference.token != token or selection["microphoneId"] not in (None, "default")):
                 raise AgentError(403, "LOCAL_AI_SELECTION_NOT_ALLOWED", "กรุณาเตรียมข้อมูลบัญชีใหม่")
+            live_mode = live_mode_from(selection, selection["microphoneId"])
+            if not supports_live_mode(self._worker, live_mode):
+                raise AgentError(503, "LIVE_MODE_UNAVAILABLE", "เครื่องนี้ยังไม่รองรับโหมด LIVE ที่เลือก")
+            if live_mode != DEFAULT_LIVE_MODE:
+                options["live_mode"] = live_mode
             reference.owner_id = owner
             warmup = getattr(self._worker, "prepare_room", None)
             arguments = (owner, account, tuple(selection["productIds"]), reference.path, selection["microphoneId"])
@@ -596,7 +619,7 @@ class LocalAgent:
             self._ai_warming = True
             def execute():
                 try:
-                    warmup(*arguments)
+                    warmup(*arguments, **options)
                 except Exception:
                     pass  # raw native errors remain in local diagnostics
                 finally:
@@ -1009,6 +1032,11 @@ class LocalAgent:
         microphone_id = body.get("microphoneId")
         if microphone_id not in (None, "default"):
             raise AgentError(422, "MICROPHONE_NOT_ALLOWED", "ไม่พบไมโครโฟนที่เลือก")
+        live_mode = live_mode_from(body, microphone_id)
+        if not supports_live_mode(self._worker, live_mode):
+            raise AgentError(503, "LIVE_MODE_UNAVAILABLE", "เครื่องนี้ยังไม่รองรับโหมด LIVE ที่เลือก")
+        # LIVE Pro keeps its original worker call; only Lite adds the keyword.
+        start_options = {} if live_mode == DEFAULT_LIVE_MODE else {"live_mode": live_mode}
         presenter_id = body.get("presenterId")
         if not isinstance(presenter_id, str):
             raise AgentError(422, "PRESENTER_REQUIRED", "กรุณาเลือกรูปผู้นำเสนอ")
@@ -1052,7 +1080,7 @@ class LocalAgent:
             try:
                 session_id = self._worker.start_session(grant.owner_id, grant.account_id,
                                                         grant.product_ids, reference.path,
-                                                        microphone_id)
+                                                        microphone_id, **start_options)
             except AgentError:
                 raise
             except Exception as exc:

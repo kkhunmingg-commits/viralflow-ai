@@ -297,7 +297,8 @@ class _Handler(BaseHTTPRequestHandler):
                 self.close_connection = True
             elif method == "POST" and self.path == "/v1/sessions/start":
                 request = self._json_body()
-                if set(request) != {"grant", "accountId", "productIds", "presenterId", "microphoneId"}:
+                # "liveMode" is optional; its value is validated strictly by the agent.
+                if set(request) - {"liveMode"} != {"grant", "accountId", "productIds", "presenterId", "microphoneId"}:
                     raise AgentError(400, "INVALID_START_REQUEST", "ข้อมูลไม่ถูกต้อง")
                 self._send_json(200, agent.start(token, origin, request), origin)
             elif method == "POST" and (match := SESSION_ROUTE.fullmatch(self.path)):

@@ -105,6 +105,16 @@
 .live-quick-controls .ai-live-field { flex: 1 1 220px; max-width: 380px; margin: 0; }
 .live-quick-controls .live-card-actions { flex: 1 1 270px; justify-content: flex-end; }
 .live-quick-controls .primary-action { min-width: 130px; min-height: 48px; font-size: 14px; }
+.live-mode-choice { flex: 1 1 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.live-mode-choice legend { padding: 0 0 8px; color: #c9cfe1; font-size: 12px; }
+.live-mode-choice label { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding: 12px 14px; border: 1px solid #3c4356; border-radius: 13px; cursor: pointer; }
+.live-mode-choice label.selected { border-color: #a48bec; background: #272c44; }
+.live-mode-choice input { flex: none; width: 18px; height: 18px; margin-top: 2px; accent-color: #a48bec; }
+.live-mode-choice span { display: grid; gap: 4px; min-width: 0; }
+.live-mode-choice strong { font-size: 13px; }
+.live-mode-choice small { color: #aeb7d0; font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
+.live-mode-choice:disabled label { cursor: default; opacity: .65; }
+.live-mode-notice { flex: 1 1 100%; margin: 0; padding: 12px 14px; border: 1px solid #66553d; border-radius: 13px; background: #302920; color: #f1d4a6; font-size: 12px; line-height: 1.8; }
 .live-overview { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; padding: 23px 26px; border-radius: 22px; background: linear-gradient(120deg, rgba(84,64,158,.24), rgba(43,64,83,.2)); border: 1px solid rgba(139,124,200,.18); }
 .live-overview > div { display: grid; align-content: start; gap: 13px; min-width: 0; }
 .live-overview span { color: #aebbd1; font-size: 11px; line-height: 1.6; }

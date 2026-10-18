@@ -602,5 +602,87 @@ class MultiRoomProcessTests(unittest.TestCase):
         self.assertEqual(duplicate.exception.code, "SESSION_BUSY")
 
 
+
+class LiveModeProcessTests(unittest.TestCase):
+    """LIVE Pro stays the default child; LIVE Lite Auto gets its own configured child."""
+    setUp = ManagedRuntimeTests.setUp
+    make_bridge = ManagedRuntimeTests.make_bridge
+    start = ManagedRuntimeTests.start
+    products = [{"productId": PRODUCT, "name": "fixture", "version": "1", "facts": {}}]
+
+    def config(self, index):
+        return json.loads(self.processes[index].stdin.writes[0])
+
+    def test_default_pro_config_line_has_no_mode_key_and_no_lite_environment(self):
+        os.environ.update({"AI_LIVE_LITE_PACK_DIR": "pack", "AZURE_SPEECH_KEY": "lite-only"})
+        bridge = self.make_bridge()
+        self.start(bridge)
+        self.assertNotIn("liveMode", self.config(0))
+        self.assertNotIn("AI_LIVE_LITE_PACK_DIR", self.launches[0][1]["env"])
+        self.assertNotIn("AZURE_SPEECH_KEY", self.launches[0][1]["env"])
+        self.assertEqual(bridge._rooms[(OWNER, SESSION)].live_mode, "pro")
+
+    def test_lite_start_launches_a_lite_child_with_only_its_device_settings(self):
+        os.environ.update({"AI_LIVE_LITE_PACK_DIR": "pack", "AI_LIVE_LITE_TTS": "espeak",
+                           "AI_LIVE_WORKER_TOKEN": "do-not-inherit"})
+        bridge = self.make_bridge()
+        self.assertEqual(bridge.start_session(OWNER, ACCOUNT, (PRODUCT,), self.reference, None, live_mode="lite"), SESSION)
+        self.assertEqual(self.config(0)["liveMode"], "lite")
+        environment = self.launches[0][1]["env"]
+        self.assertEqual((environment["AI_LIVE_LITE_PACK_DIR"], environment["AI_LIVE_LITE_TTS"]), ("pack", "espeak"))
+        self.assertNotIn("AI_LIVE_WORKER_TOKEN", environment)
+        self.assertIsNot(bridge._rooms[(OWNER, SESSION)], bridge._probe, "The shared probe stays a Pro child")
+        self.assertEqual(self.processes[0].worker.calls[0], ("start_session", OWNER, ACCOUNT, (PRODUCT,), self.reference, None))
+
+    def test_lite_does_not_require_the_cpu_dev_fallback_permission(self):
+        self.components.profile = "cpu-dev"
+        bridge = self.make_bridge()
+        with patch.dict(os.environ, {"AI_LIVE_DEV_FALLBACK": "false"}):
+            bridge.start_session(OWNER, ACCOUNT, (PRODUCT,), self.reference, None, live_mode="lite")
+        self.assertEqual(self.config(0)["liveMode"], "lite")
+        with self.assertRaises(AgentError) as error:
+            self.make_bridge().start_session(OWNER, "11111111-1111-4111-8111-111111111111", (PRODUCT,), self.reference, None)
+        self.assertEqual(error.exception.code, "DEV_FALLBACK_DISABLED")
+
+    def test_mode_change_after_preparation_replaces_the_prepared_child(self):
+        bridge = self.make_bridge()
+        bridge.sync_product_context(OWNER, ACCOUNT, self.products)
+        bridge.prepare_room(OWNER, ACCOUNT, (PRODUCT,), self.reference, None)
+        pro = self.processes[0]
+        self.assertNotIn("liveMode", self.config(0))
+        bridge.prepare_room(OWNER, ACCOUNT, (PRODUCT,), self.reference, None, live_mode="lite")
+        self.assertTrue(pro.worker.closed, "A Pro child must not serve a Lite room")
+        self.assertEqual(self.config(1)["liveMode"], "lite")
+        self.assertEqual(bridge._prepared[(OWNER, ACCOUNT)].live_mode, "lite")
+        self.start(bridge)  # Pro start after Lite preparation
+        self.assertTrue(self.processes[1].worker.closed)
+        self.assertNotIn("liveMode", self.config(2))
+        self.assertEqual(bridge._rooms[(OWNER, SESSION)].live_mode, "pro")
+        self.assertEqual(self.processes[2].worker.calls[0][0], "sync_product_context")
+
+    def test_same_mode_reuses_the_prepared_child(self):
+        bridge = self.make_bridge()
+        bridge.sync_product_context(OWNER, ACCOUNT, self.products)
+        bridge.prepare_room(OWNER, ACCOUNT, (PRODUCT,), self.reference, None, live_mode="lite")
+        bridge.start_session(OWNER, ACCOUNT, (PRODUCT,), self.reference, None, live_mode="lite")
+        self.assertEqual(len(self.processes), 1)
+        self.assertEqual(bridge._rooms[(OWNER, SESSION)].live_mode, "lite")
+        self.assertFalse(self.processes[0].worker.closed)
+
+    def test_invalid_mode_or_lite_microphone_never_launches(self):
+        bridge = self.make_bridge()
+        for mode, microphone, code in (("LITE", None, "LIVE_MODE_INVALID"), (None, None, "LIVE_MODE_INVALID"),
+                                       (True, None, "LIVE_MODE_INVALID"), ("lite", "default", "MICROPHONE_NOT_ALLOWED")):
+            with self.subTest(mode=mode, microphone=microphone):
+                with self.assertRaises(AgentError) as error:
+                    bridge.start_session(OWNER, ACCOUNT, (PRODUCT,), self.reference, microphone, live_mode=mode)
+                self.assertEqual(error.exception.code, code)
+                with self.assertRaises(AgentError) as error:
+                    bridge.prepare_room(OWNER, ACCOUNT, (PRODUCT,), self.reference, microphone, live_mode=mode)
+                self.assertEqual(error.exception.code, code)
+        self.assertEqual(self.launches, [])
+        self.assertEqual(ManagedRuntimeWorker.live_modes, frozenset({"pro", "lite"}))
+
+
 if __name__ == "__main__":
     unittest.main()

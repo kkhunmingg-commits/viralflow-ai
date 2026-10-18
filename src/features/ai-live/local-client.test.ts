@@ -178,6 +178,55 @@ describe("browser to local companion boundary", () => {
     client.dispose();
   });
 
+  it("adds liveMode only for LIVE Lite Auto warmup and rejects a Lite microphone before any request", async () => {
+    const context = { payload: { purpose: "AI_LIVE_PRODUCT_CONTEXT", products: [] }, signature: "signed-context" };
+    const { mock, fetcher } = responseSequence(
+      { token, expiresAt: nowSeconds + 300, deviceId }, { ...ready, deviceAuthorized: true },
+      { device: { authorized: true }, entitled: true }, context, { synced: true },
+      { presenterId: sessionId }, { preparing: true },
+    );
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    const presenter = new File(["test-reference"], "presenter.jpg", { type: "image/jpeg" });
+    await expect(client.prepareAI(undefined, { accountId, productIds: [productId], presenter, microphoneId: "default", liveMode: "lite" })).rejects.toThrow();
+    await expect(client.prepareAI(undefined, { accountId, productIds: [productId], presenter, microphoneId: null, liveMode: "LITE" as never })).rejects.toThrow();
+    expect(mock).toHaveBeenCalledTimes(3);
+    await client.prepareAI(undefined, { accountId, productIds: [productId], presenter, microphoneId: null, liveMode: "lite" });
+    assertLoopbackCall(mock.mock.calls[6], "/v1/ai/warmup", true);
+    expect(JSON.parse(mock.mock.calls[6][1]?.body as string)).toEqual({ accountId, productIds: [productId], presenterId: sessionId, microphoneId: null, liveMode: "lite" });
+    client.dispose();
+  });
+
+  it("starts LIVE Lite Auto with liveMode and no microphone, keeping the Pro request shape unchanged", async () => {
+    const grant = { payload: { grantId: "grant" }, signature: "signed-grant" };
+    const context = { payload: { purpose: "AI_LIVE_PRODUCT_CONTEXT", products: [] }, signature: "signed-context" };
+    const challenge = { challenge: "c".repeat(43), deviceProof: "proof" };
+    const startResponses = () => [challenge, grant, context, { synced: true }, { presenterId: sessionId },
+      { ...ready, state: "BUSY", sessionActive: true, sessionId }];
+    const { mock, fetcher } = responseSequence(
+      { token, expiresAt: nowSeconds + 300, deviceId }, { ...ready, deviceAuthorized: true },
+      { device: { authorized: true }, entitled: true }, ...startResponses(), ...startResponses(),
+    );
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    const presenter = new File(["test-reference"], "presenter.jpg", { type: "image/jpeg" });
+    // Simulates the future release-validated state; the shipped gate keeps canStart false.
+    const open = () => { Object.assign(client["current"], { canStart: true, deviceAuthorized: true }); };
+    open();
+    await expect(client.start({ accountId, productIds: [productId], presenter, microphoneId: "default", liveMode: "lite" })).rejects.toThrow();
+    await expect(client.start({ accountId, productIds: [productId], presenter, microphoneId: null })).rejects.toThrow();
+    expect(mock).toHaveBeenCalledTimes(3);
+    await client.start({ accountId, productIds: [productId], presenter, microphoneId: null, liveMode: "lite" });
+    assertLoopbackCall(mock.mock.calls[8], "/v1/sessions/start", true);
+    expect(JSON.parse(mock.mock.calls[8][1]?.body as string)).toEqual({ grant, accountId, productIds: [productId],
+      presenterId: sessionId, microphoneId: null, liveMode: "lite" });
+    open();
+    await client.start({ accountId, productIds: [productId], presenter, microphoneId: "default" });
+    expect(JSON.parse(mock.mock.calls[14][1]?.body as string)).toEqual({ grant, accountId, productIds: [productId],
+      presenterId: sessionId, microphoneId: "default" });
+    client.dispose();
+  });
+
   it("reports an absent companion without a cloud or mock fallback", async () => {
     const { mock, fetcher } = responseSequence(new Error("connection refused"));
     const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);

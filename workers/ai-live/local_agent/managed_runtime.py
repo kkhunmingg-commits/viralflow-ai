@@ -12,10 +12,24 @@ import sys
 import uuid
 from pathlib import Path
 
-from .agent import AgentError
+from .agent import DEFAULT_LIVE_MODE, LIVE_MODES, AgentError
 from .security import SecurityError
 
 MAX_MESSAGE = 6 * 1024 * 1024
+# Device-configured LIVE Lite Auto settings reach only Lite children; Pro keeps
+# the original minimal environment.
+LITE_ENVIRONMENT = frozenset({
+    "AI_LIVE_LITE_PACK_DIR", "AI_LIVE_LITE_TTS", "AI_LIVE_LITE_SECONDS_PER_PRODUCT",
+    "AI_LIVE_LITE_PLATFORM_ATTESTATION", "AI_LIVE_LITE_TECHNICAL_TEST",
+    "AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION", "AZURE_SPEECH_VOICE",
+    "GOOGLE_TTS_API_KEY", "GOOGLE_TTS_VOICE",
+})
+
+
+def _live_mode(value) -> str:
+    if type(value) is not str or value not in LIVE_MODES:
+        raise AgentError(422, "LIVE_MODE_INVALID", "โหมด LIVE ไม่ถูกต้อง")
+    return value
 
 
 class WindowsChildJob:
@@ -57,8 +71,11 @@ class WindowsChildJob:
 
 class _ManagedRoomProcess:
     def __init__(self, app_root: Path, components, *, process_factory=subprocess.Popen,
-                 timeout_seconds: float = 30, room_id: str | None = None):
+                 timeout_seconds: float = 30, room_id: str | None = None,
+                 live_mode: str = DEFAULT_LIVE_MODE):
         self.app_root = app_root
+        # Fixed for the child's lifetime: its first config line selects the boundary.
+        self.live_mode = _live_mode(live_mode)
         self.components = components
         self._process_factory = process_factory
         self._timeout = timeout_seconds
@@ -139,7 +156,10 @@ class _ManagedRoomProcess:
                        if name.upper() in {"SYSTEMROOT", "WINDIR", "TEMP", "TMP", "LOCALAPPDATA", "USERPROFILE"}}
         environment.update({"PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1",
                             "PATH": str(root / "runtime"), "HF_HUB_OFFLINE": "1"})
-        if self.components.profile == "cpu-dev":
+        if self.live_mode == "lite":
+            # Lite never uses the dev fallback presenter (the child disables it).
+            environment.update({name: value for name, value in os.environ.items() if name in LITE_ENVIRONMENT})
+        elif self.components.profile == "cpu-dev":
             from provider_config import dev_fallback_enabled
             if not dev_fallback_enabled():
                 raise AgentError(503, "DEV_FALLBACK_DISABLED", "AI LIVE กำลังเตรียมพร้อม")
@@ -167,6 +187,8 @@ class _ManagedRoomProcess:
                 config["localModelFiles"] = {path: files[path] for path in model_paths}
             if self._room_id is not None:
                 config["roomId"] = self._room_id
+            if self.live_mode != DEFAULT_LIVE_MODE:
+                config["liveMode"] = self.live_mode
             self._send(process, json.dumps(config).encode() + b"\n")
             ready = self._responses.get(timeout=self._timeout)
             if ready != {"ready": True}:
@@ -325,7 +347,11 @@ class ManagedRuntimeWorker:
     The authenticated LocalAgent owns measured-capacity admission. This boundary
     additionally caps resource creation and refuses duplicate account lifecycles.
     A timed-out child cannot terminate another room or accept a new session ID.
+    Each child is launched for one LIVE mode; a room prepared for another mode
+    is closed and replaced so a mode change always gets a matching worker.
     """
+    live_modes = frozenset(LIVE_MODES)
+
     def __init__(self, app_root: Path, components, *, process_factory=subprocess.Popen,
                  timeout_seconds: float = 30):
         self.app_root, self.components = app_root, components
@@ -344,9 +370,25 @@ class ManagedRuntimeWorker:
         self._prepared = {}
         self._preparing = {}
 
-    def _new_process(self):
+    def _new_process(self, live_mode=DEFAULT_LIVE_MODE):
         return _ManagedRoomProcess(self.app_root, self.components,
-            process_factory=self._factory, timeout_seconds=self._timeout, room_id=str(uuid.uuid4()))
+            process_factory=self._factory, timeout_seconds=self._timeout, room_id=str(uuid.uuid4()),
+            live_mode=live_mode)
+
+    def _claim_process(self, live_mode):
+        """Caller holds self._lock. The shared probe is always a Pro child."""
+        if live_mode != DEFAULT_LIVE_MODE:
+            return self._new_process(live_mode)
+        process = self._new_process() if self._probe_claimed else self._probe
+        self._probe_claimed = True
+        return process
+
+    @staticmethod
+    def _check_mode(live_mode, microphone_id):
+        live_mode = _live_mode(live_mode)
+        if live_mode == "lite" and microphone_id is not None:
+            raise AgentError(422, "MICROPHONE_NOT_ALLOWED", "โหมด LIVE Lite Auto ไม่ใช้ไมโครโฟน")
+        return live_mode
 
     @staticmethod
     def _missing():
@@ -379,8 +421,11 @@ class ManagedRuntimeWorker:
             self._health_cached = dict(result)
         return result
 
-    def start_session(self, owner_id, account_id, product_ids, presenter_path, microphone_id):
+    def start_session(self, owner_id, account_id, product_ids, presenter_path, microphone_id,
+                      live_mode=DEFAULT_LIVE_MODE):
+        live_mode = self._check_mode(live_mode, microphone_id)
         key = (owner_id, account_id)
+        stale = None
         with self._lock:
             if self._closed:
                 raise AgentError(503, "WORKER_UNAVAILABLE", "กรุณาเปิด ViralFlow ใหม่")
@@ -389,8 +434,13 @@ class ManagedRuntimeWorker:
             if len(self._accounts) + len(self._pending) >= 10:
                 raise AgentError(409, "ROOM_CAPACITY_REACHED", "ใช้จำนวนห้องครบแล้ว")
             self._pending.add(key)
-            process = self._prepared.pop(key, None) or (self._new_process() if self._probe_claimed else self._probe)
-            self._probe_claimed = True
+            process = self._prepared.pop(key, None)
+            if process is not None and process.live_mode != live_mode:
+                stale, process = process, None
+            if process is None:
+                process = self._claim_process(live_mode)
+        if stale is not None:
+            self._discard(stale)
         try:
             context = self._contexts.get(key)
             if context is not None:
@@ -453,17 +503,25 @@ class ManagedRuntimeWorker:
                 process.sync_product_context(owner, account, products)
             self._contexts[(owner, account)] = copy.deepcopy(products)
 
-    def prepare_room(self, owner, account, products, reference, microphone=None):
+    def prepare_room(self, owner, account, products, reference, microphone=None,
+                     live_mode=DEFAULT_LIVE_MODE):
+        live_mode = self._check_mode(live_mode, microphone)
         key = (owner, account)
+        stale = None
         with self._lock:
             if self._closed or key in self._accounts or key in self._pending:
                 raise AgentError(409, "SESSION_BUSY", "บัญชีนี้กำลัง LIVE อยู่")
             if key not in self._prepared and len(self._prepared) + len(self._accounts) >= 10:
                 raise AgentError(409, "ROOM_CAPACITY_REACHED", "ใช้จำนวนห้องครบแล้ว")
-            process = self._prepared.get(key) or (self._new_process() if self._probe_claimed else self._probe)
-            self._probe_claimed = True
+            process = self._prepared.get(key)
+            if process is not None and process.live_mode != live_mode:
+                stale, process = self._prepared.pop(key), None
+            if process is None:
+                process = self._claim_process(live_mode)
             self._pending.add(key)
             self._preparing[key] = process
+        if stale is not None:
+            self._discard(stale)
         try:
             context = self._contexts.get(key)
             if context is None:
@@ -488,6 +546,13 @@ class ManagedRuntimeWorker:
             with self._lock:
                 self._pending.discard(key)
                 self._preparing.pop(key, None)
+
+    def _discard(self, process):
+        """Close a prepared child whose LIVE mode no longer matches the request."""
+        process.close()
+        with self._lock:
+            if process is self._probe:
+                self._probe, self._probe_claimed = self._new_process(), False
 
     def submit_comment(self, owner, session, comment):
         return self._owned(owner, session).submit_comment(owner, session, comment)
