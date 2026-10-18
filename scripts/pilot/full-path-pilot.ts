@@ -57,7 +57,7 @@ async function clearRights(admin:SupabaseClient,owner:string,assetId:string,role
 
 async function runProject(admin:SupabaseClient,user:SupabaseClient,owner:string,assignmentId:string,label:string){
   const timings:Record<string,number>={};let t=Date.now();
-  // Planning runs as the auto worker does (service role); review and rendering run as the signed-in owner.
+  // Planning and rendering run as the server does (service role); only the review runs as the signed-in owner.
   const project=await createProjectFromAssignment(admin,owner,assignmentId);
   const generated=await generateEvidenceStrategyProject(admin,owner,String(project.id),{forAutoWorker:true});timings.creativeSeconds=(Date.now()-t)/1000;
   const plan=generated.intelligence.plan,selected=plan.concepts.find(c=>c.id===plan.selectedConceptId)!;
@@ -68,10 +68,10 @@ async function runProject(admin:SupabaseClient,user:SupabaseClient,owner:string,
   await approveEvidenceCreative(user,owner,String(project.id),String(row.selected_angle_id),String(row.selected_script_id),
     {creativeApproved:true,factualAccuracyApproved:true,mediaRightsApproved:true});
   const script=must(await user.from("scripts").select("hook_text,voice_script,cta_text,caption").eq("id",String(row.selected_script_id)).single(),"script");
-  t=Date.now();const master=await buildMasterVideo(user,owner,String(project.id));timings.renderSeconds=(Date.now()-t)/1000;
-  const stored=must(await user.from("master_videos").select("id,status,quality_status,quality_score,quality_explanation_json,storage_path,model,estimated_cost_usd").eq("id",String(master.id)).single(),"master");
+  t=Date.now();const master=await buildMasterVideo(admin,owner,String(project.id));timings.renderSeconds=(Date.now()-t)/1000;
+  const stored=must(await admin.from("master_videos").select("id,status,quality_status,quality_score,quality_explanation_json,storage_path,model,estimated_cost_usd").eq("id",String(master.id)).single(),"master");
   const file=join(outDir,`${label}.mp4`);
-  const blob=await user.storage.from(videoStorageBucket).download(String(stored.storage_path));
+  const blob=await admin.storage.from(videoStorageBucket).download(String(stored.storage_path));
   if(blob.error||!blob.data)throw new Error(`download: ${blob.error?.message}`);
   await writeFile(file,new Uint8Array(await blob.data.arrayBuffer()));
   log(`${label}.master`,{status:stored.status,quality:stored.quality_status,score:stored.quality_score,timings});
