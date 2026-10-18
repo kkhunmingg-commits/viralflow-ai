@@ -31,7 +31,7 @@ async function sandbox(admin:SupabaseClient,owner:string,mode:"AFFILIATE"|"GROWT
   const assignment=must(await admin.from("product_assignments").insert({owner_id:owner,tiktok_account_id:account.id,product_id:product.id,category_key:"home",score_id:score.id,
     assignment_date:day,rank_for_account:1,effective_mode:mode,final_score:c,status:"SELECTED",score_version:"pilot",reason_json:{pilot:true}}).select("id").single(),"assignment");
   must(await admin.from("auto_account_discovery").insert({owner_id:owner,tiktok_account_id:account.id,mode,verified:true,can_execute:true,affiliate_allowed:mode==="AFFILIATE",
-    valid_until:new Date(Date.now()+86400000).toISOString()}),"permission");
+    valid_until:new Date(Date.now()+86400000).toISOString()}).select("tiktok_account_id").single(),"permission");
   return {accountId:String(account.id),productId:String(product.id),assignmentId:String(assignment.id)};
 }
 
