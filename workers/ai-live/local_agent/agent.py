@@ -14,7 +14,8 @@ from typing import Callable, Protocol, runtime_checkable
 
 from worker_core import LiveError, image_dimensions
 
-from .hardware import HardwareAssessment, HardwareSnapshot, HardwareTiers, assess_hardware, inspect_hardware
+from .hardware import (HardwareAssessment, HardwareSnapshot, HardwareTiers, assess_hardware, assess_lite_hardware,
+                       inspect_hardware)
 from .security import Grant, PairingStore, SecurityError, verify_device_message, verify_ed25519, verify_grant, verify_signed_envelope
 from .device_identity import DeviceIdentity
 from .updater import SafeUpdater
@@ -160,6 +161,7 @@ class _Session:
     product_ids: tuple[str, ...] = ()
     started_at: int | None = None
     operation_lock: object = field(default_factory=threading.RLock, repr=False)
+    live_mode: str = DEFAULT_LIVE_MODE
 
 
 class LocalAgent:
@@ -479,6 +481,25 @@ class LocalAgent:
                                       ("ไม่สามารถตรวจสอบเครื่องนี้ได้",),
                                       {"marker": "GPU_VALIDATION_REQUIRED", "codes": ["HARDWARE_CHECK_FAILED"]})
 
+    def _lite_assessment(self) -> HardwareAssessment:
+        """LIVE Lite: CPU/iGPU admission. Never relaxes LIVE Pro's _assessment."""
+        try:
+            return assess_lite_hardware(self._hardware_probe())
+        except Exception:
+            return HardwareAssessment(False, "UNSUPPORTED", True, ("ไม่สามารถตรวจสอบเครื่องนี้ได้",),
+                                      {"marker": "LITE_TECHNICAL_TEST", "codes": ["HARDWARE_CHECK_FAILED"]})
+
+    def _admissible(self, live_mode: str) -> bool:
+        """Mode-specific machine gate: Pro needs its validated GPU release, Lite its CPU tier."""
+        if live_mode == DEFAULT_LIVE_MODE:
+            return self._validated and self._assessment().compatible
+        return self._lite_assessment().compatible
+
+    def _lite_capacity_ok(self) -> bool:
+        """Unverified capacity admits one LIVE Lite room at a time (technical test scope)."""
+        with self._lock:
+            return not any(session.state != "STOPPED" for session in self._sessions.values()) and not self._starting
+
     def _room_capacity(self, owner_id: str | None) -> dict[str, object]:
         with self._lock:
             # Errors retain their lease until Stop proves resources were released.
@@ -691,11 +712,15 @@ class LocalAgent:
             # A missing bundled encoder can be restored by this preparation.
             # Physical driver/hardware restrictions still block GPU downloads.
             compatible = not codes or all(code == "ENCODER_REQUIRED" for code in codes)
+            lite_codes = self._lite_assessment().diagnostics.get("codes", []) if authorized else ["AUTHORIZATION_REQUIRED"]
+            lite_compatible = all(code == "ENCODER_REQUIRED" for code in lite_codes)
             if self._components.profile == "cpu-dev":
                 from provider_config import dev_fallback_enabled
                 compatible = dev_fallback_enabled() and all(code in {
                     "ENCODER_REQUIRED", "NVIDIA_GPU_REQUIRED", "NVIDIA_DRIVER_REQUIRED", "GPU_MODEL_REQUIRED", "GPU_VRAM_REQUIRED"
                 } for code in codes)
+            # LIVE Lite needs the same runtime on machines Pro does not admit (no NVIDIA).
+            compatible = compatible or lite_compatible
             can_prepare = bool(authorized and compatible and self._component_manifest_url
                                and self._components.transport
                                and (self.config.grant_public_key_pem or self.config.trusted_keys)
@@ -824,6 +849,14 @@ class LocalAgent:
             result["components"] = self._components_view(authorized=authorized)
             if result["components"]["state"] != "READY":
                 result["canStart"] = False
+        lite = self._lite_assessment()
+        update_blocked = update in ("UPDATING", "RESTART_REQUIRED", "REQUIRED", "UPDATE_REQUIRED")
+        lite_capacity = self._lite_capacity_ok() or result["capacity"]["canStartAnotherRoom"]
+        result["lite"] = {
+            "machineReady": lite.compatible, "reasons": list(lite.customer_reasons),
+            "canStart": bool(authorized and lite.compatible and worker_ready and not update_blocked and lite_capacity
+                             and result.get("components", {"state": "READY"})["state"] == "READY"),
+            "commercialLive": False}
         if "NVIDIA_DRIVER_REQUIRED" in hardware.diagnostics.get("codes", []):
             result["hardwareAdvice"] = "DRIVER_UPDATE_REQUIRED"
         visible_session = active or failed
@@ -863,6 +896,7 @@ class LocalAgent:
         """Trusted local installer diagnostics; never served on the browser API."""
         return {"providerMode": PROVIDER_MODE, "realtimeValidated": self._validated,
                 "hardware": self._assessment().diagnostics,
+                "liteHardware": self._lite_assessment().diagnostics,
                 "worker": self._worker.health()}
 
     def upload_reference(self, token: str, origin: str, image: bytes,
@@ -953,7 +987,7 @@ class LocalAgent:
             self._authorized_device(token, origin)
         except SecurityError as exc:
             raise self._safe_error(exc) from exc
-        if not self._validated or session.state not in ("BUSY", "PAUSED"):
+        if (session.live_mode == DEFAULT_LIVE_MODE and not self._validated) or session.state not in ("BUSY", "PAUSED"):
             return None
         read_frame = getattr(self._worker, "preview_frame", None)
         frame = read_frame(session.owner_id, session_id) if callable(read_frame) else None
@@ -1043,6 +1077,7 @@ class LocalAgent:
         # Slow runtime inspection/start must never hold the registry lock needed
         # to stop another room. Admission below reserves a slot atomically.
         hardware = self._assessment()
+        lite_hardware = self._lite_assessment() if live_mode != DEFAULT_LIVE_MODE else None
         worker_ready = self._worker.health().get("ready") is True
         with self._lock:
             if self._closing:
@@ -1061,16 +1096,23 @@ class LocalAgent:
                 raise AgentError(409, "SESSION_BUSY", "บัญชีนี้กำลัง LIVE อยู่")
             if self._components is not None and self._components_view(authorized=True)["state"] != "READY":
                 raise AgentError(503, "COMPONENTS_REQUIRED", "กรุณารอให้เตรียมเครื่องเสร็จ")
-            if not hardware.compatible:
-                raise AgentError(503, "GPU_REQUIRED", "เครื่องนี้ยังไม่รองรับ AI LIVE")
-            if not self._validated:
-                raise AgentError(503, "GPU_VALIDATION_REQUIRED", "AI LIVE ยังอยู่ระหว่างการเตรียมความพร้อม")
+            if live_mode == DEFAULT_LIVE_MODE:
+                if not hardware.compatible:
+                    raise AgentError(503, "GPU_REQUIRED", "เครื่องนี้ยังไม่รองรับ AI LIVE")
+                if not self._validated:
+                    raise AgentError(503, "GPU_VALIDATION_REQUIRED", "AI LIVE ยังอยู่ระหว่างการเตรียมความพร้อม")
+            elif not lite_hardware.compatible:
+                raise AgentError(503, "LITE_MACHINE_REQUIRED", "เครื่องนี้ยังไม่พร้อมสำหรับ LIVE Lite")
             if not worker_ready:
                 raise AgentError(503, "WORKER_NOT_VALIDATED", "ระบบ AI LIVE ยังไม่พร้อมใช้งาน")
             capacity = self._room_capacity(grant.owner_id)
-            if capacity["status"] == "UNVERIFIED_CAPACITY":
+            lite_single_room = live_mode != DEFAULT_LIVE_MODE and capacity["status"] == "UNVERIFIED_CAPACITY"
+            if lite_single_room:
+                if any(session.state != "STOPPED" for session in self._sessions.values()) or self._starting:
+                    raise AgentError(409, "ROOM_CAPACITY_REACHED", "LIVE Lite ทดสอบได้ครั้งละหนึ่งห้อง")
+            elif capacity["status"] == "UNVERIFIED_CAPACITY":
                 raise AgentError(503, "UNVERIFIED_CAPACITY", "ยังไม่ได้ทดสอบจำนวนห้องพร้อมกัน")
-            if not capacity["canStartAnotherRoom"]:
+            elif not capacity["canStartAnotherRoom"]:
                 raise AgentError(409, "ROOM_CAPACITY_REACHED", "เครื่องนี้กำลังใช้จำนวนห้องที่รองรับครบแล้ว")
             reference.owner_id = grant.owner_id
             reservation = (grant.owner_id, grant.account_id)
@@ -1098,7 +1140,8 @@ class LocalAgent:
                     if session_id in self._sessions:
                         raise AgentError(503, "WORKER_INVALID_SESSION", "ไม่สามารถเริ่ม AI LIVE")
                     self._sessions[session_id] = _Session(session_id, grant.owner_id, grant.expires_at,
-                        account_id=grant.account_id, product_ids=tuple(grant.product_ids), started_at=int(self._now() * 1000))
+                        account_id=grant.account_id, product_ids=tuple(grant.product_ids), started_at=int(self._now() * 1000),
+                        live_mode=live_mode)
             if revoked:
                 try:
                     self._worker.stop_session(grant.owner_id, session_id)
@@ -1136,7 +1179,7 @@ class LocalAgent:
         with session.operation_lock:
             if session.state != "PAUSED":
                 raise AgentError(409, "SESSION_NOT_PAUSED", "AI LIVE ไม่ได้หยุดชั่วคราว")
-            if not self._validated or not self._assessment().compatible:
+            if not self._admissible(session.live_mode):
                 raise AgentError(503, "GPU_VALIDATION_REQUIRED", "AI LIVE ยังไม่พร้อมใช้งาน")
             self._worker.resume_session(session.owner_id, session_id)
             session.state = "BUSY"
@@ -1164,8 +1207,7 @@ class LocalAgent:
         with session.operation_lock:
             if session.state != "ERROR" or session.recovery_attempts >= 1:
                 raise AgentError(409, "RECOVERY_UNAVAILABLE", "ไม่สามารถกู้คืน AI LIVE")
-            if (session.grant_expires_at <= self._now() or not self._validated
-                    or not self._assessment().compatible):
+            if session.grant_expires_at <= self._now() or not self._admissible(session.live_mode):
                 raise AgentError(503, "RECOVERY_UNAVAILABLE", "ไม่สามารถกู้คืน AI LIVE")
             session.recovery_attempts += 1
             try:

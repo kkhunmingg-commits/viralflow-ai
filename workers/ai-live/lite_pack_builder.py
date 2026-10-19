@@ -62,7 +62,8 @@ def face_box_for(image: np.ndarray) -> tuple[int, int, int, int]:
 
 def _finish(out: Path, *, source: str, technical: bool, reference: np.ndarray, box, patches: list[np.ndarray],
             closed: np.ndarray, centroids: list[float | None], output_size: tuple[int, int],
-            consent: dict | None, motion: MotionProfile, disclosure: str) -> PresenterPack:
+            consent: dict | None, motion: MotionProfile, disclosure: str, provenance: dict | None = None,
+            display_name: str | None = None, default_voice: str | None = None) -> PresenterPack:
     out.mkdir(parents=True, exist_ok=True)
     if any(out.iterdir()):
         raise PresenterPackError("LITE_PACK_OUTPUT_NOT_EMPTY")
@@ -75,7 +76,7 @@ def _finish(out: Path, *, source: str, technical: bool, reference: np.ndarray, b
     mask_sha = _write_image(out / "mask.png", _lower_face_mask())
     pack = PresenterPack(out, "lite-" + uuid.uuid4().hex[:12], source, technical, "reference.jpg", reference_sha,
                          tuple(int(v) for v in box), "mask.png", mask_sha, output_size, tuple(frames), motion,
-                         disclosure, consent)
+                         disclosure, consent, provenance, display_name, default_voice)
     write_manifest(pack)
     return load_pack(out)
 
@@ -116,7 +117,7 @@ def read_wav_pcm16(path: Path) -> bytes:
 
 def build_from_frame_engine(out: Path, reference_path: Path, calibration_pcm: bytes, engine, *, fps: int = 5,
                             output_size: tuple[int, int] = (720, 1280), technical: bool = True,
-                            consent: dict | None = None) -> PresenterPack:
+                            consent: dict | None = None, character: dict | None = None) -> PresenterPack:
     """Render the mouth library offline with an existing incremental engine.
 
     The engine must return PATCH×PATCH crops of the same face box this builder
@@ -152,6 +153,13 @@ def build_from_frame_engine(out: Path, reference_path: Path, calibration_pcm: by
         engine.close()
     if len(patches) < 8:
         raise PresenterPackError("LITE_PACK_FRAMES_INVALID")
+    if character is not None:
+        # Fictional generated presenter: provenance replaces likeness consent.
+        return _finish(out, source="SYNTHETIC_CHARACTER", technical=False, reference=reference, box=box,
+                       patches=patches, closed=closed, centroids=centroids, output_size=output_size,
+                       consent=None, motion=MotionProfile(), disclosure="AI presenter · ผู้นำเสนอ AI",
+                       provenance=character.get("provenance"), display_name=character.get("display_name"),
+                       default_voice=character.get("default_voice"))
     return _finish(out, source="FRAME_ENGINE", technical=technical, reference=reference, box=box,
                    patches=patches, closed=closed, centroids=centroids, output_size=output_size,
                    consent=consent, motion=MotionProfile(), disclosure="AI presenter · ผู้นำเสนอ AI")
@@ -212,6 +220,8 @@ def main(argv: list[str] | None = None) -> int:
     engine.add_argument("--fps", type=int, default=5)
     engine.add_argument("--customer", action="store_true", help="Mark as customer pack (needs consent JSON).")
     engine.add_argument("--consent", type=Path)
+    engine.add_argument("--character", type=Path,
+                        help="character.json from lite_presenter_designer.py (fictional presenter provenance)")
     video = sub.add_parser("video")
     video.add_argument("--out", type=Path, required=True)
     video.add_argument("--video", type=Path, required=True)
@@ -224,8 +234,10 @@ def main(argv: list[str] | None = None) -> int:
         consent = json.loads(args.consent.read_text(encoding="utf-8")) if args.consent else None
         if args.customer and not consent:
             raise PresenterPackError("LITE_PACK_CONSENT_REQUIRED")
+        character = json.loads(args.character.read_text(encoding="utf-8")) if args.character else None
         pack = build_from_frame_engine(args.out, args.reference, read_wav_pcm16(args.calibration_wav), make_engine(),
-                                       fps=args.fps, technical=not args.customer, consent=consent)
+                                       fps=args.fps, technical=not (args.customer or character), consent=consent,
+                                       character=character)
     else:
         pack = build_from_video(args.out, args.video, json.loads(args.consent.read_text(encoding="utf-8")))
     print(json.dumps({"pack_id": pack.pack_id, "frames": len(pack.frames), "source": pack.source,

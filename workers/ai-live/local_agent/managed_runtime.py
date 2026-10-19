@@ -21,9 +21,8 @@ MAX_MESSAGE = 6 * 1024 * 1024
 LITE_ENVIRONMENT = frozenset({
     "AI_LIVE_LITE_PACK_DIR", "AI_LIVE_LITE_TTS", "AI_LIVE_LITE_SECONDS_PER_PRODUCT",
     "AI_LIVE_LITE_PLATFORM_ATTESTATION", "AI_LIVE_LITE_TECHNICAL_TEST",
-    "AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION", "AZURE_SPEECH_VOICE",
-    "GOOGLE_TTS_API_KEY", "GOOGLE_TTS_VOICE",
-})
+    "AZURE_SPEECH_VOICE", "AI_LIVE_ENCODER",
+})  # Speech keys are never forwarded: the child reads the owner's DPAPI-encrypted key store.
 
 
 def _live_mode(value) -> str:

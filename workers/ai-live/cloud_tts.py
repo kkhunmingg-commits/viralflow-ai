@@ -23,6 +23,7 @@ import urllib.error
 import urllib.request
 import wave
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Iterator
 from xml.sax.saxutils import escape
 
@@ -32,6 +33,10 @@ from local_tts import ManagedLocalTTSProvider
 
 PCM_RATE = 16_000
 CHUNK_BYTES = 6_400  # 200 ms; small enough for prompt lip-sync and interruption
+
+
+AZURE_F0_MONTHLY_CHARACTERS = 500_000  # Azure AI Speech F0 neural TTS allowance per month
+AZURE_F0_REQUESTS_PER_MINUTE = 20
 
 
 class CloudTTSError(RuntimeError):
@@ -103,6 +108,62 @@ def _wav_to_pcm16(data: bytes) -> bytes:
         return _resample_to_16k(frames, handle.getframerate())
 
 
+class FreeTierGuard:
+    """Keeps a cloud voice inside the free allowance; never upgrades or falls back to paid.
+
+    A persistent per-month ledger refuses requests before the configured cap
+    (default 90% of Azure F0's monthly characters), and a sliding window keeps
+    requests under F0's per-minute limit by waiting briefly instead of failing.
+    """
+    def __init__(self, ledger_dir: Path | None, *, monthly_characters: int = int(AZURE_F0_MONTHLY_CHARACTERS * 0.9),
+                 requests_per_minute: int = AZURE_F0_REQUESTS_PER_MINUTE - 2, clock=time.time,
+                 sleep=time.sleep):
+        if not 0 < monthly_characters <= AZURE_F0_MONTHLY_CHARACTERS or not 1 <= requests_per_minute <= 60:
+            raise CloudTTSError("TTS_BUDGET_INVALID")
+        self.ledger_dir, self.monthly_characters, self.per_minute = ledger_dir, monthly_characters, requests_per_minute
+        self._clock, self._sleep = clock, sleep
+        self._lock = threading.Lock()
+        self._recent: list[float] = []
+
+    def _ledger(self) -> Path | None:
+        if self.ledger_dir is None:
+            return None
+        return Path(self.ledger_dir) / ("usage-" + time.strftime("%Y-%m", time.gmtime(self._clock())) + ".json")
+
+    def used(self) -> int:
+        path = self._ledger()
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))["characters"] if path and path.is_file() else 0
+            return value if type(value) is int and value >= 0 else self.monthly_characters
+        except (OSError, ValueError, KeyError, TypeError):
+            return self.monthly_characters  # unreadable ledger: refuse rather than risk overage
+
+    def admit(self, characters: int, stop: threading.Event) -> None:
+        with self._lock:
+            used = self.used()
+            if used + characters > self.monthly_characters:
+                raise CloudTTSError("TTS_FREE_TIER_BUDGET_REACHED")
+            while True:
+                now = self._clock()
+                self._recent = [at for at in self._recent if now - at < 60]
+                if len(self._recent) < self.per_minute:
+                    break
+                wait = 60 - (now - self._recent[0]) + 0.05
+                if stop.wait(min(wait, 1.0)) if wait > 0 else False:
+                    raise CloudTTSError("TTS_CANCELLED")
+            self._recent.append(self._clock())
+            path = self._ledger()
+            if path is not None:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                temporary = path.with_suffix(".tmp")
+                temporary.write_text(json.dumps({"characters": used + characters}), encoding="utf-8")
+                os.replace(temporary, path)
+
+    def report(self) -> dict[str, object]:
+        return {"monthly_cap_characters": self.monthly_characters, "used_this_month": self.used(),
+                "requests_per_minute_cap": self.per_minute, "paid_fallback": False}
+
+
 Transport = Callable[[urllib.request.Request, float], object]
 
 
@@ -140,11 +201,13 @@ class AzureSpeechBackend(_HTTPBackend):
     provider = "azure-speech"
 
     def __init__(self, *, key: str, region: str, voice: str = "th-TH-PremwadeeNeural", rate: str = "+0%",
-                 timeout_seconds: float = 8.0, transport: Transport | None = None, meter: UsageMeter | None = None):
+                 timeout_seconds: float = 8.0, transport: Transport | None = None, meter: UsageMeter | None = None,
+                 guard: FreeTierGuard | None = None):
         super().__init__(timeout_seconds=timeout_seconds, transport=transport, meter=meter)
         if not key or not region.replace("-", "").isalnum() or not voice.startswith("th-TH-"):
             raise CloudTTSError("TTS_CONFIG_INVALID")
         self._key, self._region, self._voice, self._rate = key, region, voice, rate
+        self.guard = guard
 
     @property
     def fingerprint(self) -> str:
@@ -162,6 +225,8 @@ class AzureSpeechBackend(_HTTPBackend):
                                     "Content-Type": "application/ssml+xml",
                                     "X-Microsoft-OutputFormat": "raw-16khz-16bit-mono-pcm",
                                     "User-Agent": "ViralFlowLiveLite"})
+        if self.guard is not None:
+            self.guard.admit(len(text), stop)
         started = time.monotonic()
         first = None
         response = self._open(request)
@@ -274,19 +339,27 @@ class SpeechProvider(ManagedLocalTTSProvider):
 
     def usage(self) -> dict[str, object]:
         meter = getattr(self.backend, "meter", None)
-        return meter.report() if meter else {}
+        guard = getattr(self.backend, "guard", None)
+        return {**(meter.report() if meter else {}), **({"free_tier": guard.report()} if guard else {})}
 
 
 def backend_from_env() -> object:
     """Owner-configured voice. No key means no cloud voice (fail closed)."""
     choice = os.getenv("AI_LIVE_LITE_TTS", "").strip()
     if choice == "azure":
-        return AzureSpeechBackend(key=os.getenv("AZURE_SPEECH_KEY", "").strip(),
-                                  region=os.getenv("AZURE_SPEECH_REGION", "").strip(),
-                                  voice=os.getenv("AZURE_SPEECH_VOICE", "th-TH-PremwadeeNeural").strip())
-    if choice == "google":
-        return GoogleCloudTTSBackend(api_key=os.getenv("GOOGLE_TTS_API_KEY", "").strip(),
-                                     voice=os.getenv("GOOGLE_TTS_VOICE", "").strip())
+        # The owner's key lives DPAPI-encrypted in the speech key store, not in env.
+        from local_agent.speech_credentials import SpeechKeyStore
+        from local_agent.security import SecurityError
+        store = SpeechKeyStore()
+        try:
+            record = store.load()
+        except SecurityError:
+            record = None
+        if record is None:
+            raise CloudTTSError("TTS_KEY_NOT_CONFIGURED")
+        return AzureSpeechBackend(key=record["key"], region=record["region"],
+                                  voice=os.getenv("AZURE_SPEECH_VOICE", "th-TH-PremwadeeNeural").strip(),
+                                  guard=FreeTierGuard(store.root))
     if choice == "espeak":
         return EspeakTechnicalBackend()
     raise CloudTTSError("LITE_TTS_NOT_CONFIGURED")

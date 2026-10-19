@@ -37,11 +37,42 @@ def lite_ai_providers(*, backend_factory: Callable[[], object] = backend_from_en
     return build
 
 
+def inspect_lite_capabilities() -> dict[str, object]:
+    """Worker readiness for Lite: no CUDA/MuseTalk runtime, only what Lite really uses."""
+    import subprocess
+    from direct_stream import StreamError, resolve_ffmpeg_path
+    from lite_presenter_pack import PresenterPackError, load_pack
+    blockers = []
+    codec = os.getenv("AI_LIVE_ENCODER", "libx264").strip() or "libx264"
+    try:
+        ffmpeg = resolve_ffmpeg_path()
+        probe = subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i",
+                                "color=c=black:s=64x64:r=1", "-frames:v", "1", "-c:v", codec, "-f", "null", "-"],
+                               capture_output=True, timeout=15,
+                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        if probe.returncode:
+            blockers.append("ENCODER_UNUSABLE")
+    except (StreamError, OSError, subprocess.TimeoutExpired):
+        blockers.append("FFMPEG_UNAVAILABLE")
+    pack = os.getenv("AI_LIVE_LITE_PACK_DIR", "").strip()
+    try:
+        if not pack:
+            raise PresenterPackError("LITE_PRESENTER_PACK_REQUIRED")
+        load_pack(Path(pack))
+    except PresenterPackError as exc:
+        blockers.append(exc.code)
+    if os.getenv("AI_LIVE_LITE_TTS", "").strip() not in ("azure", "google", "espeak"):
+        blockers.append("LITE_TTS_NOT_CONFIGURED")
+    return {"ready": not blockers, "blockers": blockers, "dev_fallback": False, "mode": MODE,
+            "encoder": codec, "presenter_status": "READY" if not blockers else "LITE_SETUP_REQUIRED"}
+
+
 class LiteWorkerBoundary(LocalWorkerBoundary):
     """Same API and lifecycle as Pro's worker; adds the autonomous director."""
 
     def __init__(self, data_dir: Path, credential_store, *, seconds_per_product: float | None = None, **kwargs):
         kwargs.setdefault("engine_factory", create_engine)
+        kwargs.setdefault("capability_probe", inspect_lite_capabilities)
         kwargs.setdefault("provider_factory", LiteDestinationProvider())
         kwargs.setdefault("ai_provider_factory", lite_ai_providers())
         self.destination = kwargs["provider_factory"]

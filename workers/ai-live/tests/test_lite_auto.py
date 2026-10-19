@@ -22,9 +22,10 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from av_encoder import EncoderConfig
-from cloud_tts import AzureSpeechBackend, CloudTTSError, SpeechProvider, UsageMeter, backend_from_env
+from cloud_tts import (AzureSpeechBackend, CloudTTSError, FreeTierGuard, SpeechProvider, UsageMeter,
+                       backend_from_env)
 from lite_audio_features import FrameFeatureExtractor, OpennessTracker
-from lite_brain import UNKNOWN_SPOKEN, LiteRoutedBrain, NoLLMRuntime, similarity
+from lite_brain import CLARIFY_SPOKEN, UNKNOWN_SPOKEN, LiteRoutedBrain, NoLLMRuntime, similarity
 from lite_destination import LiteDestinationProvider, classify
 from lite_director import LiteShowDirector, product_script
 from lite_pack_builder import build_synthetic
@@ -81,6 +82,25 @@ class PresenterPackTests(unittest.TestCase):
         with self.assertRaises(PresenterPackError) as caught:
             load_pack(self.pack.root)
         self.assertEqual(caught.exception.code, "LITE_PACK_CONSENT_REQUIRED")
+
+    def test_synthetic_character_needs_licensed_provenance(self):
+        from lite_presenter_pack import list_packs
+        manifest = json.loads((self.pack.root / "manifest.json").read_text(encoding="utf-8"))
+        manifest.update(source="SYNTHETIC_CHARACTER", technical_test_only=False, display_name="นารา",
+                        default_voice="th-TH-PremwadeeNeural",
+                        provenance={"synthetic_person": True, "generator": "stable-diffusion.cpp",
+                                    "model": "some-non-commercial-model", "license": "CC-BY-NC-4.0", "seed": 1})
+        (self.pack.root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaises(PresenterPackError) as caught:
+            load_pack(self.pack.root)
+        self.assertEqual(caught.exception.code, "LITE_PACK_PROVENANCE_REQUIRED")
+        manifest["provenance"].update(model="FLUX.1-schnell", license="Apache-2.0")
+        (self.pack.root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        pack = load_pack(self.pack.root)
+        self.assertEqual((pack.source, pack.technical_test_only, pack.default_voice),
+                         ("SYNTHETIC_CHARACTER", False, "th-TH-PremwadeeNeural"))
+        listed = list_packs(self.pack.root.parent)
+        self.assertEqual([(item["name"], item["defaultVoice"]) for item in listed], [("นารา", "th-TH-PremwadeeNeural")])
 
     def test_technical_pack_needs_explicit_opt_in(self):
         engine = LitePresenterEngine(self.pack.root)
@@ -169,6 +189,37 @@ class LiteBrainTests(unittest.TestCase):
         self.assertEqual(similarity("มีสีอะไร", "สี"), 0.0)
 
 
+class MultiSkuTests(unittest.TestCase):
+    def setUp(self):
+        store = store_with()
+        store.put(ProductSnapshot(SCOPE, "p2", "ผ้าขนหนูคอตตอนเซ็ตสามผืน", "v1",
+                                  {"price": 390, "currency": "THB", "faq": {"ผ้าเป็นขุยไหม": "มีขุยนิดหน่อยค่ะ"}}))
+        store.put(ProductSnapshot(SCOPE, "p3", "ผ้าขนหนูไมโครไฟเบอร์", "v1", {"price": 150, "currency": "THB"}))
+        store.put(ProductSnapshot(BrainScope("other", "account", "room"), "x", "ผ้าขนหนูของคนอื่น", "v1",
+                                  {"price": 1, "currency": "THB"}))
+        self.store = store
+        self.brain = LiteRoutedBrain(LocalBrainProvider(NoLLMRuntime(), store))
+
+    def ask(self, text):
+        return self.brain.generate(BrainRequest(SCOPE, text, "p1"))
+
+    def test_presented_product_stays_the_default(self):
+        self.assertEqual(self.ask("ราคาเท่าไหร่").text, "ราคาสินค้าตอนนี้ 299 บาทค่ะ")
+
+    def test_named_other_sku_is_answered_from_its_own_snapshot(self):
+        answer = self.ask("ไมโครไฟเบอร์ราคาเท่าไหร่")
+        self.assertEqual(answer.text, "สำหรับผ้าขนหนูไมโครไฟเบอร์ ราคาสินค้าตอนนี้ 150 บาทค่ะ")
+
+    def test_fact_of_other_sku_is_found_without_its_name(self):
+        self.assertIn("มีขุยนิดหน่อยค่ะ", self.ask("ผ้าเป็นขุยมั้ย").text)
+
+    def test_ambiguous_product_gets_a_question_not_a_guess(self):
+        self.assertEqual(self.ask("ผ้าขนหนูราคาเท่าไหร่").text, CLARIFY_SPOKEN)
+
+    def test_other_owners_products_are_never_searched(self):
+        self.assertNotIn("x", [p.product_id for p in self.brain._scope_products(SCOPE)])
+
+
 class FakeSession:
     def __init__(self):
         self.scope, self.product_ids = SCOPE, ("p1",)
@@ -216,10 +267,12 @@ class Response:
 
 class SpeechTests(unittest.TestCase):
     def test_cloud_voice_fails_closed_without_key(self):
-        with unittest.mock.patch.dict("os.environ", {"AI_LIVE_LITE_TTS": "azure"}, clear=False):
-            with self.assertRaises(CloudTTSError) as caught:
-                backend_from_env()
-        self.assertEqual(caught.exception.code, "TTS_CONFIG_INVALID")
+        with tempfile.TemporaryDirectory() as temp:
+            with unittest.mock.patch.dict("os.environ", {"AI_LIVE_LITE_TTS": "azure", "LOCALAPPDATA": temp,
+                                                         "AZURE_SPEECH_KEY": "k" * 32}):
+                with self.assertRaises(CloudTTSError) as caught:
+                    backend_from_env()  # an env key is ignored; only the encrypted store counts
+        self.assertEqual(caught.exception.code, "TTS_KEY_NOT_CONFIGURED")
         with unittest.mock.patch.dict("os.environ", {"AI_LIVE_LITE_TTS": ""}):
             with self.assertRaises(CloudTTSError):
                 backend_from_env()
@@ -250,6 +303,66 @@ class SpeechTests(unittest.TestCase):
                                      meter=UsageMeter("azure-speech"))
         provider = SpeechProvider(backend, context_id="c")
         self.assertFalse(provider.warmup()["ready"])
+
+
+class FreeTierGuardTests(unittest.TestCase):
+    def test_monthly_cap_refuses_before_any_request(self):
+        with tempfile.TemporaryDirectory() as temp:
+            guard = FreeTierGuard(Path(temp), monthly_characters=20)
+            guard.admit(15, threading.Event())
+            with self.assertRaises(CloudTTSError) as caught:
+                guard.admit(10, threading.Event())
+            self.assertEqual(caught.exception.code, "TTS_FREE_TIER_BUDGET_REACHED")
+            self.assertEqual(FreeTierGuard(Path(temp), monthly_characters=20).used(), 15)  # persisted
+
+    def test_cap_cannot_exceed_the_free_allowance(self):
+        with self.assertRaises(CloudTTSError):
+            FreeTierGuard(None, monthly_characters=10_000_000)
+
+    def test_per_minute_limit_waits_instead_of_failing(self):
+        now = [1000.0]
+        guard = FreeTierGuard(None, requests_per_minute=2, clock=lambda: now[0])
+        stop = threading.Event()
+        guard.admit(1, stop)
+        guard.admit(1, stop)
+        original = stop.wait
+        def advance(seconds):
+            now[0] += seconds
+            return False
+        stop.wait = advance
+        guard.admit(1, stop)
+        self.assertGreaterEqual(now[0], 1060)
+        stop.wait = original
+
+    def test_azure_backend_is_refused_by_the_guard(self):
+        calls = []
+        backend = AzureSpeechBackend(key="k" * 32, region="southeastasia",
+                                     transport=lambda request, timeout: calls.append(1) or Response(tone(0.1)),
+                                     meter=UsageMeter("azure-speech"), guard=FreeTierGuard(None, monthly_characters=1))
+        with self.assertRaises(CloudTTSError):
+            list(backend.stream_sentence("ยาวเกินงบ", threading.Event()))
+        self.assertEqual(calls, [])
+
+
+class SpeechKeyStoreTests(unittest.TestCase):
+    def test_key_is_encrypted_at_rest_and_metadata_never_contains_it(self):
+        from local_agent.speech_credentials import SpeechKeyStore
+        class Xor:
+            def protect(self, data): return bytes(b ^ 0x5A for b in data)
+            unprotect = protect
+        with tempfile.TemporaryDirectory() as temp:
+            store = SpeechKeyStore(Path(temp), protector=Xor())
+            key = "A1b2" * 12
+            store.put("azure", key, "southeastasia")
+            raw = (Path(temp) / "speech-key.bin").read_bytes()
+            self.assertNotIn(key.encode(), raw)
+            self.assertEqual(store.load()["key"], key)
+            self.assertNotIn(key, json.dumps(store.metadata()))
+            from local_agent.security import SecurityError
+            with self.assertRaises(SecurityError):
+                store.put("azure", "short", "southeastasia")
+            store.delete()
+            self.assertEqual(store.metadata(), {"configured": False})
 
 
 class DestinationTests(unittest.TestCase):

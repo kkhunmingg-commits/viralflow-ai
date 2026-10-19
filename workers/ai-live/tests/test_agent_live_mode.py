@@ -2,11 +2,23 @@
 from __future__ import annotations
 
 import unittest
+import uuid
 from pathlib import Path
 
+from local_agent.agent import LocalAgent
+from local_agent.hardware import HardwareSnapshot, assess_hardware, assess_lite_hardware
+
 from test_local_agent import (
-    ACCOUNT, ORIGIN, OWNER_A, PRODUCT, AgentError, AgentFixture, RecordingWorker, signed,
+    ACCOUNT, DEVICE, ORIGIN, REFERENCE_JPEG, OWNER_A, PRODUCT, AgentError, AgentFixture, RecordingWorker,
+    registered_identity_fixture, signed, supported_hardware,
 )
+
+
+def ally_x_hardware() -> HardwareSnapshot:
+    """ROG Ally X-like: AMD APU, no NVIDIA/CUDA, CPU and AMF encoders listed."""
+    return HardwareSnapshot("Windows", "11", "AMD Ryzen Z1 Extreme", 24, None, None, None, None,
+                            True, False, 400, 1, lite_encoders=("libx264", "h264_amf"), cpu_cores=16)
+from test_local_agent import test_signature as _signature  # noqa: E402
 import test_local_ai_agent  # module import: do not re-collect its tests here
 from test_local_ai_agent import AIWorkerBoundaryFixture
 
@@ -59,9 +71,51 @@ class AgentLiveModeStartTests(AgentFixture):
         self.started(agent, token, liveMode="pro")
         self.assertEqual(worker.modes, ["<absent>"])
 
+    def ally_agent(self, worker, *, validated: bool = False) -> LocalAgent:
+        self.identity = registered_identity_fixture(
+            Path(self.temp.name) / ("identity-" + str(uuid.uuid4())), DEVICE)
+        agent = LocalAgent(self.config, worker=worker, hardware_probe=ally_x_hardware,
+                           grant_signature_verifier=_signature, now=lambda: self.clock[0],
+                           test_only_realtime_validated=validated, device_identity=self.identity)
+        self.addCleanup(agent.close)
+        return agent
+
+    def test_lite_starts_on_a_machine_without_nvidia_while_pro_stays_blocked(self) -> None:
+        worker = ModeRecordingWorker()
+        agent = self.ally_agent(worker)
+        token, _, self.presenter = self.pair_and_reference(agent)
+        view = agent.status(token, ORIGIN)
+        self.assertEqual((view["machineReady"], view["canStart"]), (False, False))
+        self.assertEqual((view["lite"]["machineReady"], view["lite"]["commercialLive"]), (True, False))
+        with self.assertRaises(AgentError) as denied:
+            self.started(agent, token)
+        self.assertEqual(denied.exception.code, "GPU_REQUIRED")
+        self.assertTrue(self.started(agent, token, liveMode="lite")["sessionActive"])
+        self.assertEqual(worker.modes, ["lite"])
+        # Unverified capacity admits exactly one Lite room.
+        self.presenter = agent.upload_reference(token, ORIGIN, REFERENCE_JPEG, "image/jpeg")["presenterId"]
+        with self.assertRaises(AgentError) as busy:
+            self.started(agent, token, liveMode="lite")
+        self.assertIn(busy.exception.code, ("ROOM_CAPACITY_REACHED", "SESSION_BUSY"))
+
+    def test_pro_gates_are_unchanged_by_lite(self) -> None:
+        pro = assess_hardware(ally_x_hardware())
+        self.assertFalse(pro.compatible)
+        self.assertIn("NVIDIA_GPU_REQUIRED", pro.diagnostics["codes"])
+        self.assertTrue(assess_lite_hardware(ally_x_hardware()).compatible)
+        self.assertTrue(assess_hardware(supported_hardware()).compatible)
+
+    def test_lite_rejects_machines_below_its_own_floor(self) -> None:
+        weak = HardwareSnapshot("Windows", "11", "CPU", 4, None, None, None, None, True, False, 5, 0,
+                                lite_encoders=(), cpu_cores=2)
+        result = assess_lite_hardware(weak)
+        self.assertFalse(result.compatible)
+        self.assertEqual(set(result.diagnostics["codes"]),
+                         {"SYSTEM_RAM_REQUIRED", "CPU_CORES_REQUIRED", "ENCODER_REQUIRED", "FREE_DISK_REQUIRED"})
+
     def test_lite_reaches_a_supporting_worker_without_microphone(self) -> None:
         worker = ModeRecordingWorker()
-        agent = self.make_agent(worker=worker)
+        agent = self.ally_agent(worker)
         token, _, self.presenter = self.pair_and_reference(agent)
         self.assertTrue(self.started(agent, token, liveMode="lite")["sessionActive"])
         self.assertEqual(worker.modes, ["lite"])

@@ -92,6 +92,9 @@ class HardwareSnapshot:
     encoder_listed: bool
     free_disk_gb: float | None
     microphone_count: int | None
+    # CPU/iGPU H.264 encoders for LIVE Lite; listed only, usability is probed by the worker.
+    lite_encoders: tuple[str, ...] = ()
+    cpu_cores: int | None = None
 
 
 @dataclass(frozen=True)
@@ -195,6 +198,9 @@ def inspect_hardware(
         encoder_listed=bool(encoders and re.search(r"\bh264_nvenc\b", encoders)),
         free_disk_gb=free_disk,
         microphone_count=_windows_microphone_count() if os_name == "Windows" else None,
+        lite_encoders=tuple(name for name in ("libx264", "h264_amf")
+                            if encoders and re.search(rf"\b{name}\b", encoders)),
+        cpu_cores=os.cpu_count(),
     )
 
 
@@ -258,3 +264,38 @@ def assess_hardware(snapshot: HardwareSnapshot,
             "encoder_listed_only": snapshot.encoder_listed,
         },
     )
+
+
+@dataclass(frozen=True)
+class LiteHardwareTiers:
+    """LIVE Lite Auto: prepared presenter on CPU, cloud/local voice. No GPU tier."""
+    minimum_ram_gb: float = 8
+    minimum_cpu_cores: int = 4
+    minimum_free_disk_gb: float = 10
+
+
+def assess_lite_hardware(snapshot: HardwareSnapshot,
+                         tiers: LiteHardwareTiers = LiteHardwareTiers()) -> HardwareAssessment:
+    """LIVE Lite admission. LIVE Pro keeps assess_hardware and its NVIDIA rules unchanged."""
+    reasons: list[str] = []
+    codes: list[str] = []
+    if snapshot.os_name != "Windows":
+        reasons.append("ระบบปฏิบัติการยังไม่รองรับ")
+        codes.append("WINDOWS_REQUIRED")
+    if snapshot.ram_gb is None or snapshot.ram_gb < tiers.minimum_ram_gb:
+        reasons.append("หน่วยความจำเครื่องไม่เพียงพอ")
+        codes.append("SYSTEM_RAM_REQUIRED")
+    if snapshot.cpu_cores is None or snapshot.cpu_cores < tiers.minimum_cpu_cores:
+        reasons.append("หน่วยประมวลผลไม่เพียงพอ")
+        codes.append("CPU_CORES_REQUIRED")
+    if not snapshot.ffmpeg_available or not snapshot.lite_encoders:
+        reasons.append("ต้องตรวจสอบความพร้อมของเครื่องเพิ่มเติม")
+        codes.append("ENCODER_REQUIRED")
+    if snapshot.free_disk_gb is None or snapshot.free_disk_gb < tiers.minimum_free_disk_gb:
+        reasons.append("พื้นที่จัดเก็บไม่เพียงพอ")
+        codes.append("FREE_DISK_REQUIRED")
+    return HardwareAssessment(
+        compatible=not reasons, tier="LITE_CPU" if not reasons else "UNSUPPORTED", validation_required=True,
+        customer_reasons=tuple(reasons),
+        diagnostics={"marker": "LITE_TECHNICAL_TEST", "codes": codes, "lite_encoders": list(snapshot.lite_encoders),
+                     "thresholds_provisional": tiers.__dict__.copy()})

@@ -624,13 +624,14 @@ class LiveModeProcessTests(unittest.TestCase):
 
     def test_lite_start_launches_a_lite_child_with_only_its_device_settings(self):
         os.environ.update({"AI_LIVE_LITE_PACK_DIR": "pack", "AI_LIVE_LITE_TTS": "espeak",
-                           "AI_LIVE_WORKER_TOKEN": "do-not-inherit"})
+                           "AI_LIVE_WORKER_TOKEN": "do-not-inherit", "AZURE_SPEECH_KEY": "never-in-env"})
         bridge = self.make_bridge()
         self.assertEqual(bridge.start_session(OWNER, ACCOUNT, (PRODUCT,), self.reference, None, live_mode="lite"), SESSION)
         self.assertEqual(self.config(0)["liveMode"], "lite")
         environment = self.launches[0][1]["env"]
         self.assertEqual((environment["AI_LIVE_LITE_PACK_DIR"], environment["AI_LIVE_LITE_TTS"]), ("pack", "espeak"))
         self.assertNotIn("AI_LIVE_WORKER_TOKEN", environment)
+        self.assertNotIn("AZURE_SPEECH_KEY", environment)  # the child reads the encrypted key store
         self.assertIsNot(bridge._rooms[(OWNER, SESSION)], bridge._probe, "The shared probe stays a Pro child")
         self.assertEqual(self.processes[0].worker.calls[0], ("start_session", OWNER, ACCOUNT, (PRODUCT,), self.reference, None))
 

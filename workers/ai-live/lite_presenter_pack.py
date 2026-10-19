@@ -15,7 +15,9 @@ from pathlib import Path
 import numpy as np
 
 PACK_FORMAT = "viralflow-lite-presenter/1"
-SOURCES = ("FRAME_ENGINE", "RECORDED_VIDEO", "SYNTHETIC_TEST")
+SOURCES = ("FRAME_ENGINE", "RECORDED_VIDEO", "SYNTHETIC_TEST", "SYNTHETIC_CHARACTER")
+# Generated, fictional presenters: the image model's licence must allow commercial use.
+CHARACTER_LICENSES = frozenset({"Apache-2.0", "MIT"})
 MAX_PACK_FRAMES = 4000
 MIN_PACK_FRAMES = 8
 MAX_FILE_BYTES = 16 * 1024 * 1024
@@ -72,6 +74,9 @@ class PresenterPack:
     motion: MotionProfile = field(default_factory=MotionProfile)
     disclosure_text: str = "AI presenter · ผู้นำเสนอ AI"
     consent: dict | None = None
+    provenance: dict | None = None
+    display_name: str | None = None
+    default_voice: str | None = None
 
     @property
     def reference_path(self) -> Path:
@@ -92,6 +97,9 @@ class PresenterPack:
                        "period_seconds": self.motion.period_seconds},
             "disclosure": {"text": self.disclosure_text},
             "consent": self.consent,
+            "provenance": self.provenance,
+            "display_name": self.display_name,
+            "default_voice": self.default_voice,
         }
 
 
@@ -130,7 +138,16 @@ def load_pack(root: Path) -> PresenterPack:
     if type(technical) is not bool or (source == "SYNTHETIC_TEST" and not technical):
         raise PresenterPackError("LITE_PACK_MANIFEST_INVALID")
     consent = data.get("consent")
-    if source != "SYNTHETIC_TEST" and not technical:
+    provenance = data.get("provenance")
+    if source == "SYNTHETIC_CHARACTER":
+        # A fictional generated person: no likeness consent exists, so the
+        # generator, licence and seed must be recorded instead.
+        if (not isinstance(provenance, dict) or provenance.get("synthetic_person") is not True
+                or provenance.get("license") not in CHARACTER_LICENSES
+                or not isinstance(provenance.get("model"), str) or not isinstance(provenance.get("generator"), str)
+                or type(provenance.get("seed")) is not int):
+            raise PresenterPackError("LITE_PACK_PROVENANCE_REQUIRED")
+    elif source != "SYNTHETIC_TEST" and not technical:
         # A real person's likeness needs recorded consent before customer use.
         if (not isinstance(consent, dict) or consent.get("likeness_use") is not True
                 or not isinstance(consent.get("person"), str) or not isinstance(consent.get("signed_at"), str)):
@@ -171,11 +188,17 @@ def load_pack(root: Path) -> PresenterPack:
     pack_id = data.get("pack_id")
     if not isinstance(pack_id, str) or not 1 <= len(pack_id) <= 80:
         raise PresenterPackError("LITE_PACK_MANIFEST_INVALID")
+    display_name, default_voice = data.get("display_name"), data.get("default_voice")
+    if ((display_name is not None and (not isinstance(display_name, str) or not 1 <= len(display_name) <= 40))
+            or (default_voice is not None and (not isinstance(default_voice, str) or not default_voice.startswith("th-TH-")
+                                               or len(default_voice) > 60))):
+        raise PresenterPackError("LITE_PACK_MANIFEST_INVALID")
     return PresenterPack(root, pack_id, source, technical,
                          _verified(root, reference.get("file"), reference.get("sha256")), reference["sha256"],
                          tuple(box), _verified(root, mask.get("file"), mask.get("sha256")), mask["sha256"],
                          (width, height), tuple(frames), profile, disclosure,
-                         consent if isinstance(consent, dict) else None)
+                         consent if isinstance(consent, dict) else None,
+                         provenance if isinstance(provenance, dict) else None, display_name, default_voice)
 
 
 def write_manifest(pack: PresenterPack) -> Path:
@@ -209,3 +232,22 @@ def mouth_measurements(patches: list[np.ndarray], closed: np.ndarray) -> tuple[l
     dark_n, change_n = normalise(dark), normalise(change)
     openness = [min(1.0, 0.7 * d + 0.3 * c) for d, c in zip(dark_n, change_n)]
     return openness, width
+
+
+def list_packs(root: Path) -> list[dict]:
+    """Customer-safe catalogue of verified packs under a packs root (for the Dashboard)."""
+    found = []
+    root = Path(root)
+    if not root.is_dir():
+        return found
+    for child in sorted(root.iterdir())[:50]:
+        if not child.is_dir() or child.is_symlink():
+            continue
+        try:
+            pack = load_pack(child)
+        except PresenterPackError:
+            continue
+        found.append({"packId": pack.pack_id, "folder": child.name, "name": pack.display_name or child.name,
+                      "source": pack.source, "technicalTestOnly": pack.technical_test_only,
+                      "defaultVoice": pack.default_voice, "frames": len(pack.frames)})
+    return found

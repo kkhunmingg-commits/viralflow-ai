@@ -5,6 +5,12 @@ when it would say "no data" does Lite try to route a paraphrased question to
 an approved faq/attribute entry: first lexically (character n-grams, which
 suit unsegmented Thai), then optionally through the local LLM choosing a
 numbered entry. The spoken text is always the stored fact, never model text.
+
+Viewers may ask about any SKU synced into the room (Product Radar products in
+the signed product context), not only the one being presented. The product is
+resolved from its name or from a strongly matching fact, the answer is read
+from that SKU's verified snapshot, and an ambiguous mention gets a question
+back instead of a guess.
 """
 from __future__ import annotations
 
@@ -12,18 +18,33 @@ import re
 import threading
 import time
 from dataclasses import replace
+from difflib import SequenceMatcher
 
 from local_brain import (UNKNOWN, BrainRequest, BrainResponse, LocalBrainProvider, _safe_text,
                          normalize_comment)
 
 ROUTABLE_INTENTS = frozenset({"product_question", "faq"})
 UNKNOWN_SPOKEN = "ขอเช็กข้อมูลให้ก่อนนะคะ ตอนนี้ในรายละเอียดสินค้ายังไม่มีเรื่องนี้ค่ะ"
+CLARIFY_SPOKEN = "ขอโทษนะคะ หมายถึงสินค้าตัวไหนคะ พิมพ์ชื่อสินค้ามาได้เลยค่ะ"
+NAME_MATCH_CHARS = 4  # shortest product-name fragment that may select another SKU
 _FILLER = re.compile(r"(?:ครับ|ค่ะ|คะ|คับ|จ้า|จ้ะ|นะ|ไหม|มั้ย|หรือเปล่า|รึเปล่า|ป่าว|ป่ะ|มะ|บ้าง|หน่อย|อ่ะ|อะ|เหรอ|หรอ|[\s?!.,~]+)")
 
 
 def _grams(text: str, size: int = 3) -> set[str]:
     text = _FILLER.sub("", normalize_comment(text))
     return {text[index:index + size] for index in range(max(1, len(text) - size + 1))} if text else set()
+
+
+def _compact(text: str) -> str:
+    return _FILLER.sub("", normalize_comment(text))
+
+
+def name_overlap(question: str, name: str) -> int:
+    """Longest shared run of characters between a comment and a product name."""
+    left, right = _compact(question), _compact(name)
+    if not left or not right:
+        return 0
+    return SequenceMatcher(None, left, right, autojunk=False).find_longest_match(0, len(left), 0, len(right)).size
 
 
 def similarity(question: str, key: str) -> float:
@@ -42,7 +63,7 @@ class LiteRoutedBrain:
         self.threshold = threshold
         self.llm_router = llm_router
         self._lock = threading.Lock()
-        self.routed = self.unknown = self.llm_routes = 0
+        self.routed = self.unknown = self.llm_routes = self.other_products = self.clarified = 0
 
     def health(self) -> dict[str, object]:
         return self.base.health()
@@ -59,17 +80,38 @@ class LiteRoutedBrain:
     def _candidates(self, request: BrainRequest) -> list[tuple[str, str]]:
         product = (self.base.product_store.fetch(request.scope, request.product_id)
                    if request.product_id else None)
-        if product is None:
+        return _fact_entries(product)
+
+    def _scope_products(self, scope) -> list:
+        """Every verified snapshot synced into this room (the store only holds signed context)."""
+        store = self.base.product_store
+        snapshots, lock = getattr(store, "_snapshots", None), getattr(store, "_lock", None)
+        if not isinstance(snapshots, dict) or lock is None:
             return []
-        found = []
-        for field in ("faq", "attributes"):
-            values = product.facts.get(field)
-            if isinstance(values, dict):
-                for key, answer in values.items():
-                    answer = _safe_text(answer)
-                    if isinstance(key, str) and 2 <= len(key) <= 160 and answer:
-                        found.append((key, answer))
-        return found[:64]
+        with lock:
+            ids = [product_id for (owner_scope, product_id) in snapshots if owner_scope == scope]
+        return [snapshot for snapshot in (store.fetch(scope, product_id) for product_id in ids[:10]) if snapshot]
+
+    def _target_product(self, request: BrainRequest) -> tuple[str | None, bool]:
+        """(product_id, ambiguous). Defaults to the presented product."""
+        current = request.product_id
+        products = self._scope_products(request.scope)
+        if len(products) < 2:
+            return current, False
+        named = [(name_overlap(request.comment, product.name), product.product_id) for product in products]
+        best = max(score for score, _id in named)
+        if best >= NAME_MATCH_CHARS:
+            leaders = {product_id for score, product_id in named if score == best}
+            if current in leaders:
+                return current, False
+            return (leaders.pop(), False) if len(leaders) == 1 else (None, True)
+        facts = {product.product_id: max((similarity(request.comment, key) for key, _a in _fact_entries(product)),
+                                         default=0.0) for product in products}
+        other_id, other = max(((product_id, score) for product_id, score in facts.items() if product_id != current),
+                              key=lambda item: item[1], default=(None, 0.0))
+        if other_id and other >= 0.7 and other >= facts.get(current, 0.0) + 0.15:
+            return other_id, False
+        return current, False
 
     def _llm_choice(self, comment: str, candidates: list[tuple[str, str]], timeout: float,
                     cancel_event: threading.Event | None) -> int | None:
@@ -94,6 +136,28 @@ class LiteRoutedBrain:
     def generate(self, request: BrainRequest, *, timeout_seconds: float = 3,
                  cancel_event: threading.Event | None = None) -> BrainResponse:
         started = time.monotonic()
+        target, ambiguous = self._target_product(request)
+        if ambiguous:
+            response = self.base.generate(request, timeout_seconds=timeout_seconds, cancel_event=cancel_event)
+            with self._lock:
+                self.clarified += 1
+            return replace(response, text=CLARIFY_SPOKEN, source="lite_clarify_product",
+                           latency_ms=(time.monotonic() - started) * 1000)
+        other = target is not None and target != request.product_id
+        routed = replace(request, product_id=target) if other else request
+        response = self._answer(routed, started, timeout_seconds, cancel_event)
+        if not other or response.source in ("template", "guarded_template", "local_llm"):
+            return response
+        product = self.base.product_store.fetch(request.scope, target)
+        if product is None:  # context changed while answering: never speak an unverified fact
+            return replace(response, text=UNKNOWN_SPOKEN, source="guarded_unknown")
+        with self._lock:
+            self.other_products += 1
+        prefix = f"สำหรับ{product.name} " if product.name and len(product.name) <= 60 else ""
+        return replace(response, text=(prefix + response.text)[:320], source=response.source + "_other_sku")
+
+    def _answer(self, request: BrainRequest, started: float, timeout_seconds: float,
+                cancel_event: threading.Event | None) -> BrainResponse:
         response = self.base.generate(request, timeout_seconds=timeout_seconds, cancel_event=cancel_event)
         # Unmarked questions ("...ได้ป่าว") reach Pro as chat; route them only on a strong match.
         chat = response.intent == "general_chat" and response.source in ("guarded_template", "local_llm")
@@ -126,7 +190,22 @@ class LiteRoutedBrain:
 
     def metrics(self) -> dict[str, int]:
         with self._lock:
-            return {"routed": self.routed, "llm_routes": self.llm_routes, "unknown": self.unknown}
+            return {"routed": self.routed, "llm_routes": self.llm_routes, "unknown": self.unknown,
+                    "other_products": self.other_products, "clarified": self.clarified}
+
+
+def _fact_entries(product) -> list[tuple[str, str]]:
+    if product is None:
+        return []
+    found = []
+    for field in ("faq", "attributes"):
+        values = product.facts.get(field)
+        if isinstance(values, dict):
+            for key, answer in values.items():
+                answer = _safe_text(answer)
+                if isinstance(key, str) and 2 <= len(key) <= 160 and answer:
+                    found.append((key, answer))
+    return found[:64]
 
 
 class _NoText:
