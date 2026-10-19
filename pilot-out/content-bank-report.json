@@ -1,0 +1,882 @@
+{
+  "ranAt": "2026-10-19T01:23:43.933Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "machine": {
+    "cpus": 4,
+    "memGb": 16,
+    "note": "GitHub-hosted ubuntu-latest runner"
+  },
+  "assumptions": {
+    "machineThbPerHour": 6,
+    "thbPerUsd": 35,
+    "note": "Estimates only. No bill exists for runner time; actual spend comes from generation_costs."
+  },
+  "env": {
+    "creative": "evidence-rubric",
+    "tts": "voxcpm2"
+  },
+  "results": [
+    {
+      "label": "growth-1",
+      "mode": "GROWTH",
+      "story": {
+        "format": "NUMBER_SPOTLIGHT",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ทำไมต้อง 0°C?",
+            "badge": "0°C"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำเกลือเย็นกว่า 0°C ได้",
+            "kicker": "เกลือกับน้ำแข็ง"
+          },
+          {
+            "role": "CTA",
+            "text": "เซฟไว้ดูอีกที"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: มีตัวเลขในข้อเท็จจริงที่ตรวจแล้ว จึงใช้ตัวเลขเป็นจุดดึงสายตา; ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี"
+      },
+      "topic": {
+        "topic": "เกลือกับน้ำแข็ง",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-19T05:15:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ทำไมต้อง 0°C?",
+      "voice": "ทำไมต้อง 0°C? น้ำเกลือเย็นกว่า 0°C ได้ เซฟไว้ดูอีกที",
+      "caption": "ทำไมต้อง 0°C? น้ำเกลือเย็นกว่า 0°C ได้",
+      "hashtags": [
+        "#เกลือกับน้ำแข็ง",
+        "#ตัวเลขน่ารู้",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 51.776,
+        "cpuSeconds": 81.5,
+        "avgCpuCores": 1.58,
+        "peakRssMb": 11101,
+        "renderSeconds": 50.786,
+        "creativeSeconds": 0.929
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.0845,
+      "costBasis": "ESTIMATE: 51 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 5.76
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -15.1 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–1.7s",
+        "PASS TEXT_COVERAGE: text on screen 93% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.6s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-2",
+      "mode": "GROWTH",
+      "story": {
+        "format": "LIST",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ขวดเก็บความเย็น ใน 3 ข้อ",
+            "badge": "3"
+          },
+          {
+            "role": "POINT",
+            "text": "ผนังขวดมีสองชั้น",
+            "kicker": "ข้อ 1"
+          },
+          {
+            "role": "POINT",
+            "text": "ช่องกลางไม่มีอากาศ",
+            "kicker": "ข้อ 2"
+          },
+          {
+            "role": "POINT",
+            "text": "ความร้อนผ่านได้น้อย",
+            "kicker": "ข้อ 3"
+          },
+          {
+            "role": "CTA",
+            "text": "เซฟไว้ดูอีกที"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: มีข้อเท็จจริงสั้นที่ตรวจแล้วอย่างน้อย 3 ข้อ จึงเล่าเป็นลิสต์ได้; ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี"
+      },
+      "topic": {
+        "topic": "ขวดเก็บความเย็น",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-19T12:30:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ขวดเก็บความเย็น ใน 3 ข้อ",
+      "voice": "ขวดเก็บความเย็น ใน 3 ข้อ ผนังขวดมีสองชั้น ช่องกลางไม่มีอากาศ ความร้อนผ่านได้น้อย เซฟไว้ดูอีกที",
+      "caption": "ขวดเก็บความเย็น ใน 3 ข้อ ผนังขวดมีสองชั้น",
+      "hashtags": [
+        "#ขวดเก็บความเย็น",
+        "#รู้ไว้ใช่ว่า",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 125.404,
+        "cpuSeconds": 211.3,
+        "avgCpuCores": 1.68,
+        "peakRssMb": 10729,
+        "renderSeconds": 125.29,
+        "creativeSeconds": 0.065
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.2087,
+      "costBasis": "ESTIMATE: 125 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 9.583563
+      },
+      "checks": [
+        "PASS DURATION: 10.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.3 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.5s",
+        "PASS TEXT_COVERAGE: text on screen 93% of clip (min 90%)",
+        "PASS PACING: 5 shot(s), longest 2.5s, 5 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-3",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ทายก่อนเฉลย: น้ำแข็งลอยน้ำ",
+            "kicker": "ทายก่อน",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำแข็งเบากว่าน้ำราว 9%",
+            "kicker": "เฉลย"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: ตั้งคำถามให้ผู้ชมทายก่อนเฉลยด้วยข้อเท็จจริงที่ตรวจแล้ว; ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี"
+      },
+      "topic": {
+        "topic": "น้ำแข็งลอยน้ำ",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-20T05:15:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ทายก่อนเฉลย: น้ำแข็งลอยน้ำ",
+      "voice": "ทายก่อนเฉลย: น้ำแข็งลอยน้ำ น้ำแข็งเบากว่าน้ำราว 9% ติดตามไว้ มีตอนต่อไป",
+      "caption": "ทายก่อนเฉลย: น้ำแข็งลอยน้ำ น้ำแข็งเบากว่าน้ำราว 9%",
+      "hashtags": [
+        "#น้ำแข็งลอยน้ำ",
+        "#ทายดู",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 53.2,
+        "cpuSeconds": 94.6,
+        "avgCpuCores": 1.78,
+        "peakRssMb": 10697,
+        "renderSeconds": 53.075,
+        "creativeSeconds": 0.08
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.0883,
+      "costBasis": "ESTIMATE: 53 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 6.72
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.2 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.6s",
+        "PASS TEXT_COVERAGE: text on screen 96% of clip (min 90%)",
+        "PASS PACING: 3 shot(s), longest 3.2s, 3 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-4",
+      "mode": "GROWTH",
+      "story": {
+        "format": "EXPLAINER",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ความลับของหม้อความดัน",
+            "kicker": "รู้หรือไม่"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำเดือดได้ถึงราว 120°C"
+          },
+          {
+            "role": "POINT",
+            "text": "อาหารจึงสุกเร็วขึ้น"
+          },
+          {
+            "role": "CTA",
+            "text": "เซฟไว้ดูอีกที"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: อธิบายเหตุผลด้วยข้อเท็จจริงที่ตรวจแล้วแบบตรงไปตรงมา; ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี"
+      },
+      "topic": {
+        "topic": "หม้อความดัน",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-20T12:30:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ความลับของหม้อความดัน",
+      "voice": "ความลับของหม้อความดัน น้ำเดือดได้ถึงราว 120°C อาหารจึงสุกเร็วขึ้น เซฟไว้ดูอีกที",
+      "caption": "ความลับของหม้อความดัน น้ำเดือดได้ถึงราว 120°C",
+      "hashtags": [
+        "#หม้อความดัน",
+        "#รู้หรือไม่",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 55.435,
+        "cpuSeconds": 98.8,
+        "avgCpuCores": 1.78,
+        "peakRssMb": 11149,
+        "renderSeconds": 55.326,
+        "creativeSeconds": 0.063
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.0922,
+      "costBasis": "ESTIMATE: 55 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 7.52
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.2 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.3s",
+        "PASS TEXT_COVERAGE: text on screen 94% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.3s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-5",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ทายดู เกลือกับน้ำแข็ง เพราะอะไร?",
+            "kicker": "ทายก่อน",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "เกลือทำให้จุดเยือกแข็งต่ำลง",
+            "kicker": "เฉลย"
+          },
+          {
+            "role": "CTA",
+            "text": "อยากรู้เรื่องไหน คอมเมนต์ไว้"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: ตั้งคำถามให้ผู้ชมทายก่อนเฉลยด้วยข้อเท็จจริงที่ตรวจแล้ว; รูปแบบนี้เคยใช้ไม่นานมานี้ แต่เป็นตัวเลือกที่หลักฐานรองรับดีที่สุด"
+      },
+      "topic": {
+        "topic": "เกลือกับน้ำแข็ง",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "REJECTED",
+      "rejection": [
+        "NARRATION_FELL_BACK_TO_CAPTIONS"
+      ],
+      "slot": null,
+      "slotBasis": null,
+      "hook": "ทายดู เกลือกับน้ำแข็ง เพราะอะไร?",
+      "voice": "ทายดู เกลือกับน้ำแข็ง เพราะอะไร? เกลือทำให้จุดเยือกแข็งต่ำลง อยากรู้เรื่องไหน คอมเมนต์ไว้",
+      "caption": "ทายดู เกลือกับน้ำแข็ง เพราะอะไร? เกลือทำให้จุดเยือกแข็งต่ำลง",
+      "hashtags": [
+        "#เกลือกับน้ำแข็ง",
+        "#ทายดู",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 60.561,
+        "cpuSeconds": 108.8,
+        "avgCpuCores": 1.8,
+        "peakRssMb": 10714,
+        "renderSeconds": 60.461,
+        "creativeSeconds": 0.06
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1007,
+      "costBasis": "ESTIMATE: 60 s render at 6 THB/hour",
+      "narration": {
+        "kind": "CAPTION_ONLY",
+        "reason": "thai_tts_too_long"
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: caption-only by plan",
+        "PASS READABILITY: text on screen 96% of clip; 0 line(s) too fast or too short",
+        "PASS LOUDNESS: silent",
+        "PASS HOOK: hook on screen 0.0–3.0s",
+        "PASS TEXT_COVERAGE: text on screen 96% of clip (min 90%)",
+        "PASS PACING: 3 shot(s), longest 3.0s, 3 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-6",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ทายก่อนเฉลย: ขวดเก็บความเย็น",
+            "kicker": "ทายก่อน",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "ผนังขวดมีสองชั้น",
+            "kicker": "เฉลย"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: ตั้งคำถามให้ผู้ชมทายก่อนเฉลยด้วยข้อเท็จจริงที่ตรวจแล้ว; รูปแบบนี้เคยใช้ไม่นานมานี้ แต่เป็นตัวเลือกที่หลักฐานรองรับดีที่สุด"
+      },
+      "topic": {
+        "topic": "ขวดเก็บความเย็น",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-21T05:15:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ทายก่อนเฉลย: ขวดเก็บความเย็น",
+      "voice": "ทายก่อนเฉลย: ขวดเก็บความเย็น ผนังขวดมีสองชั้น ติดตามไว้ มีตอนต่อไป",
+      "caption": "ทายก่อนเฉลย: ขวดเก็บความเย็น ผนังขวดมีสองชั้น",
+      "hashtags": [
+        "#ขวดเก็บความเย็น",
+        "#ทายดู",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 49.726,
+        "cpuSeconds": 92.9,
+        "avgCpuCores": 1.87,
+        "peakRssMb": 10868,
+        "renderSeconds": 49.588,
+        "creativeSeconds": 0.078
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.0825,
+      "costBasis": "ESTIMATE: 50 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 6.4
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.4 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–3.0s",
+        "PASS TEXT_COVERAGE: text on screen 95% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 3.0s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-7",
+      "mode": "GROWTH",
+      "story": {
+        "format": "NUMBER_SPOTLIGHT",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "9% หมายถึงอะไร?",
+            "badge": "9%"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำแข็งเบากว่าน้ำราว 9%",
+            "kicker": "น้ำแข็งลอยน้ำ"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: มีตัวเลขในข้อเท็จจริงที่ตรวจแล้ว จึงใช้ตัวเลขเป็นจุดดึงสายตา; ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี"
+      },
+      "topic": {
+        "topic": "น้ำแข็งลอยน้ำ",
+        "basis": "OWNER_EVIDENCE"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-21T12:30:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "9% หมายถึงอะไร?",
+      "voice": "9% หมายถึงอะไร? น้ำแข็งเบากว่าน้ำราว 9% ติดตามไว้ มีตอนต่อไป",
+      "caption": "9% หมายถึงอะไร? น้ำแข็งเบากว่าน้ำราว 9%",
+      "hashtags": [
+        "#น้ำแข็งลอยน้ำ",
+        "#ตัวเลขน่ารู้",
+        "#สาระน่ารู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 44.897,
+        "cpuSeconds": 79.2,
+        "avgCpuCores": 1.76,
+        "peakRssMb": 11102,
+        "renderSeconds": 44.747,
+        "creativeSeconds": 0.083
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.0745,
+      "costBasis": "ESTIMATE: 45 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 4.96
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.4 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–1.7s",
+        "PASS TEXT_COVERAGE: text on screen 94% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.2s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "affiliate-test-1",
+      "mode": "AFFILIATE",
+      "story": {
+        "format": "PRODUCT_DETAIL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "จุดที่ควรดูของขวดน้ำเก็บความเย็น"
+          },
+          {
+            "role": "POINT",
+            "text": "ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว"
+          },
+          {
+            "role": "CTA",
+            "text": "อ่านรายละเอียดในหน้าสินค้า"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"
+      },
+      "topic": {
+        "topic": null,
+        "basis": "NONE"
+      },
+      "method": "REAL_IMAGE_MOTION",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-19T13:30:00+00:00",
+      "slotBasis": "AUDIENCE_DATA",
+      "hook": "จุดที่ควรดูของขวดน้ำเก็บความเย็น",
+      "voice": "จุดที่ควรดูของขวดน้ำเก็บความเย็น ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว อ่านรายละเอียดในหน้าสินค้า",
+      "caption": "จุดที่ควรดูของขวดน้ำเก็บความเย็น ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว",
+      "hashtags": [
+        "#ขวดน้ำเก็บความเย็น",
+        "#ของมันต้องดู",
+        "#TikTokShop",
+        "#ของใช้ในบ้าน"
+      ],
+      "metrics": {
+        "wallSeconds": 53.288,
+        "cpuSeconds": 93.8,
+        "avgCpuCores": 1.76,
+        "peakRssMb": 10954,
+        "renderSeconds": 53.178,
+        "creativeSeconds": 0.059
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.0885,
+      "costBasis": "ESTIMATE: 53 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 7.637604
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.5 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–3.0s",
+        "PASS TEXT_COVERAGE: text on screen 98% of clip (min 90%)",
+        "PASS PACING: 3 shot(s), longest 3.0s, 3 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "affiliate-test-2",
+      "mode": "AFFILIATE",
+      "story": {
+        "format": "PRODUCT_DETAIL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้"
+          },
+          {
+            "role": "POINT",
+            "text": "ความจุ 500 มิลลิลิตร"
+          },
+          {
+            "role": "CTA",
+            "text": "ดูรายละเอียดสินค้าก่อนตัดสินใจ"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"
+      },
+      "topic": {
+        "topic": null,
+        "basis": "NONE"
+      },
+      "method": "REAL_IMAGE_MOTION",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "slot": "2026-10-20T13:30:00+00:00",
+      "slotBasis": "AUDIENCE_DATA",
+      "hook": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้",
+      "voice": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้ ความจุ 500 มิลลิลิตร ดูรายละเอียดสินค้าก่อนตัดสินใจ",
+      "caption": "ก่อนซื้อขวดน้ำเก็บความเย็น ดูตรงนี้ ความจุ 500 มิลลิลิตร",
+      "hashtags": [
+        "#ขวดน้ำเก็บความเย็น",
+        "#ของมันต้องดู",
+        "#TikTokShop",
+        "#ของใช้ในบ้าน"
+      ],
+      "metrics": {
+        "wallSeconds": 42.812,
+        "cpuSeconds": 74.1,
+        "avgCpuCores": 1.73,
+        "peakRssMb": 10557,
+        "renderSeconds": 42.712,
+        "creativeSeconds": 0.06
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.071,
+      "costBasis": "ESTIMATE: 43 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 5.28
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.3 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–1.8s",
+        "PASS TEXT_COVERAGE: text on screen 96% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.1s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "affiliate-test-3",
+      "mode": "AFFILIATE",
+      "story": {
+        "format": "PRODUCT_DETAIL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี?"
+          },
+          {
+            "role": "POINT",
+            "text": "ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว"
+          },
+          {
+            "role": "CTA",
+            "text": "อ่านรายละเอียดในหน้าสินค้า"
+          }
+        ],
+        "basis": "RULE_BASED_STORYTELLER_V1: พูดจุดขายจากข้อเท็จจริงที่ตรวจแล้ว"
+      },
+      "topic": {
+        "topic": null,
+        "basis": "NONE"
+      },
+      "method": "REAL_IMAGE_MOTION",
+      "quality": "PASS",
+      "bankStatus": "REJECTED",
+      "rejection": [
+        "DUPLICATE_OF:3f0aa01b-ecd4-4e59-98fe-c0031591d698"
+      ],
+      "slot": null,
+      "slotBasis": null,
+      "hook": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี?",
+      "voice": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี? ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว อ่านรายละเอียดในหน้าสินค้า",
+      "caption": "ขวดน้ำเก็บความเย็น ดูจุดไหนดี? ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว",
+      "hashtags": [
+        "#ขวดน้ำเก็บความเย็น",
+        "#ของมันต้องดู",
+        "#TikTokShop",
+        "#ของใช้ในบ้าน"
+      ],
+      "metrics": {
+        "wallSeconds": 56.611,
+        "cpuSeconds": 98.4,
+        "avgCpuCores": 1.74,
+        "peakRssMb": 11075,
+        "renderSeconds": 56.509,
+        "creativeSeconds": 0.061
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.094,
+      "costBasis": "ESTIMATE: 56 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 7.623125
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.5 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.9s",
+        "PASS TEXT_COVERAGE: text on screen 98% of clip (min 90%)",
+        "PASS PACING: 3 shot(s), longest 3.0s, 3 distinct framing(s)"
+      ]
+    }
+  ],
+  "bank": {
+    "growth": {
+      "attempts": 7,
+      "usable": 6,
+      "rejected": 1,
+      "actualUsd": 0,
+      "actualThbPerUsable": 0,
+      "estimatedThbPerUsable": 0.12190000000000001
+    },
+    "affiliateTestOnly": {
+      "attempts": 3,
+      "usable": 2,
+      "rejected": 1,
+      "actualUsd": 0,
+      "actualThbPerUsable": 0,
+      "estimatedThbPerUsable": 0.12674999999999997
+    }
+  },
+  "rebankSameMaster": {
+    "sameRow": true,
+    "rowsInBank": 10
+  },
+  "publishingQueueRows": 0
+}
