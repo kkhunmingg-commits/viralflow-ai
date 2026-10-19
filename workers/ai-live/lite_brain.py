@@ -26,7 +26,7 @@ from local_brain import (UNKNOWN, BrainRequest, BrainResponse, LocalBrainProvide
 ROUTABLE_INTENTS = frozenset({"product_question", "faq"})
 UNKNOWN_SPOKEN = "ขอเช็กข้อมูลให้ก่อนนะคะ ตอนนี้ในรายละเอียดสินค้ายังไม่มีเรื่องนี้ค่ะ"
 CLARIFY_SPOKEN = "ขอโทษนะคะ หมายถึงสินค้าตัวไหนคะ พิมพ์ชื่อสินค้ามาได้เลยค่ะ"
-NAME_MATCH_CHARS = 4  # shortest product-name fragment that may select another SKU
+NAME_MATCH_CHARS = 5  # shortest product-name fragment that may select another SKU (4 if it starts the name)
 _FILLER = re.compile(r"(?:ครับ|ค่ะ|คะ|คับ|จ้า|จ้ะ|นะ|ไหม|มั้ย|หรือเปล่า|รึเปล่า|ป่าว|ป่ะ|มะ|บ้าง|หน่อย|อ่ะ|อะ|เหรอ|หรอ|[\s?!.,~]+)")
 
 
@@ -40,11 +40,16 @@ def _compact(text: str) -> str:
 
 
 def name_overlap(question: str, name: str) -> int:
-    """Longest shared run of characters between a comment and a product name."""
+    """Longest shared run of characters between a comment and a product name.
+
+    Thai is written without spaces, so short accidental runs ("บได้") are
+    common; a run counts one extra character when it starts the name.
+    """
     left, right = _compact(question), _compact(name)
     if not left or not right:
         return 0
-    return SequenceMatcher(None, left, right, autojunk=False).find_longest_match(0, len(left), 0, len(right)).size
+    match = SequenceMatcher(None, left, right, autojunk=False).find_longest_match(0, len(left), 0, len(right))
+    return match.size + (1 if match.b == 0 and match.size >= 4 else 0)
 
 
 def similarity(question: str, key: str) -> float:

@@ -216,6 +216,11 @@ class MultiSkuTests(unittest.TestCase):
     def test_ambiguous_product_gets_a_question_not_a_guess(self):
         self.assertEqual(self.ask("ผ้าขนหนูราคาเท่าไหร่").text, CLARIFY_SPOKEN)
 
+    def test_short_accidental_thai_overlap_does_not_switch_product(self):
+        self.store.put(ProductSnapshot(SCOPE, "p4", "โคมไฟตั้งโต๊ะ LED พับได้", "v1", {"price": 459, "currency": "THB"}))
+        self.assertNotIn("โคมไฟ", self.ask("ซื้อสองใบได้ส่วนลดไหม").text)
+        self.assertIn("459", self.ask("โคมไฟราคาเท่าไหร่").text)
+
     def test_other_owners_products_are_never_searched(self):
         self.assertNotIn("x", [p.product_id for p in self.brain._scope_products(SCOPE)])
 

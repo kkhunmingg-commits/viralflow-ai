@@ -136,11 +136,15 @@ class LitePresenterEngine:
         if not audio or len(audio) % 2 or len(audio) > 32_000:
             raise ValueError("INVALID_AUDIO_CHUNK")
         self._interrupt.clear()
-        for feature in self._extractor.push(audio):
+        features = self._extractor.push(audio)
+        # One frame of look-ahead inside the chunk offsets the tracker's smoothing
+        # delay (measured ~40 ms behind the audio in the received stream).
+        tracked = [self._tracker.update(feature) for feature in features]
+        for position, feature in enumerate(features):
             if self._interrupt.is_set():
                 self._extractor.reset()
                 return
-            openness = self._tracker.update(feature)
+            openness = tracked[min(position + 1, len(tracked) - 1)]
             index = self._select(openness, feature.centroid if feature.voiced else None)
             jpeg = self._paced(index)
             if jpeg is not None:
@@ -185,7 +189,8 @@ class LitePresenterEngine:
                 "compose_p50_ms": pick(0.5), "compose_p95_ms": pick(0.95),
                 "library_frames": len(self._regions),
                 "pack_source": self._pack.source if self._pack else None,
-                "technical_test_only": self._pack.technical_test_only if self._pack else None}
+                "technical_test_only": self._pack.technical_test_only if self._pack else None,
+                "face_box_output": list(self._box)}
 
     # internals -------------------------------------------------------------
     def _decay(self) -> float:
