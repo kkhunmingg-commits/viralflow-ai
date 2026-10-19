@@ -69,7 +69,7 @@ type AssStyle="Caption"|"Card"|"Kicker"|"Badge";
 const event=(style:AssStyle,c:ComposerCaption,durationSeconds:number,lines:string[],prefix="")=>{
   const start=Math.max(0,c.start),end=Math.min(durationSeconds,c.end);
   if(!(end>start))throw new Error("caption_timing_invalid");
-  return `Dialogue: ${style==="Caption"?2:1},${assTime(start)},${assTime(end)},${style},,0,0,0,,${prefix}${lines.map(highlight).join("\\N")}`;
+  return `Dialogue: ${style==="Caption"?2:1},${assTime(start)},${assTime(end)},${style},,0,0,0,,${prefix}${lines.map(style==="Caption"||style==="Card"?highlight:l=>l).join("\\N")}`;
 };
 /** Motion-graphic shapes are ASS vector drawings, so they cost nothing and never depict the product. */
 const drawing=(start:number,end:number,body:string)=>`Dialogue: 0,${assTime(start)},${assTime(end)},Shape,,0,0,0,,${body}`;
@@ -128,9 +128,9 @@ export function imageShot(index:number,clip:ComposerClip,seconds:number){
   const framed=clip.layout==="FRAMED";
   // FRAMED: product sits in the upper 60% on a blurred copy of itself, leaving the caption band clear.
   const base=framed
-    ?`[${index}:v]split[b${index}][f${index}];[b${index}]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT},boxblur=40:3,eq=brightness=-0.22:saturation=0.75[bb${index}];[f${index}]scale=1000:1000:force_original_aspect_ratio=decrease[ff${index}];[bb${index}][ff${index}]overlay=x=(W-w)/2:y=150+(1000-h)/2`
+    ?`[${index}:v]split[b${index}][f${index}];[b${index}]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT},boxblur=40:3,eq=brightness=-0.22:saturation=0.75[bb${index}];[f${index}]scale=900:900:force_original_aspect_ratio=decrease[ff${index}];[bb${index}][ff${index}]overlay=x=(W-w)/2:y=120+(900-h)/2`
     :`[${index}:v]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT}`;
-  const cx=framed?.5:clamp01(box.x+box.w/2,.15,.85),cy=framed?(150+500)/HEIGHT:clamp01(box.y+box.h/2,.15,.85);
+  const cx=framed?.5:clamp01(box.x+box.w/2,.15,.85),cy=framed?(120+450)/HEIGHT:clamp01(box.y+box.h/2,.15,.85);
   // Detail zoom fills ~85% of the frame with the upper part of the subject, where labels, lids and controls usually are.
   const detail=Math.min(2.4,Math.max(1.35,.85/Math.max(box.w,box.h*WIDTH/HEIGHT,.2)));
   const dy=framed?cy-.08:clamp01(box.y+box.h*.35,.15,.85);
