@@ -45,3 +45,26 @@ describe("customer room evidence boundary", () => {
     expect(room).not.toHaveProperty("token");
   });
 });
+
+describe("LIVE Lite Auto room readiness", () => {
+  const machine = () => {
+    const view = projectLocalMachine({ versions: LIVE_COMPONENT_VERSIONS, state: "GPU_REQUIRED", sessionActive: false,
+      lite: { machineReady: true, canStart: true, reasons: [] } }, true);
+    view.deviceAuthorized = true; view.membershipStatus = "SUPPORTED";
+    return view;
+  };
+  const input = { accountId: "account-a", imageReady: true, microphoneReady: true, productsReady: true, busy: false };
+  it("uses the companion's Lite admission only in Lite mode", () => {
+    expect(customerRoomRuntime({ ...input, machine: machine() }).canStart).toBe(false);
+    expect(customerRoomRuntime({ ...input, machine: machine(), liveMode: "pro" }).canStart).toBe(false);
+    expect(customerRoomRuntime({ ...input, machine: machine(), liveMode: "lite" }).canStart).toBe(true);
+  });
+  it("still needs a chosen presenter, products and an authorized device in Lite", () => {
+    expect(customerRoomRuntime({ ...input, imageReady: false, machine: machine(), liveMode: "lite" }).canStart).toBe(false);
+    expect(customerRoomRuntime({ ...input, productsReady: false, machine: machine(), liveMode: "lite" }).canStart).toBe(false);
+    const unauthorized = machine(); unauthorized.deviceAuthorized = false;
+    expect(customerRoomRuntime({ ...input, machine: unauthorized, liveMode: "lite" }).canStart).toBe(false);
+    const blocked = machine(); blocked.lite = { ...blocked.lite!, canStart: false };
+    expect(customerRoomRuntime({ ...input, machine: blocked, liveMode: "lite" }).canStart).toBe(false);
+  });
+});

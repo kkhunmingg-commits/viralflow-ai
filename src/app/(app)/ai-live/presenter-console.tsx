@@ -5,11 +5,12 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type Ref } from "react";
-import { LocalLiveClient, type LiveMode, type LocalMachineView, type LocalPresenterCard } from "@/features/ai-live/local-client";
+import { LocalLiveClient, type LiteVoiceId, type LitePresenterCatalog, type LiveMode, type LocalMachineView, type LocalPresenterCard } from "@/features/ai-live/local-client";
 import { customerRoomRuntime, machineForAccount, type CustomerRoomRuntime } from "@/features/ai-live/customer-room-view";
 import { PassivePresenterRequests } from "@/features/ai-live/passive-presenter-requests";
 import { customerConnectionQuality, customerLiveStatus } from "@/features/ai-live/customer-stream-status";
 import { AI_LIVE_REALTIME_VALIDATED } from "@/features/ai-live/local-contract";
+import { LitePresenterPicker } from "./lite-presenter-picker";
 
 type Choice = { id: string; label: string };
 type ProductChoice = { id: string; title: string };
@@ -93,6 +94,20 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
   const [microphoneReady, setMicrophoneReady] = useState(false);
   const [microphoneLabel, setMicrophoneLabel] = useState("");
   const microphoneRequired = liveMode !== "lite";
+  // LIVE Lite Auto uses an installed AI presenter pack and a Thai voice instead of a photo.
+  const liteMode = liveMode === "lite";
+  const [liteCatalog, setLiteCatalog] = useState<LitePresenterCatalog | null>(null);
+  const [liteFolder, setLiteFolder] = useState<string | null>(null);
+  const [liteVoice, setLiteVoice] = useState<LiteVoiceId | null>(null);
+  const [liteThumbnails, setLiteThumbnails] = useState<Record<string, string>>({});
+  const [liteCatalogRequest, setLiteCatalogRequest] = useState(0);
+  const liteThumbnailUrlsRef = useRef<Record<string, string>>({});
+  const litePack = liteMode && liteCatalog
+    ? liteCatalog.presenters.find((pack) => pack.folder === liteFolder) ?? liteCatalog.presenters[0] ?? null : null;
+  const liteVoiceChoice: LiteVoiceId | null = litePack
+    ? (liteFolder === litePack.folder ? liteVoice : null) ?? litePack.defaultVoice ?? liteCatalog?.voices[0]?.id ?? null : null;
+  const litePresenter = litePack && liteVoiceChoice ? { folder: litePack.folder, voice: liteVoiceChoice } : null;
+  const presenterReady = liteMode ? !!litePresenter : !!presenter;
   const microphoneSatisfied = !microphoneRequired || microphoneReady;
   const [pairCode, setPairCode] = useState("");
   const [action, setActionState] = useState<Action>(null);
@@ -175,8 +190,48 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
       clientRef.current = null;
       if (presenterUrlRef.current) URL.revokeObjectURL(presenterUrlRef.current);
       presenterUrlRef.current = null;
+      for (const url of Object.values(liteThumbnailUrlsRef.current)) URL.revokeObjectURL(url);
+      liteThumbnailUrlsRef.current = {};
     };
   }, [requestMachine, passivePresenterReads]);
+
+  // The Lite catalogue (packs, voices, key status, free allowance) shares the serialized local queue.
+  const liteCatalogAllowed = liteMode && !!machine?.paired && machine.deviceAuthorized && machine.membershipStatus === "SUPPORTED"
+    && !["UPDATE_REQUIRED", "OFFLINE", "ERROR"].includes(machine.state);
+  useEffect(() => {
+    if (!liteCatalogAllowed) return;
+    const generation = generationRef.current;
+    const request = requestQueueRef.current.catch(() => undefined).then(async () => {
+      if (!mountedRef.current || generation !== generationRef.current || !clientRef.current) return;
+      const controller = new AbortController();
+      requestControllerRef.current = controller;
+      try {
+        const catalog = await clientRef.current.litePresenters(controller.signal);
+        if (mountedRef.current && generation === generationRef.current) setLiteCatalog(catalog);
+      } catch { /* Shown as "not connected"; a later check retries. */ }
+      finally { if (requestControllerRef.current === controller) requestControllerRef.current = null; }
+    });
+    requestQueueRef.current = request.catch(() => undefined);
+  }, [liteCatalogAllowed, liteCatalogRequest]);
+
+  // Thumbnails are passive reads: session controls never wait behind them.
+  useEffect(() => {
+    if (!liteMode || !liteCatalog || !passiveReadsEnabled) return;
+    const controller = new AbortController();
+    for (const pack of liteCatalog.presenters) {
+      if (liteThumbnailUrlsRef.current[pack.folder]) continue;
+      passivePresenterReads.read(async (signal) => {
+        if (!mountedRef.current || !clientRef.current) throw new DOMException("Read cancelled", "AbortError");
+        return clientRef.current.litePresenterThumbnail(pack.folder, signal);
+      }, controller.signal).then((file) => {
+        if (!mountedRef.current || liteThumbnailUrlsRef.current[pack.folder]) return;
+        const url = URL.createObjectURL(file);
+        liteThumbnailUrlsRef.current = { ...liteThumbnailUrlsRef.current, [pack.folder]: url };
+        setLiteThumbnails(liteThumbnailUrlsRef.current);
+      }).catch(() => undefined);
+    }
+    return () => controller.abort();
+  }, [liteMode, liteCatalog, passiveReadsEnabled, passivePresenterReads]);
 
   const prepareMachine = useCallback(async (repair = false) => {
     if (action || !machine?.paired || !machine.deviceAuthorized || machine.membershipStatus !== "SUPPORTED"
@@ -285,23 +340,35 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
     setAction("check"); setError(null); setNotice(null);
     try { await requestMachine(async (client, signal) => {
       const result = machine?.paired ? await client.checkHardware(signal) : await client.discover(signal);
-      if (result.deviceAuthorized && presenter && accountSelectionReady && productSelectionReady) {
+      if (result.deviceAuthorized && liteMode && litePresenter && accountSelectionReady && productSelectionReady) {
+        await client.prepareAI(signal, { accountId: selectedAccount, productIds: selectedProductIds,
+          litePresenter, microphoneId: null, liveMode });
+      } else if (result.deviceAuthorized && !liteMode && presenter && accountSelectionReady && productSelectionReady) {
         await client.prepareAI(signal, { accountId: selectedAccount, productIds: selectedProductIds,
           presenter, microphoneId: microphoneRequired && microphoneReady ? "default" : null, liveMode });
       }
       return client.snapshot();
     }); }
     catch { if (mountedRef.current) setError("ตรวจสอบเครื่องไม่สำเร็จ กรุณาลองอีกครั้ง"); }
-    finally { if (mountedRef.current) setAction(null); }
+    finally {
+      if (mountedRef.current) setAction(null);
+      if (mountedRef.current && liteMode) setLiteCatalogRequest((current) => current + 1);
+    }
   }
 
   async function startLive() {
-    if (action || !machine?.canStart || !accountSelectionReady
+    if (liteMode) {
+      // LIVE Lite Auto: the companion's own Lite admission and an installed AI presenter.
+      if (action || !machine?.lite?.canStart || !accountSelectionReady || selectedMachine?.sessionActive
+        || !productSelectionReady || !litePresenter) return;
+    } else if (action || !machine?.canStart || !accountSelectionReady
       || selectedMachine?.sessionActive || machine.capacity?.status !== "VERIFIED" || !machine.capacity.canStartAnotherRoom
       || !productSelectionReady || !presenter || !microphoneSatisfied) return;
     setAction("start"); setError(null);
     try {
-      await requestMachine((client, signal) => client.start({
+      await requestMachine((client, signal) => client.start(liteMode ? {
+        accountId: selectedAccount, productIds: selectedProductIds, litePresenter, microphoneId: null, liveMode,
+      } : {
         accountId: selectedAccount, productIds: selectedProductIds, presenter,
         microphoneId: microphoneRequired ? "default" : null, liveMode,
       }, signal));
@@ -398,10 +465,10 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
   }));
 
   useEffect(() => {
-    onRuntimeChange?.(customerRoomRuntime({ accountId: selectedAccount, machine, imageReady: !!presenter,
+    onRuntimeChange?.(customerRoomRuntime({ accountId: selectedAccount, machine, imageReady: presenterReady,
       microphoneReady: microphoneSatisfied, productsReady: productSelectionReady,
-      busy: !!action, accountReady: accountSelectionReady }));
-  }, [onRuntimeChange, selectedAccount, machine, presenter, microphoneSatisfied, productSelectionReady, action, accountSelectionReady]);
+      busy: !!action, accountReady: accountSelectionReady, liveMode }));
+  }, [onRuntimeChange, selectedAccount, machine, presenterReady, microphoneSatisfied, productSelectionReady, action, accountSelectionReady, liveMode]);
 
   async function checkUpdates() {
     if (action || !machine?.paired) return;
@@ -425,9 +492,10 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
   }
 
   const showPairing = machine && !machine.paired && !["NOT_INSTALLED", "OFFLINE", "INSTALLING"].includes(machine.state);
-  const canStart = !!selectedMachine?.canStart && selectedMachine.deviceAuthorized && !selectedMachine.sessionActive && !action
-    && machine?.capacity?.status === "VERIFIED" && machine.capacity.canStartAnotherRoom
-    && accountSelectionReady && productSelectionReady && !!presenter && microphoneSatisfied;
+  const modeAdmitted = liteMode ? !!selectedMachine?.lite?.canStart
+    : !!selectedMachine?.canStart && machine?.capacity?.status === "VERIFIED" && machine.capacity.canStartAnotherRoom;
+  const canStart = modeAdmitted && !!selectedMachine?.deviceAuthorized && !selectedMachine.sessionActive && !action
+    && accountSelectionReady && productSelectionReady && presenterReady && microphoneSatisfied;
   const components = machine?.components;
   const liveStatus = components?.state === "READY" && !selectedMachine?.canStart && !selectedMachine?.sessionActive
     ? "กำลังเตรียมพร้อม" : customerLiveStatus(selectedMachine, action === "start" || action === "stop" ? action : null);
@@ -435,7 +503,8 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
   const componentProgress = components?.totalBytes ? Math.min(100, Math.floor(100 * components.bytesReceived / components.totalBytes)) : null;
   const preparationAllowed = !!machine?.paired && machine.deviceAuthorized && machine.membershipStatus === "SUPPORTED"
     && !machine.sessionActive && !!components?.canPrepare && accountSelectionReady && productSelectionReady && !action;
-  const previewImage = previewEnabled && systemPreview ? systemPreview : presenterPreview;
+  const litePreview = litePack ? liteThumbnails[litePack.folder] ?? null : null;
+  const previewImage = previewEnabled && systemPreview ? systemPreview : liteMode ? litePreview : presenterPreview;
   const previewIsGenerated = previewEnabled && !!systemPreview;
 
   return <div className={`ai-live-page ${embedded ? "ai-live-room-runtime" : ""}`}>
@@ -487,10 +556,14 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
           </select>
         </label>
         {accounts.length === 0 && <p className="ai-live-help">ยังไม่มีบัญชีที่เชื่อมต่อ <Link href="/accounts">ดูบัญชี TikTok</Link></p>}
-        <label className="ai-live-field">พรีเซนเตอร์
+        {liteMode ? <LitePresenterPicker catalog={liteCatalog} selected={litePack?.folder ?? null} voice={liteVoiceChoice}
+          thumbnails={liteThumbnails} disabled={!!selectedMachine?.sessionActive || !!action}
+          onSelect={(folder) => { setLiteFolder(folder); setLiteVoice(null); }}
+          onVoiceChange={(voice) => { setLiteFolder(litePack?.folder ?? null); setLiteVoice(voice); }} />
+          : <label className="ai-live-field">พรีเซนเตอร์
           <input type="file" accept="image/jpeg,image/png" disabled={!!selectedMachine?.sessionActive} onChange={(event) => choosePresenter(event.target.files?.[0] ?? null)} />
           <small>เลือกภาพที่คุณมีสิทธิใช้งาน ขนาดไม่เกิน 4 MB</small>
-        </label>
+        </label>}
         {!embedded && <label className="ai-live-field">สินค้า
           <select value={selectedProduct} disabled={!!selectedMachine?.sessionActive} onChange={(event) => { setInternalProduct(event.target.value); onProductChange?.(event.target.value); }}>
             <option value="">เลือกสินค้า</option>
@@ -509,7 +582,7 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
           <button className="primary-action" type="button" disabled={!canStart} onClick={() => void startLive()}>{action === "start" ? "กำลังเตรียม..." : "เริ่ม LIVE"}</button>
           <button className="danger-action" type="button" disabled={!selectedMachine?.sessionActive || !!action} onClick={() => void stopLive()}>{action === "stop" ? "กำลังหยุด..." : "หยุด LIVE"}</button>
         </div>
-        {!machine?.canStart && <p className="ai-live-context-note">AI LIVE ยังไม่พร้อมเริ่มถ่ายทอดสด ดูความพร้อมและเชื่อมต่อเครื่องได้ใน “ตั้งค่าการ LIVE”</p>}
+        {!(liteMode ? machine?.lite?.canStart : machine?.canStart) && <p className="ai-live-context-note">AI LIVE ยังไม่พร้อมเริ่มถ่ายทอดสด ดูความพร้อมและเชื่อมต่อเครื่องได้ใน “ตั้งค่าการ LIVE”</p>}
       </section>
 
       <div className="ai-live-side">
@@ -568,7 +641,7 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
           <div className="ai-live-panel-title"><h2>ดูตัวอย่าง</h2><span className="ai-live-preview-state">{previewIsGenerated ? "ภาพจากระบบ" : "ภาพอ้างอิง · ยังไม่ใช่ภาพสด"}</span></div>
           <div className="ai-live-stage">
             {previewImage ? <img src={previewImage} alt={previewIsGenerated ? "ภาพพรีเซนเตอร์จากระบบ" : "ภาพพรีเซนเตอร์ที่เลือก ยังไม่ใช่ภาพสด"} />
-              : <div className="ai-live-stage-empty"><span>✦</span><strong>เลือกภาพพรีเซนเตอร์</strong><p>ภาพที่เลือกจะแสดงตรงนี้</p></div>}
+              : <div className="ai-live-stage-empty"><span>✦</span><strong>{liteMode ? "เลือกพิธีกร AI" : "เลือกภาพพรีเซนเตอร์"}</strong><p>ภาพที่เลือกจะแสดงตรงนี้</p></div>}
             {previewImage && <span className="ai-live-stage-tag">{previewIsGenerated ? "ภาพจากระบบ" : "ภาพที่เลือก · ยังไม่ใช่ภาพสด"}</span>}
           </div>
         </section>

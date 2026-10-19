@@ -13,6 +13,7 @@ import uuid
 from pathlib import Path
 
 from .agent import DEFAULT_LIVE_MODE, LIVE_MODES, AgentError
+from .lite_presenters import LITE_VOICE_IDS
 from .security import SecurityError
 
 MAX_MESSAGE = 6 * 1024 * 1024
@@ -29,6 +30,18 @@ def _live_mode(value) -> str:
     if type(value) is not str or value not in LIVE_MODES:
         raise AgentError(422, "LIVE_MODE_INVALID", "โหมด LIVE ไม่ถูกต้อง")
     return value
+
+
+def _lite_presenter(live_mode: str, pack_dir, voice) -> tuple[str, str] | None:
+    """The Dashboard's Lite presenter pack folder and Thai voice, fixed per child."""
+    if pack_dir is None and voice is None:
+        return None
+    if (live_mode != "lite" or not isinstance(pack_dir, Path) or not pack_dir.is_absolute()
+            or type(voice) is not str or voice not in LITE_VOICE_IDS):
+        raise AgentError(422, "LITE_PRESENTER_INVALID", "ข้อมูลพิธีกร AI ไม่ถูกต้อง")
+    if pack_dir.is_symlink() or not pack_dir.is_dir():
+        raise AgentError(404, "LITE_PRESENTER_NOT_FOUND", "ไม่พบพิธีกร AI ที่เลือก")
+    return str(pack_dir), voice
 
 
 class WindowsChildJob:
@@ -71,10 +84,12 @@ class WindowsChildJob:
 class _ManagedRoomProcess:
     def __init__(self, app_root: Path, components, *, process_factory=subprocess.Popen,
                  timeout_seconds: float = 30, room_id: str | None = None,
-                 live_mode: str = DEFAULT_LIVE_MODE):
+                 live_mode: str = DEFAULT_LIVE_MODE, lite_presenter: tuple[str, str] | None = None):
         self.app_root = app_root
         # Fixed for the child's lifetime: its first config line selects the boundary.
         self.live_mode = _live_mode(live_mode)
+        # (pack folder, voice) chosen on the Dashboard; read by the child at startup.
+        self.lite_presenter = lite_presenter if self.live_mode == "lite" else None
         self.components = components
         self._process_factory = process_factory
         self._timeout = timeout_seconds
@@ -158,6 +173,8 @@ class _ManagedRoomProcess:
         if self.live_mode == "lite":
             # Lite never uses the dev fallback presenter (the child disables it).
             environment.update({name: value for name, value in os.environ.items() if name in LITE_ENVIRONMENT})
+            if self.lite_presenter is not None:
+                environment["AI_LIVE_LITE_PACK_DIR"], environment["AZURE_SPEECH_VOICE"] = self.lite_presenter
         elif self.components.profile == "cpu-dev":
             from provider_config import dev_fallback_enabled
             if not dev_fallback_enabled():
@@ -346,8 +363,9 @@ class ManagedRuntimeWorker:
     The authenticated LocalAgent owns measured-capacity admission. This boundary
     additionally caps resource creation and refuses duplicate account lifecycles.
     A timed-out child cannot terminate another room or accept a new session ID.
-    Each child is launched for one LIVE mode; a room prepared for another mode
-    is closed and replaced so a mode change always gets a matching worker.
+    Each child is launched for one LIVE mode (and, for Lite, one presenter pack
+    and voice); a room prepared for anything else is closed and replaced so a
+    change always gets a matching worker.
     """
     live_modes = frozenset(LIVE_MODES)
 
@@ -369,15 +387,15 @@ class ManagedRuntimeWorker:
         self._prepared = {}
         self._preparing = {}
 
-    def _new_process(self, live_mode=DEFAULT_LIVE_MODE):
+    def _new_process(self, live_mode=DEFAULT_LIVE_MODE, lite_presenter=None):
         return _ManagedRoomProcess(self.app_root, self.components,
             process_factory=self._factory, timeout_seconds=self._timeout, room_id=str(uuid.uuid4()),
-            live_mode=live_mode)
+            live_mode=live_mode, lite_presenter=lite_presenter)
 
-    def _claim_process(self, live_mode):
+    def _claim_process(self, live_mode, lite_presenter=None):
         """Caller holds self._lock. The shared probe is always a Pro child."""
         if live_mode != DEFAULT_LIVE_MODE:
-            return self._new_process(live_mode)
+            return self._new_process(live_mode, lite_presenter)
         process = self._new_process() if self._probe_claimed else self._probe
         self._probe_claimed = True
         return process
@@ -420,9 +438,14 @@ class ManagedRuntimeWorker:
             self._health_cached = dict(result)
         return result
 
+    @staticmethod
+    def _matches(process, live_mode, lite_presenter):
+        return process.live_mode == live_mode and process.lite_presenter == lite_presenter
+
     def start_session(self, owner_id, account_id, product_ids, presenter_path, microphone_id,
-                      live_mode=DEFAULT_LIVE_MODE):
+                      live_mode=DEFAULT_LIVE_MODE, lite_pack_dir=None, lite_voice=None):
         live_mode = self._check_mode(live_mode, microphone_id)
+        lite_presenter = _lite_presenter(live_mode, lite_pack_dir, lite_voice)
         key = (owner_id, account_id)
         stale = None
         with self._lock:
@@ -434,10 +457,10 @@ class ManagedRuntimeWorker:
                 raise AgentError(409, "ROOM_CAPACITY_REACHED", "ใช้จำนวนห้องครบแล้ว")
             self._pending.add(key)
             process = self._prepared.pop(key, None)
-            if process is not None and process.live_mode != live_mode:
+            if process is not None and not self._matches(process, live_mode, lite_presenter):
                 stale, process = process, None
             if process is None:
-                process = self._claim_process(live_mode)
+                process = self._claim_process(live_mode, lite_presenter)
         if stale is not None:
             self._discard(stale)
         try:
@@ -503,8 +526,9 @@ class ManagedRuntimeWorker:
             self._contexts[(owner, account)] = copy.deepcopy(products)
 
     def prepare_room(self, owner, account, products, reference, microphone=None,
-                     live_mode=DEFAULT_LIVE_MODE):
+                     live_mode=DEFAULT_LIVE_MODE, lite_pack_dir=None, lite_voice=None):
         live_mode = self._check_mode(live_mode, microphone)
+        lite_presenter = _lite_presenter(live_mode, lite_pack_dir, lite_voice)
         key = (owner, account)
         stale = None
         with self._lock:
@@ -513,10 +537,10 @@ class ManagedRuntimeWorker:
             if key not in self._prepared and len(self._prepared) + len(self._accounts) >= 10:
                 raise AgentError(409, "ROOM_CAPACITY_REACHED", "ใช้จำนวนห้องครบแล้ว")
             process = self._prepared.get(key)
-            if process is not None and process.live_mode != live_mode:
+            if process is not None and not self._matches(process, live_mode, lite_presenter):
                 stale, process = self._prepared.pop(key), None
             if process is None:
-                process = self._claim_process(live_mode)
+                process = self._claim_process(live_mode, lite_presenter)
             self._pending.add(key)
             self._preparing[key] = process
         if stale is not None:
@@ -547,7 +571,7 @@ class ManagedRuntimeWorker:
                 self._preparing.pop(key, None)
 
     def _discard(self, process):
-        """Close a prepared child whose LIVE mode no longer matches the request."""
+        """Close a prepared child whose LIVE mode/presenter no longer matches the request."""
         process.close()
         with self._lock:
             if process is self._probe:

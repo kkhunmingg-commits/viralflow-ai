@@ -211,7 +211,8 @@ describe("browser to local companion boundary", () => {
     await client.pair("ABCDEF");
     const presenter = new File(["test-reference"], "presenter.jpg", { type: "image/jpeg" });
     // Simulates the future release-validated state; the shipped gate keeps canStart false.
-    const open = () => { Object.assign(client["current"], { canStart: true, deviceAuthorized: true }); };
+    const open = () => { Object.assign(client["current"], { canStart: true, deviceAuthorized: true,
+      lite: { machineReady: true, reasons: [], canStart: true, commercialLive: false } }); };
     open();
     await expect(client.start({ accountId, productIds: [productId], presenter, microphoneId: "default", liveMode: "lite" })).rejects.toThrow();
     await expect(client.start({ accountId, productIds: [productId], presenter, microphoneId: null })).rejects.toThrow();
@@ -401,6 +402,109 @@ describe("browser to local companion boundary", () => {
     expect(await client.revokeDevice()).toMatchObject({ deviceRegistered: false, deviceAuthorized: false });
     expect(mock.mock.calls[3][1]?.method).toBe("DELETE");
     assertLoopbackCall(mock.mock.calls[4], "/v1/device/revoke", true);
+    client.dispose();
+  });
+});
+
+describe("LIVE Lite Auto AI presenter choice", () => {
+  const paired = () => [{ token, expiresAt: nowSeconds + 300, deviceId }, { ...ready, deviceAuthorized: true,
+    lite: { machineReady: true, reasons: [], canStart: true, commercialLive: false } }, { device: { authorized: true }, entitled: true }] as const;
+  const choice = { folder: "nara", voice: "th-TH-AcharaNeural" } as const;
+
+  it("projects the companion's Lite admission separately from the Pro gate", () => {
+    const view = projectLocalMachine({ ...ready, lite: { machineReady: true, canStart: true, reasons: ["CUDA private"], commercialLive: true } }, true);
+    expect(view.canStart).toBe(false);
+    expect(view.lite).toEqual({ machineReady: true, canStart: true, reasons: ["ต้องตรวจสอบความพร้อมของเครื่องเพิ่มเติม"], commercialLive: false });
+    expect(projectLocalMachine({ ...ready, lite: { machineReady: false, canStart: true } }, true).lite?.canStart).toBe(false);
+    expect(projectLocalMachine({ ...ready, lite: { machineReady: true, canStart: true } }, false).lite).toBeUndefined();
+  });
+
+  it("reads installed presenters, voices and key status without any key and drops unsafe entries", async () => {
+    const catalog = {
+      presenters: [
+        { packId: "lite-1", folder: "nara", name: "นารา", source: "SYNTHETIC_CHARACTER", technicalTestOnly: false, defaultVoice: "th-TH-PremwadeeNeural", frames: 120 },
+        { folder: "../escape", name: "x" }, { folder: "krit", name: "", defaultVoice: "en-US-JennyNeural" },
+      ],
+      voices: [{ id: "th-TH-PremwadeeNeural", label: "เปรมวดี (หญิง)" }, { id: "en-US-JennyNeural", label: "Jenny" }],
+      speechKey: { configured: true, provider: "azure", region: "southeastasia", key: "should-never-be-kept" },
+      freeTier: { monthly_cap_characters: 450000, used_this_month: 1200, requests_per_minute_cap: 18, paid_fallback: false },
+    };
+    const { mock, fetcher } = responseSequence(...paired(), catalog);
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    const result = await client.litePresenters();
+    assertLoopbackCall(mock.mock.calls[3], "/v1/lite/presenters", true);
+    expect(result.presenters).toEqual([
+      { folder: "nara", name: "นารา", technicalTestOnly: false, defaultVoice: "th-TH-PremwadeeNeural", frames: 120 },
+      { folder: "krit", name: "krit", technicalTestOnly: true, defaultVoice: null, frames: 0 }]);
+    expect(result.voices).toEqual([{ id: "th-TH-PremwadeeNeural", label: "เปรมวดี (หญิง)" }]);
+    expect(result.speechKey).toEqual({ configured: true, region: "southeastasia" });
+    expect(result.freeTier).toEqual({ monthlyCapCharacters: 450000, usedThisMonth: 1200 });
+    expect(JSON.stringify(result)).not.toContain("should-never-be-kept");
+    client.dispose();
+  });
+
+  it("reads a pack thumbnail by folder only, as a bounded JPEG", async () => {
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    const items: Response[] = [];
+    const fetcher = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).endsWith("/thumbnail")) return new Response(jpeg, { headers: { "content-type": "image/jpeg", "content-length": "4" } });
+      return items.shift() ?? Response.json({ ...ready, deviceAuthorized: true });
+    });
+    items.push(Response.json({ token, expiresAt: nowSeconds + 300, deviceId }), Response.json({ ...ready, deviceAuthorized: true }),
+      Response.json({ device: { authorized: true }, entitled: true }));
+    const client = new LocalLiveClient(fetcher as unknown as typeof fetch, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    const file = await client.litePresenterThumbnail("nara");
+    expect(file.type).toBe("image/jpeg");
+    expect(new Uint8Array(await file.arrayBuffer())).toEqual(jpeg);
+    expect(fetcher.mock.calls.at(-1)?.[0]).toBe("http://127.0.0.1:8766/v1/lite/presenters/nara/thumbnail");
+    const calls = fetcher.mock.calls.length;
+    await expect(client.litePresenterThumbnail("../nara")).rejects.toThrow();
+    await expect(client.litePresenterThumbnail("a/b")).rejects.toThrow();
+    expect(fetcher.mock.calls.length).toBe(calls);
+    client.dispose();
+  });
+
+  it("warms Lite with the chosen presenter and voice and uploads no photo", async () => {
+    const context = { payload: { purpose: "AI_LIVE_PRODUCT_CONTEXT", products: [] }, signature: "signed-context" };
+    const { mock, fetcher } = responseSequence(...paired(), context, { synced: true }, { preparing: true });
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    const presenter = new File(["test-reference"], "presenter.jpg", { type: "image/jpeg" });
+    for (const bad of [{ litePresenter: choice }, { litePresenter: choice, liveMode: "lite" as const, presenter },
+      { litePresenter: { ...choice, voice: "th-TH-Other" as never }, liveMode: "lite" as const },
+      { litePresenter: { ...choice, folder: "../nara" }, liveMode: "lite" as const }]) {
+      await expect(client.prepareAI(undefined, { accountId, productIds: [productId], microphoneId: null, ...bad })).rejects.toThrow();
+    }
+    expect(mock).toHaveBeenCalledTimes(3);
+    await client.prepareAI(undefined, { accountId, productIds: [productId], microphoneId: null, liveMode: "lite", litePresenter: choice });
+    expect(mock.mock.calls.map((call) => String(call[0]))).not.toContain("http://127.0.0.1:8766/v1/references");
+    assertLoopbackCall(mock.mock.calls[5], "/v1/ai/warmup", true);
+    expect(JSON.parse(mock.mock.calls[5][1]?.body as string)).toEqual({ accountId, productIds: [productId], microphoneId: null,
+      liveMode: "lite", litePresenter: choice });
+    client.dispose();
+  });
+
+  it("starts Lite on its own admission with the chosen presenter while Pro keeps its gate", async () => {
+    const grant = { payload: { grantId: "grant" }, signature: "signed-grant" };
+    const context = { payload: { purpose: "AI_LIVE_PRODUCT_CONTEXT", products: [] }, signature: "signed-context" };
+    const challenge = { challenge: "c".repeat(43), deviceProof: "proof" };
+    const { mock, fetcher } = responseSequence(...paired(), challenge, grant, context, { synced: true },
+      { ...ready, state: "BUSY", sessionActive: true, sessionId });
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    const presenter = new File(["test-reference"], "presenter.jpg", { type: "image/jpeg" });
+    expect(client.snapshot()).toMatchObject({ canStart: false, lite: { canStart: true } });
+    // LIVE Pro stays closed by its own gate even when Lite is admitted.
+    await expect(client.start({ accountId, productIds: [productId], presenter, microphoneId: "default" })).rejects.toThrow();
+    await expect(client.start({ accountId, productIds: [productId], litePresenter: choice, microphoneId: "default" })).rejects.toThrow();
+    expect(mock).toHaveBeenCalledTimes(3);
+    await client.start({ accountId, productIds: [productId], litePresenter: choice, microphoneId: null, liveMode: "lite" });
+    assertLoopbackCall(mock.mock.calls[7], "/v1/sessions/start", true);
+    expect(JSON.parse(mock.mock.calls[7][1]?.body as string)).toEqual({ grant, accountId, productIds: [productId],
+      microphoneId: null, liveMode: "lite", litePresenter: choice });
+    expect(mock.mock.calls.map((call) => String(call[0]))).not.toContain("http://127.0.0.1:8766/v1/references");
     client.dispose();
   });
 });

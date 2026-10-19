@@ -21,6 +21,7 @@ from .device_identity import DeviceIdentity
 from .updater import SafeUpdater
 from .stream_credentials import StreamCredentialStore
 from .presenter_library import PresenterLibrary
+from .lite_presenters import LitePresenterCatalog, LitePresenterChoice, LitePresenterError, voices as lite_voices
 from .room_capacity import verified_room_limit
 
 MAX_REFERENCE_BYTES = 4 * 1024 * 1024
@@ -50,6 +51,14 @@ def live_mode_from(body: dict, microphone_id: object) -> str:
     if mode == "lite" and microphone_id is not None:
         raise AgentError(422, "MICROPHONE_NOT_ALLOWED", "โหมด LIVE Lite Auto ไม่ใช้ไมโครโฟน")
     return mode
+
+
+def _lite_presenter_error(exc: LitePresenterError) -> AgentError:
+    if exc.code == "LITE_VOICE_INVALID":
+        return AgentError(422, exc.code, "เสียงที่เลือกไม่ถูกต้อง")
+    if exc.code == "LITE_PRESENTER_NOT_FOUND":
+        return AgentError(404, exc.code, "ไม่พบพิธีกร AI ที่เลือก")
+    return AgentError(422, "LITE_PRESENTER_INVALID", "ข้อมูลพิธีกร AI ไม่ถูกต้อง")
 
 
 def supports_live_mode(worker: object, mode: str) -> bool:
@@ -183,6 +192,8 @@ class LocalAgent:
         components=None,
         component_manifest_url: str | None = None,
         presenter_library: PresenterLibrary | None = None,
+        lite_presenters: LitePresenterCatalog | None = None,
+        speech_key_store=None,
     ) -> None:
         self.config = config
         self._now = now
@@ -198,6 +209,8 @@ class LocalAgent:
         self._test_room_capacity = test_only_verified_room_capacity
         self._references: dict[str, _Reference] = {}
         self._presenter_library = presenter_library or PresenterLibrary(config.data_dir / "library")
+        self._lite_presenters = lite_presenters or LitePresenterCatalog()
+        self._speech_key_store = speech_key_store
         self._sessions: dict[str, _Session] = {}
         self._starting: set[tuple[str, str]] = set()
         self._authorization_generation = 0
@@ -608,28 +621,35 @@ class LocalAgent:
         arguments = ()
         options: dict[str, str] = {}
         if selection is not None:
+            # LIVE Lite Auto may choose an installed AI presenter instead of an uploaded photo.
+            lite_selected = isinstance(selection, dict) and "litePresenter" in selection
+            expected = ({"accountId", "productIds", "microphoneId", "liveMode", "litePresenter"} if lite_selected
+                        else {"accountId", "productIds", "presenterId", "microphoneId"})
             if (not isinstance(selection, dict)
-                    or set(selection) - {"liveMode"} != {"accountId", "productIds", "presenterId", "microphoneId"}
+                    or (set(selection) != expected if lite_selected else set(selection) - {"liveMode"} != expected)
                     or not isinstance(selection["accountId"], str)
-                    or not isinstance(selection["presenterId"], str)
+                    or (not lite_selected and not isinstance(selection["presenterId"], str))
                     or not isinstance(selection["productIds"], list)
                     or not 1 <= len(selection["productIds"]) <= 10
                     or any(not isinstance(value, str) for value in selection["productIds"])):
                 raise AgentError(422, "LOCAL_AI_WARMUP_REQUIRED", "กรุณาเลือกบัญชี สินค้า และคน LIVE")
             owner, account = certificate["ownerId"], selection["accountId"]
             context = self._product_contexts.get((owner, account))
-            reference = self._references.get(selection["presenterId"])
+            reference = None if lite_selected else self._references.get(selection["presenterId"])
             if (not context or context[0] <= self._now() or tuple(selection["productIds"]) != context[1]
-                    or not reference or reference.token != token or selection["microphoneId"] not in (None, "default")):
+                    or (not lite_selected and (not reference or reference.token != token))
+                    or selection["microphoneId"] not in (None, "default")):
                 raise AgentError(403, "LOCAL_AI_SELECTION_NOT_ALLOWED", "กรุณาเตรียมข้อมูลบัญชีใหม่")
             live_mode = live_mode_from(selection, selection["microphoneId"])
+            choice = self._lite_choice(selection, live_mode)
             if not supports_live_mode(self._worker, live_mode):
                 raise AgentError(503, "LIVE_MODE_UNAVAILABLE", "เครื่องนี้ยังไม่รองรับโหมด LIVE ที่เลือก")
-            if live_mode != DEFAULT_LIVE_MODE:
-                options["live_mode"] = live_mode
-            reference.owner_id = owner
+            options.update(self._worker_options(live_mode, choice))
+            if reference is not None:
+                reference.owner_id = owner
             warmup = getattr(self._worker, "prepare_room", None)
-            arguments = (owner, account, tuple(selection["productIds"]), reference.path, selection["microphoneId"])
+            presenter_path = choice.reference_path if choice is not None else reference.path
+            arguments = (owner, account, tuple(selection["productIds"]), presenter_path, selection["microphoneId"])
         if not callable(warmup):
             raise AgentError(503, "LOCAL_AI_UNAVAILABLE", "AI ยังอยู่ระหว่างเตรียมพร้อม")
         with self._lock:
@@ -649,6 +669,61 @@ class LocalAgent:
             self._ai_warmup_thread = threading.Thread(target=execute, name="viralflow-local-ai-warmup", daemon=True)
             self._ai_warmup_thread.start()
         return {"preparing": True}
+
+    def _lite_choice(self, body: dict, live_mode: str) -> LitePresenterChoice | None:
+        """Optional LIVE Lite Auto presenter/voice; never accepted for LIVE Pro."""
+        if "litePresenter" not in body:
+            return None
+        if live_mode != "lite":
+            raise AgentError(422, "LITE_PRESENTER_NOT_ALLOWED", "เลือกพิธีกร AI ได้เฉพาะโหมด LIVE Lite Auto")
+        try:
+            return self._lite_presenters.choose(body["litePresenter"])
+        except LitePresenterError as exc:
+            raise _lite_presenter_error(exc) from None
+
+    @staticmethod
+    def _worker_options(live_mode: str, choice: LitePresenterChoice | None) -> dict[str, object]:
+        # LIVE Pro keeps its original worker call; only Lite adds keywords.
+        if live_mode == DEFAULT_LIVE_MODE:
+            return {}
+        options: dict[str, object] = {"live_mode": live_mode}
+        if choice is not None:
+            options.update({"lite_pack_dir": choice.pack_dir, "lite_voice": choice.voice})
+        return options
+
+    def _speech_status(self) -> tuple[dict[str, object], dict[str, object] | None]:
+        """Key metadata only (configured/provider/region), never the key, plus free-tier usage."""
+        try:
+            store = self._speech_key_store
+            if store is None:
+                from .speech_credentials import SpeechKeyStore
+                store = self._speech_key_store = SpeechKeyStore()
+            metadata = store.metadata()
+        except Exception:
+            return {"configured": False}, None
+        speech = {key: metadata[key] for key in ("configured", "provider", "region") if key in metadata}
+        speech["configured"] = metadata.get("configured") is True
+        try:
+            from cloud_tts import FreeTierGuard
+            report = FreeTierGuard(store.root).report()
+            free_tier = {key: report[key] for key in ("monthly_cap_characters", "used_this_month",
+                                                      "requests_per_minute_cap", "paid_fallback")}
+        except Exception:
+            free_tier = None
+        return speech, free_tier
+
+    def lite_presenters(self, token: str, origin: str) -> dict[str, object]:
+        self._presenter_owner(token, origin)
+        speech, free_tier = self._speech_status()
+        return {"presenters": self._lite_presenters.presenters(), "voices": lite_voices(),
+                "speechKey": speech, "freeTier": free_tier}
+
+    def lite_presenter_thumbnail(self, token: str, origin: str, folder: str) -> bytes:
+        self._presenter_owner(token, origin)
+        try:
+            return self._lite_presenters.thumbnail(folder)
+        except LitePresenterError as exc:
+            raise _lite_presenter_error(exc) from None
 
     def ai_status(self, token: str, origin: str, session_id: str) -> dict[str, object]:
         session = self._owned_session(token, origin, session_id)
@@ -1067,12 +1142,15 @@ class LocalAgent:
         if microphone_id not in (None, "default"):
             raise AgentError(422, "MICROPHONE_NOT_ALLOWED", "ไม่พบไมโครโฟนที่เลือก")
         live_mode = live_mode_from(body, microphone_id)
+        choice = self._lite_choice(body, live_mode)
         if not supports_live_mode(self._worker, live_mode):
             raise AgentError(503, "LIVE_MODE_UNAVAILABLE", "เครื่องนี้ยังไม่รองรับโหมด LIVE ที่เลือก")
-        # LIVE Pro keeps its original worker call; only Lite adds the keyword.
-        start_options = {} if live_mode == DEFAULT_LIVE_MODE else {"live_mode": live_mode}
+        start_options = self._worker_options(live_mode, choice)
         presenter_id = body.get("presenterId")
-        if not isinstance(presenter_id, str):
+        if choice is not None:
+            if "presenterId" in body:
+                raise AgentError(422, "LITE_PRESENTER_INVALID", "ข้อมูลพิธีกร AI ไม่ถูกต้อง")
+        elif not isinstance(presenter_id, str):
             raise AgentError(422, "PRESENTER_REQUIRED", "กรุณาเลือกรูปผู้นำเสนอ")
         # Slow runtime inspection/start must never hold the registry lock needed
         # to stop another room. Admission below reserves a slot atomically.
@@ -1087,8 +1165,8 @@ class LocalAgent:
             if grant.grant_id in self._used_grants:
                 raise AgentError(403, "GRANT_REPLAY", "ไม่สามารถตรวจสอบสิทธิ์ AI LIVE")
             self._used_grants.add(grant.grant_id)
-            reference = self._references.get(presenter_id)
-            if reference is None or not hmac.compare_digest(reference.token, token):
+            reference = None if choice is not None else self._references.get(presenter_id)
+            if choice is None and (reference is None or not hmac.compare_digest(reference.token, token)):
                 raise AgentError(404, "PRESENTER_NOT_FOUND", "ไม่พบรูปผู้นำเสนอ")
             if any(session.state != "STOPPED" and session.owner_id == grant.owner_id
                    and session.account_id == grant.account_id for session in self._sessions.values()) or (
@@ -1114,14 +1192,17 @@ class LocalAgent:
                 raise AgentError(503, "UNVERIFIED_CAPACITY", "ยังไม่ได้ทดสอบจำนวนห้องพร้อมกัน")
             elif not capacity["canStartAnotherRoom"]:
                 raise AgentError(409, "ROOM_CAPACITY_REACHED", "เครื่องนี้กำลังใช้จำนวนห้องที่รองรับครบแล้ว")
-            reference.owner_id = grant.owner_id
+            if reference is not None:
+                reference.owner_id = grant.owner_id
+            # A Lite AI presenter renders from its installed pack's reference image.
+            presenter_path = choice.reference_path if choice is not None else reference.path
             reservation = (grant.owner_id, grant.account_id)
             self._starting.add(reservation)
             authorization_generation = self._authorization_generation
         try:
             try:
                 session_id = self._worker.start_session(grant.owner_id, grant.account_id,
-                                                        grant.product_ids, reference.path,
+                                                        grant.product_ids, presenter_path,
                                                         microphone_id, **start_options)
             except AgentError:
                 raise
@@ -1153,9 +1234,11 @@ class LocalAgent:
                 raise AgentError(403, "DEVICE_REVOKED", "เครื่องนี้ไม่ได้รับอนุญาตให้ LIVE")
             # The worker copied the bounded reference into its own room storage.
             # Ephemeral browser uploads should not consume the next room's quota.
-            with self._lock:
-                self._references.pop(presenter_id, None)
-            reference.path.unlink(missing_ok=True)
+            # An installed Lite pack is device content and is never deleted here.
+            if reference is not None:
+                with self._lock:
+                    self._references.pop(presenter_id, None)
+                reference.path.unlink(missing_ok=True)
         finally:
             with self._lock:
                 self._starting.discard(reservation)

@@ -33,8 +33,16 @@ export function projectLocalComponents(value: unknown): LocalComponentsView {
     canPrepare: recognized && data.canPrepare === true && ["NOT_CONFIGURED", "READY", "REPAIR_REQUIRED", "ERROR"].includes(state),
     message: componentMessages[state] };
 }
+/** LIVE Lite Auto admission, separate from LIVE Pro's GPU gate. Never a commercial-LIVE claim. */
+export interface LocalLiteView {
+  machineReady: boolean;
+  reasons: string[];
+  canStart: boolean;
+  commercialLive: false;
+}
 export interface LocalMachineView {
   aiReadiness?: LocalAIReadiness;
+  lite?: LocalLiteView;
   rooms?: LocalRoomView[];
   capacity?: LocalRoomCapacity;
   activeAccountId?: string;
@@ -140,6 +148,12 @@ export function localMachineView(state: LocalAgentState, paired = false, reasons
     updateStatus: state === "UPDATE_REQUIRED" ? "REQUIRED" : "CURRENT", updateCanApply: false, updateCanRepair: false,
     reasons: [...new Set(reasons.map((reason) => safeReasons.has(reason) ? reason : "ต้องตรวจสอบความพร้อมของเครื่องเพิ่มเติม"))].slice(0, 8) };
 }
+export function projectLocalLite(value: unknown): LocalLiteView {
+  const data = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+  const reasons = Array.isArray(data.reasons) ? data.reasons.filter((item): item is string => typeof item === "string") : [];
+  return { machineReady: data.machineReady === true, canStart: data.canStart === true && data.machineReady === true,
+    reasons: localMachineView("READY", true, reasons).reasons, commercialLive: false };
+}
 export function projectLocalMachine(value: unknown, paired: boolean): LocalMachineView {
   if (!value || typeof value !== "object") return localMachineView("ERROR", paired);
   const data = value as Record<string, unknown>;
@@ -175,6 +189,10 @@ export function projectLocalMachine(value: unknown, paired: boolean): LocalMachi
   if (paired && data.components !== undefined) result.components = projectLocalComponents(data.components);
   if (paired && data.hardwareAdvice === "DRIVER_UPDATE_REQUIRED") result.hardwareAdvice = "DRIVER_UPDATE_REQUIRED";
   if (paired && typeof data.machineReady === "boolean") result.machineReady = data.machineReady;
+  if (paired && data.lite !== undefined) {
+    result.lite = projectLocalLite(data.lite);
+    if (result.sessionActive) result.lite.canStart = false;
+  }
   // Cloud registry confirmation is added by the authenticated browser bridge.
   return result;
 }

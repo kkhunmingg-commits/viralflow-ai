@@ -38,11 +38,15 @@ export function machineForAccount(machine: LocalMachineView | null, accountId: s
 export function customerRoomRuntime(input: {
   accountId: string; machine: LocalMachineView | null; imageReady: boolean;
   microphoneReady: boolean; productsReady: boolean; busy: boolean; accountReady?: boolean;
+  /** LIVE Lite Auto uses the companion's own Lite admission (one technical-test room). */
+  liveMode?: "pro" | "lite";
 }): CustomerRoomRuntime {
   const machine = machineForAccount(input.machine, input.accountId);
-  const ready = !!machine?.canStart && machine.deviceAuthorized && machine.capacity?.status === "VERIFIED"
-    && machine.capacity.canStartAnotherRoom && Object.values(machine.aiReadiness ?? {}).length === 4
-    && Object.values(machine.aiReadiness ?? {}).every((state) => state === "READY");
+  const ready = input.liveMode === "lite"
+    ? !!machine?.lite?.canStart && machine.deviceAuthorized
+    : !!machine?.canStart && machine.deviceAuthorized && machine.capacity?.status === "VERIFIED"
+      && machine.capacity.canStartAnotherRoom && Object.values(machine.aiReadiness ?? {}).length === 4
+      && Object.values(machine.aiReadiness ?? {}).every((state) => state === "READY");
   const canManagePresenters = !!machine?.paired && machine.deviceAuthorized && machine.membershipStatus === "SUPPORTED"
     && !["UPDATE_REQUIRED", "OFFLINE", "ERROR"].includes(machine.state);
   return {

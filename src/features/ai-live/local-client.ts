@@ -11,10 +11,59 @@ export const DEFAULT_LIVE_MODE: LiveMode = "pro";
 export function isLiveMode(value: unknown): value is LiveMode {
   return value === "pro" || value === "lite";
 }
+/** Thai cloud voices the companion accepts for LIVE Lite Auto (validated again on the device). */
+export const LITE_VOICE_IDS = ["th-TH-PremwadeeNeural", "th-TH-AcharaNeural", "th-TH-NiwatNeural"] as const;
+export type LiteVoiceId = (typeof LITE_VOICE_IDS)[number];
+export function isLiteVoice(value: unknown): value is LiteVoiceId {
+  return typeof value === "string" && (LITE_VOICE_IDS as readonly string[]).includes(value);
+}
+const liteFolder = /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}$/;
+/** An installed fictional AI presenter pack, chosen by folder name only (never a path). */
+export interface LitePresenterChoice { folder: string; voice: LiteVoiceId }
+export interface LitePresenterPack {
+  folder: string; name: string; technicalTestOnly: boolean; defaultVoice: LiteVoiceId | null; frames: number;
+}
+export interface LitePresenterCatalog {
+  presenters: LitePresenterPack[];
+  voices: { id: LiteVoiceId; label: string }[];
+  /** Whether the device has a speech key. The key itself never reaches the browser. */
+  speechKey: { configured: boolean; region: string | null };
+  freeTier: { monthlyCapCharacters: number; usedThisMonth: number } | null;
+}
+function count(value: unknown): number | null {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+function litePresenterCatalog(data: Json): LitePresenterCatalog {
+  if (!Array.isArray(data.presenters) || data.presenters.length > 50 || !Array.isArray(data.voices) || data.voices.length > 10) {
+    throw new Error("ข้อมูลพิธีกร AI ไม่ถูกต้อง");
+  }
+  const presenters = data.presenters.flatMap((item: unknown): LitePresenterPack[] => {
+    if (!item || typeof item !== "object") return [];
+    const pack = item as Record<string, unknown>;
+    if (typeof pack.folder !== "string" || !liteFolder.test(pack.folder)) return [];
+    const name = typeof pack.name === "string" && pack.name.trim() && pack.name.length <= 40 ? pack.name : pack.folder;
+    return [{ folder: pack.folder, name, technicalTestOnly: pack.technicalTestOnly !== false,
+      defaultVoice: isLiteVoice(pack.defaultVoice) ? pack.defaultVoice : null, frames: count(pack.frames) ?? 0 }];
+  });
+  const voices = data.voices.flatMap((item: unknown) => {
+    const voice = item && typeof item === "object" ? item as Record<string, unknown> : {};
+    return isLiteVoice(voice.id) && typeof voice.label === "string" && voice.label.length <= 40 ? [{ id: voice.id, label: voice.label }] : [];
+  });
+  const key = data.speechKey && typeof data.speechKey === "object" ? data.speechKey as Record<string, unknown> : {};
+  const tier = data.freeTier && typeof data.freeTier === "object" ? data.freeTier as Record<string, unknown> : null;
+  const cap = count(tier?.monthly_cap_characters);
+  const used = count(tier?.used_this_month);
+  return { presenters, voices,
+    speechKey: { configured: key.configured === true,
+      region: key.configured === true && typeof key.region === "string" && /^[a-z0-9]{3,40}$/.test(key.region) ? key.region : null },
+    freeTier: cap !== null && cap > 0 && used !== null ? { monthlyCapCharacters: cap, usedThisMonth: used } : null };
+}
 interface StartLocalLive {
   accountId: string;
   productIds: string[];
-  presenter: File;
+  /** The uploaded presenter photo. LIVE Lite Auto may name an installed AI presenter instead. */
+  presenter?: File | null;
+  litePresenter?: LitePresenterChoice | null;
   microphoneId: string | null;
   /** Missing means LIVE Pro, so older callers keep their exact request shape. */
   liveMode?: LiveMode;
@@ -25,6 +74,22 @@ function liveModeField(input: { liveMode?: unknown; microphoneId: string | null 
   if (!isLiveMode(mode)) throw new Error("โหมด LIVE ไม่ถูกต้อง");
   if (mode === "lite" && input.microphoneId !== null) throw new Error("โหมด LIVE Lite Auto ไม่ใช้ไมโครโฟน");
   return mode === "lite" ? { liveMode: "lite" } : {};
+}
+/** Exactly one presenter source: a photo (Pro, or Lite without a choice) or a Lite AI presenter. */
+function presenterSource(input: StartLocalLive, mode: { liveMode?: "lite" }): { photo: File } | { lite: LitePresenterChoice } {
+  if (input.litePresenter) {
+    const choice = input.litePresenter;
+    if (!mode.liveMode || input.presenter || Object.keys(choice).sort().join() !== "folder,voice"
+      || typeof choice.folder !== "string" || !liteFolder.test(choice.folder) || !isLiteVoice(choice.voice)) {
+      throw new Error("กรุณาเลือกพิธีกร AI และเสียง");
+    }
+    return { lite: { folder: choice.folder, voice: choice.voice } };
+  }
+  const photo = input.presenter;
+  if (!photo || !["image/jpeg", "image/png"].includes(photo.type) || !photo.size || photo.size > 4 * 1024 * 1024) {
+    throw new Error("กรุณาเลือกภาพที่รองรับ ขนาดไม่เกิน 4 MB");
+  }
+  return { photo };
 }
 export interface LocalPresenterCard {
   id: string; name: string; voiceLabel: string; assignedAccountIds: string[];
@@ -65,10 +130,11 @@ export class LocalLiveClient {
     ...(this.current.aiReadiness ? { aiReadiness: { ...this.current.aiReadiness } } : {}),
     ...(this.current.rooms ? { rooms: this.current.rooms.map((room) => ({ ...room, customerStream: { ...room.customerStream } })) } : {}),
     ...(this.current.capacity ? { capacity: { ...this.current.capacity } } : {}),
+    ...(this.current.lite ? { lite: { ...this.current.lite, reasons: [...this.current.lite.reasons] } } : {}),
     ...(this.current.components ? { components: { ...this.current.components } } : {}) }; }
 
   private async request(path: string, options: RequestInit = {}, signal?: AbortSignal, authenticated = true): Promise<Json> {
-    if (!/^\/v1\/(discovery|pair|renew|status|rooms|hardware|challenge|references|presenters|presenters\/[0-9a-f-]{36}\/delete|ai\/(warmup|product-context)|stream\/setup|components\/(prepare|status)|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/(stop|pause|resume|comment|speech|ai-status))$/.test(path)) {
+    if (!/^\/v1\/(discovery|pair|renew|status|rooms|hardware|challenge|references|presenters|presenters\/[0-9a-f-]{36}\/delete|lite\/presenters|ai\/(warmup|product-context)|stream\/setup|components\/(prepare|status)|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/(stop|pause|resume|comment|speech|ai-status))$/.test(path)) {
       throw new Error("ไม่สามารถทำรายการนี้ได้");
     }
     if (authenticated && (!this.token || this.tokenExpiresAt <= this.now() / 1000)) {
@@ -251,21 +317,27 @@ export class LocalLiveClient {
     let selection: Record<string, unknown> = {};
     if (input) {
       if (!uuid.test(input.accountId) || !input.productIds.length || input.productIds.length > 10
-        || input.productIds.some((id) => !uuid.test(id)) || !["image/jpeg", "image/png"].includes(input.presenter.type)
-        || !input.presenter.size || input.presenter.size > 4 * 1024 * 1024) throw new Error("กรุณาเลือกบัญชี สินค้า และคน LIVE");
+        || input.productIds.some((id) => !uuid.test(id))) throw new Error("กรุณาเลือกบัญชี สินค้า และคน LIVE");
       const mode = liveModeField(input);
+      const source = presenterSource(input, mode);
       const context = await this.cloudRequest("/api/ai-live/product-context", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deviceId: this.deviceId, accountId: input.accountId, productIds: input.productIds }),
       }, signal);
       await this.request("/v1/ai/product-context", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ context }) }, signal);
-      const reference = await this.request("/v1/references", {
-        method: "POST", headers: { "Content-Type": input.presenter.type }, body: input.presenter,
-      }, signal);
-      if (typeof reference.presenterId !== "string" || !uuid.test(reference.presenterId)) throw new Error("เตรียมคน LIVE ไม่สำเร็จ");
-      selection = { accountId: input.accountId, productIds: input.productIds,
-        presenterId: reference.presenterId, microphoneId: input.microphoneId, ...mode };
+      if ("lite" in source) {
+        // An installed AI presenter: no photo upload, the companion resolves the pack by folder.
+        selection = { accountId: input.accountId, productIds: input.productIds, microphoneId: input.microphoneId,
+          ...mode, litePresenter: source.lite };
+      } else {
+        const reference = await this.request("/v1/references", {
+          method: "POST", headers: { "Content-Type": source.photo.type }, body: source.photo,
+        }, signal);
+        if (typeof reference.presenterId !== "string" || !uuid.test(reference.presenterId)) throw new Error("เตรียมคน LIVE ไม่สำเร็จ");
+        selection = { accountId: input.accountId, productIds: input.productIds,
+          presenterId: reference.presenterId, microphoneId: input.microphoneId, ...mode };
+      }
     }
     await this.request("/v1/ai/warmup", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(selection) }, signal);
@@ -356,13 +428,15 @@ export class LocalLiveClient {
     return this.checkComponents(signal);
   }
 
-  async start(input: { accountId: string; productIds: string[]; presenter: File; microphoneId: string | null; liveMode?: LiveMode }, signal?: AbortSignal): Promise<LocalMachineView> {
-    if (!this.current.canStart || !this.current.deviceAuthorized || !this.token || !this.deviceId) throw new Error("AI LIVE ยังไม่พร้อมสำหรับการเริ่มไลฟ์");
+  async start(input: StartLocalLive, signal?: AbortSignal): Promise<LocalMachineView> {
     const mode = liveModeField(input);
+    // LIVE Lite Auto has its own device admission; LIVE Pro keeps its original gate.
+    const admitted = mode.liveMode ? this.current.lite?.canStart === true : this.current.canStart;
+    if (!admitted || !this.current.deviceAuthorized || !this.token || !this.deviceId) throw new Error("AI LIVE ยังไม่พร้อมสำหรับการเริ่มไลฟ์");
     // LIVE Pro still requires the checked default microphone, exactly as before.
     if (!mode.liveMode && typeof input.microphoneId !== "string") throw new Error("กรุณาตรวจสอบไมโครโฟน");
     if (!uuid.test(input.accountId) || !input.productIds.length || input.productIds.some((id) => !uuid.test(id))) throw new Error("กรุณาเลือกบัญชีและสินค้า");
-    if (!["image/jpeg", "image/png"].includes(input.presenter.type) || input.presenter.size > 4 * 1024 * 1024) throw new Error("กรุณาเลือกภาพที่รองรับ ขนาดไม่เกิน 4 MB");
+    const source = presenterSource(input, mode);
     const challenge = await this.request("/v1/challenge", {}, signal);
     if (typeof challenge.challenge !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(challenge.challenge)) throw new Error("กรุณาเชื่อมส่วนเสริมใหม่");
     const grant = await this.cloudRequest("/api/ai-live/local-grant", {
@@ -376,13 +450,20 @@ export class LocalLiveClient {
     }, signal);
     await this.request("/v1/ai/product-context", { method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ context }) }, signal);
-    const reference = await this.request("/v1/references", {
-      method: "POST", headers: { "Content-Type": input.presenter.type }, body: input.presenter,
-    }, signal);
-    if (typeof reference.presenterId !== "string" || !uuid.test(reference.presenterId)) throw new Error("เตรียมพรีเซนเตอร์ไม่สำเร็จ");
+    let presenterField: { presenterId: string } | { litePresenter: LitePresenterChoice };
+    if ("lite" in source) presenterField = { litePresenter: source.lite };
+    else {
+      const reference = await this.request("/v1/references", {
+        method: "POST", headers: { "Content-Type": source.photo.type }, body: source.photo,
+      }, signal);
+      if (typeof reference.presenterId !== "string" || !uuid.test(reference.presenterId)) throw new Error("เตรียมพรีเซนเตอร์ไม่สำเร็จ");
+      presenterField = { presenterId: reference.presenterId };
+    }
     const result = await this.request("/v1/sessions/start", {
       method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ grant, accountId: input.accountId, productIds: input.productIds, presenterId: reference.presenterId, microphoneId: input.microphoneId, ...mode }),
+      body: JSON.stringify("litePresenter" in presenterField
+        ? { grant, accountId: input.accountId, productIds: input.productIds, microphoneId: input.microphoneId, ...mode, ...presenterField }
+        : { grant, accountId: input.accountId, productIds: input.productIds, presenterId: presenterField.presenterId, microphoneId: input.microphoneId, ...mode }),
     }, signal);
     if (typeof result.sessionId === "string" && uuid.test(result.sessionId)) this.sessionId = result.sessionId;
     this.current = projectLocalMachine(result, true);
@@ -492,19 +573,34 @@ export class LocalLiveClient {
 
   async presenterReference(id: string, signal?: AbortSignal): Promise<File> {
     if (!uuid.test(id) || !this.token || this.tokenExpiresAt <= this.now() / 1000) throw new Error("กรุณาเชื่อมส่วนเสริมอีกครั้ง");
+    return this.localImage(`/v1/presenters/${id}/reference`, ["image/jpeg", "image/png"], signal);
+  }
+
+  /** Installed LIVE Lite Auto presenters, voices, and key status (never the key) for the Dashboard. */
+  async litePresenters(signal?: AbortSignal): Promise<LitePresenterCatalog> {
+    if (!this.current.paired || !this.current.deviceAuthorized) throw new Error("กรุณาอนุญาตเครื่องนี้ก่อน");
+    return litePresenterCatalog(await this.request("/v1/lite/presenters", {}, signal));
+  }
+
+  async litePresenterThumbnail(folder: string, signal?: AbortSignal): Promise<File> {
+    if (!liteFolder.test(folder) || !this.token || this.tokenExpiresAt <= this.now() / 1000) throw new Error("กรุณาเชื่อมส่วนเสริมอีกครั้ง");
+    return this.localImage(`/v1/lite/presenters/${folder}/thumbnail`, ["image/jpeg"], signal);
+  }
+
+  private async localImage(path: string, types: string[], signal?: AbortSignal): Promise<File> {
     // Renew the pairing through the same origin-bound path before reading binary media.
     await this.request("/v1/status", {}, signal);
     const controller = new AbortController();
     this.requests.add(controller);
     const timer = setTimeout(() => controller.abort(), 5000);
     try {
-      const response = await this.fetcher(`${AGENT_ORIGIN}/v1/presenters/${id}/reference`, {
+      const response = await this.fetcher(`${AGENT_ORIGIN}${path}`, {
         headers: { Authorization: `Bearer ${this.token}` }, cache: "no-store", credentials: "omit", redirect: "error",
         referrerPolicy: "no-referrer", signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
       });
       const type = response.headers.get("content-type");
       const size = Number(response.headers.get("content-length"));
-      if (!response.ok || !["image/jpeg", "image/png"].includes(type ?? "") || !Number.isSafeInteger(size) || size < 1 || size > 4 * 1024 * 1024) {
+      if (!response.ok || !types.includes(type ?? "") || !Number.isSafeInteger(size) || size < 1 || size > 4 * 1024 * 1024) {
         await response.body?.cancel().catch(() => undefined);
         throw new Error("ไม่สามารถเปิดรูปคน LIVE ได้");
       }

@@ -685,5 +685,83 @@ class LiveModeProcessTests(unittest.TestCase):
         self.assertEqual(ManagedRuntimeWorker.live_modes, frozenset({"pro", "lite"}))
 
 
+class LitePresenterProcessTests(unittest.TestCase):
+    """The Dashboard's Lite presenter pack and voice reach only that Lite child's environment."""
+    setUp = ManagedRuntimeTests.setUp
+    make_bridge = ManagedRuntimeTests.make_bridge
+    start = ManagedRuntimeTests.start
+    products = LiveModeProcessTests.products
+    config = LiveModeProcessTests.config
+
+    def pack(self, name):
+        path = Path(self.temp.name) / "packs" / name
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def lite(self, bridge, pack, voice, method="start_session"):
+        return getattr(bridge, method)(OWNER, ACCOUNT, (PRODUCT,), self.reference, None, live_mode="lite",
+                                       lite_pack_dir=pack, lite_voice=voice)
+
+    def test_chosen_pack_and_voice_override_device_defaults_without_keys(self):
+        os.environ.update({"AI_LIVE_LITE_PACK_DIR": "device-default", "AZURE_SPEECH_VOICE": "th-TH-PremwadeeNeural",
+                           "AI_LIVE_LITE_TTS": "azure", "AZURE_SPEECH_KEY": "never-in-env"})
+        bridge = self.make_bridge()
+        self.assertEqual(self.lite(bridge, self.pack("krit"), "th-TH-NiwatNeural"), SESSION)
+        environment = self.launches[0][1]["env"]
+        self.assertEqual((environment["AI_LIVE_LITE_PACK_DIR"], environment["AZURE_SPEECH_VOICE"]),
+                         (str(self.pack("krit")), "th-TH-NiwatNeural"))
+        self.assertEqual(environment["AI_LIVE_LITE_TTS"], "azure")
+        self.assertNotIn("AZURE_SPEECH_KEY", environment)
+        self.assertEqual(self.config(0)["liveMode"], "lite")
+
+    def test_pro_child_never_receives_a_chosen_presenter(self):
+        bridge = self.make_bridge()
+        self.start(bridge)
+        self.assertNotIn("AI_LIVE_LITE_PACK_DIR", self.launches[0][1]["env"])
+        self.assertNotIn("AZURE_SPEECH_VOICE", self.launches[0][1]["env"])
+        with self.assertRaises(AgentError) as error:
+            self.make_bridge().start_session(OWNER, "11111111-1111-4111-8111-111111111111", (PRODUCT,),
+                                             self.reference, None, lite_pack_dir=self.pack("nara"),
+                                             lite_voice="th-TH-AcharaNeural")
+        self.assertEqual(error.exception.code, "LITE_PRESENTER_INVALID")
+
+    def test_presenter_or_voice_change_after_preparation_relaunches(self):
+        bridge = self.make_bridge()
+        bridge.sync_product_context(OWNER, ACCOUNT, self.products)
+        self.lite(bridge, self.pack("nara"), "th-TH-PremwadeeNeural", "prepare_room")
+        self.lite(bridge, self.pack("nara"), "th-TH-PremwadeeNeural", "prepare_room")
+        self.assertEqual(len(self.processes), 1, "The same pack and voice reuse the prepared child")
+        self.lite(bridge, self.pack("nara"), "th-TH-AcharaNeural", "prepare_room")
+        self.assertTrue(self.processes[0].worker.closed)
+        self.assertEqual(self.launches[1][1]["env"]["AZURE_SPEECH_VOICE"], "th-TH-AcharaNeural")
+        self.lite(bridge, self.pack("krit"), "th-TH-AcharaNeural")
+        self.assertTrue(self.processes[1].worker.closed, "A child prepared for another pack is replaced")
+        self.assertEqual(self.launches[2][1]["env"]["AI_LIVE_LITE_PACK_DIR"], str(self.pack("krit")))
+        self.assertEqual(bridge._rooms[(OWNER, SESSION)].lite_presenter, (str(self.pack("krit")), "th-TH-AcharaNeural"))
+
+    def test_lite_without_a_choice_does_not_reuse_a_chosen_child(self):
+        bridge = self.make_bridge()
+        bridge.sync_product_context(OWNER, ACCOUNT, self.products)
+        self.lite(bridge, self.pack("nara"), "th-TH-PremwadeeNeural", "prepare_room")
+        bridge.start_session(OWNER, ACCOUNT, (PRODUCT,), self.reference, None, live_mode="lite")
+        self.assertTrue(self.processes[0].worker.closed)
+        self.assertIsNone(bridge._rooms[(OWNER, SESSION)].lite_presenter)
+
+    def test_invalid_presenter_values_never_launch(self):
+        bridge = self.make_bridge()
+        for pack, voice, code in ((self.pack("nara"), "en-US-JennyNeural", "LITE_PRESENTER_INVALID"),
+                                  (self.pack("nara"), None, "LITE_PRESENTER_INVALID"),
+                                  (None, "th-TH-NiwatNeural", "LITE_PRESENTER_INVALID"),
+                                  ("relative/pack", "th-TH-NiwatNeural", "LITE_PRESENTER_INVALID"),
+                                  (Path("relative"), "th-TH-NiwatNeural", "LITE_PRESENTER_INVALID"),
+                                  (Path(self.temp.name) / "absent", "th-TH-NiwatNeural", "LITE_PRESENTER_NOT_FOUND")):
+            with self.subTest(pack=pack, voice=voice):
+                for method in ("start_session", "prepare_room"):
+                    with self.assertRaises(AgentError) as error:
+                        self.lite(bridge, pack, voice, method)
+                    self.assertEqual(error.exception.code, code)
+        self.assertEqual(self.launches, [])
+
+
 if __name__ == "__main__":
     unittest.main()

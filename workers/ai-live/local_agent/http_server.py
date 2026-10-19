@@ -19,6 +19,9 @@ BODY_DEADLINE_SECONDS = 10
 SESSION_ROUTE = re.compile(r"^/v1/sessions/([0-9a-fA-F-]{36})/(pause|resume|stop|recover)$")
 FRAME_ROUTE = re.compile(r"^/v1/sessions/([0-9a-fA-F-]{36})/frame$")
 PRESENTER_ROUTE = re.compile(r"^/v1/presenters/([0-9a-f-]{36})/(reference|delete)$")
+LITE_THUMBNAIL_ROUTE = re.compile(r"^/v1/lite/presenters/([A-Za-z0-9_-][A-Za-z0-9._-]{0,63})/thumbnail$")
+START_FIELDS = frozenset({"grant", "accountId", "productIds", "presenterId", "microphoneId"})
+LITE_START_FIELDS = frozenset({"grant", "accountId", "productIds", "microphoneId", "liveMode", "litePresenter"})
 AI_SESSION_ROUTE = re.compile(r"^/v1/sessions/([0-9a-fA-F-]{36})/(ai-status|comment|speech)$")
 
 
@@ -158,6 +161,19 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
         self.close_connection = True
 
+    def _send_jpeg(self, body: bytes, origin: str) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "image/jpeg")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("Access-Control-Allow-Origin", origin)
+        self.send_header("Vary", "Origin")
+        self.send_header("Connection", "close")
+        self.end_headers()
+        self.wfile.write(body)
+        self.close_connection = True
+
     def _dispatch(self, method: str) -> None:
         origin: str | None = None
         try:
@@ -217,6 +233,10 @@ class _Handler(BaseHTTPRequestHandler):
                     raise AgentError(404, "NOT_FOUND", "ไม่พบคำสั่ง")
             elif method == "GET" and self.path == "/v1/hardware":
                 self._send_json(200, agent.hardware(token, origin), origin)
+            elif method == "GET" and self.path == "/v1/lite/presenters":
+                self._send_json(200, agent.lite_presenters(token, origin), origin)
+            elif method == "GET" and (match := LITE_THUMBNAIL_ROUTE.fullmatch(self.path)):
+                self._send_jpeg(agent.lite_presenter_thumbnail(token, origin, match.group(1)), origin)
             elif method == "GET" and self.path == "/v1/components/status":
                 self._send_json(200, agent.components_status(token, origin)["components"], origin)
             elif method == "POST" and self.path == "/v1/components/prepare":
@@ -298,7 +318,9 @@ class _Handler(BaseHTTPRequestHandler):
             elif method == "POST" and self.path == "/v1/sessions/start":
                 request = self._json_body()
                 # "liveMode" is optional; its value is validated strictly by the agent.
-                if set(request) - {"liveMode"} != {"grant", "accountId", "productIds", "presenterId", "microphoneId"}:
+                # LIVE Lite Auto may name an installed AI presenter instead of a photo.
+                if ("litePresenter" in request and set(request) != LITE_START_FIELDS) or (
+                        "litePresenter" not in request and set(request) - {"liveMode"} != START_FIELDS):
                     raise AgentError(400, "INVALID_START_REQUEST", "ข้อมูลไม่ถูกต้อง")
                 self._send_json(200, agent.start(token, origin, request), origin)
             elif method == "POST" and (match := SESSION_ROUTE.fullmatch(self.path)):

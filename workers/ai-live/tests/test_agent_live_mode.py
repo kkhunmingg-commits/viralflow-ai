@@ -1,11 +1,18 @@
 """LIVE Pro / LIVE Lite Auto selection at the authenticated agent boundary."""
 from __future__ import annotations
 
+import json
+import os
+import shutil
+import tempfile
 import unittest
 import uuid
 from pathlib import Path
+from unittest.mock import patch
 
 from local_agent.agent import LocalAgent
+from local_agent.lite_presenters import LITE_VOICE_IDS, LitePresenterCatalog
+from local_agent.speech_credentials import SpeechKeyStore
 from local_agent.hardware import HardwareSnapshot, assess_hardware, assess_lite_hardware
 
 from test_local_agent import (
@@ -185,6 +192,203 @@ class AgentLiveModeWarmupTests(AgentFixture):
             self.agent.warmup_ai(self.token, ORIGIN, {**self.selection(), "liveMode": "lite", "extra": 1})
         self.assertEqual(denied.exception.code, "LOCAL_AI_WARMUP_REQUIRED")
         self.assertEqual(self.worker.preparation_calls, [])
+
+
+class XorProtector:
+    """Fixture stand-in for DPAPI; the key bytes still never appear in plaintext."""
+    def protect(self, data): return bytes(b ^ 0x5A for b in data)
+    unprotect = protect
+
+
+_PACKS: dict[str, Path] = {}
+
+
+def lite_packs_root() -> Path:
+    """Two small verified synthetic presenter packs plus one broken folder (built once)."""
+    if "root" not in _PACKS:
+        from lite_pack_builder import build_synthetic
+        temp = tempfile.mkdtemp(prefix="lite-packs-")
+        root = Path(temp)
+        for folder in ("nara", "krit"):
+            build_synthetic(root / folder, frames=8, output_size=(160, 288))
+        (root / "broken").mkdir()
+        (root / "broken" / "manifest.json").write_text("{}", encoding="utf-8")
+        import atexit
+        atexit.register(shutil.rmtree, temp, True)
+        _PACKS["root"] = root
+    return _PACKS["root"]
+
+
+class LitePresenterWorker(ModePreparingWorker):
+    """Records the full start/prepare options and presenter path the agent passes."""
+    def __init__(self) -> None:
+        super().__init__()
+        self.options: list[dict] = []
+        self.paths: list[Path] = []
+        self.session_id = str(uuid.uuid4())
+
+    def prepare_room(self, owner_id, account_id, product_ids, presenter_path, microphone_id, **options):
+        self.options.append(dict(options))
+        self.paths.append(presenter_path)
+        return super().prepare_room(owner_id, account_id, product_ids, presenter_path, microphone_id, **options)
+
+    def start_session(self, owner_id, account_id, product_ids, presenter_path, microphone_id, **options):
+        self.options.append(dict(options))
+        self.paths.append(presenter_path)
+        assert presenter_path.is_file() and microphone_id is None
+        self.calls.append(("start", owner_id))
+        return self.session_id
+
+
+class AgentLitePresenterTests(AgentFixture):
+    def setUp(self) -> None:
+        super().setUp()
+        self.root = lite_packs_root()
+        self.store = SpeechKeyStore(Path(self.temp.name) / "speech", protector=XorProtector())
+        self.lite_worker = LitePresenterWorker()
+
+    def agent(self, *, root: Path | None = None, worker=None) -> LocalAgent:
+        self.identity = registered_identity_fixture(
+            Path(self.temp.name) / ("identity-" + str(uuid.uuid4())), DEVICE)
+        packs = root if root is not None else self.root
+        agent = LocalAgent(self.config, worker=worker or self.lite_worker, hardware_probe=ally_x_hardware,
+                           grant_signature_verifier=_signature, now=lambda: self.clock[0],
+                           device_identity=self.identity, speech_key_store=self.store,
+                           lite_presenters=LitePresenterCatalog(lambda: packs))
+        self.addCleanup(agent.close)
+        return agent
+
+    def paired(self, agent) -> str:
+        token, _, self.presenter = self.pair_and_reference(agent)
+        agent.sync_product_context(token, ORIGIN, signed(test_local_ai_agent.LocalAIAgentTests.context_payload(self)))
+        return token
+
+    def started(self, agent, token, **changes):
+        challenge = str(agent.challenge(token, ORIGIN)["challenge"])
+        body = self.start_body(challenge)
+        body.pop("presenterId")
+        body.update(changes)
+        return agent.start(token, ORIGIN, body)
+
+    def test_catalog_lists_verified_packs_voices_and_key_status_never_the_key(self) -> None:
+        agent = self.agent()
+        token = self.paired(agent)
+        catalog = agent.lite_presenters(token, ORIGIN)
+        self.assertEqual([item["folder"] for item in catalog["presenters"]], ["krit", "nara"])
+        self.assertTrue(all(item["technicalTestOnly"] for item in catalog["presenters"]))
+        self.assertEqual({voice["id"] for voice in catalog["voices"]}, LITE_VOICE_IDS)
+        self.assertEqual(catalog["speechKey"], {"configured": False})
+        self.assertEqual(catalog["freeTier"]["used_this_month"], 0)
+        self.assertIs(catalog["freeTier"]["paid_fallback"], False)
+        key = "K3y" * 12
+        self.store.put("azure", key, "southeastasia")
+        catalog = agent.lite_presenters(token, ORIGIN)
+        self.assertEqual(catalog["speechKey"], {"configured": True, "provider": "azure", "region": "southeastasia"})
+        self.assertNotIn(key, json.dumps(catalog))
+
+    def test_catalog_is_empty_without_a_configured_packs_root(self) -> None:
+        with patch.dict(os.environ, {"AI_LIVE_LITE_PACKS_ROOT": ""}):
+            self.assertEqual(LitePresenterCatalog().presenters(), [])
+        with patch.dict(os.environ, {"AI_LIVE_LITE_PACKS_ROOT": str(self.root / "missing")}):
+            self.assertEqual(LitePresenterCatalog().presenters(), [])
+        with patch.dict(os.environ, {"AI_LIVE_LITE_PACKS_ROOT": "relative/packs"}):
+            self.assertEqual(LitePresenterCatalog().presenters(), [])
+        with patch.dict(os.environ, {"AI_LIVE_LITE_PACKS_ROOT": str(self.root)}):
+            self.assertEqual(len(LitePresenterCatalog().presenters()), 2)
+
+    def test_catalog_and_thumbnail_require_an_authorized_device(self) -> None:
+        agent = self.agent()
+        token = str(agent.pair("one-time-code-123", ORIGIN)["token"])  # paired, no certificate
+        for call in (lambda: agent.lite_presenters(token, ORIGIN),
+                     lambda: agent.lite_presenter_thumbnail(token, ORIGIN, "nara")):
+            with self.assertRaises(AgentError) as denied:
+                call()
+            self.assertIn(denied.exception.status, (401, 403))
+
+    def test_thumbnail_is_the_verified_pack_reference_and_only_for_listed_folders(self) -> None:
+        agent = self.agent()
+        token = self.paired(agent)
+        body = agent.lite_presenter_thumbnail(token, ORIGIN, "nara")
+        self.assertEqual(body, (self.root / "nara" / "reference.jpg").read_bytes())
+        self.assertTrue(body.startswith(b"\xff\xd8"))
+        for folder in ("broken", "missing", "../nara", "nara/..", ".", "", "na ra", None, 3):
+            with self.subTest(folder=folder):
+                with self.assertRaises(AgentError) as denied:
+                    agent.lite_presenter_thumbnail(token, ORIGIN, folder)
+                self.assertEqual(denied.exception.code, "LITE_PRESENTER_NOT_FOUND")
+
+    def test_lite_start_uses_the_chosen_pack_and_voice_without_a_photo(self) -> None:
+        agent = self.agent()
+        token = self.paired(agent)
+        reference = self.root / "krit" / "reference.jpg"
+        result = self.started(agent, token, liveMode="lite",
+                              litePresenter={"folder": "krit", "voice": "th-TH-NiwatNeural"})
+        self.assertTrue(result["sessionActive"])
+        self.assertEqual(self.lite_worker.paths, [reference])
+        self.assertEqual(self.lite_worker.options, [{"live_mode": "lite", "lite_pack_dir": self.root / "krit",
+                                                     "lite_voice": "th-TH-NiwatNeural"}])
+        self.assertTrue(reference.is_file(), "An installed pack is never deleted after start")
+        self.assertIn(self.presenter, agent._references, "An unused upload is left alone")
+
+    def test_lite_without_a_chosen_presenter_keeps_the_uploaded_photo_path(self) -> None:
+        agent = self.agent()
+        token = self.paired(agent)
+        self.assertTrue(self.started(agent, token, liveMode="lite", presenterId=self.presenter)["sessionActive"])
+        self.assertEqual(self.lite_worker.options, [{"live_mode": "lite"}])
+
+    def test_lite_presenter_selection_is_strict_and_lite_only(self) -> None:
+        agent = self.agent()
+        token = self.paired(agent)
+        good = {"folder": "nara", "voice": "th-TH-AcharaNeural"}
+        for changes, code in (
+            ({"litePresenter": good}, "LITE_PRESENTER_NOT_ALLOWED"),
+            ({"liveMode": "pro", "litePresenter": good}, "LITE_PRESENTER_NOT_ALLOWED"),
+            ({"liveMode": "lite", "litePresenter": {**good, "voice": "th-TH-Premwadee"}}, "LITE_VOICE_INVALID"),
+            ({"liveMode": "lite", "litePresenter": {**good, "voice": "en-US-JennyNeural"}}, "LITE_VOICE_INVALID"),
+            ({"liveMode": "lite", "litePresenter": {**good, "folder": "broken"}}, "LITE_PRESENTER_NOT_FOUND"),
+            ({"liveMode": "lite", "litePresenter": {**good, "folder": "../nara"}}, "LITE_PRESENTER_NOT_FOUND"),
+            ({"liveMode": "lite", "litePresenter": {**good, "folder": str(self.root / "nara")}}, "LITE_PRESENTER_NOT_FOUND"),
+            ({"liveMode": "lite", "litePresenter": {**good, "path": "x"}}, "LITE_PRESENTER_INVALID"),
+            ({"liveMode": "lite", "litePresenter": {"folder": "nara"}}, "LITE_PRESENTER_INVALID"),
+            ({"liveMode": "lite", "litePresenter": "nara"}, "LITE_PRESENTER_INVALID"),
+            ({"liveMode": "lite", "litePresenter": {**good, "folder": ["nara"]}}, "LITE_PRESENTER_INVALID"),
+            ({"liveMode": "lite", "litePresenter": good, "presenterId": None}, "LITE_PRESENTER_INVALID"),
+        ):
+            with self.subTest(changes=changes):
+                with self.assertRaises(AgentError) as denied:
+                    self.started(agent, token, **changes)
+                self.assertEqual(denied.exception.code, code)
+        self.assertEqual(self.lite_worker.calls, [])
+
+    def test_pro_still_requires_an_uploaded_presenter(self) -> None:
+        agent = self.agent()
+        token = self.paired(agent)
+        with self.assertRaises(AgentError) as denied:
+            self.started(agent, token)
+        self.assertEqual(denied.exception.code, "PRESENTER_REQUIRED")
+
+    def test_warmup_threads_the_chosen_pack_and_voice_to_preparation(self) -> None:
+        agent = self.agent()
+        token = self.paired(agent)
+        base = {"accountId": ACCOUNT, "productIds": [PRODUCT], "microphoneId": None}
+        choice = {"folder": "nara", "voice": "th-TH-PremwadeeNeural"}
+        agent.warmup_ai(token, ORIGIN, {**base, "liveMode": "lite", "litePresenter": choice})
+        agent._ai_warmup_thread.join(timeout=2)
+        self.assertEqual(self.lite_worker.paths, [self.root / "nara" / "reference.jpg"])
+        self.assertEqual(self.lite_worker.options, [{"live_mode": "lite", "lite_pack_dir": self.root / "nara",
+                                                     "lite_voice": "th-TH-PremwadeeNeural"}])
+        for selection, code in (
+            ({**base, "liveMode": "pro", "litePresenter": choice}, "LITE_PRESENTER_NOT_ALLOWED"),
+            ({**base, "litePresenter": choice}, "LOCAL_AI_WARMUP_REQUIRED"),
+            ({**base, "liveMode": "lite", "litePresenter": choice, "presenterId": self.presenter}, "LOCAL_AI_WARMUP_REQUIRED"),
+            ({**base, "liveMode": "lite", "litePresenter": {**choice, "voice": "th-TH-Other"}}, "LITE_VOICE_INVALID"),
+            ({**base, "liveMode": "lite", "litePresenter": {**choice, "folder": "missing"}}, "LITE_PRESENTER_NOT_FOUND"),
+        ):
+            with self.subTest(selection=selection):
+                with self.assertRaises(AgentError) as denied:
+                    agent.warmup_ai(token, ORIGIN, selection)
+                self.assertEqual(denied.exception.code, code)
+        self.assertEqual(len(self.lite_worker.options), 1)
 
 
 if __name__ == "__main__":

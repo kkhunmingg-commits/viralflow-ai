@@ -33,4 +33,13 @@ describe("customer AI LIVE screen", () => {
     expect(lite).toContain("LIVE Lite Auto ไม่ใช้ไมโครโฟน");
     expect(lite).toMatch(/<button[^>]*disabled=""[^>]*>เริ่ม LIVE<\/button>/);
   });
+  it("replaces the photo upload with the AI presenter picker only in LIVE Lite Auto", () => {
+    const pro = renderToStaticMarkup(<LivePresenterConsole accounts={[]} products={[]} />);
+    expect(pro).toMatch(/<input[^>]*type="file"/);
+    expect(pro).not.toContain("พิธีกร AI");
+    const lite = renderToStaticMarkup(<LivePresenterConsole accounts={[]} products={[]} liveMode="lite" />);
+    expect(lite).not.toMatch(/<input[^>]*type="file"/);
+    expect(lite).toContain("เชื่อมต่อและอนุญาตเครื่องเพื่อดูพิธีกร AI");
+    expect(lite).toContain("เลือกพิธีกร AI");
+  });
 });

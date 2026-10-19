@@ -193,6 +193,60 @@ class LoopbackHTTPTests(unittest.TestCase):
         self.assertEqual((status, result["code"]), (400, "INVALID_START_REQUEST"))
         self.assertEqual(self.worker.calls, [])
 
+    def test_lite_presenter_catalog_and_thumbnail_routes(self) -> None:
+        from local_agent.lite_presenters import LitePresenterCatalog
+        from local_agent.speech_credentials import SpeechKeyStore
+        from test_agent_live_mode import XorProtector, lite_packs_root
+        root = lite_packs_root()
+        self.agent._lite_presenters = LitePresenterCatalog(lambda: root)
+        self.agent._speech_key_store = SpeechKeyStore(Path(self.temp.name) / "speech", protector=XorProtector())
+        status, _, body = self.request("GET", "/v1/lite/presenters")
+        self.assertEqual((status, body["code"]), (401, "LOCAL_AUTH_REQUIRED"))
+        token = self.pair()
+        status, headers, catalog = self.request("GET", "/v1/lite/presenters", token=token)
+        self.assertEqual(status, 200)
+        self.assertEqual(headers["Cache-Control"], "no-store")
+        self.assertEqual(set(catalog), {"presenters", "voices", "speechKey", "freeTier"})
+        self.assertEqual([item["folder"] for item in catalog["presenters"]], ["krit", "nara"])
+        self.assertEqual(catalog["speechKey"], {"configured": False})
+        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=3)
+        connection.request("GET", "/v1/lite/presenters/nara/thumbnail",
+                           headers={"Origin": ORIGIN, "Authorization": f"Bearer {token}"})
+        response = connection.getresponse()
+        image = response.read()
+        connection.close()
+        self.assertEqual((response.status, response.getheader("Content-Type")), (200, "image/jpeg"))
+        self.assertEqual(response.getheader("Access-Control-Allow-Origin"), ORIGIN)
+        self.assertEqual(image, (root / "nara" / "reference.jpg").read_bytes())
+        for path, expected in (("/v1/lite/presenters/broken/thumbnail", 404),
+                               ("/v1/lite/presenters/../nara/thumbnail", 404),
+                               ("/v1/lite/presenters/%2e%2e/thumbnail", 404),
+                               ("/v1/lite/presenters/nara/reference.jpg", 404)):
+            with self.subTest(path=path):
+                status, _, body = self.request("GET", path, token=token)
+                self.assertEqual(status, expected)
+                self.assertIn(body["code"], ("NOT_FOUND", "LITE_PRESENTER_NOT_FOUND"))
+        status, _, body = self.request("POST", "/v1/lite/presenters", b"{}", token=token,
+                                       headers={"Content-Type": "application/json"})
+        self.assertEqual((status, body["code"]), (404, "NOT_FOUND"))
+
+    def test_start_accepts_lite_presenter_only_in_the_lite_shape(self) -> None:
+        token = self.pair()
+        base = {"grant": {}, "accountId": ACCOUNT, "productIds": [PRODUCT], "microphoneId": None}
+        choice = {"folder": "nara", "voice": "th-TH-NiwatNeural"}
+        status, _, result = self.request("POST", "/v1/sessions/start",
+                                          self.json_body({**base, "liveMode": "lite", "litePresenter": choice}),
+                                          token=token, headers={"Content-Type": "application/json"})
+        self.assertNotEqual(result.get("code"), "INVALID_START_REQUEST")  # shape accepted; grant check follows
+        for extra in ({"litePresenter": choice},  # no liveMode
+                      {"liveMode": "lite", "litePresenter": choice, "presenterId": "ffffffff-ffff-4fff-8fff-ffffffffffff"},
+                      {"liveMode": "lite"}):  # no presenter at all
+            with self.subTest(extra=extra):
+                status, _, result = self.request("POST", "/v1/sessions/start", self.json_body({**base, **extra}),
+                                                  token=token, headers={"Content-Type": "application/json"})
+                self.assertEqual((status, result["code"]), (400, "INVALID_START_REQUEST"))
+        self.assertEqual(self.worker.calls, [])
+
     def test_slow_body_times_out(self) -> None:
         with patch("local_agent.http_server.SOCKET_TIMEOUT_SECONDS", 0.1), \
              patch("local_agent.http_server.BODY_DEADLINE_SECONDS", 0.2):
