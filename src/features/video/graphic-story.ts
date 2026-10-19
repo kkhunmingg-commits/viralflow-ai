@@ -26,13 +26,17 @@ export function storyFromStoryboard(storyboard:GraphicStoryboard):StoryPlan{
   return {format:"EXPLAINER",basis:"legacy three-card storyboard",beats:storyboard.cards.map((c,i,all)=>({role:i===0?"HOOK":i===all.length-1?"CTA":"POINT",text:c.headline}))};
 }
 
+/** A list carries three points, which Thai TTS cannot say inside 8 seconds, so it gets the 10-second cut. */
+export const graphicStorySeconds=(story:StoryPlan)=>story.format==="LIST"?10:8;
+
 export async function renderGraphicStoryMaster(input:{storyboard:GraphicStoryboard|null;story?:StoryPlan;script:string;tts:ThaiVoiceProvider|null;
   ownerVoice?:{assetId:string;path:string};workDir:string;outputPath:string}){
-  // The cards carry the full message, so a caption-only cut is a legitimate plan here if it is readable.
-  const narration=await resolveNarration({ownerVoice:input.ownerVoice,script:input.script,workDir:input.workDir,tts:input.tts,allowCaptionOnly:true,maxSeconds:7.8});
   const story=input.story??(input.storyboard?storyFromStoryboard(input.storyboard):null);
   if(!story)throw new Error("GRAPHIC_STORY_COPY_MISSING");
-  const windows=beatTimeline(story.beats,await narrationSeconds(narration),8);
-  const composed=await composeRealMedia({clips:directGraphicStory(story,windows),captions:[],voicePath:narration.voicePath,audioMode:narration.audioMode,durationSeconds:8,workDir:input.workDir,outputPath:input.outputPath});
+  const duration=graphicStorySeconds(story);
+  // The cards carry the full message, so a caption-only cut is a legitimate plan here if it is readable.
+  const narration=await resolveNarration({ownerVoice:input.ownerVoice,script:input.script,workDir:input.workDir,tts:input.tts,allowCaptionOnly:true,maxSeconds:duration-.2});
+  const windows=beatTimeline(story.beats,await narrationSeconds(narration),duration);
+  const composed=await composeRealMedia({clips:directGraphicStory(story,windows),captions:[],voicePath:narration.voicePath,audioMode:narration.audioMode,durationSeconds:duration,workDir:input.workDir,outputPath:input.outputPath});
   return {...composed,narration:narration.source,story};
 }

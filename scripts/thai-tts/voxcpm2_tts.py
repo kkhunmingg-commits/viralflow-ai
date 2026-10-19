@@ -55,6 +55,7 @@ def main() -> None:
                                    optimize=False, device=os.environ.get("VOXCPM_DEVICE") or None)
     rate, best = model.tts_model.sample_rate, None
     for take in range(MAX_TAKES if cap else 1):
+        take_started = time.monotonic()
         torch.manual_seed(seed + take)
         # Voice design: a text description in parentheses, no reference recording, so nobody is cloned.
         wav = take_audio(model, f"({voice}){text}", cap)
@@ -64,7 +65,8 @@ def main() -> None:
         if cap is None or seconds <= cap:
             break
         print(f"take {take + 1}: passed {cap:.1f}s, trying the next seed", file=sys.stderr)
-        if time.monotonic() - started > budget:
+        # Stop when another take of the same length would run past the time budget.
+        if time.monotonic() - started + (time.monotonic() - take_started) > budget:
             break
     if best is None:
         sys.exit("no usable take")

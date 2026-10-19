@@ -44,8 +44,10 @@ export async function sandboxProduct(admin:SupabaseClient,owner:string,title:str
 }
 
 /** One scored, selected assignment. Assignments are unique per product and day, so repeats use earlier days. */
+// Days count back from when the pilot started, so a run that crosses midnight cannot reuse a day.
+const PILOT_START=Date.now();
 export async function sandboxAssignment(admin:SupabaseClient,owner:string,accountId:string,productId:string,mode:"AFFILIATE"|"GROWTH",daysAgo=0){
-  const now=new Date().toISOString(),day=new Date(Date.now()-daysAgo*86400000).toISOString().slice(0,10),c=50;
+  const now=new Date().toISOString(),day=new Date(PILOT_START-daysAgo*86400000).toISOString().slice(0,10),c=50;
   const score=must(await admin.from("account_product_scores").insert({owner_id:owner,tiktok_account_id:accountId,product_id:productId,run_id:randomUUID(),calculated_at:now,
     product_component:c,category_component:c,account_category_component:c,commercial_component:c,mode_fit_component:c,confidence_component:c,freshness_component:c,competition_component:c,
     account_product_fit_score:c,final_viral_opportunity_score:c,effective_mode:mode,eligible:true,score_version:"pilot",explanation_json:{pilot:true}}).select("id").single(),"score");

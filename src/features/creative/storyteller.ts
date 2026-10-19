@@ -19,6 +19,8 @@ const base = (text: string) => [...text.normalize("NFC").replace(/\p{M}/gu, "").
 /** Cards stay readable at ~32 base characters. VoxCPM2 measured 8–10 base characters a second, and the
  * renderer can speed narration up by at most 12%, so ~72 characters is what reliably fits 7.8 s. */
 export const CARD_MAX = 32, SPOKEN_BUDGET = 72, LIST_POINT_MAX = 16;
+/** Lists render as 10-second cuts (graphicStorySeconds), so their narration may run longer. */
+export const LIST_SPOKEN_BUDGET = 90;
 const fitsCard = (text: string) => base(text) > 0 && base(text) <= CARD_MAX;
 const norm = (text: string) => text.normalize("NFC").replace(/\s+/g, " ").trim();
 
@@ -102,7 +104,7 @@ export function planGrowthStory(topic: string, facts: GrowthFact[], history: Sto
     while (spoken(beats) > SPOKEN_BUDGET && beats.filter(b => b.role === "POINT").length > 1 && format !== "LIST") {
       const last = beats.map(b => b.role).lastIndexOf("POINT"); beats.splice(last, 1); used = used.slice(0, -1);
     }
-    if (spoken(beats) > SPOKEN_BUDGET) continue;
+    if (spoken(beats) > (format === "LIST" ? LIST_SPOKEN_BUDGET : SPOKEN_BUDGET)) continue;
     const recentNote = window.includes(format) ? "รูปแบบนี้เคยใช้ไม่นานมานี้ แต่เป็นตัวเลือกที่หลักฐานรองรับดีที่สุด" : "ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี";
     return { story: { format, beats, basis: `${STORYTELLER_MODE}: ${FORMAT_REASON[format]}; ${recentNote}` }, factIds: used.map(f => f.id) };
   }
