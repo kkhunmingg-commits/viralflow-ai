@@ -44,6 +44,12 @@ describe("rule-based storyteller", () => {
     expect(growth.story.format).toBe("EXPLAINER");
     expect(growth.factIds).toEqual(["a", "c"]);
   });
+  it("does not retell a topic in a format it was already told in", () => {
+    const salt = [{ id: "a", text: "เกลือทำให้จุดเยือกแข็งต่ำลง" }, { id: "b", text: "น้ำเกลือเย็นกว่า 0°C ได้" }];
+    const first = planGrowthStory("เกลือกับน้ำแข็ง", salt, EMPTY_HISTORY, "s")!;
+    const later = planGrowthStory("เกลือกับน้ำแข็ง", salt, { ...EMPTY_HISTORY, stories: [{ topic: "เกลือกับน้ำแข็ง", format: first.story.format }] }, "s")!;
+    expect(later.story.format).not.toBe(first.story.format);
+  });
   it("flags lines that say more than the visuals or evidence show", () => {
     expect(claimIssues(["ดูการทำงานจากวิดีโอจริง"], "REAL_IMAGE", [])[0].code).toBe("DEMONSTRATION_WITHOUT_FOOTAGE");
     expect(claimIssues(["ดูการทำงานจากวิดีโอจริง"], "REAL_FOOTAGE_OPERATION", [])).toEqual([]);

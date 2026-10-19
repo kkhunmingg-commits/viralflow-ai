@@ -39,10 +39,14 @@ export async function acceptMasterIntoBank(client: SupabaseClient, owner: string
   if (costs.error || banked.error) throw new Error("BANK_SOURCE_UNAVAILABLE");
   const angle = project.data?.selected_angle_id ? await client.from("creative_angles").select("score_explanation_json").eq("owner_id", owner).eq("id", String(project.data.selected_angle_id)).maybeSingle() : null;
   const strategy = ((angle?.data as Row | null)?.score_explanation_json as Row | null)?.productionStrategy as
-    { plan?: { topic?: string | null; concepts?: Array<{ id: string; production?: { story?: { format?: string } } }> }; conceptId?: string } | undefined;
+    { plan?: { topic?: string | null; concepts?: Array<{ id: string; production?: { story?: { format?: string; beats?: Array<{ role?: string; text?: string }> } } }> }; conceptId?: string } | undefined;
   const story = strategy?.plan?.concepts?.find(c => c.id === strategy.conceptId)?.production?.story;
   const overlay = Array.isArray(s.overlay_text_json) ? (s.overlay_text_json as Array<{ start: number; text: string }>).toSorted((a, b) => a.start - b.start).map(o => o.text) : [];
-  const fingerprint = creativeFingerprint(overlay.length ? overlay : [String(s.hook_text ?? ""), String(s.voice_script ?? "")]);
+  // A planned story is the same clip when it teaches the same points in the same format, whatever its hook
+  // or closing line; otherwise the on-screen lines decide.
+  const points = (story?.beats ?? []).filter(b => b.role === "POINT").map(b => String(b.text ?? ""));
+  const fingerprint = creativeFingerprint(story?.format && points.length ? [`format:${story.format}`, ...points]
+    : overlay.length ? overlay : [String(s.hook_text ?? ""), String(s.voice_script ?? "")]);
   const live = (banked.data ?? []).filter(b => b.status !== "REJECTED");
   const duplicate = live.find(b => b.video_sha256 === checksum || b.creative_fingerprint === fingerprint);
   const explanation = (master.quality_explanation_json ?? {}) as Row;

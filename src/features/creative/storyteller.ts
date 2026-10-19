@@ -7,7 +7,7 @@ import { spokenThai } from "../video/spoken-thai";
  * it is not a language model and does not claim to predict what will go viral. */
 export const STORYTELLER_MODE = "RULE_BASED_STORYTELLER_V1";
 /** Newest first. `lines` holds every beat the account's recent clips spoke, so a fact is not repeated while others wait. */
-export interface StoryHistory { formats: string[]; hooks: string[]; topics: string[]; lines?: string[] }
+export interface StoryHistory { formats: string[]; hooks: string[]; topics: string[]; lines?: string[]; stories?: Array<{ topic: string | null; format: string }> }
 export const EMPTY_HISTORY: StoryHistory = { formats: [], hooks: [], topics: [], lines: [] };
 /** Facts not spoken recently go first; among spoken ones, the longest ago goes first. Order is otherwise kept. */
 function freshFirst<T extends { text: string }>(facts: T[], history: StoryHistory) {
@@ -74,7 +74,9 @@ export function planGrowthStory(topic: string, facts: GrowthFact[], history: Sto
   const eligible: StoryFormat[] = ["EXPLAINER", "QUIZ_REVEAL", ...(numeric ? ["NUMBER_SPOTLIGHT" as const] : []), ...(listFacts.length === 3 ? ["LIST" as const] : [])];
   // Recency penalty: the most recent format costs the most; anything older than the window is free again.
   const window = history.formats.slice(0, 4);
-  const score = (f: StoryFormat) => FORMAT_RICHNESS[f] - (window.includes(f) ? 4 - window.indexOf(f) : 0);
+  // A topic already told in a format is not told that way again while another format is open to it.
+  const toldAs = new Set((history.stories ?? []).filter(x => x.topic === topic).map(x => x.format));
+  const score = (f: StoryFormat) => FORMAT_RICHNESS[f] - (window.includes(f) ? 4 - window.indexOf(f) : 0) - (toldAs.has(f) ? 10 : 0);
   const ranked = eligible.toSorted((a, b) => score(b) - score(a) || FORMAT_RICHNESS[b] - FORMAT_RICHNESS[a]);
   const ctas = ["ติดตามไว้ มีตอนต่อไป", "เซฟไว้ดูอีกที", "อยากรู้เรื่องไหน คอมเมนต์ไว้"];
   for (const format of ranked) {
@@ -105,7 +107,8 @@ export function planGrowthStory(topic: string, facts: GrowthFact[], history: Sto
       const last = beats.map(b => b.role).lastIndexOf("POINT"); beats.splice(last, 1); used = used.slice(0, -1);
     }
     if (spoken(beats) > (format === "LIST" ? LIST_SPOKEN_BUDGET : SPOKEN_BUDGET)) continue;
-    const recentNote = window.includes(format) ? "รูปแบบนี้เคยใช้ไม่นานมานี้ แต่เป็นตัวเลือกที่หลักฐานรองรับดีที่สุด" : "ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี";
+    const recentNote = toldAs.has(format) ? "หัวข้อนี้เคยเล่าด้วยรูปแบบนี้แล้ว เพราะหลักฐานไม่พอให้เล่าแบบอื่น คลังจะคัดออกถ้าเนื้อหาซ้ำ"
+      : window.includes(format) ? "รูปแบบนี้เคยใช้ไม่นานมานี้ แต่เป็นตัวเลือกที่หลักฐานรองรับดีที่สุด" : "ยังไม่ได้ใช้รูปแบบนี้ในคลิปล่าสุดของบัญชี";
     return { story: { format, beats, basis: `${STORYTELLER_MODE}: ${FORMAT_REASON[format]}; ${recentNote}` }, factIds: used.map(f => f.id) };
   }
   return null;

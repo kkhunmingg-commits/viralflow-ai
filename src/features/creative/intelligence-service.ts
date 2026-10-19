@@ -20,15 +20,16 @@ export async function readStoryHistory(client:SupabaseClient,owner:string,accoun
   const projects=await client.from("creative_projects").select("selected_angle_id,created_at").eq("owner_id",owner).eq("tiktok_account_id",accountId)
     .order("created_at",{ascending:false}).limit(20);
   const ids=(projects.data??[]).filter(p=>p.selected_angle_id).map(p=>String(p.selected_angle_id)).slice(0,12);
-  if(projects.error||!ids.length)return {formats:[],hooks:[],topics:[],lines:[]};
+  if(projects.error||!ids.length)return {formats:[],hooks:[],topics:[],lines:[],stories:[]};
   const angles=await client.from("creative_angles").select("id,hook,score_explanation_json").eq("owner_id",owner).in("id",ids);
-  if(angles.error)return {formats:[],hooks:[],topics:[],lines:[]};
+  if(angles.error)return {formats:[],hooks:[],topics:[],lines:[],stories:[]};
   const byId=new Map((angles.data??[]).map(a=>[String(a.id),a as Row]));
   const ordered=ids.map(id=>byId.get(id)).filter((a):a is Row=>Boolean(a));
   const strategy=(a:Row)=>((a.score_explanation_json as Row|null)?.productionStrategy as {plan?:{topic?:string|null;concepts?:Array<{id:string;production?:{story?:{format?:string;beats?:Array<{text?:string}>}}}>};conceptId?:string}|undefined);
   const story=(a:Row)=>{const s=strategy(a);return s?.plan?.concepts?.find(c=>c.id===s.conceptId)?.production?.story};
   return {formats:ordered.map(a=>story(a)?.format).filter((f):f is string=>Boolean(f)),
     lines:ordered.flatMap(a=>(story(a)?.beats??[]).map(b=>String(b.text??""))).filter(Boolean),
+    stories:ordered.flatMap(a=>{const f=story(a)?.format;return f?[{topic:strategy(a)?.plan?.topic??null,format:f}]:[]}),
     hooks:ordered.map(a=>String(a.hook??"")).filter(Boolean),
     topics:ordered.map(a=>strategy(a)?.plan?.topic).filter((t):t is string=>Boolean(t))};
 }
@@ -93,9 +94,10 @@ export async function readCreativeIntelligenceResources(client:SupabaseClient,ow
   const [rights,evidence,topicEvidence]=await Promise.all([
     availableAssets.length?client.from("media_asset_rights").select("id,media_asset_id,product_id,origin_source,asset_role,allows_commercial,allows_edit,platform_scope,account_scope,review_state,expires_at,revoked_at,depicts_product_operation")
       .eq("owner_id",owner).in("media_asset_id",availableAssets.map(a=>String(a.id))):{data:[],error:null},
-    client.from("content_evidence").select("id,product_id,topic,statement,source,source_reference,role,captured_at,revoked_at").eq("owner_id",owner).eq("product_id",context.product.id),
+    // Recorded order matters: owners write the cause first, and the storyteller opens with it.
+    client.from("content_evidence").select("id,product_id,topic,statement,source,source_reference,role,captured_at,revoked_at").eq("owner_id",owner).eq("product_id",context.product.id).order("created_at",{ascending:true}),
     // Growth may also teach from topics the owner documented without a product.
-    context.account.mode==="GROWTH"?client.from("content_evidence").select("id,product_id,topic,statement,source,source_reference,role,captured_at,revoked_at").eq("owner_id",owner).is("product_id",null):{data:[],error:null},
+    context.account.mode==="GROWTH"?client.from("content_evidence").select("id,product_id,topic,statement,source,source_reference,role,captured_at,revoked_at").eq("owner_id",owner).is("product_id",null).order("created_at",{ascending:true}):{data:[],error:null},
   ]);
   if((rights.error&&!optionalMissing(rights.error))||(evidence.error&&!optionalMissing(evidence.error))||(topicEvidence.error&&!optionalMissing(topicEvidence.error)))throw new Error("CREATIVE_INTELLIGENCE_SOURCE_UNAVAILABLE");
   const ledger=currentRightsByAsset((rights.data??[]) as MediaRightsRecord[]);
