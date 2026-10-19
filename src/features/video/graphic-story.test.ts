@@ -4,7 +4,7 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {describe,expect,it} from "vitest";
 import {ffmpegBinary} from "./ffmpeg-binary";
-import {buildGraphicStoryboard,renderGraphicStoryMaster} from "./graphic-story";
+import {buildGraphicStoryboard,graphicStorySeconds,renderGraphicStoryMaster} from "./graphic-story";
 import {readabilityCheck} from "./local-composer";
 import {LocalCommandThaiVoice} from "./thai-voice";
 
@@ -14,6 +14,10 @@ const frame=(file:string,at:number)=>{const r=spawnSync(ffmpegBinary()!,["-hide_
 const brightShare=(pixels:Buffer)=>{let n=0;for(const p of pixels)if(p>200)n++;return n/pixels.length};
 
 describe("original graphic story",()=>{
+  it("gives a three-point list the 10-second cut and every other format 8 seconds",()=>{
+    expect(graphicStorySeconds({format:"LIST",basis:"t",beats:[]})).toBe(10);
+    expect(graphicStorySeconds({format:"QUIZ_REVEAL",basis:"t",beats:[]})).toBe(8);
+  });
   it("splits hook, one point and call to action into readable cards with a seeded palette",()=>{
     const board=buildGraphicStoryboard(copy);
     expect(board.cards.map(c=>c.headline)).toEqual(["รู้ไหม เรื่องนี้มีเหตุผล","วางของใช้บ่อยไว้ใกล้มือ","ติดตามไว้"]);

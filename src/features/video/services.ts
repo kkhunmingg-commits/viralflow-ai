@@ -19,6 +19,8 @@ import {reviewedProductionConcept} from "@/features/creative/production-gate";
 import {downloadOwnerVoice,recordRealMediaUsages,renderRealMediaMaster,selectOwnerVoice,selectRealMedia} from "./real-media-master";
 import {buildGraphicStoryboard,renderGraphicStoryMaster} from "./graphic-story";
 import {configuredThaiVoice} from "./thai-voice";
+import type {StoryPlan} from "./story-director";
+import {graphicCardCopy} from "@/features/creative/strategist";
 import {VIDEO_BUCKET,VIDEO_DURATION_SECONDS,VIDEO_FACTORY_VERSION,type SimilarityMetadata,type VideoBudget,type VideoRenderInput} from "./types";
 
 type Row=Record<string,unknown>;
@@ -65,7 +67,12 @@ async function source(client:SupabaseClient,owner:string,projectId:string){
   if(angle.policy_status!=="SAFE"||script.status==="REJECTED")throw new Error("Creative risk status must be SAFE");
   const input:VideoRenderInput={productTitle:String(product.title),hook:String(script.hook_text),cta:String(script.cta_text),overlay:script.overlay_text_json as VideoRenderInput["overlay"],scenes:script.scene_plan_json as VideoRenderInput["scenes"],template:templateFor(String(angle.angle_type))};
   const concept=reviewedProductionConcept({angle,script,account,product},owner),productionMethod=concept?.production.method;
-  return {project,script,angle,account,product,input,...(productionMethod?{productionMethod,evidenceIds:concept!.production.evidenceIds}:{})};
+  return {project,script,angle,account,product,input,...(productionMethod?{productionMethod,evidenceIds:concept!.production.evidenceIds,story:concept!.production.story}:{})};
+}
+/** Concepts planned before story beats existed: hook, the spoken middle and the close. */
+function legacyStory(script:Row):StoryPlan{
+  const [hook,middle,cta]=graphicCardCopy(String(script.hook_text??""),String(script.voice_script??""),String(script.cta_text??""));
+  return {format:"PRODUCT_DETAIL",basis:"legacy concept without planned beats",beats:([{role:"HOOK",text:hook},...(middle?[{role:"POINT",text:middle}]:[]),{role:"CTA",text:cta}] as StoryPlan["beats"]).filter(b=>b.text)};
 }
 async function spend(client:SupabaseClient,owner:string){
   const now=new Date(),day=now.toISOString().slice(0,10),month=day.slice(0,7);
@@ -131,12 +138,13 @@ async function buildRealMediaMaster(client:SupabaseClient,owner:string,projectId
   await beginJob(client,owner,job);
   const dir=join(tmpdir(),"viralflow-video",owner,masterId);await mkdir(dir,{recursive:true});
   try{
-    const composed=await renderRealMediaMaster(client,owner,{selection,captions:src.input.overlay,script:String(src.script.voice_script??""),tts:configuredThaiVoice(),workDir:dir,outputPath:join(dir,"master.mp4")});
+    const startedAt=Date.now(),composed=await renderRealMediaMaster(client,owner,{selection,story:src.story??legacyStory(src.script),script:String(src.script.voice_script??""),tts:configuredThaiVoice(),workDir:dir,outputPath:join(dir,"master.mp4")});
     const videoPath=videoStoragePath(owner,"masters",masterId,"master.mp4"),videoUpload=await upload(client,videoPath,composed.media.path,"video/mp4");
     const asset=await client.from("media_assets").upsert({owner_id:owner,product_id:src.product.id,creative_project_id:projectId,asset_type:"VIDEO",source_type:"RENDERED",storage_path:videoPath,mime_type:"video/mp4",width:composed.media.width,height:composed.media.height,duration_seconds:composed.media.duration,provider:composed.provider,model:composed.model,checksum:videoUpload.checksum},{onConflict:"owner_id,storage_path"});
     if(asset.error)throw new Error(asset.error.message);
     const explanation={composer:composed.model,checks:composed.checks,loudnessLufs:composed.loudnessLufs,sources:selection.clips.map(c=>({assetId:c.assetId,rightsId:c.rights.id})),
-      narration:composed.narration,aiGeneratedVoice:composed.narration.kind==="SYSTEM_TTS",requiresHumanReview:true};
+      narration:composed.narration,aiGeneratedVoice:composed.narration.kind==="SYSTEM_TTS",story:composed.story,
+      renderSeconds:Number(((Date.now()-startedAt)/1000).toFixed(1)),requiresHumanReview:true};
     const quality=composed.passed?"PASS":"RETRY",score=Math.round(100*composed.checks.filter(c=>c.passed).length/composed.checks.length);
     const update=await client.from("master_videos").update({storage_path:videoPath,duration_seconds:composed.media.duration,width:composed.media.width,height:composed.media.height,fps:composed.media.fps,quality_score:score,quality_status:quality,quality_explanation_json:explanation,status:"READY"}).eq("owner_id",owner).eq("id",masterId);
     if(update.error)throw new Error(update.error.message);
@@ -152,7 +160,8 @@ async function buildRealMediaMaster(client:SupabaseClient,owner:string,projectId
 async function buildGraphicMaster(client:SupabaseClient,owner:string,projectId:string,src:Awaited<ReturnType<typeof source>>,existing:Row|null){
   if(isRoutedMaster(existing?.provider as string|undefined))throw new Error("Resume provider job instead of replacing it with a local render");
   if(existing&&["READY","APPROVED"].includes(String(existing.status))&&existing.quality_status==="PASS")return existing;
-  const storyboard=buildGraphicStoryboard({seed:projectId,hook:String(src.script.hook_text??""),script:String(src.script.voice_script??""),cta:String(src.script.cta_text??"")});
+  // Planned stories carry their own beats; only legacy three-card concepts go through the storyboard check.
+  const storyboard=src.story?null:buildGraphicStoryboard({seed:projectId,hook:String(src.script.hook_text??""),script:String(src.script.voice_script??""),cta:String(src.script.cta_text??"")});
   const masterId=String(existing?.id??randomUUID()),job=await jobFor(client,owner,masterJobKey(projectId,String(src.script.id)),{creativeProjectId:projectId,scriptId:src.script.id,strategy:"LOCAL_TEMPLATE",productionMethod:src.productionMethod},"MASTER_RENDER");
   const row={id:masterId,owner_id:owner,tiktok_account_id:src.project.tiktok_account_id,product_id:src.project.product_id,creative_project_id:projectId,selected_script_id:src.script.id,generation_job_id:job.id,provider:"local-ffmpeg",model:"graphic-story-v1",render_strategy:"LOCAL_TEMPLATE",duration_seconds:8,width:1080,height:1920,fps:30,estimated_cost_usd:0,status:"PROCESSING",quality_explanation_json:{}};
   const saved=existing?await client.from("master_videos").update(row).eq("owner_id",owner).eq("id",masterId):await client.from("master_videos").insert(row);
@@ -163,13 +172,13 @@ async function buildGraphicMaster(client:SupabaseClient,owner:string,projectId:s
   try{
     const startedAt=Date.now(),voice=await selectOwnerVoice(client,owner,{creativeProjectId:projectId,accountId:String(src.account.id),at:new Date()});
     const ownerVoice=voice?await downloadOwnerVoice(client,voice,join(dir,"owner-voice")):undefined;
-    const composed=await renderGraphicStoryMaster({storyboard,script:String(src.script.voice_script??""),tts:configuredThaiVoice(),ownerVoice,workDir:dir,outputPath:join(dir,"master.mp4")});
+    const composed=await renderGraphicStoryMaster({storyboard,story:src.story,script:String(src.script.voice_script??""),tts:configuredThaiVoice(),ownerVoice,workDir:dir,outputPath:join(dir,"master.mp4")});
     if(voice)await recordRealMediaUsages(client,owner,masterId,{clips:[],voice});
     const videoPath=videoStoragePath(owner,"masters",masterId,"master.mp4"),videoUpload=await upload(client,videoPath,composed.media.path,"video/mp4");
     const asset=await client.from("media_assets").upsert({owner_id:owner,product_id:src.product.id,creative_project_id:projectId,asset_type:"VIDEO",source_type:"RENDERED",storage_path:videoPath,mime_type:"video/mp4",width:composed.media.width,height:composed.media.height,duration_seconds:composed.media.duration,provider:composed.provider,model:"graphic-story-v1",checksum:videoUpload.checksum},{onConflict:"owner_id,storage_path"});
     if(asset.error)throw new Error(asset.error.message);
     const explanation={composer:"graphic-story-v1",checks:composed.checks,loudnessLufs:composed.loudnessLufs,narration:composed.narration,aiGeneratedVoice:composed.narration.kind==="SYSTEM_TTS",
-      originalGraphics:true,renderSeconds:Number(((Date.now()-startedAt)/1000).toFixed(1)),requiresHumanReview:true};
+      originalGraphics:true,story:composed.story,renderSeconds:Number(((Date.now()-startedAt)/1000).toFixed(1)),requiresHumanReview:true};
     const quality=composed.passed?"PASS":"RETRY",score=Math.round(100*composed.checks.filter(c=>c.passed).length/composed.checks.length);
     const update=await client.from("master_videos").update({storage_path:videoPath,duration_seconds:composed.media.duration,width:composed.media.width,height:composed.media.height,fps:composed.media.fps,quality_score:score,quality_status:quality,quality_explanation_json:explanation,status:"READY"}).eq("owner_id",owner).eq("id",masterId);
     if(update.error)throw new Error(update.error.message);

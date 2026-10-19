@@ -2,11 +2,13 @@ import {writeFile} from "node:fs/promises";
 import {join} from "node:path";
 import type {SupabaseClient} from "@supabase/supabase-js";
 import {composeRealMedia,LOCAL_COMPOSER_MODEL,type ComposerClip} from "./local-composer";
-import {resolveNarration} from "./narration";
+import {resolveNarration,type ResolvedNarration} from "./narration";
+import {FFmpegVideoRenderer} from "./renderer";
+import {beatCaptions,beatTimeline,directRealMedia,subjectBox,type StoryPlan} from "./story-director";
 import type {ThaiVoiceProvider} from "./thai-voice";
 import {currentRightsByAsset,mediaRightsViolations,type MediaRightsRecord} from "./media-rights";
 import {ownsVideoStoragePath} from "./storage";
-import {VIDEO_BUCKET,type TimedText} from "./types";
+import {VIDEO_BUCKET} from "./types";
 
 type Row=Record<string,unknown>;
 const RIGHTS_COLUMNS="id,media_asset_id,product_id,origin_source,asset_role,allows_commercial,allows_edit,platform_scope,account_scope,review_state,expires_at,revoked_at,depicts_product_operation,proof_sha256";
@@ -69,7 +71,13 @@ async function download(client:SupabaseClient,storagePath:string,path:string){
   await writeFile(path,new Uint8Array(await data.arrayBuffer()));
 }
 
-export async function renderRealMediaMaster(client:SupabaseClient,owner:string,input:{selection:RealMediaSelection;captions:TimedText[];script:string;tts:ThaiVoiceProvider|null;workDir:string;outputPath:string}){
+/** Seconds of speech to pace the edit against; null for caption-only cuts. */
+export async function narrationSeconds(narration:ResolvedNarration){
+  if(narration.source.kind==="SYSTEM_TTS")return narration.source.durationSeconds;
+  return narration.voicePath?(await new FFmpegVideoRenderer().probe(narration.voicePath)).duration:null;
+}
+
+export async function renderRealMediaMaster(client:SupabaseClient,owner:string,input:{selection:RealMediaSelection;story:StoryPlan;script:string;tts:ThaiVoiceProvider|null;workDir:string;outputPath:string}){
   const clips=await Promise.all(input.selection.clips.map(async(clip,index)=>{
     const path=join(input.workDir,`source-${index}`);await download(client,clip.storagePath,path);return {...clip,path};
   }));
@@ -77,8 +85,12 @@ export async function renderRealMediaMaster(client:SupabaseClient,owner:string,i
   if(input.selection.voice){ownerVoice={assetId:input.selection.voice.assetId,path:join(input.workDir,"voice")};await download(client,input.selection.voice.storagePath,ownerVoice.path)}
   // A product ad needs spoken narration; caption-only is reserved for text-first Growth formats.
   const narration=await resolveNarration({ownerVoice,script:input.script,workDir:input.workDir,tts:input.tts,allowCaptionOnly:false,maxSeconds:7.8});
-  const composed=await composeRealMedia({clips,captions:input.captions,voicePath:narration.voicePath,audioMode:narration.audioMode,durationSeconds:8,workDir:input.workDir,outputPath:input.outputPath});
-  return {...composed,clips,narration:narration.source};
+  // Cut on the narration beats, across every cleared asset, with captions that follow the voice.
+  const windows=beatTimeline(input.story.beats,await narrationSeconds(narration),8);
+  const media=await Promise.all(clips.map(async c=>({assetId:c.assetId,path:c.path,kind:c.kind as "IMAGE"|"VIDEO",subject:c.kind==="IMAGE"?await subjectBox(c.path):undefined})));
+  const composed=await composeRealMedia({clips:directRealMedia(input.story.beats,windows,media),captions:beatCaptions(input.story.beats,windows),
+    voicePath:narration.voicePath,audioMode:narration.audioMode,durationSeconds:8,workDir:input.workDir,outputPath:input.outputPath});
+  return {...composed,clips,narration:narration.source,story:input.story};
 }
 
 /** Links an output to the exact rights seen at build time so a later revocation stops it. */

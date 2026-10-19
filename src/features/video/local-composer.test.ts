@@ -4,12 +4,18 @@ import {tmpdir} from "node:os";
 import {join} from "node:path";
 import {describe,expect,it} from "vitest";
 import {ffmpegBinary} from "./ffmpeg-binary";
-import {buildAssSubtitles,composeRealMedia,composerArgs,composerQc,segmentDurations,wrapThaiCaption} from "./local-composer";
+import {buildAssSubtitles,composeRealMedia,composerArgs,composerQc,segmentDurations,voiceGainDb,wrapThaiCaption} from "./local-composer";
 
 const ffmpeg=(args:string[])=>{const r=spawnSync(ffmpegBinary()!,["-hide_banner","-loglevel","error","-y",...args]);if(r.status!==0)throw new Error(String(r.stderr));return r.stdout};
 const media={path:"x",duration:8,width:1080,height:1920,fps:30,videoCodec:"h264",audioCodec:"aac",hasAudio:true,sizeBytes:1};
 
 describe("local real-media composer",()=>{
+  it("sets narration to the loudness target with a measured linear gain instead of one-pass loudnorm",()=>{
+    expect(voiceGainDb(-22.4)).toBeCloseTo(8.4);expect(voiceGainDb(null)).toBeNull();expect(voiceGainDb(-80)).toBe(40);
+    const args=composerArgs({clips:[{assetId:"g",path:"",kind:"GRAPHIC",headline:"x"}],durations:[8],voicePath:"v.wav",voiceGainDb:6,durationSeconds:8,outputPath:"o.mp4"});
+    const graph=args[args.indexOf("-filter_complex")+1];
+    expect(graph).toContain("volume=6.00dB,alimiter");expect(graph).not.toContain("loudnorm");
+  });
   it("wraps Thai at word boundaries counting only base characters",()=>{
     expect(wrapThaiCaption("ไม้ถูพื้นบิดน้ำได้ด้วยถังปั่น ไม่ต้องใช้มือ")).toEqual(["ไม้ถูพื้นบิดน้ำได้ด้วยถังปั่น","ไม่ต้องใช้มือ"]);
     expect(()=>wrapThaiCaption("ข้อความยาวมาก".repeat(10))).toThrow("caption_too_long");
@@ -17,14 +23,19 @@ describe("local real-media composer",()=>{
   });
   it("keeps caption text from injecting ASS overrides and validates timing",()=>{
     const ass=buildAssSubtitles([{text:"ลด{\\an8\\b0}ราคา",start:0,end:3}],8);
-    expect(ass).toContain("Dialogue: 0,0:00:00.00,0:00:03.00,Caption,,0,0,0,,ลดan8b0ราคา\n");
+    // The injected override is stripped to plain text; only the composer's own pop-in and number highlight remain.
+    expect(ass).toMatch(/Dialogue: 2,0:00:00\.00,0:00:03\.00,Caption,,0,0,0,,\{\\fad[^}]*\}ลดan\{\\c&H2EC8FF&\}8/);
+    expect(ass).not.toMatch(/\\an8|\\b0/);
     expect(ass).toContain("Style: Caption,Noto Sans Thai,");
     expect(()=>buildAssSubtitles([{text:"x",start:5,end:5}],8)).toThrow("caption_timing_invalid");
   });
   it("splits duration on frame boundaries and limits clip count",()=>{
     expect(segmentDurations(3,8).map(v=>Math.round(v*30))).toEqual([80,80,80]);
     expect(segmentDurations(3,8).reduce((a,b)=>a+b,0)).toBeCloseTo(8,5);
-    expect(()=>segmentDurations(0,8)).toThrow();expect(()=>segmentDurations(7,8)).toThrow();
+    expect(()=>segmentDurations(0,8)).toThrow();expect(()=>segmentDurations(9,8)).toThrow();
+    // Planned beats are frame-aligned and the last shot absorbs rounding.
+    expect(segmentDurations(3,8,[1.9,3.13,2.97]).map(v=>Math.round(v*30))).toEqual([57,94,89]);
+    expect(segmentDurations(2,8,[7.9,.1]).map(v=>Math.round(v*30))).toEqual([120,120]);
   });
   it("drops source audio and uses silence when there is no narration",()=>{
     const args=composerArgs({clips:[{assetId:"a",path:"clip.mp4",kind:"VIDEO"}],durations:[8],durationSeconds:8,outputPath:"out.mp4"}).join(" ");
@@ -50,7 +61,7 @@ describe("local real-media composer",()=>{
       expect(result.media.duration).toBeCloseTo(8,1);expect(result.loudnessLufs!).toBeGreaterThan(-16);expect(result.loudnessLufs!).toBeLessThan(-12);
       expect(result.passed).toBe(true);
       // The caption band must differ from the same render without captions.
-      const band=(file:string)=>ffmpeg(["-ss","2","-i",join(dir,file),"-frames:v","1","-vf","crop=1080:300:0:1350,format=gray","-f","rawvideo","-"]);
+      const band=(file:string)=>ffmpeg(["-ss","2","-i",join(dir,file),"-frames:v","1","-vf","crop=1080:300:0:1120,format=gray","-f","rawvideo","-"]);
       const a=band("captioned.mp4"),b=band("plain.mp4");let changed=0;for(let i=0;i<a.length;i++)if(Math.abs(a[i]-b[i])>40)changed++;
       expect(changed/a.length).toBeGreaterThan(.02);
     }finally{await rm(dir,{recursive:true,force:true})}

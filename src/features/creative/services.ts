@@ -110,7 +110,7 @@ function evidenceRubricCreative(context:Awaited<ReturnType<typeof loadCreativeCo
   resources:Awaited<ReturnType<typeof readCreativeIntelligenceResources>>["resources"],discovery:{intelligence:CreativeStrategyInput["trends"]}){
   const plan=planCreativeStrategy({now:resources.now,account:{id:context.account.id,mode:context.account.mode,affiliateEligible:resources.affiliateEligible},
     product:context.account.mode==="AFFILIATE"?{id:context.product.id,title:context.product.title,mechanism:resources.mechanism??"UNKNOWN"}:undefined,
-    facts:resources.facts,assets:resources.assets,costs:resources.costs,trends:discovery.intelligence});
+    facts:resources.facts,assets:resources.assets,costs:resources.costs,trends:discovery.intelligence,history:resources.storyHistory});
   return {plan,arms:[] as Array<{conceptId:string;arm:Parameters<typeof sealCreativeAttribution>[0]["arm"]}>,output:null,decision:null,
     usage:{inputTokens:0,outputTokens:0},promptVersion:EVIDENCE_RUBRIC_MODEL};
 }

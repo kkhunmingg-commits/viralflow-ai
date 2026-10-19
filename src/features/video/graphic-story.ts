@@ -1,7 +1,9 @@
 import {createHash} from "node:crypto";
 import {graphicCardCopy,graphicCardFits} from "../creative/strategist";
-import {composeRealMedia,type ComposerClip} from "./local-composer";
+import {composeRealMedia} from "./local-composer";
 import {resolveNarration} from "./narration";
+import {narrationSeconds} from "./real-media-master";
+import {beatTimeline,directGraphicStory,type StoryPlan} from "./story-director";
 import type {ThaiVoiceProvider} from "./thai-voice";
 
 // Dark, high-contrast pairs so white Thai text stays legible on every frame.
@@ -19,11 +21,22 @@ export function buildGraphicStoryboard(input:{seed:string;hook:string;script:str
   return {cards:headlines.map((headline,i)=>({headline,palette:i===1?[palette[1],palette[0]]:palette}))};
 }
 
-export async function renderGraphicStoryMaster(input:{storyboard:GraphicStoryboard;script:string;tts:ThaiVoiceProvider|null;
+/** Legacy three-card storyboards become an EXPLAINER plan so they get the same paced edit. */
+export function storyFromStoryboard(storyboard:GraphicStoryboard):StoryPlan{
+  return {format:"EXPLAINER",basis:"legacy three-card storyboard",beats:storyboard.cards.map((c,i,all)=>({role:i===0?"HOOK":i===all.length-1?"CTA":"POINT",text:c.headline}))};
+}
+
+/** A list carries three points, which Thai TTS cannot say inside 8 seconds, so it gets the 10-second cut. */
+export const graphicStorySeconds=(story:StoryPlan)=>story.format==="LIST"?10:8;
+
+export async function renderGraphicStoryMaster(input:{storyboard:GraphicStoryboard|null;story?:StoryPlan;script:string;tts:ThaiVoiceProvider|null;
   ownerVoice?:{assetId:string;path:string};workDir:string;outputPath:string}){
+  const story=input.story??(input.storyboard?storyFromStoryboard(input.storyboard):null);
+  if(!story)throw new Error("GRAPHIC_STORY_COPY_MISSING");
+  const duration=graphicStorySeconds(story);
   // The cards carry the full message, so a caption-only cut is a legitimate plan here if it is readable.
-  const narration=await resolveNarration({ownerVoice:input.ownerVoice,script:input.script,workDir:input.workDir,tts:input.tts,allowCaptionOnly:true,maxSeconds:7.8});
-  const clips:ComposerClip[]=input.storyboard.cards.map((card,i)=>({assetId:`graphic-${i+1}`,path:"",kind:"GRAPHIC",headline:card.headline,palette:card.palette}));
-  const composed=await composeRealMedia({clips,captions:[],voicePath:narration.voicePath,audioMode:narration.audioMode,durationSeconds:8,workDir:input.workDir,outputPath:input.outputPath});
-  return {...composed,narration:narration.source};
+  const narration=await resolveNarration({ownerVoice:input.ownerVoice,script:input.script,workDir:input.workDir,tts:input.tts,allowCaptionOnly:true,maxSeconds:duration-.2});
+  const windows=beatTimeline(story.beats,await narrationSeconds(narration),duration);
+  const composed=await composeRealMedia({clips:directGraphicStory(story,windows),captions:[],voicePath:narration.voicePath,audioMode:narration.audioMode,durationSeconds:duration,workDir:input.workDir,outputPath:input.outputPath});
+  return {...composed,narration:narration.source,story};
 }
