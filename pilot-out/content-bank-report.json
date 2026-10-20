@@ -1,0 +1,1181 @@
+{
+  "ranAt": "2026-10-20T13:32:37.123Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "machine": {
+    "cpus": 4,
+    "memGb": 16,
+    "note": "GitHub-hosted ubuntu-latest runner"
+  },
+  "assumptions": {
+    "machineThbPerHour": 6,
+    "thbPerUsd": 35,
+    "note": "Estimates only. No bill exists for runner time; actual spend comes from generation_costs."
+  },
+  "env": {
+    "creative": "local-llm",
+    "tts": "voxcpm2"
+  },
+  "results": [
+    {
+      "label": "growth-1",
+      "mode": "GROWTH",
+      "story": {
+        "format": "NUMBER_SPOTLIGHT",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "หม้อความดันมีอะไรพิเศษ?"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำเดือดได้ถึงราว 120°C"
+          },
+          {
+            "role": "CTA",
+            "text": "ลองใช้แล้วจะสุกเร็วขึ้น"
+          }
+        ],
+        "basis": "LOCAL_LLM_STORY_V1 (local/qwen3-4b-q4_k_m): เนื่องจากข้อเท็จจริงนี้เป็นข้อมูลใหม่ที่ไม่เคยใช้ใน recent และมีจุดสนใจที่จะทำให้ผู้ชมอยากลองใช้ผลิตภัณฑ์"
+      },
+      "topic": {
+        "topic": "หม้อความดัน"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "publishDecision": "PENDING_REVIEW",
+      "publishBlockers": [],
+      "contentType": "GROWTH",
+      "creativeSource": "LOCAL_LLM_STORY_V1",
+      "mediaRights": [
+        {
+          "kind": "ORIGINAL_GRAPHIC",
+          "note": "การ์ดกราฟิกที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น"
+        },
+        {
+          "kind": "AI_VOICE",
+          "license": {
+            "voice": "DESIGNED_NO_REFERENCE",
+            "engine": "voxcpm",
+            "modelId": "openbmb/VoxCPM2",
+            "sources": [
+              "https://huggingface.co/openbmb/VoxCPM2",
+              "https://pypi.org/project/voxcpm/",
+              "https://github.com/OpenBMB/VoxCPM"
+            ],
+            "checkedAt": "2026-10-18",
+            "aiGenerated": true,
+            "modelLicense": "Apache-2.0",
+            "commercialUse": true,
+            "engineLicense": "Apache-2.0"
+          }
+        }
+      ],
+      "itemId": "e191a726-aee7-4921-9191-53f1277f7601",
+      "slot": "2026-10-21T05:15:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "หม้อความดันมีอะไรพิเศษ?",
+      "voice": "หม้อความดันมีอะไรพิเศษ? น้ำเดือดได้ถึงราว 120°C ลองใช้แล้วจะสุกเร็วขึ้น",
+      "caption": "หม้อความดันมีอะไรพิเศษ? น้ำเดือดได้ถึงราว 120°C ลองใช้แล้วจะสุกเร็วขึ้น",
+      "hashtags": [
+        "#หม้อความดัน",
+        "#น้ำเดือดได้ถึง120",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 289.188,
+        "cpuSeconds": 862.6,
+        "avgCpuCores": 2.98,
+        "peakRssMb": 10712,
+        "renderSeconds": 86.634,
+        "creativeSeconds": 202.491
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1443,
+      "costBasis": "ESTIMATE: 87 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 6.88
+      },
+      "ai": {
+        "source": "LLM_EVIDENCE_STRATEGY",
+        "llmSelectedId": "I1",
+        "finalSelectedId": "I3",
+        "experiment": "EXPLORE",
+        "selectionReason": "ไอเดีย I1 ใช้ข้อเท็จจริงที่ไม่เคยใช้ใน recent และมีจุดสนใจที่ทำให้ผู้ชมอยากลองใช้ผลิตภัณฑ์ ข้อเท็จจริงเกี่ยวกับขวดเก็บความเย็นเป็นข้อมูลใหม่ที่มีความเกี่ยวข้องกับชีวิตประจำวัน ทำให้ผู้ชมมีแรงจูงใจที่จะติดตามและรับข้อมูลใหม่ ๆ ที่มีประโยชน์",
+        "alternativesReason": "I2 คือการถามคำถามเกี่ยวกับน้ำแข็งลอยน้ำ ซึ่งเป็นความรู้ทั่วไปที่ผู้ชมอาจสนใจ แต่ข้อเท็จจริงนี้มีความเกี่ยวข้องน้อยกว่า I1 ที่มุ่งเน้นการใช้ผลิตภัณฑ์ในชีวิตประจำวัน ขณะที่ I3 คือการนำเสนอข้อเท็จจริงเกี่ยวกับหม้อความดัน ซึ่งเป็นข้อมูลใหม่ที่มีความเกี่ยวข้องกับชีวิตประจำวัน แต่เน้นไปที่การปรุงอาหาร ซึ่",
+        "brainstorm": "คนดูอาจสนใจเรื่องความรู้ทั่วไปที่ไม่คาดคิด ข้อเท็จจริงที่น่าสนใจคือขวดเก็บความเย็น น้ำแข็งลอยน้ำ หม้อความดัน และหมึกยักษ์ ไอเดียที่ต่างกันคือ: 1) ข้อเท็จจริงเรื่องขวดเก็บความเย็น 2) คำถามเกี่ยวกับน้ำแข็งลอยน้ำ 3) ข้อเท็จจริงเรื่องหม้อความดัน ควรหลีกเลี่ยงเรื่องที่เคยเล่าแล้วใน recent ควรเลือกข้อเท็จจริงที่ไม่ซ้ำกันและมีจุดสนใจใหม่",
+        "llmSeconds": 202.022,
+        "usage": {
+          "inputTokens": 3710,
+          "outputTokens": 1486
+        },
+        "ideas": [
+          {
+            "id": "I1",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "ขวดเก็บความเย็นมีอะไรพิเศษ?",
+            "beats": [
+              "ขวดเก็บความเย็นมีอะไรพิเศษ?",
+              "ผนังขวดมีสองชั้น",
+              "ความร้อนผ่านได้น้อย",
+              "ลองใช้แล้วจะเห็นผล"
+            ],
+            "reasons": [
+              "มุมเล่า: วิธีการเก็บความเย็น",
+              "รูปแบบ hook: ขวดเก็บความเย็นมีอะไรพิเศษ?",
+              "เนื่องจากข้อเท็จจริงนี้เป็นข้อมูลใหม่ที่ไม่เคยใช้ใน recent และมีจุดสนใจที่จะทำให้ผู้ชมอยากลองใช้ผลิตภัณฑ์",
+              "ไอเดีย I1 ใช้ข้อเท็จจริงที่ไม่เคยใช้ใน recent และมีจุดสนใจที่ทำให้ผู้ชมอยากลองใช้ผลิตภัณฑ์ ข้อเท็จจริงเกี่ยวกับขวดเก็บความเย็นเป็นข้อมูลใหม่ที่มีความเกี่ยวข้องกับชีวิตประจำวัน ทำให้ผู้ชมมีแรงจูงใจที่จะติดตามและรับข้อมูลใหม่ ๆ ที่มีประโยชน์",
+              "NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง"
+            ]
+          },
+          {
+            "id": "I2",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "QUIZ_REVEAL",
+            "hook": "น้ำแข็งลอยน้ำมีอะไรพิเศษ?",
+            "beats": [
+              "น้ำแข็งลอยน้ำมีอะไรพิเศษ?",
+              "น้ำแข็งเบากว่าน้ำราว 9%",
+              "ลองดูว่าถูกต้องไหม"
+            ],
+            "reasons": [
+              "มุมเล่า: ความรู้ทั่วไป",
+              "รูปแบบ hook: น้ำแข็งลอยน้ำมีอะไรพิเศษ?",
+              "เนื่องจากข้อเท็จจริงนี้เป็นข้อมูลใหม่ที่ไม่เคยใช้ใน recent และมีจุดสนใจที่จะทำให้ผู้ชมอยากเรียนรู้ความรู้ทั่วไป"
+            ]
+          },
+          {
+            "id": "I3",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "หม้อความดันมีอะไรพิเศษ?",
+            "beats": [
+              "หม้อความดันมีอะไรพิเศษ?",
+              "น้ำเดือดได้ถึงราว 120°C",
+              "ลองใช้แล้วจะสุกเร็วขึ้น"
+            ],
+            "reasons": [
+              "มุมเล่า: วิธีการปรุงอาหาร",
+              "รูปแบบ hook: หม้อความดันมีอะไรพิเศษ?",
+              "เนื่องจากข้อเท็จจริงนี้เป็นข้อมูลใหม่ที่ไม่เคยใช้ใน recent และมีจุดสนใจที่จะทำให้ผู้ชมอยากลองใช้ผลิตภัณฑ์",
+              "เลือกทดลองแนวทางนี้เพื่อเก็บหลักฐานเพิ่ม ยังไม่ใช่สูตรไวรัล"
+            ]
+          }
+        ]
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.3 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.4s",
+        "PASS TEXT_COVERAGE: text on screen 93% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.4s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-2",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "น้ำแข็งเบากว่าน้ำราว 9%",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "น้ำแข็งเบากว่าน้ำราว 9%"
+          },
+          {
+            "role": "CTA",
+            "text": "คลิกเพื่อเรียนรู้เพิ่มเติม"
+          }
+        ],
+        "basis": "LOCAL_LLM_STORY_V1 (local/qwen3-4b-q4_k_m): สร้างความสนใจผ่านคำถามที่น่าตื่นเต้น ใช้ข้อเท็จจริงที่ไม่เคยใช้มาก่อน (ระบบตัดจังหวะท้าย 2 จังหวะให้พูดทันเวลา)"
+      },
+      "topic": {
+        "topic": "น้ำแข็งลอยน้ำ"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "publishDecision": "PENDING_REVIEW",
+      "publishBlockers": [],
+      "contentType": "GROWTH",
+      "creativeSource": "LOCAL_LLM_STORY_V1",
+      "mediaRights": [
+        {
+          "kind": "ORIGINAL_GRAPHIC",
+          "note": "การ์ดกราฟิกที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น"
+        },
+        {
+          "kind": "AI_VOICE",
+          "license": {
+            "voice": "DESIGNED_NO_REFERENCE",
+            "engine": "voxcpm",
+            "modelId": "openbmb/VoxCPM2",
+            "sources": [
+              "https://huggingface.co/openbmb/VoxCPM2",
+              "https://pypi.org/project/voxcpm/",
+              "https://github.com/OpenBMB/VoxCPM"
+            ],
+            "checkedAt": "2026-10-18",
+            "aiGenerated": true,
+            "modelLicense": "Apache-2.0",
+            "commercialUse": true,
+            "engineLicense": "Apache-2.0"
+          }
+        }
+      ],
+      "itemId": "06395e35-ab2c-4f98-abac-c391fbd74865",
+      "slot": "2026-10-21T12:30:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "น้ำแข็งเบากว่าน้ำราว 9%",
+      "voice": "น้ำแข็งเบากว่าน้ำราว 9% น้ำแข็งเบากว่าน้ำราว 9% คลิกเพื่อเรียนรู้เพิ่มเติม",
+      "caption": "ความลึกลับของธรรมชาติ ไม่ใช่แค่เรื่องที่คุณคิด",
+      "hashtags": [
+        "#ความลึกลับของธรรมชาติ",
+        "#ความจริงที่น่าประหลาดใจ",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 297.109,
+        "cpuSeconds": 952.9,
+        "avgCpuCores": 3.21,
+        "peakRssMb": 10644,
+        "renderSeconds": 74.032,
+        "creativeSeconds": 223.017
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1233,
+      "costBasis": "ESTIMATE: 74 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 6.08
+      },
+      "ai": {
+        "source": "LLM_EVIDENCE_STRATEGY",
+        "llmSelectedId": "I2",
+        "finalSelectedId": "I2",
+        "experiment": "EXPLORE",
+        "selectionReason": "ไอเดียที่สองเป็นคำถามที่น่าสนใจ ใช้ข้อเท็จจริงที่ไม่เคยใช้มาก่อน และหลีกเลี่ยงหัวข้อหม้อความดันที่อยู่ใน recent สร้างความสนใจผ่านคำถามที่น่าตื่นเต้น ใช้ข้อเท็จจริงที่ไม่เคยใช้มาก่อน สร้างความสนใจผ่านคำถามที่น่าตื่นเต้น ใช้ข้อเท็จจริงที่ไม่เคยใช้มาก่อน สร้างความสนใจผ่านคำถามที่น่าตื่นเต้น ใช้ข้อเท็จจ",
+        "alternativesReason": "ไอเดียที่หนึ่งและสามเป็นรูปแบบเดียวกัน ใช้ข้อเท็จจริงที่ไม่เคยใช้มาก่อน แต่เป็นการตอบคำถามที่คล้ายกัน ไอเดียที่สองเป็นคำถามที่น่าสนใจและใช้ข้อเท็จจริงที่ไม่เคยใช้มาก่อน สร้างความสนใจผ่านคำถามที่น่าตื่นเต้น",
+        "brainstorm": "คนดูบัญชีนี้อาจสนใจเรื่องความลึกลับของธรรมชาติหรือความจริงที่น่าประหลาดใจ ข้อเท็จจริงที่น่าเล่าคือเรื่องหม้อความดัน ขวดเก็บความเย็น น้ำแข็งลอยน้ำ หมึกยักษ์ และฟ้าแลบก่อนฟ้าร้อง ไอเดีย 3 แบบคือ: 1) ใช้ข้อเท็จจริงเกี่ยวกับหม้อความดันแบบ NUMBER_SPOTLIGHT 2) สร้างคำถามเชิงข้อเท็จจริงแบบ QUIZ_REVEAL 3) ใช้ข้อเท็จจริงเกี่ยวกับขวดเก็บความเย็นแบบ NUMBER_SPOTLIGHT ควรหลีกเลี่ยงเรื่องหม้อความดันที่อยู่ใน recent ควรเลือกไอเดีย 2 เพราะเป็นคำถามที่น่าสนใจและใช้ข้อเท็จจริงที่ไม่เคยใช้มาก่อน",
+        "llmSeconds": 222.888,
+        "usage": {
+          "inputTokens": 3828,
+          "outputTokens": 1563
+        },
+        "ideas": [
+          {
+            "id": "I1",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "หม้อความดันมีอะไรพิเศษ?",
+            "beats": [
+              "หม้อความดันมีอะไรพิเศษ?",
+              "น้ำเดือดได้ถึงราว 120°C",
+              "คลิกเพื่อเรียนรู้เพิ่มเติม"
+            ],
+            "reasons": [
+              "มุมเล่า: ความลึกลับ",
+              "รูปแบบ hook: คำถาม",
+              "ใช้ข้อเท็จจริงที่ไม่เคยใช้มาก่อน สร้างความสนใจผ่านคำถามที่น่าตื่นเต้น",
+              "หัวข้อ \"หม้อความดัน\" เพิ่งทำไปในคลิปล่าสุด ยังมีหัวข้อที่ยังไม่ได้เล่า: ขวดเก็บความเย็น, น้ำแข็งลอยน้ำ, เกลือกับน้ำแข็ง, หมึกยักษ์, ฟ้าแลบก่อนฟ้าร้อง, น้ำผึ้งเก็บได้นาน",
+              "hook \"หม้อความดันมีอะไรพิเศษ?\" ซ้ำกับคลิปที่ทำไปแล้ว"
+            ]
+          },
+          {
+            "id": "I2",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "QUIZ_REVEAL",
+            "hook": "น้ำแข็งเบากว่าน้ำราว 9%",
+            "beats": [
+              "น้ำแข็งเบากว่าน้ำราว 9%",
+              "น้ำแข็งเบากว่าน้ำราว 9%",
+              "คลิกเพื่อเรียนรู้เพิ่มเติม"
+            ],
+            "reasons": [
+              "มุมเล่า: ความลึกลับ",
+              "รูปแบบ hook: คำถาม",
+              "สร้างความสนใจผ่านคำถามที่น่าตื่นเต้น ใช้ข้อเท็จจริงที่ไม่เคยใช้มาก่อน",
+              "ไอเดียที่สองเป็นคำถามที่น่าสนใจ ใช้ข้อเท็จจริงที่ไม่เคยใช้มาก่อน และหลีกเลี่ยงหัวข้อหม้อความดันที่อยู่ใน recent สร้างความสนใจผ่านคำถามที่น่าตื่นเต้น ใช้ข้อเท็จจริงที่ไม่เคยใช้มาก่อน สร้างความสนใจผ่านคำถามที่น่าตื่นเต้น ใช้ข้อเท็จจริงที่ไม่เคยใช้มาก่อน สร้างความสนใจผ่านคำถามที่น่าตื่นเต้น ใช้ข้อเท็จจ"
+            ]
+          },
+          {
+            "id": "I3",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "ขวดเก็บความเย็นมีอะไรพิเศษ?",
+            "beats": [
+              "ขวดเก็บความเย็นมีอะไรพิเศษ?",
+              "ผนังขวดมีสองชั้น",
+              "ช่องกลางไม่มีอากาศ",
+              "คลิกเพื่อเรียนรู้เพิ่มเติม"
+            ],
+            "reasons": [
+              "มุมเล่า: ความลึกลับ",
+              "รูปแบบ hook: ข้อเท็จจริง",
+              "ใช้ข้อเท็จจริงที่ไม่เคยใช้มาก่อน สร้างความสนใจผ่านข้อเท็จจริงที่น่าตื่นเต้น",
+              "NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง"
+            ]
+          }
+        ]
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.4 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.1s",
+        "PASS TEXT_COVERAGE: text on screen 93% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.1s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-3",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "หมึกยักษ์มีอะไรพิเศษ?",
+            "kicker": "แต่คุณรู้มั้ยว่า...",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "เลือดหมึกยักษ์ใช้ทองแดงขนออกซิเจน"
+          },
+          {
+            "role": "CTA",
+            "text": "คลิกลิ้งไปดูวิธีใช้ได้เลย"
+          }
+        ],
+        "basis": "LOCAL_LLM_STORY_V1 (local/qwen3-4b-q4_k_m): เนื่องจากหมึกยักษ์เป็นหัวข้อใหม่ที่ยังไม่ได้เล่าและสร้างความประหลาดใจได้ดี (ระบบตัดจังหวะท้าย 1 จังหวะให้พูดทันเวลา)"
+      },
+      "topic": {
+        "topic": "หมึกยักษ์"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "publishDecision": "PENDING_REVIEW",
+      "publishBlockers": [],
+      "contentType": "GROWTH",
+      "creativeSource": "LOCAL_LLM_STORY_V1",
+      "mediaRights": [
+        {
+          "kind": "ORIGINAL_GRAPHIC",
+          "note": "การ์ดกราฟิกที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น"
+        },
+        {
+          "kind": "AI_VOICE",
+          "license": {
+            "voice": "DESIGNED_NO_REFERENCE",
+            "engine": "voxcpm",
+            "modelId": "openbmb/VoxCPM2",
+            "sources": [
+              "https://huggingface.co/openbmb/VoxCPM2",
+              "https://pypi.org/project/voxcpm/",
+              "https://github.com/OpenBMB/VoxCPM"
+            ],
+            "checkedAt": "2026-10-18",
+            "aiGenerated": true,
+            "modelLicense": "Apache-2.0",
+            "commercialUse": true,
+            "engineLicense": "Apache-2.0"
+          }
+        }
+      ],
+      "itemId": "d692c9c8-50bd-40c1-a034-fc5acce97ef1",
+      "slot": "2026-10-22T05:15:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "หมึกยักษ์มีอะไรพิเศษ?",
+      "voice": "หมึกยักษ์มีอะไรพิเศษ? เลือดหมึกยักษ์ใช้ทองแดงขนออกซิเจน คลิกลิ้งไปดูวิธีใช้ได้เลย",
+      "caption": "คลิคลิ้งไปดูวิธีใช้ได้เลย",
+      "hashtags": [
+        "#ความรู้ธรรมชาติ",
+        "#หมึกยักษ์",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 517.518,
+        "cpuSeconds": 1785.4,
+        "avgCpuCores": 3.45,
+        "peakRssMb": 11079,
+        "renderSeconds": 78.024,
+        "creativeSeconds": 439.403
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1298,
+      "costBasis": "ESTIMATE: 78 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 7.04
+      },
+      "ai": {
+        "source": "LLM_EVIDENCE_STRATEGY",
+        "llmSelectedId": "I1",
+        "finalSelectedId": "I3",
+        "experiment": "EXPLORE",
+        "selectionReason": "เนื่องจากขวดเก็บความเย็นเป็นหัวข้อใหม่ที่ยังไม่ได้เล่าและสร้างความประหลาดใจได้ดี",
+        "alternativesReason": "I2 ใช้รูปแบบที่ยังไม่ได้เล่าและ I3 ใช้รูปแบบที่ยังไม่ได้เล่า แต่ I1 มีหัวข้อที่ไม่ซ้ำกับ recent ด้วย",
+        "brainstorm": null,
+        "llmSeconds": null,
+        "usage": {
+          "inputTokens": 10702,
+          "outputTokens": 2628
+        },
+        "ideas": [
+          {
+            "id": "I1",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "เหตุผลที่ขวดเก็บความเย็นมีประโยชน์",
+            "beats": [
+              "เหตุผลที่ขวดเก็บความเย็นมีประโยชน์",
+              "ผนังขวดมีสองชั้น",
+              "ช่องกลางไม่มีอากาศ",
+              "คลิกลิ้งไปดูวิธีใช้ได้เลย"
+            ],
+            "reasons": [
+              "มุมเล่า: เปรียบเทียบความเย็นของขวดเก็บความเย็นกับน้ำ",
+              "รูปแบบ hook: เหตุผลที่ขวดเก็บความเย็นมีประโยชน์",
+              "เนื่องจากขวดเก็บความเย็นเป็นหัวข้อใหม่ที่ยังไม่ได้เล่าและสร้างความประหลาดใจได้ดี",
+              "เนื่องจากขวดเก็บความเย็นเป็นหัวข้อใหม่ที่ยังไม่ได้เล่าและสร้างความประหลาดใจได้ดี",
+              "NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง"
+            ]
+          },
+          {
+            "id": "I2",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "เหตุผลที่น้ำผึ้งเก็บได้นาน",
+            "beats": [
+              "เหตุผลที่น้ำผึ้งเก็บได้นาน",
+              "น้ำผึ้งมีน้ำน้อยและเป็นกรดอ่อน",
+              "คลิกลิ้งไปดูวิธีใช้ได้เลย"
+            ],
+            "reasons": [
+              "มุมเล่า: เหตุผลที่น้ำผึ้งเก็บได้นาน",
+              "รูปแบบ hook: เหตุผลที่น้ำผึ้งเก็บได้นาน",
+              "เนื่องจากน้ำผึ้งเก็บได้นานเป็นหัวข้อใหม่ที่ยังไม่ได้เล่าและสร้างความประหลาดใจได้ดี",
+              "NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง"
+            ]
+          },
+          {
+            "id": "I3",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "QUIZ_REVEAL",
+            "hook": "หมึกยักษ์มีอะไรพิเศษ?",
+            "beats": [
+              "หมึกยักษ์มีอะไรพิเศษ?",
+              "เลือดหมึกยักษ์ใช้ทองแดงขนออกซิเจน",
+              "คลิกลิ้งไปดูวิธีใช้ได้เลย"
+            ],
+            "reasons": [
+              "มุมเล่า: ความลับของหมึกยักษ์",
+              "รูปแบบ hook: หมึกยักษ์มีอะไรพิเศษ?",
+              "เนื่องจากหมึกยักษ์เป็นหัวข้อใหม่ที่ยังไม่ได้เล่าและสร้างความประหลาดใจได้ดี",
+              "เลือกทดลองแนวทางนี้เพื่อเก็บหลักฐานเพิ่ม ยังไม่ใช่สูตรไวรัล"
+            ]
+          }
+        ]
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.4 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–1.9s",
+        "PASS TEXT_COVERAGE: text on screen 95% of clip (min 90%)",
+        "PASS PACING: 3 shot(s), longest 3.2s, 3 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-4",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "เกลือทำให้จุดเยือกแข็งต่ำลง",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "เกลือทำให้จุดเยือกแข็งต่ำลง"
+          },
+          {
+            "role": "CTA",
+            "text": "เซฟไว้เล่าต่อ"
+          }
+        ],
+        "basis": "LOCAL_LLM_STORY_V1 (local/qwen3-4b-q4_k_m): ใช้ข้อเท็จจริงที่ยังไม่ใช้มาก่อน และเหมาะกับรูปแบบ QUIZ_REVEAL ที่มีการเปิดเผยคำตอบ ซึ่งสอดคล้องกับความสนใจของผู้ชมที่ต้องการข้อมูลเชิงลึกและตัวเลขที่น่าสนใจ รวมถึงไม่ซ้ำกับ recent ที่มีรูปแบบ QUIZ_RE"
+      },
+      "topic": {
+        "topic": "เกลือกับน้ำแข็ง"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "publishDecision": "PENDING_REVIEW",
+      "publishBlockers": [],
+      "contentType": "GROWTH",
+      "creativeSource": "LOCAL_LLM_STORY_V1",
+      "mediaRights": [
+        {
+          "kind": "ORIGINAL_GRAPHIC",
+          "note": "การ์ดกราฟิกที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น"
+        },
+        {
+          "kind": "AI_VOICE",
+          "license": {
+            "voice": "DESIGNED_NO_REFERENCE",
+            "engine": "voxcpm",
+            "modelId": "openbmb/VoxCPM2",
+            "sources": [
+              "https://huggingface.co/openbmb/VoxCPM2",
+              "https://pypi.org/project/voxcpm/",
+              "https://github.com/OpenBMB/VoxCPM"
+            ],
+            "checkedAt": "2026-10-18",
+            "aiGenerated": true,
+            "modelLicense": "Apache-2.0",
+            "commercialUse": true,
+            "engineLicense": "Apache-2.0"
+          }
+        }
+      ],
+      "itemId": "93170e1e-2e58-4a8a-ad29-6edffc29f753",
+      "slot": "2026-10-22T12:30:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "เกลือทำให้จุดเยือกแข็งต่ำลง",
+      "voice": "เกลือทำให้จุดเยือกแข็งต่ำลง เกลือทำให้จุดเยือกแข็งต่ำลง เซฟไว้เล่าต่อ",
+      "caption": "เกลือกับน้ำแข็งมีคุณสมบัติที่ทำให้จัดการกับความเย็นได้ดีขึ้น",
+      "hashtags": [
+        "#ความรู้รอบตัว",
+        "#ข้อเท็จจริง"
+      ],
+      "metrics": {
+        "wallSeconds": 563.965,
+        "cpuSeconds": 1976.4,
+        "avgCpuCores": 3.5,
+        "peakRssMb": 10605,
+        "renderSeconds": 64.517,
+        "creativeSeconds": 499.371
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1073,
+      "costBasis": "ESTIMATE: 64 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 5.28
+      },
+      "ai": {
+        "source": "LLM_EVIDENCE_STRATEGY",
+        "llmSelectedId": "I3",
+        "finalSelectedId": "I2",
+        "experiment": "EXPLORE",
+        "selectionReason": "ใช้ข้อเท็จจริงที่ยังไม่ใช้มาก่อน และเหมาะกับรูปแบบ NUMBER_SPOTLIGHT ที่ยังไม่ใช้ใน recent ซึ่งสอดคล้องกับความสนใจของผู้ชมที่ต้องการข้อมูลเชิงลึกและตัวเลขที่น่าสนใจ รวมถึงไม่ซ้ำกับ recent ที่มีรูปแบบ 3 ที่มีการใช้ใน recent แล้วก็ช่วยเพิ่มความน่าสนใจให้กับคอนเทนต์มากขึ้น",
+        "alternativesReason": "ไอเดีย I1 และ I2 ใช้รูปแบบ QUIZ_REVEAL ซึ่งมีการใช้ใน recent แล้ว จึงเลือกไอเดียที่ใช้รูปแบบที่ยังไม่ใช้มาก่อน ซึ่งคือ I3 ที่เหมาะกับข้อมูลที่มีตัวเลขและเหตุผลที่น่าสนใจ รวมถึงไม่ซ้ำกับ recent ที่มีรูปแบบ NUMBER_SPOTLIGHT แล้วก็ช่วยเพิ่มความน่าสนใจให้กับคอนเทนต์มากขึ้น",
+        "brainstorm": null,
+        "llmSeconds": null,
+        "usage": {
+          "inputTokens": 11126,
+          "outputTokens": 3200
+        },
+        "ideas": [
+          {
+            "id": "I1",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "QUIZ_REVEAL",
+            "hook": "น้ำแข็งลอยน้ำมีคุณสมบัติพิเศษ",
+            "beats": [
+              "น้ำแข็งลอยน้ำมีคุณสมบัติพิเศษ",
+              "น้ำแข็งเบากว่าน้ำราว 9%",
+              "คอมเมนต์มาเลย"
+            ],
+            "reasons": [
+              "มุมเล่า: ข้อเท็จจริงที่มีข้อมูลเชิงลึก",
+              "รูปแบบ hook: ข้อเท็จจริง",
+              "ใช้ข้อเท็จจริงที่ยังไม่ใช้มาก่อน และเหมาะกับรูปแบบ QUIZ_REVEAL ที่มีการเปิดเผยคำตอบ ซึ่งสอดคล้องกับความสนใจของผู้ชมที่ต้องการข้อมูลเชิงลึกและตัวเลขที่น่าสนใจ รวมถึงไม่ซ้ำกับ recent ที่มีรูปแบบ QUIZ_RE",
+              "หัวข้อ \"น้ำแข็งลอยน้ำ\" เพิ่งทำไปในคลิปล่าสุด ยังมีหัวข้อที่ยังไม่ได้เล่า: ขวดเก็บความเย็น, เกลือกับน้ำแข็ง, ฟ้าแลบก่อนฟ้าร้อง, น้ำผึ้งเก็บได้นาน"
+            ]
+          },
+          {
+            "id": "I2",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "QUIZ_REVEAL",
+            "hook": "เกลือทำให้จุดเยือกแข็งต่ำลง",
+            "beats": [
+              "เกลือทำให้จุดเยือกแข็งต่ำลง",
+              "เกลือทำให้จุดเยือกแข็งต่ำลง",
+              "เซฟไว้เล่าต่อ"
+            ],
+            "reasons": [
+              "มุมเล่า: ข้อเท็จจริงที่มีการเปรียบเทียบ",
+              "รูปแบบ hook: ข้อเท็จจริง",
+              "ใช้ข้อเท็จจริงที่ยังไม่ใช้มาก่อน และเหมาะกับรูปแบบ QUIZ_REVEAL ที่มีการเปิดเผยคำตอบ ซึ่งสอดคล้องกับความสนใจของผู้ชมที่ต้องการข้อมูลเชิงลึกและตัวเลขที่น่าสนใจ รวมถึงไม่ซ้ำกับ recent ที่มีรูปแบบ QUIZ_RE",
+              "เลือกทดลองแนวทางนี้เพื่อเก็บหลักฐานเพิ่ม ยังไม่ใช่สูตรไวรัล"
+            ]
+          },
+          {
+            "id": "I3",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "แสงเดินทางเร็วกว่าเสียงมาก",
+            "beats": [
+              "แสงเดินทางเร็วกว่าเสียงมาก",
+              "แสงเดินทางเร็วกว่าเสียงมาก",
+              "เซฟไว้เล่าต่อ"
+            ],
+            "reasons": [
+              "มุมเล่า: ข้อเท็จจริงที่เชื่อมโยงกับแสงและเสียง",
+              "รูปแบบ hook: ข้อเท็จจริง",
+              "ใช้ข้อเท็จจริงที่ยังไม่ใช้มาก่อน และเหมาะกับรูปแบบ NUMBER_SPOTLIGHT ที่ยังไม่ใช้ใน recent ซึ่งสอดคล้องกับความสนใจของผู้ชมที่ต้องการข้อมูลเชิงลึกและตัวเลขที่น่าสนใจ รวมถึงไม่ซ้ำกับ recent ที่มีรูปแบบ 3",
+              "ใช้ข้อเท็จจริงที่ยังไม่ใช้มาก่อน และเหมาะกับรูปแบบ NUMBER_SPOTLIGHT ที่ยังไม่ใช้ใน recent ซึ่งสอดคล้องกับความสนใจของผู้ชมที่ต้องการข้อมูลเชิงลึกและตัวเลขที่น่าสนใจ รวมถึงไม่ซ้ำกับ recent ที่มีรูปแบบ 3 ที่มีการใช้ใน recent แล้วก็ช่วยเพิ่มความน่าสนใจให้กับคอนเทนต์มากขึ้น",
+              "NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง"
+            ]
+          }
+        ]
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.5 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.1s",
+        "PASS TEXT_COVERAGE: text on screen 94% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.1s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-5",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ฟ้าแลบก่อนฟ้าร้องแปลกมากเหรอ?",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "แสงเดินทางเร็วกว่าเสียงมาก"
+          },
+          {
+            "role": "CTA",
+            "text": "คลิปนี้คุณค่ามากเลย!"
+          }
+        ],
+        "basis": "LOCAL_LLM_STORY_V1 (local/qwen3-4b-q4_k_m): เพราะฟ้าแลบก่อนฟ้าร้องเป็นหัวข้อใหม่และมีข้อเท็จจริงที่น่าสนใจ (ระบบตัดจังหวะท้าย 1 จังหวะให้พูดทันเวลา)"
+      },
+      "topic": {
+        "topic": "ฟ้าแลบก่อนฟ้าร้อง"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "publishDecision": "PENDING_REVIEW",
+      "publishBlockers": [],
+      "contentType": "GROWTH",
+      "creativeSource": "LOCAL_LLM_STORY_V1",
+      "mediaRights": [
+        {
+          "kind": "ORIGINAL_GRAPHIC",
+          "note": "การ์ดกราฟิกที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น"
+        },
+        {
+          "kind": "AI_VOICE",
+          "license": {
+            "voice": "DESIGNED_NO_REFERENCE",
+            "engine": "voxcpm",
+            "modelId": "openbmb/VoxCPM2",
+            "sources": [
+              "https://huggingface.co/openbmb/VoxCPM2",
+              "https://pypi.org/project/voxcpm/",
+              "https://github.com/OpenBMB/VoxCPM"
+            ],
+            "checkedAt": "2026-10-18",
+            "aiGenerated": true,
+            "modelLicense": "Apache-2.0",
+            "commercialUse": true,
+            "engineLicense": "Apache-2.0"
+          }
+        }
+      ],
+      "itemId": "5a4986b4-9ff6-49f3-b187-832e73d1e156",
+      "slot": "2026-10-23T05:15:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ฟ้าแลบก่อนฟ้าร้องแปลกมากเหรอ?",
+      "voice": "ฟ้าแลบก่อนฟ้าร้องแปลกมากเหรอ? แสงเดินทางเร็วกว่าเสียงมาก คลิปนี้คุณค่ามากเลย!",
+      "caption": "ฟ้าแลบก่อนฟ้าร้องมีความรู้ที่น่าสนใจ!",
+      "hashtags": [
+        "#ข้อเท็จจริงที่น่าประหลาดใจ",
+        "#วิทยาศาสตร์ที่น่าสนใจ",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 458.586,
+        "cpuSeconds": 1589.9,
+        "avgCpuCores": 3.47,
+        "peakRssMb": 11050,
+        "renderSeconds": 67.361,
+        "creativeSeconds": 391.143
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1122,
+      "costBasis": "ESTIMATE: 67 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 5.76
+      },
+      "ai": {
+        "source": "LLM_EVIDENCE_STRATEGY",
+        "llmSelectedId": "I1",
+        "finalSelectedId": "I3",
+        "experiment": "EXPLORE",
+        "selectionReason": "เพราะขวดเก็บความเย็นเป็นหัวข้อใหม่และมีข้อเท็จจริงที่น่าสนใจ",
+        "alternativesReason": "I2 น่าสนใจแต่เป็นหัวข้อที่ซ้ำกับ recent และ I3 น่าสนใจแต่เป็นหัวข้อที่ซ้ำกับ recent",
+        "brainstorm": null,
+        "llmSeconds": null,
+        "usage": {
+          "inputTokens": 10499,
+          "outputTokens": 2456
+        },
+        "ideas": [
+          {
+            "id": "I1",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "ขวดเก็บความเย็นมีอะไรพิเศษ?",
+            "beats": [
+              "ขวดเก็บความเย็นมีอะไรพิเศษ?",
+              "ผนังขวดมีสองชั้น",
+              "ความร้อนผ่านได้น้อย",
+              "คลิปนี้คุณค่ามากเลย!"
+            ],
+            "reasons": [
+              "มุมเล่า: เหตุผลทางวิทยาศาสตร์",
+              "รูปแบบ hook: ข้อความที่ต้องการบอก",
+              "เพราะขวดเก็บความเย็นเป็นหัวข้อใหม่และมีข้อเท็จจริงที่น่าสนใจ",
+              "เพราะขวดเก็บความเย็นเป็นหัวข้อใหม่และมีข้อเท็จจริงที่น่าสนใจ",
+              "NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง"
+            ]
+          },
+          {
+            "id": "I2",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "QUIZ_REVEAL",
+            "hook": "หม้อความดันมีอะไรพิเศษ?",
+            "beats": [
+              "หม้อความดันมีอะไรพิเศษ?",
+              "น้ำเดือดได้ถึงราว 120°C",
+              "คลิปนี้คุณค่ามากเลย!"
+            ],
+            "reasons": [
+              "มุมเล่า: เหตุผลทางวิทยาศาสตร์",
+              "รูปแบบ hook: คำถามที่มีคำตอบในข้อเท็จจริง",
+              "เพราะหม้อความดันเป็นหัวข้อที่ไม่ซ้ำกับ recent",
+              "hook \"หม้อความดันมีอะไรพิเศษ?\" ซ้ำกับคลิปที่ทำไปแล้ว"
+            ]
+          },
+          {
+            "id": "I3",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "QUIZ_REVEAL",
+            "hook": "ฟ้าแลบก่อนฟ้าร้องแปลกมากเหรอ?",
+            "beats": [
+              "ฟ้าแลบก่อนฟ้าร้องแปลกมากเหรอ?",
+              "แสงเดินทางเร็วกว่าเสียงมาก",
+              "คลิปนี้คุณค่ามากเลย!"
+            ],
+            "reasons": [
+              "มุมเล่า: เหตุผลทางวิทยาศาสตร์",
+              "รูปแบบ hook: คำถามที่มีคำตอบในข้อเท็จจริง",
+              "เพราะฟ้าแลบก่อนฟ้าร้องเป็นหัวข้อใหม่และมีข้อเท็จจริงที่น่าสนใจ",
+              "เลือกทดลองแนวทางนี้เพื่อเก็บหลักฐานเพิ่ม ยังไม่ใช่สูตรไวรัล"
+            ]
+          }
+        ]
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.1 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.3s",
+        "PASS TEXT_COVERAGE: text on screen 94% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.3s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "affiliate-test-1",
+      "mode": "AFFILIATE",
+      "error": "CREATIVE_LLM_DUPLICATE_IDEAS"
+    },
+    {
+      "label": "affiliate-test-2",
+      "mode": "AFFILIATE",
+      "story": {
+        "format": "DEMONSTRATION",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "คุณรู้ไหมว่าขวดนี้มีความจุ 500 มล."
+          },
+          {
+            "role": "POINT",
+            "text": "ความจุ 500 มิลลิลิตร",
+            "kicker": "มล."
+          },
+          {
+            "role": "CTA",
+            "text": "ลองดูวิดีโอเพิ่มเติมเกี่ยวกับขวดนี้ได้ที่นี่"
+          }
+        ],
+        "basis": "LOCAL_LLM_STORY_V1 (local/qwen3-4b-q4_k_m): ใช้ข้อมูลที่มีภาพและวิดีโอแสดงผลลัพธ์ได้ชัดเจน ทำให้ผู้ชมเข้าใจคุณค่าของสินค้าได้ดีขึ้น"
+      },
+      "topic": {
+        "topic": "ข้อเท็จจริง"
+      },
+      "method": "REAL_IMAGE_MOTION",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "publishDecision": "DO_NOT_PUBLISH",
+      "publishBlockers": [
+        "TEST_PRODUCT_MEDIA_NOT_FOR_PUBLISHING",
+        "MEDIA_RIGHTS_DO_NOT_COVER_USE"
+      ],
+      "contentType": "AFFILIATE",
+      "creativeSource": "LOCAL_LLM_STORY_V1",
+      "mediaRights": [
+        {
+          "kind": "ORIGINAL_GRAPHIC",
+          "note": "การ์ดกราฟิกที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น"
+        },
+        {
+          "role": "REAL_IMAGE",
+          "origin": "OWNER_CREATED",
+          "license": null,
+          "rightsId": "107037f5-84a3-460d-846f-03ae08f18d6a",
+          "testOnly": false,
+          "expiresAt": null,
+          "reference": "",
+          "mediaAssetId": "12998d98-d99b-4a74-ac04-91664a60abf7",
+          "rightsholder": null,
+          "allowsPromotion": false,
+          "allowsCommercial": true
+        },
+        {
+          "role": "REAL_IMAGE",
+          "origin": "OWNER_CREATED",
+          "license": null,
+          "rightsId": "f8915f49-6fe9-4edd-9659-8258eb6797da",
+          "testOnly": false,
+          "expiresAt": null,
+          "reference": "",
+          "mediaAssetId": "597f22be-8a60-4851-a370-f85d75ce8aba",
+          "rightsholder": null,
+          "allowsPromotion": false,
+          "allowsCommercial": true
+        },
+        {
+          "role": "REAL_FOOTAGE",
+          "origin": "OWNER_CREATED",
+          "license": null,
+          "rightsId": "aa076251-058e-4722-a16b-3c041e57e491",
+          "testOnly": false,
+          "expiresAt": null,
+          "reference": "",
+          "mediaAssetId": "5b7ea67e-aee6-44eb-a028-ed6ef2d3b480",
+          "rightsholder": null,
+          "allowsPromotion": false,
+          "allowsCommercial": true
+        },
+        {
+          "kind": "AI_VOICE",
+          "license": {
+            "voice": "DESIGNED_NO_REFERENCE",
+            "engine": "voxcpm",
+            "modelId": "openbmb/VoxCPM2",
+            "sources": [
+              "https://huggingface.co/openbmb/VoxCPM2",
+              "https://pypi.org/project/voxcpm/",
+              "https://github.com/OpenBMB/VoxCPM"
+            ],
+            "checkedAt": "2026-10-18",
+            "aiGenerated": true,
+            "modelLicense": "Apache-2.0",
+            "commercialUse": true,
+            "engineLicense": "Apache-2.0"
+          }
+        }
+      ],
+      "itemId": "75244c21-13ae-4e31-b3ae-40b6443d909f",
+      "slot": "2026-10-21T13:30:00+00:00",
+      "slotBasis": "AUDIENCE_DATA",
+      "hook": "คุณรู้ไหมว่าขวดนี้มีความจุ 500 มล.",
+      "voice": "คุณรู้ไหมว่าขวดนี้มีความจุ 500 มล. ความจุ 500 มิลลิลิตร ลองดูวิดีโอเพิ่มเติมเกี่ยวกับขวดนี้ได้ที่นี่",
+      "caption": "คุณรู้ไหมว่าขวดนี้มีความจุ 500 มล.",
+      "hashtags": [
+        "#ขวดน้ำเก็บความเย็น",
+        "#ฟ้าเย็น500มล",
+        "#ของใช้ในบ้าน"
+      ],
+      "metrics": {
+        "wallSeconds": 241.487,
+        "cpuSeconds": 744.5,
+        "avgCpuCores": 3.08,
+        "peakRssMb": 10487,
+        "renderSeconds": 72.085,
+        "creativeSeconds": 169.325
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.12,
+      "costBasis": "ESTIMATE: 72 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 6.88
+      },
+      "ai": {
+        "source": "LLM_EVIDENCE_STRATEGY",
+        "llmSelectedId": "I1",
+        "finalSelectedId": "I1",
+        "experiment": "EXPLORE",
+        "selectionReason": "เน้นจุดขายที่มีภาพและวิดีโอแสดงผลลัพธ์ได้ชัดเจน ทำให้ผู้ชมเข้าใจคุณค่าของสินค้าได้ดีขึ้น รวมถึงเหมาะกับผู้ชมทั่วไปที่สนใจข้อมูลพื้นฐานของสินค้า",
+        "alternativesReason": "I2 ใช้คำถามที่อาจไม่ได้ผลลัพธ์ดีกับผู้ชมทั่วไป ขณะที่ I3 ใช้ข้อมูลหลายข้อที่อาจดึงดูดผู้ชมที่สนใจข้อมูลเชิงลึก แต่ I1 ตรงไปตรงมาและเหมาะกับกลุ่มเป้าหมายทั่วไป",
+        "brainstorm": "ผู้ชมอาจสนใจข้อเท็จจริงเกี่ยวกับความจุและความเป็นขวดสีฟ้า รวมถึงภาพและวิดีโอแสดงผลลัพธ์ ไอเดีย 3 แบบ: 1) สรุปข้อเท็จจริงแบบสั้น 2) ตั้งคำถามชวนตอบ 3) ใช้ข้อมูลเป็นจุดขาย ควรหลีกเลี่ยงการใช้หัวข้อที่เคยใช้ใน recent ต้องเลือกไอเดียที่ใช้ข้อมูลใหม่และเป็นธรรมชาติ ไอเดียที่เหมาะที่สุดคือใช้ข้อมูลเป็นจุดขายเนื่องจากมีภาพและวิดีโอที่แสดงผลลัพธ์ได้ชัดเจน",
+        "llmSeconds": 169.087,
+        "usage": {
+          "inputTokens": 2673,
+          "outputTokens": 1395
+        },
+        "ideas": [
+          {
+            "id": "I1",
+            "status": "REVIEW_REQUIRED",
+            "method": "REAL_IMAGE_MOTION",
+            "format": "DEMONSTRATION",
+            "hook": "คุณรู้ไหมว่าขวดนี้มีความจุ 500 มล.",
+            "beats": [
+              "คุณรู้ไหมว่าขวดนี้มีความจุ 500 มล.",
+              "ความจุ 500 มิลลิลิตร",
+              "ลองดูวิดีโอเพิ่มเติมเกี่ยวกับขวดนี้ได้ที่นี่"
+            ],
+            "reasons": [
+              "มุมเล่า: ขวดน้ำเก็บความเย็น ฟ้าเย็น 500 มล.",
+              "รูปแบบ hook: สรุปข้อเท็จจริง",
+              "ใช้ข้อมูลที่มีภาพและวิดีโอแสดงผลลัพธ์ได้ชัดเจน ทำให้ผู้ชมเข้าใจคุณค่าของสินค้าได้ดีขึ้น",
+              "เน้นจุดขายที่มีภาพและวิดีโอแสดงผลลัพธ์ได้ชัดเจน ทำให้ผู้ชมเข้าใจคุณค่าของสินค้าได้ดีขึ้น รวมถึงเหมาะกับผู้ชมทั่วไปที่สนใจข้อมูลพื้นฐานของสินค้า"
+            ]
+          },
+          {
+            "id": "I2",
+            "status": "REVIEW_REQUIRED",
+            "method": "REAL_IMAGE_MOTION",
+            "format": "PRODUCT_DETAIL",
+            "hook": "คุณคิดว่าขวดนี้มีความจุเท่าไร?",
+            "beats": [
+              "คุณคิดว่าขวดนี้มีความจุเท่าไร?",
+              "ความจุ 500 มิลลิลิตร",
+              "คลิกเพื่อดูข้อมูลเพิ่มเติมเกี่ยวกับขวดนี้ได้ที่นี่"
+            ],
+            "reasons": [
+              "มุมเล่า: ขวดน้ำเก็บความเย็น ฟ้าเย็น 500 มล.",
+              "รูปแบบ hook: ตั้งคำถามชวนตอบ",
+              "ใช้ข้อมูลที่มีภาพและวิดีโอแสดงผลลัพธ์ได้ชัดเจน ทำให้ผู้ชมเข้าใจคุณค่าของสินค้าได้ดีขึ้น"
+            ]
+          },
+          {
+            "id": "I3",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "PRODUCT_DETAIL",
+            "hook": "ขวดนี้มีความจุ 500 มล. และมีสีฟ้า ฝาดำมีห่วงหิ้ว",
+            "beats": [
+              "ขวดนี้มีความจุ 500 มล. และมีสีฟ้า ฝาดำมีห่วงหิ้ว",
+              "ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว",
+              "คลิกเพื่อดูข้อมูลเพิ่มเติมเกี่ยวกับขวดนี้ได้ที่นี่"
+            ],
+            "reasons": [
+              "มุมเล่า: ขวดน้ำเก็บความเย็น ฟ้าเย็น 500 มล.",
+              "รูปแบบ hook: จุดขาย",
+              "ใช้ข้อมูลที่มีภาพและวิดีโอแสดงผลลัพธ์ได้ชัดเจน ทำให้ผู้ชมเข้าใจคุณค่าของสินค้าได้ดีขึ้น",
+              "ข้อความบางจังหวะยาวเกิน 32 ตัวอักษร อ่านไม่ทัน",
+              "คำบรรยายยาว 81 ตัวอักษร เกินที่พูดทันในคลิป"
+            ]
+          }
+        ]
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.3 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.1s",
+        "PASS TEXT_COVERAGE: text on screen 96% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.5s, 3 distinct framing(s)"
+      ]
+    }
+  ],
+  "bank": {
+    "growth": {
+      "attempts": 5,
+      "usable": 5,
+      "rejected": 0,
+      "actualUsd": 0,
+      "actualThbPerUsable": 0,
+      "estimatedThbPerUsable": 0.12337999999999998
+    },
+    "affiliateTestOnly": {
+      "attempts": 1,
+      "usable": 1,
+      "rejected": 0,
+      "actualUsd": 0,
+      "actualThbPerUsable": 0,
+      "estimatedThbPerUsable": 0.12
+    }
+  },
+  "guards": {
+    "approveTestClip": "BANK_ITEM_NOT_REVIEWABLE",
+    "exportUnreviewed": "BANK_ITEM_NOT_APPROVED_FOR_EXPORT"
+  },
+  "rebankSameMaster": {
+    "sameRow": true,
+    "rowsInBank": 6
+  },
+  "publishingQueueRows": 0
+}
