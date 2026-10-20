@@ -7,7 +7,7 @@ person's photo is used: each character is a new synthetic face described in
 words, and its generator, model, licence, prompt and seed are recorded so the
 presenter pack can prove where the face came from.
 
-    python lite_presenter_designer.py --sd sd-cli.exe --models generate models/flux --out presenters --seeds 3
+    python lite_presenter_designer.py --out presenters generate --sd sd-cli.exe --models models/flux --seeds 3
 
 Then build each chosen character's mouth library with lite_pack_builder.py
 frame-engine --character presenters/<id>/character.json.
