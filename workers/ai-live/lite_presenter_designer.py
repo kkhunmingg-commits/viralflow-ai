@@ -7,7 +7,7 @@ person's photo is used: each character is a new synthetic face described in
 words, and its generator, model, licence, prompt and seed are recorded so the
 presenter pack can prove where the face came from.
 
-    python lite_presenter_designer.py --sd sd.exe --models models/flux --out presenters --seeds 3
+    python lite_presenter_designer.py --sd sd-cli.exe --models generate models/flux --out presenters --seeds 3
 
 Then build each chosen character's mouth library with lite_pack_builder.py
 frame-engine --character presenters/<id>/character.json.
@@ -29,12 +29,12 @@ MODEL = {"name": "FLUX.1-schnell", "license": "Apache-2.0",
                    "clip_l": "clip_l.safetensors", "t5xxl": "t5-v1_1-xxl-encoder-Q5_K_M.gguf"}}
 STYLE = ("photorealistic vertical portrait photo for a live shopping stream, head and shoulders, "
          "person centered in the upper half of the frame, looking straight into the camera, "
-         "mouth closed with a gentle natural smile, eyes open, soft even studio lighting, "
+         "lips gently closed with no teeth visible, calm relaxed expression, eyes open, soft even studio lighting, "
          "sharp focus on the face, natural skin texture, plain softly blurred bright studio background, "
          "no text, no logo, no watermark, no hands near the face, no glasses")
 CHARACTERS = (
     {"id": "nara", "display_name": "นารา", "default_voice": "th-TH-PremwadeeNeural",
-     "description": "a friendly Thai woman in her late twenties with shoulder-length black hair, "
+     "description": "a friendly Thai woman in her late twenties with a short chin-length black bob haircut, "
                     "wearing a plain cream blouse"},
     {"id": "mali", "display_name": "มะลิ", "default_voice": "th-TH-AcharaNeural",
      "description": "a cheerful Thai woman in her early thirties with long black hair tied back, "
@@ -109,7 +109,7 @@ def main() -> int:
     parser.add_argument("--out", type=Path, required=True)
     sub = parser.add_subparsers(dest="command", required=True)
     make = sub.add_parser("generate")
-    make.add_argument("--sd", type=Path, required=True, help="stable-diffusion.cpp executable (sd.exe)")
+    make.add_argument("--sd", type=Path, required=True, help="stable-diffusion.cpp executable (sd-cli.exe in the Vulkan release)")
     make.add_argument("--models", type=Path, required=True)
     make.add_argument("--seeds", type=int, default=3)
     make.add_argument("--steps", type=int, default=4)
