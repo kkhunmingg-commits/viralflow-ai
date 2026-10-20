@@ -1,0 +1,3 @@
+Error: thai_tts_too_long
+    at LocalCommandThaiVoice.synthesize (/home/runner/work/viralflow-ai/viralflow-ai/src/features/video/thai-voice.ts:46:56)
+    at async main (/home/runner/work/viralflow-ai/viralflow-ai/scripts/product-video/assemble.ts:41:16)
