@@ -133,6 +133,13 @@ class LitePresenterEngine:
             columns = np.linspace(0.0, 1.0, box_w, dtype=np.float32)
             taper = np.clip(np.minimum(columns, 1 - columns) / 0.14, 0.0, 1.0)
             alpha = alpha * (taper * taper * (3 - 2 * taper))[None, :, None]
+            # MuseTalk redraws the jaw contour slightly off the base's, so pasting the lower corners left a
+            # double (light) jaw line and smeared neck/hair on the Ally X previews. Keep only a feathered
+            # oval around lips and chin; jaw contour, neck and hair stay the sharp reference.
+            yy, xx = np.mgrid[0:box_h, 0:box_w].astype(np.float32)
+            dist = np.sqrt(((xx / box_w - 0.5) / 0.24) ** 2 + ((yy / box_h - 0.74) / 0.17) ** 2)
+            oval = np.clip((1.25 - dist) / 0.35, 0.0, 1.0)
+            alpha = alpha * (oval * oval * (3 - 2 * oval))[..., None]
         # Only rows the mask touches are pasted, so the eyes above stay the base's (and can blink).
         rows = np.nonzero(alpha[..., 0].max(axis=1) > 0.003)[0]
         top = int(rows[0]) if rows.size else 0
