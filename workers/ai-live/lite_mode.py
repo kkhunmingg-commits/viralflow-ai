@@ -10,6 +10,7 @@ plus a show director so no human host is needed.
 """
 from __future__ import annotations
 
+import dataclasses
 import os
 import threading
 from pathlib import Path
@@ -77,6 +78,9 @@ class LiteWorkerBoundary(LocalWorkerBoundary):
         kwargs.setdefault("ai_provider_factory", lite_ai_providers())
         self.destination = kwargs["provider_factory"]
         super().__init__(data_dir, credential_store, **kwargs)
+        # Pro's 1200 kbps default smears a 720x1280 face; live-shopping ingest guidance is 2.5-4 Mbps.
+        self.encoder_config = dataclasses.replace(
+            self.encoder_config, video_bitrate_kbps=int(os.getenv("AI_LIVE_LITE_VIDEO_KBPS", "2500")))
         self._seconds_per_product = seconds_per_product or float(os.getenv("AI_LIVE_LITE_SECONDS_PER_PRODUCT", "180"))
         self._directors: dict[str, LiteShowDirector] = {}
         self._director_lock = threading.Lock()

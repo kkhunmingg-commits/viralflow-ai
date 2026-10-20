@@ -131,6 +131,17 @@ class PresenterPackTests(unittest.TestCase):
         self.assertLess(metrics["compose_p95_ms"], 40)
         engine.close()
 
+    def test_refined_patch_keeps_reference_detail_where_the_mouth_did_not_change(self):
+        import cv2
+        from lite_presenter_engine import refine_patch
+        rng = np.random.default_rng(1)
+        under = (rng.random((420, 400, 3)) * 255).astype(np.float32)  # sharp skin texture
+        alpha = np.ones((420, 400, 1), np.float32)
+        soft = cv2.resize(cv2.resize(under, (256, 256), interpolation=cv2.INTER_AREA), (256, 256)) + 12  # VAE: soft + colour drift
+        refined = refine_patch(soft.clip(0, 255).astype(np.uint8), under, alpha).astype(np.float32)
+        plain = cv2.resize(soft, (400, 420), interpolation=cv2.INTER_CUBIC)
+        self.assertLess(np.abs(refined - under).mean(), np.abs(plain - under).mean() * 0.6)
+
     def test_interrupt_stops_speech_frames(self):
         engine = LitePresenterEngine(self.pack.root, allow_technical_test=True)
         engine.prepare(self.pack.reference_path, 25)

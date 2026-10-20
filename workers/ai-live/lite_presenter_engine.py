@@ -7,6 +7,13 @@ builder; live work is selecting, blending and encoding prepared images.
 
 Frames are paced to the audio clock. An idle loop keeps subtle motion when
 the presenter is silent. Every frame carries a visible AI disclosure label.
+
+Naturalness work done once at prepare time (no runtime cost): mouth patches are
+colour-matched to the reference and get the reference's skin detail back where
+the mouth did not change, so the 256 px neural patch is not a soft smear on a
+sharp face. At runtime consecutive mouth shapes are cross-faded, the head moves
+with smooth non-repeating motion plus small speech-driven nods, and the eyes
+blink when they can be located in the reference.
 """
 from __future__ import annotations
 
@@ -57,7 +64,7 @@ class LitePresenterEngine:
 
     renderer = "lite_prepared_library"
 
-    def __init__(self, pack_dir: Path, *, jpeg_quality: int = 82, allow_technical_test: bool = False,
+    def __init__(self, pack_dir: Path, *, jpeg_quality: int = 90, allow_technical_test: bool = False,
                  clock=time.monotonic):
         self._pack_dir = Path(pack_dir)
         self._quality = int(jpeg_quality)
@@ -78,7 +85,15 @@ class LitePresenterEngine:
         self._t = 0
         self._last_rank = 0
         self._repeat = 0
-        self._metrics = {"speech_frames": 0, "idle_frames": 0, "late_frames": 0, "skipped_frames": 0}
+        self._metrics = {"speech_frames": 0, "idle_frames": 0, "late_frames": 0, "skipped_frames": 0, "blinks": 0}
+        self._paste_top = 0
+        self._prev_region: np.ndarray | None = None
+        self._prev_index = -1
+        self._energy = 0.0
+        self._blink_frames: list[np.ndarray] = []
+        self._blink_plan: list[int] = []
+        self._next_blink = 0
+        self._rng = np.random.default_rng(int(os.getenv("AI_LIVE_LITE_MOTION_SEED", "7")))
         self._compose_ms: deque[float] = deque(maxlen=2048)
         self._prepared = False
 
@@ -112,19 +127,20 @@ class LitePresenterEngine:
             raise PresenterPackError("LITE_PACK_FACE_OUTSIDE_FRAME")
         box_w, box_h = x2 - x1, y2 - y1
         alpha = cv2.resize(mask, (box_w, box_h), interpolation=cv2.INTER_LINEAR).astype(np.float32)[..., None] / 255.0
+        # Only rows the mask touches are pasted, so the eyes above stay the base's (and can blink).
+        rows = np.nonzero(alpha[..., 0].max(axis=1) > 0.003)[0]
+        top = int(rows[0]) if rows.size else 0
         under = base[y1:y2, x1:x2].astype(np.float32)
-        regions = []
-        for frame in pack.frames:
-            patch = cv2.imread(str(pack.root / frame.file), cv2.IMREAD_COLOR)
-            if patch is None:
-                raise PresenterPackError("LITE_PACK_IMAGE_INVALID")
-            patch = cv2.resize(patch, (box_w, box_h), interpolation=cv2.INTER_CUBIC).astype(np.float32)
-            regions.append(np.clip(patch * alpha + under * (1 - alpha), 0, 255).astype(np.uint8))
+        regions = [refine_patch(cv2.imread(str(pack.root / frame.file), cv2.IMREAD_COLOR), under, alpha)[top:]
+                   for frame in pack.frames]
         openness = np.array([frame.openness for frame in pack.frames], dtype=np.float32)
         self._order = np.argsort(openness, kind="stable")
         self._open_sorted = openness[self._order]
         self._closed_index = int(self._order[0])
         self._pack, self._fps, self._base, self._regions, self._box = pack, fps, base, regions, (x1, y1, x2, y2)
+        self._paste_top = top
+        self._blink_frames = blink_frames(base, (x1, y1, x2, y1 + top)) if _env_on("AI_LIVE_LITE_BLINK") else []
+        self._next_blink = int(self._fps * self._rng.uniform(1.5, 3.5))
         self._label = _disclosure_overlay(pack.disclosure_text, out_w)
         self._extractor = FrameFeatureExtractor(fps)
         self._interrupt.clear()
@@ -145,6 +161,7 @@ class LitePresenterEngine:
                 self._extractor.reset()
                 return
             openness = tracked[min(position + 1, len(tracked) - 1)]
+            self._energy += (openness - self._energy) * 0.08  # slow envelope drives small nods
             index = self._select(openness, feature.centroid if feature.voiced else None)
             jpeg = self._paced(index)
             if jpeg is not None:
@@ -163,6 +180,7 @@ class LitePresenterEngine:
                 self._interrupt.clear()
                 return
             openness = self._decay()
+            self._energy *= 0.92
             jpeg = self._paced(self._select(openness, None))
             if jpeg is not None:
                 self._metrics["idle_frames"] += 1
@@ -179,7 +197,7 @@ class LitePresenterEngine:
     def close(self) -> None:
         self._interrupt.set()
         self._prepared = False
-        self._regions, self._base, self._label = [], None, None
+        self._regions, self._base, self._label, self._blink_frames, self._prev_region = [], None, None, [], None
 
     def metrics(self) -> dict[str, object]:
         samples = sorted(self._compose_ms)
@@ -190,7 +208,8 @@ class LitePresenterEngine:
                 "library_frames": len(self._regions),
                 "pack_source": self._pack.source if self._pack else None,
                 "technical_test_only": self._pack.technical_test_only if self._pack else None,
-                "face_box_output": list(self._box)}
+                "face_box_output": list(self._box), "blink_ready": bool(self._blink_frames),
+                "crossfade": _env_on("AI_LIVE_LITE_CROSSFADE")}
 
     # internals -------------------------------------------------------------
     def _decay(self) -> float:
@@ -209,7 +228,7 @@ class LitePresenterEngine:
         candidates = range(max(0, rank - span), min(len(self._order), rank + span + 1))
         pack = self._pack
         def cost(candidate: int) -> float:
-            value = abs(float(self._open_sorted[candidate]) - openness) + 0.002 * abs(candidate - self._last_rank)
+            value = abs(float(self._open_sorted[candidate]) - openness) + 0.004 * abs(candidate - self._last_rank)
             frame = pack.frames[int(self._order[candidate])] if pack else None
             if centroid is not None and frame is not None and frame.centroid is not None:
                 value += 0.15 * abs(frame.centroid - centroid)
@@ -221,22 +240,52 @@ class LitePresenterEngine:
         self._last_rank = best
         return int(self._order[best])
 
+    def _blink_base(self) -> np.ndarray:
+        assert self._base is not None
+        if self._blink_frames:
+            if not self._blink_plan:
+                self._next_blink -= 1
+                if self._next_blink <= 0:
+                    self._blink_plan = [0, 1, 1, 0]  # half, closed, closed, half: ~160 ms at 25 fps
+                    self._metrics["blinks"] += 1
+                    # Humans blink every 2-6 s, occasionally twice in a row.
+                    double = self._rng.random() < 0.12
+                    self._next_blink = int(self._fps * (0.35 if double else self._rng.uniform(2.2, 5.5)))
+            if self._blink_plan:
+                return self._blink_frames[self._blink_plan.pop(0)].copy()
+        return self._base.copy()
+
+    def _region(self, index: int) -> np.ndarray:
+        import cv2
+        region = self._regions[index]
+        if _env_on("AI_LIVE_LITE_CROSSFADE") and self._prev_region is not None and index != self._prev_index:
+            # One-frame cross-fade between mouth shapes hides the hard cut between library frames.
+            region = cv2.addWeighted(region, 0.65, self._prev_region, 0.35, 0)
+        self._prev_region, self._prev_index = self._regions[index], index
+        return region
+
     def _compose(self, index: int) -> bytes:
         import cv2
         assert self._base is not None and self._label is not None and self._pack is not None
         started = time.perf_counter()
-        frame = self._base.copy()
+        frame = self._blink_base()
         x1, y1, x2, y2 = self._box
-        frame[y1:y2, x1:x2] = self._regions[index]
+        frame[y1 + self._paste_top:y2, x1:x2] = self._region(index)
         motion = self._pack.motion
-        phase = 2 * math.pi * (self._t / self._fps) / motion.period_seconds
-        scale = 1.0 + motion.breath_scale * (0.5 + 0.5 * math.sin(phase))
-        dx = motion.sway_px * math.sin(phase * 0.5)
-        dy = motion.sway_px * 0.4 * math.sin(phase + 1.1)
+        t = self._t / self._fps
+        period = motion.period_seconds
+        # Sum of incommensurate sines: smooth, never visibly looping like a single sine.
+        wave = lambda a, b, c: (math.sin(2 * math.pi * t / (period * a)) * 0.6
+                                + math.sin(2 * math.pi * t / (period * b) + 1.3) * 0.3
+                                + math.sin(2 * math.pi * t / (period * c) + 2.1) * 0.1)
+        scale = 1.0 + motion.breath_scale * (0.5 + 0.5 * math.sin(2 * math.pi * t / period))
+        dx = motion.sway_px * wave(2.0, 3.7, 1.3)
+        dy = motion.sway_px * 0.4 * wave(1.0, 2.9, 0.7) + motion.sway_px * 1.2 * self._energy
+        angle = 0.35 * wave(2.6, 4.3, 1.7) + 0.4 * self._energy * math.sin(2 * math.pi * t / 1.9)
         if motion.breath_scale or motion.sway_px:
             h, w = frame.shape[:2]
             centre = (w / 2, h * 0.45)
-            matrix = cv2.getRotationMatrix2D(centre, 0.15 * math.sin(phase * 0.7), scale)
+            matrix = cv2.getRotationMatrix2D(centre, angle, scale)
             matrix[:, 2] += (dx, dy)
             frame = cv2.warpAffine(frame, matrix, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
         label = self._label
@@ -270,6 +319,88 @@ class LitePresenterEngine:
         elif wait < -period:
             self._metrics["late_frames"] += 1
         return jpeg
+
+
+def _env_on(name: str) -> bool:
+    return os.getenv(name, "1").strip().lower() not in ("0", "false", "off")
+
+
+def refine_patch(patch: np.ndarray | None, under: np.ndarray, alpha: np.ndarray) -> np.ndarray:
+    """Upscale a neural mouth patch onto the face box without the usual soft, off-colour look.
+
+    under/alpha are float32 (box_h, box_w, 3/1). Done once per library frame at prepare time.
+    """
+    import cv2
+    if patch is None:
+        raise PresenterPackError("LITE_PACK_IMAGE_INVALID")
+    box_h, box_w = under.shape[:2]
+    if not _env_on("AI_LIVE_LITE_REFINE"):  # previous behaviour, kept for A/B comparison
+        up = cv2.resize(patch, (box_w, box_h), interpolation=cv2.INTER_CUBIC).astype(np.float32)
+        return np.clip(up * alpha + under * (1 - alpha), 0, 255).astype(np.uint8)
+    up = cv2.resize(patch, (box_w, box_h), interpolation=cv2.INTER_LANCZOS4).astype(np.float32)
+    sigma = max(1.0, box_w / 256.0)
+    blur_ref = cv2.GaussianBlur(under, (0, 0), sigma)
+    blur_up = cv2.GaussianBlur(up, (0, 0), sigma)
+    # Where the mouth did not change shape, the patch should look like the sharp reference.
+    changed = np.abs(blur_up - blur_ref).mean(axis=2)
+    changed = cv2.GaussianBlur(np.clip((changed - 10.0) / 20.0, 0.0, 1.0), (0, 0), sigma * 2)[..., None]
+    weight = alpha[..., 0] > 0.5
+    steady = weight & (changed[..., 0] < 0.2)
+    if steady.sum() > 64:  # VAE colour drift: match the unchanged skin's mean colour
+        up += (under[steady].mean(axis=0) - up[steady].mean(axis=0))
+        blur_up = cv2.GaussianBlur(up, (0, 0), sigma)
+    detail = under - blur_ref
+    sharpened = up + 0.35 * (up - blur_up)  # mild unsharp on the newly generated lips/teeth
+    refined = changed * sharpened + (1 - changed) * (blur_up + detail)
+    return np.clip(refined * alpha + under * (1 - alpha), 0, 255).astype(np.uint8)
+
+
+def blink_frames(base: np.ndarray, upper_face: tuple[int, int, int, int]) -> list[np.ndarray]:
+    """Half- and fully-closed eye versions of the base frame, or [] if two eyes are not found.
+
+    The upper eyelid band is stretched down over the eye and the lower lid moves up a little,
+    feathered into the face. No extra model or asset is used.
+    """
+    import cv2
+    x1, y1, x2, y2 = upper_face
+    if x2 - x1 < 40 or y2 - y1 < 30 or not hasattr(cv2, "CascadeClassifier"):
+        return []
+    face = base[y1:y2, x1:x2]
+    cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_eye.xml")
+    eyes = cascade.detectMultiScale(cv2.cvtColor(face, cv2.COLOR_BGR2GRAY), scaleFactor=1.05, minNeighbors=6,
+                                    minSize=((x2 - x1) // 10, (x2 - x1) // 10), maxSize=((x2 - x1) // 3, (x2 - x1) // 3))
+    eyes = sorted((tuple(map(int, e)) for e in eyes), key=lambda e: -e[2] * e[3])[:2]
+    if len(eyes) != 2 or abs(eyes[0][1] - eyes[1][1]) > (y2 - y1) * 0.12:
+        return []
+    result = []
+    for amount in (0.55, 1.0):
+        frame = base.copy()
+        for ex, ey, ew, eh in eyes:
+            # Haar eye boxes include brow-to-cheek; the eye itself sits around the box's middle.
+            top, bottom = y1 + ey + int(eh * 0.25), y1 + ey + int(eh * 0.85)
+            left, right = x1 + ex, x1 + ex + ew
+            h = bottom - top
+            if h < 6:
+                return []
+            lid = top + int(h * (0.15 + 0.5 * amount))  # where the upper lid edge ends up
+            map_y = np.empty((h, ew), np.float32)
+            rows = np.arange(h, dtype=np.float32)[:, None]
+            src_band = h * 0.22  # upper-lid skin above the lash line
+            upper = rows <= (lid - top)
+            split = max(1, lid - top)
+            start = src_band + amount * (0.78 * h - src_band)  # lower-lid rows that stay visible
+            frac = (rows - split) / max(1, h - split)
+            map_y[:] = np.where(upper, rows * (src_band / split), start + frac * (h - start))
+            map_y += top
+            map_x = np.tile(np.arange(left, right, dtype=np.float32), (h, 1))
+            warped = cv2.remap(base, map_x, map_y, cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+            feather = np.zeros((h, ew), np.float32)
+            feather[h // 6:h - h // 6, ew // 8:ew - ew // 8] = 1.0
+            feather = cv2.GaussianBlur(feather, (0, 0), max(1.0, h / 6))[..., None]
+            region = frame[top:bottom, left:right].astype(np.float32)
+            frame[top:bottom, left:right] = np.clip(warped * feather + region * (1 - feather), 0, 255).astype(np.uint8)
+        result.append(frame)
+    return result
 
 
 def create_engine() -> LitePresenterEngine:
