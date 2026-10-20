@@ -1,0 +1,19 @@
+Fetching 20 files:   0%|          | 0/20 [00:00<?, ?it/s]Fetching 20 files:  40%|████      | 8/20 [00:00<00:00, 36.77it/s]Fetching 20 files:  80%|████████  | 16/20 [00:05<00:01,  3.15it/s]Fetching 20 files:  85%|████████▌ | 17/20 [00:19<00:03,  1.17s/it]Fetching 20 files:  90%|█████████ | 18/20 [00:21<00:02,  1.21s/it]Fetching 20 files:  95%|█████████▌| 19/20 [01:28<00:04,  4.67s/it]Fetching 20 files: 100%|██████████| 20/20 [04:30<00:00, 13.52s/it]Fetching 20 files: 100%|██████████| 20/20 [04:30<00:00, 13.52s/it]
+Loading pipeline components...:   0%|          | 0/7 [00:00<?, ?it/s]`torch_dtype` is deprecated! Use `dtype` instead!
+Loading pipeline components...:  57%|█████▋    | 4/7 [00:00<00:00, 25.54it/s]
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s][ALoading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 36.49it/s]
+Loading pipeline components...: 100%|██████████| 7/7 [00:00<00:00, 19.05it/s]Loading pipeline components...: 100%|██████████| 7/7 [00:00<00:00, 19.92it/s]
+Token indices sequence length is longer than the specified maximum sequence length for this model (81 > 77). Running this sequence through the model will result in indexing errors
+The following part of your input was truncated because CLIP can only handle sequences up to 77 tokens: ['field, photorealistic']
+Token indices sequence length is longer than the specified maximum sequence length for this model (81 > 77). Running this sequence through the model will result in indexing errors
+The following part of your input was truncated because CLIP can only handle sequences up to 77 tokens: ['field, photorealistic']
+  0%|          | 0/6 [00:00<?, ?it/s] 17%|█▋        | 1/6 [00:56<04:40, 56.16s/it] 33%|███▎      | 2/6 [01:50<03:40, 55.11s/it] 50%|█████     | 3/6 [02:47<02:48, 56.03s/it] 67%|██████▋   | 4/6 [03:42<01:51, 55.57s/it] 83%|████████▎ | 5/6 [04:39<00:56, 56.05s/it]100%|██████████| 6/6 [05:37<00:00, 56.87s/it]100%|██████████| 6/6 [05:37<00:00, 56.31s/it]
+{"seed": 11, "path": "board/a-11.png", "seconds": 370.9}
+The following part of your input was truncated because CLIP can only handle sequences up to 77 tokens: ['field, photorealistic']
+The following part of your input was truncated because CLIP can only handle sequences up to 77 tokens: ['field, photorealistic']
+  0%|          | 0/6 [00:00<?, ?it/s] 17%|█▋        | 1/6 [00:59<04:55, 59.15s/it] 33%|███▎      | 2/6 [01:54<03:46, 56.66s/it] 50%|█████     | 3/6 [02:47<02:45, 55.02s/it] 67%|██████▋   | 4/6 [03:40<01:49, 54.54s/it] 83%|████████▎ | 5/6 [04:34<00:54, 54.30s/it]100%|██████████| 6/6 [05:32<00:00, 55.35s/it]100%|██████████| 6/6 [05:32<00:00, 55.37s/it]
+{"seed": 12, "path": "board/a-12.png", "seconds": 363.8}
+The following part of your input was truncated because CLIP can only handle sequences up to 77 tokens: ['field, photorealistic']
+The following part of your input was truncated because CLIP can only handle sequences up to 77 tokens: ['field, photorealistic']
+  0%|          | 0/6 [00:00<?, ?it/s] 17%|█▋        | 1/6 [00:58<04:54, 58.93s/it] 33%|███▎      | 2/6 [01:54<03:47, 56.97s/it] 50%|█████     | 3/6 [02:48<02:47, 55.82s/it] 67%|██████▋   | 4/6 [03:43<01:50, 55.11s/it] 83%|████████▎ | 5/6 [04:37<00:54, 54.97s/it]100%|██████████| 6/6 [05:33<00:00, 55.30s/it]100%|██████████| 6/6 [05:33<00:00, 55.61s/it]
+{"seed": 13, "path": "board/a-13.png", "seconds": 367.9}
