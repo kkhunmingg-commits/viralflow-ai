@@ -34,7 +34,7 @@ from local_brain import UNKNOWN, BrainScope, ProductSnapshot, grounded_answer
 from thai_speech import NORMALIZER_VERSION, normalize_thai_speech, sentence_chunks
 
 BANK_FORMAT = "viralflow-lite-speech-bank-v1"
-FIXED_LINES = (UNKNOWN, UNKNOWN_SPOKEN, CLARIFY_SPOKEN, "ยินดีต้อนรับค่ะ", "ขอสักครู่นะคะ กำลังตรวจสอบข้อมูลให้ค่ะ",
+FIXED_LINES = (UNKNOWN, UNKNOWN_SPOKEN, CLARIFY_SPOKEN, "สวัสดีค่ะ", "ยินดีต้อนรับค่ะ", "ขอสักครู่นะคะ กำลังตรวจสอบข้อมูลให้ค่ะ",
                "สวัสดีค่ะ ยินดีต้อนรับเข้าร้านนะคะ", "ขอคุยเรื่องสินค้าและการสั่งซื้ออย่างปลอดภัยนะคะ",
                "สนใจกดตะกร้าด้านล่างได้เลยนะคะ", "มีคำถามพิมพ์มาในคอมเมนต์ได้เลยค่ะ", "มาดูสินค้าตัวนี้กันนะคะ")
 # Questions that exercise every grounded template once per product.
@@ -47,8 +47,13 @@ def _key(sentence: str) -> str:
 
 
 def spoken_sentences(text: str) -> tuple[str, ...]:
-    """The exact sentence strings Pro's speech provider will ask a backend for."""
-    return sentence_chunks(normalize_thai_speech(text))
+    """The exact sentence strings Pro's speech provider will ask a backend for.
+
+    LocalAISession splits the raw text first (so "600 มล." ends a sentence at its period),
+    then the speech provider normalizes each piece and splits again.
+    """
+    return tuple(sentence for raw in sentence_chunks(text)
+                 for sentence in sentence_chunks(normalize_thai_speech(raw)))
 
 
 def _snapshot(product: dict) -> ProductSnapshot:

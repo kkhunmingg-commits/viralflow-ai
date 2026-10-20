@@ -439,6 +439,15 @@ class SpeechBankTests(unittest.TestCase):
         missing = {s for text in spoken for s in self.bank.spoken_sentences(text)} - sentences
         self.assertEqual(missing, set())
 
+    def test_bank_follows_the_session_split_then_provider_normalize_path(self):
+        from thai_speech import normalize_thai_speech, sentence_chunks
+        text = "ตอนนี้มาดู กระบอกน้ำเก็บความเย็น 600 มล. กันนะคะ"
+        session_path = [s for raw in sentence_chunks(text) for s in sentence_chunks(normalize_thai_speech(raw))]
+        self.assertEqual(list(self.bank.spoken_sentences(text)), session_path)
+        self.assertGreater(len(session_path), 1)  # the period in "มล." ends a session sentence
+        sentences = set(self.bank.bank_sentences(self.bank.product_utterances(self.snapshots)))
+        self.assertIn("สวัสดีค่ะ", sentences)  # LIVE Pro's speech warm-up line
+
     def test_bank_plays_hits_and_fails_closed_on_miss(self):
         with tempfile.TemporaryDirectory() as temp:
             out = Path(temp) / "bank"
