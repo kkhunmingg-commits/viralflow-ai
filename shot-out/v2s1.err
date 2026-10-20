@@ -1,0 +1,18 @@
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files:  67%|██████▋   | 8/12 [00:02<00:01,  2.71it/s]Fetching 12 files:  67%|██████▋   | 8/12 [00:20<00:10,  2.50s/it]Fetching 12 files:  75%|███████▌  | 9/12 [01:41<00:33, 11.22s/it]Fetching 12 files:  83%|████████▎ | 10/12 [01:42<00:20, 10.25s/it]Fetching 12 files:  92%|█████████▏| 11/12 [01:46<00:09,  9.68s/it]Fetching 12 files: 100%|██████████| 12/12 [01:48<00:00,  9.02s/it]Fetching 12 files: 100%|██████████| 12/12 [01:48<00:00,  9.02s/it]
+Loading pipeline components...:   0%|          | 0/3 [00:00<?, ?it/s]Loading pipeline components...:  67%|██████▋   | 2/3 [00:00<00:00, 13.24it/s]`torch_dtype` is deprecated! Use `dtype` instead!
+
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s][A
+Loading checkpoint shards:  25%|██▌       | 1/4 [00:08<00:25,  8.49s/it][ALoading pipeline components...:  67%|██████▋   | 2/3 [00:11<00:00, 13.24it/s]
+Loading checkpoint shards:  50%|█████     | 2/4 [00:27<00:29, 14.74s/it][A
+Loading checkpoint shards:  75%|███████▌  | 3/4 [01:15<00:29, 29.94s/it][A
+Loading checkpoint shards: 100%|██████████| 4/4 [01:34<00:00, 25.63s/it][ALoading checkpoint shards: 100%|██████████| 4/4 [01:34<00:00, 23.67s/it]
+Loading pipeline components...: 100%|██████████| 3/3 [01:34<00:00, 39.54s/it]Loading pipeline components...: 100%|██████████| 3/3 [01:34<00:00, 31.65s/it]
+  0%|          | 0/8 [00:00<?, ?it/s]{"step": 0, "seconds": 161.9}
+ 12%|█▎        | 1/8 [02:31<17:39, 151.39s/it]{"step": 1, "seconds": 87.3}
+ 25%|██▌       | 2/8 [03:58<11:22, 113.70s/it]{"step": 2, "seconds": 85.3}
+ 38%|███▊      | 3/8 [05:23<08:23, 100.72s/it]{"step": 3, "seconds": 84.8}
+ 50%|█████     | 4/8 [06:48<06:17, 94.44s/it] {"step": 4, "seconds": 85.3}
+ 62%|██████▎   | 5/8 [08:14<04:33, 91.14s/it]{"step": 5, "seconds": 84.6}
+ 75%|███████▌  | 6/8 [09:38<02:57, 88.91s/it]{"step": 6, "seconds": 84.0}
+ 88%|████████▊ | 7/8 [11:02<01:27, 87.32s/it]{"step": 7, "seconds": 84.3}
+100%|██████████| 8/8 [12:27<00:00, 86.36s/it]100%|██████████| 8/8 [12:27<00:00, 93.38s/it]
