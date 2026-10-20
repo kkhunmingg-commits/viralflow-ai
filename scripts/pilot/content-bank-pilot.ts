@@ -68,6 +68,7 @@ async function produce(admin:SupabaseClient,user:SupabaseClient,owner:string,ass
   }catch(error){const message=error instanceof Error?error.message:String(error);log(`${label}.failed`,{message});return {label,mode,error:message}}
 }
 
+const EXPECTED_REFUSALS=new Set(["HUMAN_CREATIVE_REVIEW_REQUIRED"]);
 async function main(){
   await mkdir(outDir,{recursive:true});
   const {admin,user,owner}=await pilotOwner();log("owner",{owner,cpus:cpus().length,memGb:Math.round(totalmem()/2**30)});
@@ -116,6 +117,7 @@ async function main(){
     guards,rebankSameMaster:first?{sameRow:again?.id===first.id,rowsInBank:count}:null,publishingQueueRows:posted};
   await writeFile(join(outDir,"content-bank-report.json"),JSON.stringify(report,null,2));
   log("done",{accepted:results.filter(r=>r.bankStatus==="ACCEPTED").length,attempts:results.length,errors:results.filter(r=>r.error).length});
-  if(results.some(r=>r.error))process.exitCode=1;
+  // A plan with no usable idea is the system correctly refusing to produce, a measured outcome; anything else is a fault.
+  if(results.some(r=>r.error&&!EXPECTED_REFUSALS.has(String(r.error))))process.exitCode=1;
 }
 main().catch(error=>{console.error(error);process.exit(1)});
