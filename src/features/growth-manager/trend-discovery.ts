@@ -127,7 +127,9 @@ export function ownPerformanceObservations(history: readonly OwnPerformanceHisto
   const latest = new Map<string, OwnPerformanceObservation>(), conflicts = new Set<string>();
   for (const row of history) {
     const arm = row.attribution.arm, observed = Date.parse(row.observedAt), published = Date.parse(row.publishedAt ?? "");
-    if (row.source !== "TIKTOK_DISPLAY" || row.attribution.ownerId !== ownerId || arm.ownerId !== ownerId || arm.accountId !== accountId ||
+    // The owner's own Studio export is account-scoped real data like the Display API, and labelled as a report.
+    const ownerReport = row.source === "OWNER_REPORT_IMPORT";
+    if (row.source !== "TIKTOK_DISPLAY" && !ownerReport || row.attribution.ownerId !== ownerId || arm.ownerId !== ownerId || arm.accountId !== accountId ||
         !row.evidenceId.trim() || !row.videoId.trim() || !arm.id.trim() || !arm.topic.trim() || arm.topic.length > 4000 ||
         !["GROWTH", "AFFILIATE"].includes(arm.mode) || !Number.isFinite(observed) || !Number.isFinite(published) ||
         observed > now.getTime() || published > observed || Date.parse(row.attribution.createdAt) > published ||
@@ -136,9 +138,9 @@ export function ownPerformanceObservations(history: readonly OwnPerformanceHisto
     const key = `own-performance:${createHash("sha256").update(JSON.stringify([ownerId, accountId, row.videoId, arm.id])).digest("hex")}`;
     const views = typeof row.metrics.views === "number" && Number.isSafeInteger(row.metrics.views) && row.metrics.views >= 0
       ? row.metrics.views : null;
-    const observation: OwnPerformanceObservation = { key, name: arm.topic, source: "TIKTOK_DISPLAY", authorized: true,
-      capturedAt: row.observedAt, provenance: { kind: "REAL", reference: "https://open.tiktokapis.com/v2/video/query/",
-        collection: "OFFICIAL_API", permittedUse: true, verifiedAt: row.observedAt, scope: { kind: "ACCOUNT", accountId } },
+    const observation: OwnPerformanceObservation = { key, name: arm.topic, source: ownerReport ? "AUTHORIZED_REPORT" : "TIKTOK_DISPLAY", authorized: true,
+      capturedAt: row.observedAt, provenance: { kind: "REAL", reference: ownerReport ? "https://www.tiktok.com/tiktokstudio" : "https://open.tiktokapis.com/v2/video/query/",
+        collection: ownerReport ? "AUTHORIZED_REPORT" : "OFFICIAL_API", permittedUse: true, verifiedAt: row.observedAt, scope: { kind: "ACCOUNT", accountId } },
       visualUse: "UNKNOWN", ...(views === null ? {} : { metric: { name: "VIEWS", aggregation: "CUMULATIVE",
         samples: [{ at: row.observedAt, value: views }] } as const }),
       ownPerformance: { publishedAt: row.publishedAt!, observedAt: row.observedAt, mode: arm.mode, contextKey: arm.contextKey } };
@@ -156,7 +158,7 @@ function belongsToDomain(row: TrendObservation, domain: TrendDomain) {
   if (domain === "GOOGLE_SEARCH") return row.source === "GOOGLE_TRENDS" && (!row.metric || row.metric.name === "SEARCH_INTEREST");
   if (domain === "TIKTOK_TRENDS") return ["TIKTOK_CREATIVE_CENTER", "AUTHORIZED_REPORT"].includes(row.source) &&
     row.provenance?.scope.kind === "PUBLIC" && (!row.metric || row.metric.name !== "SEARCH_INTEREST");
-  return row.source === "TIKTOK_DISPLAY" && row.provenance?.scope.kind === "ACCOUNT" &&
+  return ["TIKTOK_DISPLAY", "AUTHORIZED_REPORT"].includes(row.source) && row.provenance?.scope.kind === "ACCOUNT" &&
     (!row.metric || row.metric.name !== "SEARCH_INTEREST");
 }
 function signalsFor(row: TrendObservation, domain: TrendDomain): DiscoverySignal[] {

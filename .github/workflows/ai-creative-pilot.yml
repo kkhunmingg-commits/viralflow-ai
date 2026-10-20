@@ -1,0 +1,191 @@
+name: Local LLM creative pilot
+
+# Runs a local language model (llama.cpp, CPU) as the Creative Brain. Only on the Phase 4 branch, and only
+# when the commit message asks for it, because each run downloads a ~2.5 GB model. Never deploys or posts.
+on:
+  push:
+    branches: ['claude/phase4-autonomous-intelligence']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LOCAL_LLM_REPO: Qwen/Qwen3-4B-GGUF
+  LOCAL_LLM_FILE: Qwen3-4B-Q4_K_M.gguf
+  LOCAL_LLM_MODEL: local/qwen3-4b-q4_k_m
+
+jobs:
+  import-proof:
+    # Every migration on a throwaway local stack, then the owner-report import with a labelled test fixture.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_ENV: development
+      TIKTOK_PROVIDER: mock
+      TIKTOK_PUBLISHING_PROVIDER: mock
+      TIKTOK_SHOP_PROVIDER: mock
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+      - name: Start a throwaway local Supabase with every migration
+        run: |
+          supabase start -x realtime,studio,edge-runtime,logflare,vector,supavisor
+          supabase status -o env > /tmp/sb.env
+          grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' /tmp/sb.env | sed -e 's/^API_URL=/SUPABASE_URL=/' -e 's/^ANON_KEY=/SUPABASE_ANON_KEY=/' -e 's/^SERVICE_ROLE_KEY=/SUPABASE_SERVICE_KEY=/' -e 's/"//g' >> "$GITHUB_ENV"
+          grep -E '^(API_URL|ANON_KEY)=' /tmp/sb.env | sed -e 's/^API_URL=/NEXT_PUBLIC_SUPABASE_URL=/' -e 's/^ANON_KEY=/NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/' -e 's/"//g' >> "$GITHUB_ENV"
+      - name: Prove the owner-report import
+        run: |
+          mkdir -p proof-out
+          node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/import-proof.ts proof-out | tee proof-out/proof.log
+          echo "::notice title=import proof::$(grep import.proof proof-out/proof.log | cut -c1-3500)"
+
+  ai-vs-rules:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ai-pilot]')
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    # Commercially usable sizes (Apache-2.0) on the same evidence.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { size: 4b, repo: Qwen/Qwen3-4B-GGUF, file: Qwen3-4B-Q4_K_M.gguf, model: local/qwen3-4b-q4_k_m }
+          # 8B was tried in runs 39404574685 and 39410103599: no better than 4B and about 1.5-3x slower.
+    env:
+      LOCAL_LLM_REPO: ${{ matrix.repo }}
+      LOCAL_LLM_FILE: ${{ matrix.file }}
+      LOCAL_LLM_MODEL: ${{ matrix.model }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ env.LOCAL_LLM_FILE }}
+      - name: Local LLM runtime and model
+        run: |
+          python -m venv .venv-llm
+          .venv-llm/bin/pip install --quiet huggingface_hub
+          .venv-llm/bin/pip install --prefer-binary --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu "llama-cpp-python==0.3.16"
+          echo "LOCAL_LLM_PYTHON=$PWD/.venv-llm/bin/python" >> "$GITHUB_ENV"
+          echo "LOCAL_LLM_MODEL_PATH=$(.venv-llm/bin/python -c "from huggingface_hub import hf_hub_download;print(hf_hub_download('$LOCAL_LLM_REPO','$LOCAL_LLM_FILE'))")" >> "$GITHUB_ENV"
+          nproc; free -m
+      - name: Compare on the same evidence
+        run: |
+          mkdir -p compare-out
+          if ! node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/ai-vs-rules.ts compare-out > compare-out/compare.log 2>&1; then
+            echo "::error title=ai vs rules::$(tail -n 30 compare-out/compare.log | tr '\n' '|' | cut -c1-3500)"; exit 1
+          fi
+          echo "::notice title=ai vs rules::$(grep '"summary"' compare-out/compare.log | cut -c1-3500)"
+      - name: Publish results to a results branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results && cp -r compare-out /tmp/results/ 2>/dev/null || true
+          cd /tmp/results && git init -q -b results && git add -A
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "AI vs rules ${{ matrix.size }} ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-compare-${{ matrix.size }}
+
+  ai-content-bank:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ai-pilot]')
+    permissions:
+      contents: write
+    # Local LLM Creative Brain -> Video Factory -> Content Bank on a local supabase stack that exists only in this job.
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      APP_ENV: development
+      OPS_RECOVERY_ENABLED: 'false'
+      TIKTOK_PROVIDER: mock
+      TIKTOK_PUBLISHING_PROVIDER: mock
+      TIKTOK_SHOP_PROVIDER: mock
+      VIDEO_BENCHMARK_ALLOW_PAID: 'false'
+      CREATIVE_AI_PROVIDER: local-llm
+      FFMPEG_BINARY: /usr/bin/ffmpeg
+      FFPROBE_BINARY: /usr/bin/ffprobe
+      THAI_TTS_PROVIDER: voxcpm2
+      VOXCPM_DEVICE: cpu
+      PILOT_GROWTH_CLIPS: '5'
+      PILOT_AFFILIATE_CLIPS: '2'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ env.LOCAL_LLM_FILE }}
+      - name: FFmpeg, local Thai TTS, local LLM
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          python -m venv .venv-tts
+          .venv-tts/bin/pip install --extra-index-url https://download.pytorch.org/whl/cpu "voxcpm==2.0.3" soundfile Pillow
+          echo "THAI_TTS_PYTHON=$PWD/.venv-tts/bin/python" >> "$GITHUB_ENV"
+          echo "VOXCPM_MODEL=$(.venv-tts/bin/python -c 'from huggingface_hub import snapshot_download;print(snapshot_download("openbmb/VoxCPM2"))')" >> "$GITHUB_ENV"
+          python -m venv .venv-llm
+          .venv-llm/bin/pip install --quiet huggingface_hub
+          .venv-llm/bin/pip install --prefer-binary --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu "llama-cpp-python==0.3.16"
+          echo "LOCAL_LLM_PYTHON=$PWD/.venv-llm/bin/python" >> "$GITHUB_ENV"
+          echo "LOCAL_LLM_MODEL_PATH=$(.venv-llm/bin/python -c "from huggingface_hub import hf_hub_download;print(hf_hub_download('$LOCAL_LLM_REPO','$LOCAL_LLM_FILE'))")" >> "$GITHUB_ENV"
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+      - name: Start a throwaway local Supabase with every migration
+        run: |
+          supabase start -x realtime,studio,edge-runtime,logflare,vector,supavisor
+          supabase status -o env > /tmp/sb.env
+          grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' /tmp/sb.env | sed -e 's/^API_URL=/SUPABASE_URL=/' -e 's/^ANON_KEY=/SUPABASE_ANON_KEY=/' -e 's/^SERVICE_ROLE_KEY=/SUPABASE_SERVICE_KEY=/' -e 's/"//g' >> "$GITHUB_ENV"
+          grep -E '^(API_URL|ANON_KEY)=' /tmp/sb.env | sed -e 's/^API_URL=/NEXT_PUBLIC_SUPABASE_URL=/' -e 's/^ANON_KEY=/NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/' -e 's/"//g' >> "$GITHUB_ENV"
+      - name: Draw original mock product media
+        run: .venv-tts/bin/python scripts/pilot/make_mock_product.py mock-media
+      - name: Produce and bank clips the local LLM planned
+        run: |
+          mkdir -p pilot-out
+          if ! /usr/bin/time -v -o pilot-out/time.txt node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/content-bank-pilot.ts mock-media pilot-out > pilot-out/pilot.log 2>&1; then
+            echo "::error title=ai content bank::$(tail -n 40 pilot-out/pilot.log | tr '\n' '|' | cut -c1-3500)"; exit 1
+          fi
+          echo "::notice title=ai content bank::$(grep -E '\.bank"|"done"' pilot-out/pilot.log | tr '\n' '|' | cut -c1-3500)"
+      - name: Publish results to a results branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results && cp -r pilot-out /tmp/results/ 2>/dev/null || true
+          cd /tmp/results && git init -q -b results && git add -A
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "AI content bank ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-ai

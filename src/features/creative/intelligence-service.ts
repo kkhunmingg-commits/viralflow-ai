@@ -51,7 +51,7 @@ export async function readCreativeIntelligenceResources(client:SupabaseClient,ow
   if(optedIn){
     const since=new Date(now.getTime()-30*86400000).toISOString();
     const snapshots=await client.from("video_analytics_snapshots").select("*").eq("owner_id",owner).eq("tiktok_account_id",accountId)
-      .in("source",["TIKTOK_DISPLAY","TIKTOK_SHOP_ANALYTICS"]).gte("source_snapshot_at",since).order("source_snapshot_at",{ascending:false}).limit(200);
+      .in("source",["TIKTOK_DISPLAY","TIKTOK_SHOP_ANALYTICS","OWNER_REPORT_IMPORT"]).gte("source_snapshot_at",since).order("source_snapshot_at",{ascending:false}).limit(200);
     if(snapshots.error&&!optionalMissing(snapshots.error))throw new Error("CREATIVE_ANALYTICS_UNAVAILABLE");
     const rows=(snapshots.data??[]) as Row[],ids=[...new Set(rows.filter(r=>r.video_kind==="MASTER").map(r=>String(r.video_id)))];
     if(ids.length){
@@ -78,13 +78,15 @@ export async function readCreativeIntelligenceResources(client:SupabaseClient,ow
           const attribution=unchanged?readCreativeAttribution(angle.score_explanation_json,{ownerId:owner,accountId,mode:context.account.mode}):null;
           if(attribution)history.push({attribution,evidenceId:String(row.id),videoId:String(row.video_id),source:row.source as CreativeOutcome["source"],
             publishedAt:typeof row.published_at==="string"?row.published_at:null,observedAt:String(row.source_snapshot_at),
-            metrics:{views:metric(row.views),likes:metric(row.likes),comments:metric(row.comments),shares:metric(row.shares),favorites:metric(row.favorites),clicks:metric(row.clicks),orders:metric(row.orders),gmv:metric(row.gmv),commission:metric(row.commission)}});
+            metrics:{views:metric(row.views),likes:metric(row.likes),comments:metric(row.comments),shares:metric(row.shares),favorites:metric(row.favorites),clicks:metric(row.clicks),orders:metric(row.orders),gmv:metric(row.gmv),commission:metric(row.commission)},
+            newFollowers:metric(row.new_followers)});
           outcomes.push({evidenceId:String(row.id),ownerId:owner,accountId,videoId:String(row.video_id),mode:project.mode,
             source:row.source as CreativeOutcome["source"],authorized:realAccount,observedAt:String(row.source_snapshot_at),
             hook:attribution?.spokenHook??(unchanged?String(script.hook_text):""),angle:attribution?.arm.angle??(unchanged?String(angle.angle_type):""),
             metrics:{views:metric(row.views),likes:metric(row.likes),comments:metric(row.comments),shares:metric(row.shares),favorites:metric(row.favorites),clicks:metric(row.clicks),orders:metric(row.orders),gmv:metric(row.gmv),commission:metric(row.commission)},
-            // The existing Display ingestion does not provide these metrics or per-video follower attribution.
-            attributedFollowers:null,retention:null,completionRate:null});
+            // Display ingestion provides neither metric nor per-video followers; owner-imported Studio reports do.
+            attributedFollowers:row.source==="OWNER_REPORT_IMPORT"?metric(row.new_followers):null,retention:null,
+            completionRate:row.source==="OWNER_REPORT_IMPORT"?metric(row.full_watch_rate):null});
         }
       }
     }

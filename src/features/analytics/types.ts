@@ -1,7 +1,8 @@
 export type Metric = number | null;
 export type AnalyticsMode = "GROWTH" | "AFFILIATE";
 export type WinnerDecision = "STOP" | "WATCH" | "SCALE" | "INSUFFICIENT_DATA";
-export type AnalyticsSource = "MOCK" | "TIKTOK_DISPLAY" | "TIKTOK_SHOP_ANALYTICS";
+/** OWNER_REPORT_IMPORT: the owner's own TikTok Studio or Affiliate Center export, imported while API access is pending. */
+export type AnalyticsSource = "MOCK" | "TIKTOK_DISPLAY" | "TIKTOK_SHOP_ANALYTICS" | "OWNER_REPORT_IMPORT";
 
 export interface VideoMetrics {
   views: Metric; likes: Metric; comments: Metric; shares: Metric; favorites: Metric;

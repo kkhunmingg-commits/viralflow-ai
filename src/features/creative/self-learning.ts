@@ -18,6 +18,8 @@ export interface CreativeAttribution {
 export interface CreativeLearningHistory {
   attribution:CreativeAttribution; evidenceId:string; videoId:string; source:AnalyticsSource;
   publishedAt:string|null; observedAt:string; metrics:VideoMetrics;
+  /** New followers TikTok Studio attributes to this post; only owner-imported reports carry it today. */
+  newFollowers?:number|null;
 }
 export function sealCreativeAttribution(value:Omit<CreativeAttribution,"version"|"fingerprint">):CreativeAttribution{
   const payload={...value,version:SELF_LEARNING_VERSION as typeof SELF_LEARNING_VERSION};
@@ -42,15 +44,16 @@ export function readCreativeAttribution(metadata:unknown,scope:{ownerId:string;a
   }catch{return null;}
 }
 
-/** No source offers per-video followers or verified ROI here yet. Keep them unknown;
- * the explicit engagement objective must never be reported as follower growth/sales. */
+/** Only owner-imported Studio reports carry per-post followers; API rows keep them unknown, and verified
+ * ROI stays unknown everywhere. The engagement objective must never be reported as follower growth/sales. */
 export function adaptiveHistoryOutcomes(history:readonly CreativeLearningHistory[]):AdaptiveOutcome[]{
   return history.map(row=>({evidenceId:row.evidenceId,ownerId:row.attribution.ownerId,accountId:row.attribution.arm.accountId,
     mode:row.attribution.arm.mode,contextKey:row.attribution.arm.contextKey,armId:row.attribution.arm.id,videoId:row.videoId,
-    source:row.source==="MOCK"?"SIMULATED":row.source,authorized:row.source!=="MOCK",publishedAt:row.publishedAt,
+    source:row.source==="MOCK"?"SIMULATED":row.source==="OWNER_REPORT_IMPORT"?"OWNER_REPORTED":row.source,authorized:row.source!=="MOCK",publishedAt:row.publishedAt,
     observedAt:row.observedAt,window:row.publishedAt?{startAt:row.publishedAt,endAt:row.observedAt,complete:true}:null,
     views:row.metrics.views,likes:row.metrics.likes,comments:row.metrics.comments,shares:row.metrics.shares,
-    attributedFollowers:null,followerAttribution:"UNKNOWN",orders:row.metrics.orders,
+    ...(row.source==="OWNER_REPORT_IMPORT"&&typeof row.newFollowers==="number"?{attributedFollowers:row.newFollowers,followerAttribution:"VIDEO" as const}
+      :{attributedFollowers:null,followerAttribution:"UNKNOWN" as const}),orders:row.metrics.orders,
     commissionUsd:null,actualCostUsd:null,salesAttribution:"UNKNOWN",commerceVerified:false,costBasis:"UNKNOWN"}));
 }
 
@@ -86,7 +89,7 @@ export async function planSelfLearningCreative(context:CreativeContext,resources
     mode:context.account.mode,optedIn:resources.optedIn&&resources.realAccount,affiliateEligible:resources.affiliateEligible},resources.now);
   const input:CreativeStrategyInput={now:resources.now,account:{id:context.account.id,mode:context.account.mode,affiliateEligible:resources.affiliateEligible},
     product:context.account.mode==="AFFILIATE"?{id:context.product.id,title:context.product.title,mechanism:resources.mechanism??"UNKNOWN"}:undefined,
-    facts:resources.facts,assets:resources.assets,costs:resources.costs,trends:trend,
+    facts:resources.facts,assets:resources.assets,costs:resources.costs,trends:trend,history:resources.storyHistory,
     learning:{accountId:context.account.id,source:environment==="REAL"?"REAL":"MOCK",evidenceIds:learning.evidenceIds,
       preferredAngle:learning.preferredAngle,preferredHook:learning.preferredHook,confidence:learning.confidence}};
   const generated=await runCreativeAgent(input,provider,{trendEvidence:options.discovery?{accountId:options.discovery.accountId,
@@ -102,8 +105,12 @@ export async function planSelfLearningCreative(context:CreativeContext,resources
     const prior=historyArms.find(a=>a.id===arm.id);if(prior)arm=prior;
     return {conceptId:c.id,arm};
   });
+  // With no comparable real results there is nothing to learn from, so the model's own reasoned pick stands
+  // (when it passed the gates) instead of a random draw among its ideas. Real results switch this back to the experiment.
+  const modelPick=candidates.find(c=>c.conceptId===generated.plan.selectedConceptId);
+  const coldStart=!before.preferredArmId&&!before.assessments.some(a=>a.eligibleForExploitation);
   const decision=decideAdaptiveExperiment({context:adaptiveContext,cycleKey:options.cycleKey,now:resources.now,
-    observationWindowHours:24,availableSlots:options.availableSlots,arms:candidates.map(c=>c.arm),outcomes,ledger,objective});
+    observationWindowHours:24,availableSlots:options.availableSlots,arms:(coldStart&&modelPick?[modelPick]:candidates).map(c=>c.arm),outcomes,ledger,objective});
   const selected=candidates.find(c=>c.arm.id===decision.selectedArmId);
   const selectedId=selected?.conceptId??generated.plan.selectedConceptId;
   const selectedIdea=generated.output.concepts.find(i=>i.id===selectedId)!;
