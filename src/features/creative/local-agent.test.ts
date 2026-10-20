@@ -73,7 +73,7 @@ describe("local creative LLM", () => {
     expect(result.plan.concepts.find(c => c.id === "ok")!.status).toBe("REVIEW_REQUIRED");
   });
 
-  it("gives the model its reviewer's notes once when no idea passes, and keeps the revised plan", async () => {
+  it("gives the model its reviewer's notes once when its pick fails, and keeps the revised plan", async () => {
     const bad = idea("x", story("หมึกยักษ์มีหัวใจ 5 ดวง?", [{ factId: "F3" }], "ติดตามไว้"));
     const variant = (id: string, hook: string) => ({ ...bad, id, hook: { text: hook, kicker: "" } });
     const seen: { prompts?: string[] } = {};
@@ -83,6 +83,12 @@ describe("local creative LLM", () => {
     expect(result.plan.selectedConceptId).toBe("fixed");
     expect(result.plan.concepts.find(c => c.id === "fixed")!.status).toBe("REVIEW_REQUIRED");
     expect(result.plan.warnings.join(" ")).toContain("แก้แผนเองหนึ่งรอบ");
+  });
+
+  it("rejects an idea written twice instead of failing the whole plan", async () => {
+    const result = await runCreativeAgent(input(), fake(plan([idea("a"), idea("dup"), idea("c", story("สัตว์ที่มีหัวใจเยอะ", [{ factId: "F3" }], "เซฟไว้"))])));
+    expect(result.plan.concepts.find(c => c.id === "dup")!.status).toBe("REJECTED");
+    expect(result.plan.concepts.find(c => c.id === "a")!.status).toBe("REVIEW_REQUIRED");
   });
 
   it("drops trailing points that would not fit the clip and says so", async () => {

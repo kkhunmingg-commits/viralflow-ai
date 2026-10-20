@@ -89,21 +89,26 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
     const format = { name: "local_creative_plan", schema: localGrammarSchema(mode, [...aliasFacts.keys()]), instructions: LOCAL_AGENT_INSTRUCTIONS, maxOutputTokens: options.maxOutputTokens ?? 3000 };
     result = await provider.generateStructured(prompt, format);
     let plan = localOutputSchema(mode).parse(result.output);
-    // When none of its ideas would pass review, the model gets the reviewer's notes and one chance to revise its own plan.
+    // When the idea it picked would not pass review, the model gets the reviewer's notes and one chance to revise its own plan,
+    // so the clip that gets made is its own choice rather than whichever runner-up happened to pass.
     const visualFor = (m: string) => m === "ORIGINAL_GRAPHIC_STORY" ? "ORIGINAL_GRAPHIC" as const : m === "REAL_FOOTAGE_EDIT" ? "REAL_FOOTAGE" as const : "REAL_IMAGE" as const;
     const review = (p: typeof plan) => p.ideas.map(i => localIdeaBeats(i, aliasFacts)).map((i, n, all) => ({ id: i.id, issues: [
       ...storyIssues(i, aliasFacts, visualFor(i.productionMethod), aliasTopics, recent),
       ...(all.slice(0, n).some(o => o.beats[0]?.text === i.beats[0]?.text) ? ["hook ซ้ำกับอีกไอเดียในแผนเดียวกัน"] : [])] }));
-    const first = review(plan);
-    if (first.every(r => r.issues.length)) {
-      const revised = await provider.generateStructured(`${prompt}\n\nแผนก่อนหน้าของคุณ:\n${JSON.stringify(plan)}\n\nผลตรวจ (ทุกไอเดียยังใช้ไม่ได้):\n${JSON.stringify(first)}\nแก้แผนให้ผ่านผลตรวจ ยังคิดและเลือกเองเหมือนเดิม`, format);
+    const first = review(plan), pickFailed = (first.find(r => r.id === plan.selectedId)?.issues.length ?? 1) > 0;
+    if (pickFailed) {
+      const revised = await provider.generateStructured(`${prompt}\n\nแผนก่อนหน้าของคุณ:\n${JSON.stringify(plan)}\n\nผลตรวจ (ไอเดียที่คุณเลือก ${plan.selectedId} ยังใช้ไม่ได้):\n${JSON.stringify(first)}\nแก้แผนให้ผ่านผลตรวจ ยังคิดและเลือกเองเหมือนเดิม`, format);
       plan = localOutputSchema(mode).parse(revised.output);
       result = { raw: { first: result.raw, firstReview: first, revised: revised.raw }, output: revised.output,
         usage: { inputTokens: result.usage.inputTokens + revised.usage.inputTokens, outputTokens: result.usage.outputTokens + revised.usage.outputTokens } };
     }
-    localReview = { ideas: plan.ideas.map(i => localIdeaBeats(i, aliasFacts)), facts: aliasFacts, topics: aliasTopics, recent, revised: first.every(r => r.issues.length) };
+    localReview = { ideas: plan.ideas.map(i => localIdeaBeats(i, aliasFacts)), facts: aliasFacts, topics: aliasTopics, recent, revised: pickFailed };
     const expanded = expandLocalOutput(plan, alias, provider.model, new Map(facts.map(f => [f.id, f.topic ?? null])), aliasFacts);
     output = creativeAgentOutputSchema.parse(expanded.output); stories = expanded.stories; planNotes = expanded.notes;
+    // A small model sometimes writes the same idea twice; the copy is rejected instead of discarding the whole plan.
+    const said = new Set<string>();
+    for (const c of output.concepts) { const key = `${c.concept.hook.trim()}:${c.concept.voiceScript.trim()}`;
+      if (said.has(key)) planNotes.set(c.id, [...(planNotes.get(c.id) ?? []), "ซ้ำกับอีกไอเดียในแผนเดียวกัน"]); said.add(key); }
   } else {
   const prompt = JSON.stringify({ task: CREATIVE_AGENT_VERSION, at: input.now.toISOString(), account: input.account,
     product: input.product ?? null, verifiedFacts: facts, reviewedAssets: assets, trends: input.trends ?? null,
@@ -117,7 +122,7 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
   }
   const ids = output.concepts.map(c => c.id);
   if (new Set(ids).size !== ids.length || !ids.includes(output.selectedId)) throw new Error("CREATIVE_LLM_SELECTION_INVALID");
-  if (new Set(output.concepts.map(c => `${c.concept.hook.trim()}:${c.concept.voiceScript.trim()}`)).size !== output.concepts.length)
+  if (!local && new Set(output.concepts.map(c => `${c.concept.hook.trim()}:${c.concept.voiceScript.trim()}`)).size !== output.concepts.length)
     throw new Error("CREATIVE_LLM_DUPLICATE_IDEAS");
   const factIds = new Set(facts.map(f => f.id)), assetIds = new Set(assets.map(a => a.id));
   const analysisStatements = [output.analysis.problem, ...output.analysis.sellingPoints];
@@ -209,7 +214,7 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
     warnings: ["แนวคิดและการเลือกมาจาก LLM จริง ยังต้องให้มนุษย์ตรวจความสร้างสรรค์และความถูกต้องก่อนผลิต",
       "score และ rubric เป็นศูนย์เพื่อรองรับข้อมูลเดิม ไม่ใช้จัดอันดับ; ไม่มีคะแนนทำนายไวรัล",
       ...(!selectedTrend ? ["หัวข้อที่เลือกเป็นสมมติฐานเพื่อทดลอง ไม่ใช่เทรนด์ไวรัลที่ยืนยันแล้ว"] : [])] };
-  if (localReview?.revised) plan.warnings.push("รอบแรกไม่มีไอเดียผ่านการตรวจ โมเดลได้รับผลตรวจและแก้แผนเองหนึ่งรอบ");
+  if (localReview?.revised) plan.warnings.push("ไอเดียที่โมเดลเลือกในรอบแรกไม่ผ่านการตรวจ โมเดลได้รับผลตรวจและแก้แผนเองหนึ่งรอบ");
   if (local) plan.warnings.push("แนวคิด เรื่องเล่า และคำพูดเขียนโดยโมเดลภาษาที่รันบนเครื่องนี้ ระบบตรวจเพียงความถูกต้องตามหลักฐานและความยาว ไม่ได้เขียนแทน");
   return { plan, output, usage: result.usage, raw: result.raw, provider: provider.provider, model: provider.model,
     source: "LLM_EVIDENCE_STRATEGY" as const, videoGenerated: false as const, paidVideoCalls: 0 as const, postingCalls: 0 as const };
