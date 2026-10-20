@@ -74,7 +74,9 @@ export function localOutputSchema(mode: "GROWTH" | "AFFILIATE") {
       renderFormat: z.enum(mode === "GROWTH" ? GROWTH_FORMATS : PRODUCT_FORMATS),
       formatLabel: z.string().min(1).max(60), hookPattern: z.string().min(1).max(60), angle: z.string().min(1).max(80),
       hook: z.object({ text: line, kicker: z.string().max(24) }).strict(),
-      points: z.array(z.object({ text: line, kicker: z.string().max(24), factIds: z.array(z.string()).min(1).max(3) }).strict()).min(1).max(3),
+      // A point is a verified fact the model chose, said in that fact's own words: a small model's paraphrases
+      // added claims the evidence never made, so it picks and orders facts and writes the hook and close itself.
+      points: z.array(z.object({ factId: z.string(), kicker: z.string().max(24) }).strict()).min(1).max(3),
       cta: z.object({ text: line }).strict(), caption: z.string().min(1).max(150), hashtags: z.array(z.string().min(2).max(30)).min(2).max(5),
       // Growth has one way to produce without media; offering a "wait" option made a small model pick it every time.
       productionMethod: z.enum(mode === "GROWTH" ? ["ORIGINAL_GRAPHIC_STORY"] : METHODS),
@@ -84,11 +86,13 @@ export function localOutputSchema(mode: "GROWTH" | "AFFILIATE") {
 }
 export type LocalOutput = z.infer<ReturnType<typeof localOutputSchema>>;
 /** The schema the model's grammar follows: idea ids are fixed slots, so its pick always names one of its own ideas. */
-export function localGrammarSchema(mode: "GROWTH" | "AFFILIATE") {
+export function localGrammarSchema(mode: "GROWTH" | "AFFILIATE", factIds: string[] = []) {
   const schema = z.toJSONSchema(localOutputSchema(mode)) as unknown as { properties: Record<string, Record<string, unknown>> & { ideas: { items: { properties: Record<string, Record<string, unknown>> } } } };
   const slots = ["I1", "I2", "I3", "I4"];
   schema.properties.ideas.items.properties.id = { type: "string", enum: slots };
   schema.properties.selectedId = { type: "string", enum: slots };
+  const point = (schema.properties.ideas.items.properties.points as { items: { properties: Record<string, unknown> } }).items;
+  if (factIds.length) point.properties.factId = { type: "string", enum: factIds };
   return schema;
 }
 const KICKER_MAX = 12;
@@ -97,12 +101,12 @@ export interface LocalBeat { role: StoryBeat["role"]; text: string; kicker: stri
 export type LocalIdea = Omit<LocalPlanIdea, "hook" | "points" | "cta"> & { beats: LocalBeat[]; trimmed: number };
 /** Hook, points and close in order. Narration that would not fit the clip loses trailing points (never a list's,
  * never mid-sentence) — the same edit a person makes, reported as such. */
-export function localIdeaBeats(idea: LocalPlanIdea): LocalIdea {
+export function localIdeaBeats(idea: LocalPlanIdea, facts: Map<string, string>): LocalIdea {
   const { hook, points, cta, ...rest } = idea;
   // A kicker is an optional label; one too long to fit is left off rather than cut mid-word.
   const kicker = (k: string) => base(k.trim()) <= KICKER_MAX ? k.trim() : "";
   const beats: LocalBeat[] = [{ role: "HOOK", text: hook.text.trim(), kicker: kicker(hook.kicker), factIds: [] },
-    ...points.map(p => ({ role: "POINT" as const, text: p.text.trim(), kicker: kicker(p.kicker), factIds: p.factIds })), { role: "CTA", text: cta.text.trim(), kicker: "", factIds: [] }];
+    ...points.map(p => ({ role: "POINT" as const, text: (facts.get(p.factId) ?? "").trim(), kicker: kicker(p.kicker), factIds: facts.has(p.factId) ? [p.factId] : [] })), { role: "CTA", text: cta.text.trim(), kicker: "", factIds: [] }];
   let trimmed = 0;
   while (idea.renderFormat !== "LIST" && spokenLength(beats) > SPOKEN_BUDGET && beats.filter(b => b.role === "POINT").length > 1) {
     beats.splice(beats.map(b => b.role).lastIndexOf("POINT"), 1); trimmed++;
@@ -114,12 +118,12 @@ const spokenLength = (beats: Array<{ text: string }>) => beats.reduce((n, b) => 
 export const LOCAL_AGENT_INSTRUCTIONS = `คุณคือนักวางแผนคอนเทนต์ TikTok ภาษาไทยของ Viral Flow AI ไม่ใช่เครื่องเติมเทมเพลต
 คิดจากข้อมูลที่ได้รับเท่านั้น: ข้อเท็จจริงที่ตรวจแล้ว (facts) สื่อที่ตรวจสิทธิ์แล้ว (assets) ประวัติคลิปล่าสุดของบัญชี (recent) และผลจริง (learning)
 เสนอไอเดียที่ต่างกันจริง 3 ข้อ (หัวข้อ มุมเล่า หรือรูปแบบต่างกัน) แล้วเลือกเอง 1 ข้อพร้อมเหตุผลว่าทำไมเหมาะกับบัญชีนี้มากกว่าข้ออื่น
-เขียนเป็นจังหวะ: hook หนึ่งประโยคเปิด points 1-3 ข้อ (ส่วนใหญ่ 1-2 ข้อพอ) และ cta หนึ่งประโยคปิด แต่ละจังหวะสั้นไม่เกิน ${CARD_MAX} ตัวอักษร พูดเป็นภาษาไทยธรรมชาติแบบคนพูด
-ทุก POINT ต้องเล่าข้อเท็จจริงที่ได้รับ และใส่ factIds ของข้อนั้น ห้ามเติมตัวเลข สรรพคุณ รีวิว ยอดขาย หรือข้อเท็จจริงที่ไม่มีในข้อมูล
-ความยาวที่พอดี: hook ราว 10-20 ตัวอักษร แต่ละ point ราว 15-25 ตัวอักษร cta ราว 10-15 ตัวอักษร ทั้งคลิปพูดรวมไม่เกินราว 70 ตัวอักษร
+โครงคลิป: hook หนึ่งประโยคเปิดที่คุณเขียนเอง points 1-3 ข้อที่เลือกจาก facts (ใส่ factId ระบบจะพูดตามถ้อยคำของข้อเท็จจริงนั้น) และ cta หนึ่งประโยคปิดที่คุณเขียนเอง
+hook และ cta สั้นมาก ไม่เกิน 20 ตัวอักษร พูดเป็นภาษาไทยธรรมชาติแบบคนพูด ห้ามใส่ข้อเท็จจริง ตัวเลข สรรพคุณ รีวิว หรือยอดขายที่ไม่มีในข้อมูล
+ตัวอย่างความยาว (คนละเรื่องกับข้อมูล ห้ามลอก): hook "แมวฝันได้ไหม?" "ดาวดวงนี้แปลกมาก" cta "เซฟไว้เล่าต่อ" "คอมเมนต์มาเลย"
+points ส่วนใหญ่ 1-2 ข้อพอ ทุก point ในไอเดียเดียวกันต้องเป็นหัวข้อเดียวกัน
 แต่ละไอเดียใช้ข้อเท็จจริงคนละหัวข้อ และเลือกหัวข้อที่ไม่อยู่ใน recent ก่อนเสมอ hook และ cta ต้องเขียนใหม่ให้เข้ากับเรื่อง ไม่ใช้ประโยคเดิมซ้ำทุกคลิป
-POINT ส่วนใหญ่ควรใช้ถ้อยคำของข้อเท็จจริงเกือบตรงตัว เรียบเรียงให้เป็นภาษาพูดได้ แต่ห้ามเพิ่มผลลัพธ์หรือประโยชน์ที่ข้อเท็จจริงไม่ได้บอก
-LIST ต้องมี POINT 3 ข้อพอดี NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง QUIZ_REVEAL ให้ HOOK เป็นคำถามแล้วเฉลยด้วยข้อเท็จจริง
+LIST ต้องมี point 3 ข้อพอดี NUMBER_SPOTLIGHT ต้องเลือก fact ที่มีตัวเลข QUIZ_REVEAL ให้ hook เป็นคำถามที่ point ข้อแรกตอบได้ตรงๆ
 อย่าซ้ำ hook หัวข้อ หรือรูปแบบเดียวกับคลิปใน recent ถ้าเลี่ยงได้
 คอนเทนต์ปั้นบัญชี (GROWTH) ห้ามชวนซื้อ ห้ามพูดถึงตะกร้าหรือราคา ปิดด้วยการชวนติดตาม เซฟ หรือคอมเมนต์
 คอนเทนต์ขายของ (AFFILIATE) พูดได้เฉพาะสิ่งที่เห็นในสื่อที่ตรวจแล้วและจุดขายที่ตรวจแล้ว ห้ามอ้างว่าสาธิตการทำงานถ้าไม่มีวิดีโอจริงที่แสดงการทำงาน
@@ -158,6 +162,8 @@ export function storyIssues(idea: LocalIdea, facts: Map<string, string>, visual:
   if (beats[0] && recent.hooks.some(h => sameLine(h, beats[0].text))) issues.push(`hook "${beats[0].text}" ซ้ำกับคลิปที่ทำไปแล้ว`);
   if (beats[0]?.role !== "HOOK" || beats.at(-1)?.role !== "CTA" || beats.slice(1, -1).some(b => b.role !== "POINT") || !points.length) issues.push("ลำดับจังหวะต้องเป็น HOOK แล้ว POINT แล้ว CTA");
   if (idea.renderFormat === "LIST" && points.length !== 3) issues.push("ลิสต์ต้องมีสามข้อพอดี");
+  if (new Set(points.map(p => factTopics.get(p.factIds[0] ?? ""))).size > 1) issues.push("ข้อเท็จจริงในคลิปเดียวต้องเป็นหัวข้อเดียวกัน");
+  if (new Set(points.map(p => p.text)).size < points.length) issues.push("เลือกข้อเท็จจริงข้อเดียวกันซ้ำ");
   if (beats.some(b => base(b.text) > CARD_MAX)) issues.push(`ข้อความบางจังหวะยาวเกิน ${CARD_MAX} ตัวอักษร อ่านไม่ทัน`);
   const spoken = spokenLength(beats);
   if (spoken > (idea.renderFormat === "LIST" ? LIST_SPOKEN_BUDGET : SPOKEN_BUDGET)) issues.push(`คำบรรยายยาว ${spoken} ตัวอักษร เกินที่พูดทันในคลิป`);
@@ -197,13 +203,14 @@ function hashtags(raw: string[]) {
 }
 
 /** Expands the compact plan into the full agent output and the story the renderer cuts to. */
-export function expandLocalOutput(local: LocalOutput, alias: Map<string, string>, model: string, factTopics: Map<string, string | null> = new Map()) {
+export function expandLocalOutput(local: LocalOutput, alias: Map<string, string>, model: string, factTopics: Map<string, string | null> = new Map(),
+  factText: Map<string, string> = new Map()) {
   const real = (id: string) => alias.get(id) ?? id;
   const stories = new Map<string, StoryPlan>(), notes = new Map<string, string[]>();
   const output: CreativeAgentOutput = {
     analysis: { problem: { statement: null, basis: "UNKNOWN", evidenceIds: [] }, sellingPoints: [],
       audience: { segments: [local.audience], basis: "HYPOTHESIS", evidenceIds: [] } },
-    concepts: local.ideas.map(localIdeaBeats).map(idea => {
+    concepts: local.ideas.map(i => localIdeaBeats(i, factText)).map(idea => {
       const beats: StoryBeat[] = idea.beats.map(b => ({ role: b.role, text: b.text.trim(), ...(b.kicker.trim() ? { kicker: b.kicker.trim() } : {}) }));
       const hookBeat = beats[0], ctaBeat = beats.at(-1)!;
       if (idea.renderFormat === "LIST" && hookBeat) hookBeat.badge = "3";

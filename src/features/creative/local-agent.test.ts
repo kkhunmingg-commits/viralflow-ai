@@ -15,14 +15,13 @@ function input(): CreativeStrategyInput {
       fact("uuid-oct-1", "หมึกยักษ์", "หมึกยักษ์มีหัวใจ 3 ดวง")],
     history: { formats: ["EXPLAINER"], hooks: ["เคยสงสัยไหม น้ำแข็งลอยน้ำ"], topics: ["น้ำแข็งลอยน้ำ"], lines: [], stories: [{ topic: "น้ำแข็งลอยน้ำ", format: "EXPLAINER" }] } };
 }
-type B = { role: string; text: string; kicker: string; factIds: string[] };
-const story = (beats: B[]) => ({ hook: { text: beats[0].text, kicker: beats[0].kicker }, cta: { text: beats[beats.length - 1].text },
-  points: beats.slice(1, -1).map(b => ({ text: b.text, kicker: b.kicker, factIds: b.factIds })) });
+type Point = { factId: string; kicker?: string };
+const story = (hook: string, points: Point[], cta: string) => ({ hook: { text: hook, kicker: "" }, cta: { text: cta },
+  points: points.map(p => ({ factId: p.factId, kicker: p.kicker ?? "" })) });
 const idea = (id: string, over: Partial<LocalOutput["ideas"][number]> = {}): LocalOutput["ideas"][number] => ({ id, topic: "หมึกยักษ์", renderFormat: "NUMBER_SPOTLIGHT",
   formatLabel: "ตัวเลขชวนทึ่ง", hookPattern: "number-surprise", angle: "ร่างกายสัตว์แปลก", caption: "หมึกยักษ์มีหัวใจกี่ดวง", hashtags: ["หมึกยักษ์", "#สาระน่ารู้"],
   productionMethod: "ORIGINAL_GRAPHIC_STORY", assetIds: [], whyThisIdea: "บัญชีนี้ยังไม่เคยเล่าเรื่องสัตว์",
-  ...story([{ role: "HOOK", text: "หัวใจ 3 ดวงในตัวเดียว?", kicker: "", factIds: [] }, { role: "POINT", text: "หมึกยักษ์มีหัวใจ 3 ดวง", kicker: "รู้หรือไม่", factIds: ["F3"] },
-    { role: "CTA", text: "ติดตามไว้ มีตอนต่อไป", kicker: "", factIds: [] }]), ...over });
+  ...story("หัวใจ 3 ดวงในตัวเดียว?", [{ factId: "F3", kicker: "รู้หรือไม่" }], "ติดตามไว้ มีตอนต่อไป"), ...over });
 function fake(value: LocalOutput | LocalOutput[], seen: { prompt?: string; schema?: unknown; prompts?: string[] } = {}): StructuredCreativeProvider {
   const values = Array.isArray(value) ? value : [value];
   return { provider: "local-llm", model: "local/qwen3-4b-q4_k_m", async generateStructured(prompt, format) {
@@ -33,12 +32,10 @@ const plan = (ideas: LocalOutput["ideas"], selectedId = ideas[0].id): LocalOutpu
   selectionReason: "หัวข้อใหม่สำหรับบัญชี", alternativesReason: "อีกสองแบบเล่าเรื่องที่เพิ่งเล่าไป" });
 
 describe("local creative LLM", () => {
-  it("keeps the model's own beats as the story and maps short evidence ids back", async () => {
+  it("keeps the model's own hook and close, speaks chosen facts in their own words and maps short ids back", async () => {
     const seen: { prompt?: string; schema?: unknown } = {};
-    const quiz = idea("b", { topic: "น้ำแข็ง", renderFormat: "QUIZ_REVEAL", ...story([{ role: "HOOK", text: "ทำไมน้ำแข็งไม่จม?", kicker: "ทายก่อน", factIds: [] },
-      { role: "POINT", text: "เพราะน้ำแข็งเบากว่าน้ำราว 9%", kicker: "เฉลย", factIds: ["F1"] }, { role: "CTA", text: "เซฟไว้ดูอีกที", kicker: "", factIds: [] }]) });
-    const result = await runCreativeAgent(input(), fake(plan([idea("a"), quiz, idea("c", { formatLabel: "อีกมุม", ...story([{ role: "HOOK", text: "สัตว์ที่มีหัวใจเยอะ", kicker: "", factIds: [] },
-      { role: "POINT", text: "หมึกยักษ์มีหัวใจ 3 ดวง", kicker: "", factIds: ["F3"] }, { role: "CTA", text: "คอมเมนต์สัตว์ที่อยากรู้", kicker: "", factIds: [] }]) })]), seen));
+    const quiz = idea("b", { topic: "น้ำแข็ง", renderFormat: "QUIZ_REVEAL", ...story("ทำไมน้ำแข็งไม่จม?", [{ factId: "F1", kicker: "เฉลย" }], "เซฟไว้ดูอีกที") });
+    const result = await runCreativeAgent(input(), fake(plan([idea("a"), quiz, idea("c", { formatLabel: "อีกมุม", ...story("สัตว์ที่มีหัวใจเยอะ", [{ factId: "F3" }], "คอมเมนต์สัตว์ที่อยากรู้") })]), seen));
     expect(seen.prompt).toContain("F1");
     expect(seen.prompt).not.toContain("uuid-ice-1");
     expect(seen.prompt).toContain("เคยสงสัยไหม น้ำแข็งลอยน้ำ");
@@ -56,25 +53,20 @@ describe("local creative LLM", () => {
     expect(result.plan.warnings.join(" ")).toContain("โมเดลภาษาที่รันบนเครื่องนี้");
   });
 
-  it("rejects beats that invent facts, numbers or skip evidence", async () => {
-    const invented = idea("x", { ...story([{ role: "HOOK", text: "หมึกยักษ์ฉลาดมาก", kicker: "", factIds: [] },
-      { role: "POINT", text: "หมึกยักษ์จำหน้าคนได้นานหลายปี", kicker: "", factIds: ["F3"] }, { role: "CTA", text: "ติดตามไว้", kicker: "", factIds: [] }]) });
-    const number = idea("y", { ...story([{ role: "HOOK", text: "เลขนี้คืออะไร", kicker: "", factIds: [] },
-      { role: "POINT", text: "หมึกยักษ์มีหัวใจ 5 ดวง", kicker: "", factIds: ["F3"] }, { role: "CTA", text: "เซฟไว้", kicker: "", factIds: [] }]) });
-    const uncited = idea("z", { ...story([{ role: "HOOK", text: "รู้ไหม", kicker: "", factIds: [] },
-      { role: "POINT", text: "หมึกยักษ์มีหัวใจ 3 ดวง", kicker: "", factIds: ["F1"] }, { role: "CTA", text: "คอมเมนต์เลย", kicker: "", factIds: [] }]) });
-    const result = await runCreativeAgent(input(), fake(plan([invented, number, uncited])));
+  it("rejects hooks that invent numbers, ideas that mix topics and number clips without a number", async () => {
+    const invented = idea("x", story("หมึกยักษ์มีหัวใจ 5 ดวง?", [{ factId: "F3" }], "ติดตามไว้"));
+    const mixed = idea("y", { renderFormat: "EXPLAINER", ...story("เรื่องแปลกสองเรื่อง", [{ factId: "F3" }, { factId: "F2" }], "เซฟไว้") });
+    const noNumber = idea("z", { topic: "น้ำแข็ง", ...story("น้ำกลายเป็นน้ำแข็ง", [{ factId: "F2" }], "คอมเมนต์เลย") });
+    const result = await runCreativeAgent(input(), fake(plan([invented, mixed, noNumber])));
     for (const c of result.plan.concepts) expect(c.status).toBe("REJECTED");
-    expect(result.plan.concepts[0].reasons.join(" ")).toContain("ตรงกับข้อเท็จจริงที่อ้างเพียง");
-    expect(result.plan.concepts[1].reasons.join(" ")).toContain("UNSUPPORTED_NUMBER");
+    expect(result.plan.concepts[0].reasons.join(" ")).toContain("UNSUPPORTED_NUMBER");
+    expect(result.plan.concepts[1].reasons.join(" ")).toContain("หัวข้อเดียวกัน");
+    expect(result.plan.concepts[2].reasons.join(" ")).toContain("ต้องมีตัวเลข");
   });
 
   it("rejects a growth story that sells and a list without three points", async () => {
-    const sells = idea("s", { ...story([{ role: "HOOK", text: "หัวใจ 3 ดวง", kicker: "", factIds: [] }, { role: "POINT", text: "หมึกยักษ์มีหัวใจ 3 ดวง", kicker: "", factIds: ["F3"] },
-      { role: "CTA", text: "กดตะกร้าเลย", kicker: "", factIds: [] }]) });
-    const list = idea("l", { renderFormat: "LIST", ...story([{ role: "HOOK", text: "2 เรื่องของน้ำแข็ง", kicker: "", factIds: [] },
-      { role: "POINT", text: "น้ำแข็งเบากว่าน้ำราว 9%", kicker: "", factIds: ["F1"] }, { role: "POINT", text: "น้ำขยายตัวเมื่อแข็งตัว", kicker: "", factIds: ["F2"] },
-      { role: "CTA", text: "เซฟไว้", kicker: "", factIds: [] }]) });
+    const sells = idea("s", story("หัวใจ 3 ดวง", [{ factId: "F3" }], "กดตะกร้าเลย"));
+    const list = idea("l", { renderFormat: "LIST", ...story("2 เรื่องของน้ำแข็ง", [{ factId: "F1" }, { factId: "F2" }], "เซฟไว้") });
     const result = await runCreativeAgent(input(), fake(plan([sells, list, idea("ok")], "ok")));
     expect(result.plan.concepts.find(c => c.id === "s")!.status).toBe("REJECTED");
     expect(result.plan.concepts.find(c => c.id === "l")!.reasons.join(" ")).toContain("สามข้อ");
@@ -82,11 +74,10 @@ describe("local creative LLM", () => {
   });
 
   it("gives the model its reviewer's notes once when no idea passes, and keeps the revised plan", async () => {
-    const bad = idea("x", story([{ role: "HOOK", text: "หมึกยักษ์ฉลาดมาก", kicker: "", factIds: [] },
-      { role: "POINT", text: "หมึกยักษ์จำหน้าคนได้นานหลายปี", kicker: "", factIds: ["F3"] }, { role: "CTA", text: "ติดตามไว้", kicker: "", factIds: [] }]));
+    const bad = idea("x", story("หมึกยักษ์มีหัวใจ 5 ดวง?", [{ factId: "F3" }], "ติดตามไว้"));
     const variant = (id: string, hook: string) => ({ ...bad, id, hook: { text: hook, kicker: "" } });
     const seen: { prompts?: string[] } = {};
-    const result = await runCreativeAgent(input(), fake([plan([bad, variant("x2", "หมึกยักษ์เก่งแค่ไหน"), variant("x3", "สัตว์ฉลาดที่สุด?")], "x"), plan([idea("fixed"), bad, variant("x2", "หมึกยักษ์เก่งแค่ไหน")], "fixed")], seen));
+    const result = await runCreativeAgent(input(), fake([plan([bad, variant("x2", "หมึกยักษ์มีหัวใจ 4 ดวง?"), variant("x3", "หัวใจ 7 ดวง?")], "x"), plan([idea("fixed"), bad, variant("x2", "หมึกยักษ์มีหัวใจ 4 ดวง?")], "fixed")], seen));
     expect(seen.prompts).toHaveLength(2);
     expect(seen.prompts![1]).toContain("ผลตรวจ");
     expect(result.plan.selectedConceptId).toBe("fixed");
@@ -95,19 +86,18 @@ describe("local creative LLM", () => {
   });
 
   it("drops trailing points that would not fit the clip and says so", async () => {
-    const long = idea("t", { renderFormat: "EXPLAINER", topic: "น้ำแข็งลอยน้ำ", ...story([{ role: "HOOK", text: "ทำไมน้ำแข็งลอยได้ทั้งที่เป็นน้ำ?", kicker: "", factIds: [] },
-      { role: "POINT", text: "น้ำแข็งเบากว่าน้ำราว 9%", kicker: "", factIds: ["F1"] }, { role: "POINT", text: "น้ำขยายตัวเมื่อแข็งตัว", kicker: "", factIds: ["F2"] },
-      { role: "POINT", text: "น้ำแข็งเบากว่าน้ำราว 9% เพราะน้ำขยายตัวเมื่อแข็งตัว", kicker: "", factIds: ["F1", "F2"] },
-      { role: "CTA", text: "ติดตามไว้ มีตอนต่อไปอีกเยอะ", kicker: "", factIds: [] }]) });
-    const result = await runCreativeAgent(input(), fake(plan([long, idea("a"), idea("b", story([{ role: "HOOK", text: "สัตว์ที่มีหัวใจเยอะ", kicker: "", factIds: [] }, { role: "POINT", text: "หมึกยักษ์มีหัวใจ 3 ดวง", kicker: "", factIds: ["F3"] }, { role: "CTA", text: "เซฟไว้", kicker: "", factIds: [] }]))], "t")));
+    const long = idea("t", { renderFormat: "EXPLAINER", topic: "น้ำแข็งลอยน้ำ", ...story("ทำไมน้ำแข็งลอยได้ทั้งที่เป็นน้ำแท้ๆ?", [{ factId: "F1" }, { factId: "F2" }], "ติดตามไว้ มีตอนต่อไปอีกเยอะ") });
+    const result = await runCreativeAgent(input(), fake(plan([long, idea("a"), idea("b", story("สัตว์ที่มีหัวใจเยอะ", [{ factId: "F3" }], "เซฟไว้"))], "t")));
     const story0 = result.plan.concepts.find(c => c.id === "t")!.production.story!;
-    expect(story0.beats.length).toBeLessThan(5);
+    expect(story0.beats.map(b => b.role)).toEqual(["HOOK", "POINT", "CTA"]);
     expect(story0.basis).toContain("ตัดจังหวะท้าย");
   });
 
-  it("lets the model pick only one of its own idea slots", () => {
-    const schema = localGrammarSchema("GROWTH") as unknown as { properties: { selectedId: { enum: string[] }; ideas: { items: { properties: { id: { enum: string[] } } } } } };
+  it("lets the model pick only one of its own idea slots and only facts it was given", () => {
+    const schema = localGrammarSchema("GROWTH", ["F1", "F2"]) as unknown as { properties: { selectedId: { enum: string[] };
+      ideas: { items: { properties: { id: { enum: string[] }; points: { items: { properties: { factId: { enum: string[] } } } } } } } } };
     expect(schema.properties.selectedId.enum).toEqual(schema.properties.ideas.items.properties.id.enum);
+    expect(schema.properties.ideas.items.properties.points.items.properties.factId.enum).toEqual(["F1", "F2"]);
   });
 
   it("asks the model for a schema it can fill and prices tokens at zero with machine time kept separate", () => {

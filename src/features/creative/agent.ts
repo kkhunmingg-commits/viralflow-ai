@@ -86,12 +86,14 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
       learning: learning ? { preferredAngle: learning.preferredAngle, preferredHook: learning.preferredHook, confidence: learning.confidence } : options.learningEvidence ?? null });
     const recent = { topics: history.topics, hooks: history.hooks };
     const aliasFacts = new Map(facts.map((f, i) => [`F${i + 1}`, f.text])), aliasTopics = new Map(facts.map((f, i) => [`F${i + 1}`, f.topic ?? null]));
-    const format = { name: "local_creative_plan", schema: localGrammarSchema(mode), instructions: LOCAL_AGENT_INSTRUCTIONS, maxOutputTokens: options.maxOutputTokens ?? 3000 };
+    const format = { name: "local_creative_plan", schema: localGrammarSchema(mode, [...aliasFacts.keys()]), instructions: LOCAL_AGENT_INSTRUCTIONS, maxOutputTokens: options.maxOutputTokens ?? 3000 };
     result = await provider.generateStructured(prompt, format);
     let plan = localOutputSchema(mode).parse(result.output);
     // When none of its ideas would pass review, the model gets the reviewer's notes and one chance to revise its own plan.
     const visualFor = (m: string) => m === "ORIGINAL_GRAPHIC_STORY" ? "ORIGINAL_GRAPHIC" as const : m === "REAL_FOOTAGE_EDIT" ? "REAL_FOOTAGE" as const : "REAL_IMAGE" as const;
-    const review = (p: typeof plan) => p.ideas.map(localIdeaBeats).map(i => ({ id: i.id, issues: storyIssues(i, aliasFacts, visualFor(i.productionMethod), aliasTopics, recent) }));
+    const review = (p: typeof plan) => p.ideas.map(i => localIdeaBeats(i, aliasFacts)).map((i, n, all) => ({ id: i.id, issues: [
+      ...storyIssues(i, aliasFacts, visualFor(i.productionMethod), aliasTopics, recent),
+      ...(all.slice(0, n).some(o => o.beats[0]?.text === i.beats[0]?.text) ? ["hook ซ้ำกับอีกไอเดียในแผนเดียวกัน"] : [])] }));
     const first = review(plan);
     if (first.every(r => r.issues.length)) {
       const revised = await provider.generateStructured(`${prompt}\n\nแผนก่อนหน้าของคุณ:\n${JSON.stringify(plan)}\n\nผลตรวจ (ทุกไอเดียยังใช้ไม่ได้):\n${JSON.stringify(first)}\nแก้แผนให้ผ่านผลตรวจ ยังคิดและเลือกเองเหมือนเดิม`, format);
@@ -99,8 +101,8 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
       result = { raw: { first: result.raw, firstReview: first, revised: revised.raw }, output: revised.output,
         usage: { inputTokens: result.usage.inputTokens + revised.usage.inputTokens, outputTokens: result.usage.outputTokens + revised.usage.outputTokens } };
     }
-    localReview = { ideas: plan.ideas.map(localIdeaBeats), facts: aliasFacts, topics: aliasTopics, recent, revised: first.every(r => r.issues.length) };
-    const expanded = expandLocalOutput(plan, alias, provider.model, new Map(facts.map(f => [f.id, f.topic ?? null])));
+    localReview = { ideas: plan.ideas.map(i => localIdeaBeats(i, aliasFacts)), facts: aliasFacts, topics: aliasTopics, recent, revised: first.every(r => r.issues.length) };
+    const expanded = expandLocalOutput(plan, alias, provider.model, new Map(facts.map(f => [f.id, f.topic ?? null])), aliasFacts);
     output = creativeAgentOutputSchema.parse(expanded.output); stories = expanded.stories; planNotes = expanded.notes;
   } else {
   const prompt = JSON.stringify({ task: CREATIVE_AGENT_VERSION, at: input.now.toISOString(), account: input.account,

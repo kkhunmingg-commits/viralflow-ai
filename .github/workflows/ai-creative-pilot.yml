@@ -57,13 +57,13 @@ jobs:
       contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 300
-    # Two commercially usable sizes (both Apache-2.0) on the same evidence, to see whether size is what limits quality.
+    # Commercially usable sizes (Apache-2.0) on the same evidence.
     strategy:
       fail-fast: false
       matrix:
         include:
           - { size: 4b, repo: Qwen/Qwen3-4B-GGUF, file: Qwen3-4B-Q4_K_M.gguf, model: local/qwen3-4b-q4_k_m }
-          - { size: 8b, repo: Qwen/Qwen3-8B-GGUF, file: Qwen3-8B-Q4_K_M.gguf, model: local/qwen3-8b-q4_k_m }
+          # 8B was tried in runs 39404574685 and 39410103599: no better than 4B and about 1.5-3x slower.
     env:
       LOCAL_LLM_REPO: ${{ matrix.repo }}
       LOCAL_LLM_FILE: ${{ matrix.file }}
