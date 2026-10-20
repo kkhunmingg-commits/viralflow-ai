@@ -6,10 +6,18 @@ import {evidenceHash} from "./scoring";
 
 async function read<T>(client:SupabaseClient,table:string,ownerId:string,limit=500){const {data,error}=await client.from(table).select("*").eq("owner_id",ownerId).order("created_at",{ascending:false}).limit(limit);if(error)throw new Error(`Analytics query failed: ${error.message}`);return(data??[]) as T[];}
 function latestWinners(rows:WinnerRow[]){const latest=new Map<string,WinnerRow>();for(const row of rows)if(!latest.has(`${row.video_kind}:${row.video_id}`))latest.set(`${row.video_kind}:${row.video_id}`,row);return [...latest.values()];}
+/** Totals of real results only. Snapshot counters are cumulative, so only the newest snapshot of each video
+ * (per account and TikTok video id, across API and owner-report sources) is added; MOCK rows are counted apart, never summed. */
+export function realSnapshotTotals(rows:VideoSnapshotRow[]){
+ const latest=new Map<string,VideoSnapshotRow>();let mockSnapshotsExcluded=0;
+ for(const row of rows){if(row.source==="MOCK"){mockSnapshotsExcluded++;continue;}const key=`${row.tiktok_account_id}:${row.external_video_id}`,prior=latest.get(key);if(!prior||Date.parse(row.source_snapshot_at)>Date.parse(prior.source_snapshot_at))latest.set(key,row);}
+ const sum=(get:(row:VideoSnapshotRow)=>number|null)=>[...latest.values()].reduce((total,row)=>total+Number(get(row)??0),0);
+ return{views:sum(r=>r.views),orders:sum(r=>r.orders),gmv:sum(r=>r.gmv),commission:sum(r=>r.commission),realVideos:latest.size,mockSnapshotsExcluded};
+}
 export async function getAnalyticsOverview(client:SupabaseClient,ownerId:string){
  const [scores,snapshots,accounts,products]=await Promise.all([read<WinnerRow>(client,"winner_scores",ownerId),read<VideoSnapshotRow>(client,"video_analytics_snapshots",ownerId),client.from("tiktok_accounts").select("id,display_name,effective_mode").eq("owner_id",ownerId),client.from("products").select("id,title").eq("owner_id",ownerId)]);
  if(accounts.error)throw new Error(accounts.error.message);if(products.error)throw new Error(products.error.message);
- const winners=latestWinners(scores);const summary:AnalyticsSummary={totalVideos:winners.length,scale:winners.filter(x=>x.decision==="SCALE").length,watch:winners.filter(x=>x.decision==="WATCH").length,stop:winners.filter(x=>x.decision==="STOP").length,insufficient:winners.filter(x=>x.decision==="INSUFFICIENT_DATA").length,views:snapshots.reduce((s,x)=>s+(x.views??0),0),orders:snapshots.reduce((s,x)=>s+(x.orders??0),0),gmv:snapshots.reduce((s,x)=>s+(x.gmv??0),0),commission:snapshots.reduce((s,x)=>s+(x.commission??0),0)};
+ const winners=latestWinners(scores);const summary:AnalyticsSummary={totalVideos:winners.length,scale:winners.filter(x=>x.decision==="SCALE").length,watch:winners.filter(x=>x.decision==="WATCH").length,stop:winners.filter(x=>x.decision==="STOP").length,insufficient:winners.filter(x=>x.decision==="INSUFFICIENT_DATA").length,...realSnapshotTotals(snapshots)};
  return{summary,winners,snapshots,accounts:(accounts.data??[]) as Array<{id:string;display_name:string;effective_mode:string}>,products:(products.data??[]) as Array<{id:string;title:string}>};
 }
 export async function getAccountAnalytics(client:SupabaseClient,ownerId:string,id:string){

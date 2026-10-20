@@ -23,7 +23,8 @@ export interface WinnerResult {
 }
 export interface AnalyticsSummary {
   totalVideos: number; scale: number; watch: number; stop: number; insufficient: number;
-  views: number; orders: number; gmv: number; commission: number;
+  /** Real sources only, newest snapshot per video; MOCK snapshots are counted in mockSnapshotsExcluded and never summed. */
+  views: number; orders: number; gmv: number; commission: number; realVideos: number; mockSnapshotsExcluded: number;
 }
 export interface WinnerRow {
   id:string; tiktok_account_id:string; video_id:string; video_kind:string; mode:AnalyticsMode;

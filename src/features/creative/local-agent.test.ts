@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { runCreativeAgent } from "./agent";
-import { LocalLLMProvider, groundedShare, localGrammarSchema, localOutputSchema, type LocalOutput } from "./local-agent";
+import { copyQualityIssues } from "./copy-quality";
+import { GROWTH_CLOSES, LocalLLMProvider, groundedShare, localGrammarSchema, localOutputSchema, type LocalOutput } from "./local-agent";
 import { knownCreativeGenerationCost } from "./cost";
 import type { CreativeStrategyInput } from "./strategist";
 import type { StructuredCreativeProvider } from "./providers";
@@ -104,6 +105,18 @@ describe("local creative LLM", () => {
       ideas: { items: { properties: { id: { enum: string[] }; points: { items: { properties: { factId: { enum: string[] } } } } } } } } };
     expect(schema.properties.selectedId.enum).toEqual(schema.properties.ideas.items.properties.id.enum);
     expect(schema.properties.ideas.items.properties.points.items.properties.factId.enum).toEqual(["F1", "F2"]);
+  });
+
+  it("offers a Growth clip only closes that fit a Growth clip and are short enough to say", () => {
+    const cta = (localGrammarSchema("GROWTH") as unknown as { properties: { ideas: { items: { properties: { cta: { properties: { text: { enum?: string[] } } } } } } } })
+      .properties.ideas.items.properties.cta.properties.text.enum;
+    expect(cta).toEqual([...GROWTH_CLOSES]);
+    for (const text of GROWTH_CLOSES) {
+      expect(text.length).toBeLessThanOrEqual(30);
+      expect(copyQualityIssues([{ role: "HOOK", text: "ผึ้งบอกทางกันยังไง?" }, { role: "POINT", text: "ผึ้งบอกทางหาอาหารด้วยการเต้น" }, { role: "CTA", text }], "GROWTH")).toEqual([]);
+    }
+    const affiliate = localGrammarSchema("AFFILIATE") as unknown as { properties: { ideas: { items: { properties: { cta: { properties: { text: { enum?: string[] } } } } } } } };
+    expect(affiliate.properties.ideas.items.properties.cta.properties.text.enum).toBeUndefined();
   });
 
   it("asks the model for a schema it can fill and prices tokens at zero with machine time kept separate", () => {

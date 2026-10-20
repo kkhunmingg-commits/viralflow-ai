@@ -4,7 +4,7 @@ name: Local LLM creative pilot
 # when the commit message asks for it, because each run downloads a ~2.5 GB model. Never deploys or posts.
 on:
   push:
-    branches: ['claude/phase4-autonomous-intelligence']
+    branches: ['claude/phase4-autonomous-intelligence', 'claude/phase4-1-hybrid-ai']
   workflow_dispatch:
 
 permissions:
@@ -51,8 +51,92 @@ jobs:
           node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/import-proof.ts proof-out | tee proof-out/proof.log
           echo "::notice title=import proof::$(grep import.proof proof-out/proof.log | cut -c1-3500)"
 
+  creative-eval:
+    # Planning only (no voice, no render, no database): Rule-Based, Qwen3-4B and Hybrid on 24 cases the prompts were
+    # not tuned on, split over parallel runners so a prompt change is measured in minutes, not hours.
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[creative-eval]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5]
+    env:
+      EVAL_SHARD: ${{ matrix.shard }}
+      EVAL_SHARDS: '6'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-${{ env.LOCAL_LLM_FILE }}
+      - name: Local LLM runtime and model
+        run: |
+          python -m venv .venv-llm
+          .venv-llm/bin/pip install --quiet huggingface_hub
+          .venv-llm/bin/pip install --prefer-binary --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu "llama-cpp-python==0.3.16"
+          echo "LOCAL_LLM_PYTHON=$PWD/.venv-llm/bin/python" >> "$GITHUB_ENV"
+          echo "LOCAL_LLM_MODEL_PATH=$(.venv-llm/bin/python -c "from huggingface_hub import hf_hub_download;print(hf_hub_download('$LOCAL_LLM_REPO','$LOCAL_LLM_FILE'))")" >> "$GITHUB_ENV"
+      - name: Evaluate this shard
+        run: |
+          mkdir -p eval-out
+          node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/creative-eval.ts run eval-out > eval-out/shard.log 2>&1 || { tail -n 30 eval-out/shard.log; exit 1; }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: creative-eval-${{ matrix.shard }}
+          path: eval-out
+
+  creative-eval-report:
+    needs: creative-eval
+    if: ${{ !cancelled() && needs.creative-eval.result != 'skipped' }}
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: creative-eval-*
+          path: shards
+      - name: Merge shards
+        run: |
+          mkdir -p eval-report
+          node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/creative-eval.ts merge eval-report shards/* | tee eval-report/merge.log
+          echo "::notice title=creative eval::$(grep eval.summary eval-report/merge.log | cut -c1-3500)"
+      - name: Publish results to a results branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results && cp -r eval-report shards /tmp/results/
+          cd /tmp/results && git init -q -b results && git add -A
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Creative eval ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-eval
+
   ai-vs-rules:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ai-pilot]')
+    # Superseded by creative-eval (24 new cases, no render); kept for a manual run.
+    if: github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     runs-on: ubuntu-latest
@@ -125,7 +209,7 @@ jobs:
       TIKTOK_PUBLISHING_PROVIDER: mock
       TIKTOK_SHOP_PROVIDER: mock
       VIDEO_BENCHMARK_ALLOW_PAID: 'false'
-      CREATIVE_AI_PROVIDER: local-llm
+      CREATIVE_AI_PROVIDER: hybrid
       FFMPEG_BINARY: /usr/bin/ffmpeg
       FFPROBE_BINARY: /usr/bin/ffprobe
       THAI_TTS_PROVIDER: voxcpm2

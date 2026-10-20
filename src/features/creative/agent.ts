@@ -5,6 +5,7 @@ import { evaluateCreativeRisk } from "./risk";
 import { checkProductTruth } from "../compliance/compliance";
 import { EMPTY_HISTORY } from "./storyteller";
 import type { StoryPlan } from "../video/story-director";
+import { copyQualityIssues } from "./copy-quality";
 import { LOCAL_AGENT_INSTRUCTIONS, expandLocalOutput, localGrammarSchema, localIdeaBeats, localOutputSchema, localPrompt, storyIssues, type LocalIdea, type LocalRecent } from "./local-agent";
 import { GRAPHIC_CARD_MAX_CHARS, graphicCardCopy, graphicCardFits, CREATIVE_STRATEGY_VERSION, approvedAssets, verifiedFacts, summarizeUsableProductionCost,
   strategyEvidenceDigest, type CreativeStrategyInput, type CreativeStrategyPlan, type StrategyConcept } from "./strategist";
@@ -93,7 +94,7 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
     // so the clip that gets made is its own choice rather than whichever runner-up happened to pass.
     const visualFor = (m: string) => m === "ORIGINAL_GRAPHIC_STORY" ? "ORIGINAL_GRAPHIC" as const : m === "REAL_FOOTAGE_EDIT" ? "REAL_FOOTAGE" as const : "REAL_IMAGE" as const;
     const review = (p: typeof plan) => p.ideas.map(i => localIdeaBeats(i, aliasFacts)).map((i, n, all) => ({ id: i.id, issues: [
-      ...storyIssues(i, aliasFacts, visualFor(i.productionMethod), aliasTopics, recent),
+      ...storyIssues(i, aliasFacts, visualFor(i.productionMethod), aliasTopics, recent), ...copyQualityIssues(i.beats, mode, history),
       ...(all.slice(0, n).some(o => o.beats[0]?.text === i.beats[0]?.text) ? ["hook ซ้ำกับอีกไอเดียในแผนเดียวกัน"] : [])] }));
     const first = review(plan), pickFailed = (first.find(r => r.id === plan.selectedId)?.issues.length ?? 1) > 0;
     if (pickFailed) {
@@ -182,7 +183,8 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
     if (local) {
       const visual = method === "ORIGINAL_GRAPHIC_STORY" ? "ORIGINAL_GRAPHIC" as const : method === "REAL_FOOTAGE_EDIT" ? "REAL_FOOTAGE" as const : "REAL_IMAGE" as const;
       const idea = localReview!.ideas.find(i => i.id === candidate.id)!;
-      const issues = [...(planNotes.get(candidate.id) ?? []), ...storyIssues(idea, localReview!.facts, visual, localReview!.topics, localReview!.recent)];
+      const issues = [...(planNotes.get(candidate.id) ?? []), ...storyIssues(idea, localReview!.facts, visual, localReview!.topics, localReview!.recent),
+        ...copyQualityIssues(idea.beats, input.account.mode === "AFFILIATE" ? "AFFILIATE" : "GROWTH", input.history ?? EMPTY_HISTORY)];
       if (issues.length) { rejected = true; gateReasons.push(...issues); }
     }
     const ready = !rejected && !missing.length;

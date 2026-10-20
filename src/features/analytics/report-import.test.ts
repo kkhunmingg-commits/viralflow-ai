@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { channelRevenue, externalVideoUuid, parseDelimited, parseOrderReport, parseVideoReport, reportChannel, reportDate, reportNumber, tiktokVideoId } from "./report-import";
+import { buildReportPreview, channelRevenue, decodeReportFile, detectReportKind, externalVideoUuid, parseDelimited, parseOrderReport, parseVideoReport, rejectionMessage, reportChannel,
+  reportDate, reportFileSha256, reportNumber, reportOrderEvent, tiktokVideoId, type ParsedOrderRow, type ParsedVideoRow } from "./report-import";
+import { realSnapshotTotals } from "./services";
+import type { VideoSnapshotRow } from "./types";
 import { createAdaptiveArm, decideAdaptiveExperiment, type AdaptiveOutcome } from "../growth/adaptive-experiments";
 
 describe("owner report import", () => {
@@ -72,5 +75,84 @@ describe("learning from owner-imported results", () => {
   it("does not compare a fresh export or a 24-hour API window with lifetime exports", () => {
     const r = decide([row(0, quiz, 30, "OWNER_REPORTED", 30), row(1, list, 3, "TIKTOK_DISPLAY", 24), row(2, list, 3)]);
     expect(r.excludedEvidence.map(e => e.reason).sort()).toEqual(["INCOMPARABLE_EXPOSURE_WINDOW", "MIXED_WINDOW_CLASS_API_PREFERRED"]);
+  });
+});
+
+describe("owner report preview (nothing stored)", () => {
+  const thaiVideo = ["\uFEFFลิงก์วิดีโอ,เวลาที่โพสต์,ยอดดู,ยอดไลก์,ความคิดเห็น,การแชร์,บันทึก,ผู้ติดตามใหม่,เวลาดูเฉลี่ย,อัตราการดูจนจบ,ภูมิภาค",
+    ...Array.from({ length: 12 }, (_, i) => `https://www.tiktok.com/@a/video/74298765432109876${String(i).padStart(2, "0")},21/10/2569 18:30,"1,2${i}0",80,3,4,9,2,0:07,18.2%,TH`),
+    "ไม่ใช่ลิงก์,21/10/2569 18:30,100,1,0,0,0,0,1s,1%,TH",
+    "https://www.tiktok.com/@a/video/7429876543210987600,21/10/2569 18:30,1200,1,0,0,0,0,1s,1%,TH",
+    "https://www.tiktok.com/@a/video/7429876543210987699,21/10/2569 18:30,-,1,0,0,0,0,1s,1%,TH"].join("\r\n");
+
+  it("reads a BOM-prefixed Thai Studio export with Buddhist-era dates and lists bad rows with Thai reasons", () => {
+    const p = buildReportPreview({ kind: "VIDEO_PERFORMANCE", text: thaiVideo });
+    expect(p).toMatchObject({ detectedKind: "VIDEO_PERFORMANCE", format: "CSV", rowsRead: 15, rowsAccepted: 12, blocking: null, alreadyImported: null, linkedRows: null, channels: null });
+    expect(p.sample).toHaveLength(10);
+    expect(p.sample[0]).toMatchObject({ line: 2, externalVideoId: "7429876543210987600", publishedAt: "2026-10-21T11:30:00.000Z", views: 1200, averageWatchSeconds: 7, newFollowers: 2 });
+    expect((p.sample[0] as ParsedVideoRow).fullWatchRate).toBeCloseTo(.182);
+    expect(p.rejections.map(r => [r.line, r.reason])).toEqual([[14, "VIDEO_ID_MISSING"], [15, "DUPLICATE_VIDEO_IN_FILE"], [16, "VIEWS_MISSING"]]);
+    expect(p.rejections.map(r => r.message)).toEqual(["ไม่พบลิงก์หรือรหัสวิดีโอ TikTok ที่ถูกต้อง", "วิดีโอนี้ซ้ำกับแถวก่อนหน้าในไฟล์เดียวกัน", "ไม่มียอดดู ระบบไม่เดาเป็น 0"]);
+    expect(p.unknownColumns).toEqual(["ภูมิภาค"]);
+  });
+  it("identifies the exact file for duplicate detection and counts rows import would link", () => {
+    const prior = { imported_at: "2026-10-21T12:00:00Z", file_name: "content.csv", rows_imported: 12 };
+    const p = buildReportPreview({ kind: "VIDEO_PERFORMANCE", text: thaiVideo, prior, linkKeys: new Set(["7429876543210987600", "7429876543210987601", "999"]) });
+    expect(p.fileSha256).toBe(reportFileSha256(thaiVideo));
+    expect(p.fileSha256).not.toBe(reportFileSha256(thaiVideo + "\n"));
+    expect(p.alreadyImported).toEqual({ importedAt: "2026-10-21T12:00:00Z", fileName: "content.csv", rowsImported: 12 });
+    expect(p.linkedRows).toBe(2);
+  });
+  it("blocks a file of the other report kind or with no usable rows, and keeps VIDEO and LIVE apart in an order preview", () => {
+    const orders = ["หมายเลขคำสั่งซื้อ\tรหัสสินค้า\tประเภทเนื้อหา\tยอดขาย\tค่าคอมมิชชันโดยประมาณ\tค่าคอมมิชชันจริง\tสถานะคำสั่งซื้อ\tเวลาสั่งซื้อ",
+      "A1\tP1\tวิดีโอ\t฿199.00\t19.90\t\tรอดำเนินการ\t21/10/2569 10:00", "A2\tP1\tไลฟ์\t398\t39.80\t39.80\tสำเร็จ\t21/10/2569 11:00",
+      "A3\tP2\tโชว์เคส\t100\t10\t\tรอดำเนินการ\t21/10/2569 11:00", "A4\tP2\t\t50\t5\t\tรอดำเนินการ\t", ""].join("\n");
+    expect(detectReportKind(orders)).toBe("AFFILIATE_ORDERS");
+    expect(buildReportPreview({ kind: "VIDEO_PERFORMANCE", text: orders }).blocking?.reason).toBe("KIND_MISMATCH");
+    const p = buildReportPreview({ kind: "AFFILIATE_ORDERS", text: orders, linkKeys: new Set(["P1"]) });
+    expect(p).toMatchObject({ format: "TSV", rowsRead: 4, rowsAccepted: 3, linkedRows: 2, blocking: null });
+    expect(p.rejections).toEqual([{ line: 5, reason: "ORDER_TIME_MISSING", message: "ไม่มีเวลาสั่งซื้อ หรืออ่านรูปแบบวันที่ไม่ได้" }]);
+    expect((p.sample[0] as ParsedOrderRow).occurredAt).toBe("2026-10-21T03:00:00.000Z");
+    expect(p.channels).toEqual({ VIDEO: { orders: 1, gmv: 199, estimatedCommission: 19.9, settledCommission: 0, cancelled: 0 },
+      LIVE: { orders: 1, gmv: 398, estimatedCommission: 39.8, settledCommission: 39.8, cancelled: 0 },
+      SHOWCASE: { orders: 1, gmv: 100, estimatedCommission: 10, settledCommission: 0, cancelled: 0 } });
+    expect(buildReportPreview({ kind: "AFFILIATE_ORDERS", text: "Title,Views\nx,1" }).blocking).toEqual({ reason: "NO_ORDER_ID_COLUMN", message: rejectionMessage("NO_ORDER_ID_COLUMN") });
+    expect(buildReportPreview({ kind: "VIDEO_PERFORMANCE", text: "Video link,Views\n" }).blocking?.reason).toBe("NO_ROWS");
+    expect(rejectionMessage("COLUMN_NOT_USED:Region")).toBe('ไม่ได้ใช้คอลัมน์ "Region"');
+  });
+  it("decodes UTF-8 with BOM, UTF-16 and Thai Windows-874 exports, and refuses Excel workbooks", () => {
+    const utf8 = new TextEncoder().encode("\uFEFFVideo link,Views\n");
+    expect(decodeReportFile(new Uint8Array([0xef, 0xbb, 0xbf, ...utf8.slice(3)]))).toBe("Video link,Views\n");
+    const utf16 = new Uint8Array([0xff, 0xfe, ...[..."ยอดดู\t1"].flatMap(c => [c.charCodeAt(0) & 0xff, c.charCodeAt(0) >> 8])]);
+    expect(decodeReportFile(utf16)).toBe("ยอดดู\t1");
+    const tis620 = new Uint8Array([..."ยอดดู"].map(c => c.charCodeAt(0) - 0x0e01 + 0xa1));
+    expect(decodeReportFile(tis620)).toBe("ยอดดู");
+    expect(() => decodeReportFile(new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0]))).toThrow("REPORT_IS_EXCEL");
+    expect(() => decodeReportFile(new Uint8Array([0xd0, 0xcf, 0x11, 0xe0, 0]))).toThrow("REPORT_IS_EXCEL");
+    expect(() => decodeReportFile(new Uint8Array())).toThrow("REPORT_EMPTY");
+  });
+});
+
+describe("revenue and real/mock separation", () => {
+  it("reads channels and order states from whole words, never guessing VIDEO or LIVE", () => {
+    expect(reportChannel("Delivered")).toBe("UNKNOWN"); expect(reportChannel("Product card")).toBe("UNKNOWN"); expect(reportChannel("Short video")).toBe("VIDEO");
+    expect(reportOrderEvent("Unpaid")).toBe("ORDER_CREATED"); expect(reportOrderEvent("Paid")).toBe("ORDER_SETTLED");
+    expect(reportOrderEvent("ไม่สำเร็จ")).toBe("ORDER_CANCELLED"); expect(reportOrderEvent("Refunded")).toBe("ORDER_CANCELLED");
+  });
+  it("never counts MOCK orders and collapses a commission update into its order line", () => {
+    const base = { channel: "VIDEO", external_order_id: "A1", gmv: 100, estimated_commission: 10, settled_commission: null, source: "OWNER_REPORT_IMPORT" };
+    expect(channelRevenue([{ ...base, event_type: "ORDER_CREATED", external_event_id: "A1:P1:ORDER_CREATED" },
+      { ...base, event_type: "COMMISSION_UPDATED", external_event_id: "A1:P1:COMMISSION_UPDATED" },
+      { ...base, source: "MOCK", event_type: "ORDER_CREATED", external_event_id: "M1:P1:ORDER_CREATED" },
+      { ...base, channel: "UNKNOWN", event_type: "ORDER_CREATED", external_event_id: "U1:P1:ORDER_CREATED" }]))
+      .toEqual({ VIDEO: { orders: 1, gmv: 100, estimatedCommission: 10, settledCommission: 0, cancelled: 0 }, UNKNOWN: { orders: 1, gmv: 100, estimatedCommission: 10, settledCommission: 0, cancelled: 0 } });
+  });
+  it("adds only the newest real snapshot of each video and keeps MOCK out of the totals", () => {
+    const snap = (id: string, video: string, at: string, views: number, source: VideoSnapshotRow["source"] = "OWNER_REPORT_IMPORT", gmv: number | null = null) =>
+      ({ id, tiktok_account_id: "a", video_id: `v${video}`, video_kind: "EXTERNAL", external_video_id: video, product_id: null, category_id: null, source, source_snapshot_at: at,
+        source_confidence: .8, views, likes: null, comments: null, shares: null, favorites: null, clicks: null, orders: null, gmv, commission: null }) as VideoSnapshotRow;
+    expect(realSnapshotTotals([snap("1", "1", "2026-10-20T00:00:00Z", 100), snap("2", "1", "2026-10-21T00:00:00Z", 150, "TIKTOK_DISPLAY"),
+      snap("3", "2", "2026-10-21T00:00:00Z", 40, "OWNER_REPORT_IMPORT", 99), snap("4", "3", "2026-10-21T00:00:00Z", 1_000_000, "MOCK", 5000)]))
+      .toEqual({ views: 190, orders: 0, gmv: 99, commission: 0, realVideos: 2, mockSnapshotsExcluded: 1 });
   });
 });

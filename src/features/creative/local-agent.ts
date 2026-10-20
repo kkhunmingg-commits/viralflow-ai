@@ -93,8 +93,13 @@ export function localGrammarSchema(mode: "GROWTH" | "AFFILIATE", factIds: string
   schema.properties.selectedId = { type: "string", enum: slots };
   const point = (schema.properties.ideas.items.properties.points as { items: { properties: Record<string, unknown> } }).items;
   if (factIds.length) point.properties.factId = { type: "string", enum: factIds };
+  // A Growth close is picked from approved invitations: the small model's own closes sent viewers to links,
+  // how-tos or "learn more" in most rejected ideas (creative eval run 39455054803).
+  if (mode === "GROWTH") (schema.properties.ideas.items.properties.cta as { properties: Record<string, unknown> }).properties.text = { type: "string", enum: [...GROWTH_CLOSES] };
   return schema;
 }
+export const GROWTH_CLOSES = ["ติดตามไว้ ตอนหน้ามีอีก", "เซฟไว้เล่าให้เพื่อนฟัง", "เคยรู้มาก่อนไหม คอมเมนต์มา", "ทายต่อในคอมเมนต์", "แชร์ให้เพื่อนที่ชอบเรื่องแปลก",
+  "ติดตามไว้ ยังมีเรื่องแปลกอีก", "เซฟไว้ก่อน ลืมแล้วเสียดาย", "รู้แล้วแชร์ต่อเลย"] as const;
 const KICKER_MAX = 12;
 type LocalPlanIdea = LocalOutput["ideas"][number];
 export interface LocalBeat { role: StoryBeat["role"]; text: string; kicker: string; factIds: string[] }
@@ -119,8 +124,9 @@ export const LOCAL_AGENT_INSTRUCTIONS = `คุณคือนักวางแ
 คิดจากข้อมูลที่ได้รับเท่านั้น: ข้อเท็จจริงที่ตรวจแล้ว (facts) สื่อที่ตรวจสิทธิ์แล้ว (assets) ประวัติคลิปล่าสุดของบัญชี (recent) และผลจริง (learning)
 เสนอไอเดียที่ต่างกันจริง 3 ข้อ (หัวข้อ มุมเล่า หรือรูปแบบต่างกัน) แล้วเลือกเอง 1 ข้อพร้อมเหตุผลว่าทำไมเหมาะกับบัญชีนี้มากกว่าข้ออื่น
 โครงคลิป: hook หนึ่งประโยคเปิดที่คุณเขียนเอง points 1-3 ข้อที่เลือกจาก facts (ใส่ factId ระบบจะพูดตามถ้อยคำของข้อเท็จจริงนั้น) และ cta หนึ่งประโยคปิดที่คุณเขียนเอง
-hook และ cta สั้นมาก ไม่เกิน 20 ตัวอักษร พูดเป็นภาษาไทยธรรมชาติแบบคนพูด ห้ามใส่ข้อเท็จจริง ตัวเลข สรรพคุณ รีวิว หรือยอดขายที่ไม่มีในข้อมูล
-ตัวอย่างความยาว (คนละเรื่องกับข้อมูล ห้ามลอก): hook "แมวฝันได้ไหม?" "ดาวดวงนี้แปลกมาก" cta "เซฟไว้เล่าต่อ" "คอมเมนต์มาเลย"
+คลิปยาว 8 วินาที คนดูตัดสินใจใน 2 วินาทีแรก hook และ cta จึงสั้นมาก ไม่เกิน 20 ตัวอักษร เป็นภาษาพูดไทยธรรมชาติ ห้ามใส่ข้อเท็จจริง ตัวเลข สรรพคุณ รีวิว หรือยอดขายที่ไม่มีในข้อมูล
+hook ต้องชวนสงสัย ห้ามบอกคำตอบหรือพูดซ้ำกับ point เช่น ถามว่าทำไม/ได้ยังไง ถึงสิ่งที่ point จะเฉลย หรือบอกว่ามีเรื่องแปลกของหัวข้อนั้น ต้องพูดถึงหัวข้อของคลิปนั้นเสมอ
+cta ของคลิปปั้นบัญชีเลือกจากประโยคชวนติดตาม เซฟ คอมเมนต์ ทาย หรือแชร์ที่ระบบให้ เลือกให้เข้ากับเรื่องและไม่ซ้ำกันทุกไอเดีย
 points ส่วนใหญ่ 1-2 ข้อพอ ทุก point ในไอเดียเดียวกันต้องเป็นหัวข้อเดียวกัน
 แต่ละไอเดียใช้ข้อเท็จจริงคนละหัวข้อ และเลือกหัวข้อที่ไม่อยู่ใน recent ก่อนเสมอ hook และ cta ต้องเขียนใหม่ให้เข้ากับเรื่อง ไม่ใช้ประโยคเดิมซ้ำทุกคลิป
 LIST ต้องมี point 3 ข้อพอดี NUMBER_SPOTLIGHT ต้องเลือก fact ที่มีตัวเลข QUIZ_REVEAL ให้ hook เป็นคำถามที่ point ข้อแรกตอบได้ตรงๆ

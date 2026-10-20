@@ -3,6 +3,7 @@ import type {CreativeIntelligenceResources} from "./intelligence";
 import type {VideoMetrics,AnalyticsSource} from "../analytics/types";
 import {analyzeCreativeLearning} from "../analytics/creative-learning";
 import {runCreativeAgent,CREATIVE_AGENT_VERSION} from "./agent";
+import {rankPassingIdeas} from "./hybrid";
 import type {StructuredCreativeProvider} from "./providers";
 import {strategyEvidenceDigest,strategyFingerprint,type CreativeStrategyInput} from "./strategist";
 import {createAdaptiveArm,decideAdaptiveExperiment,type AdaptiveArm,type AdaptiveOutcome,type AdaptiveProposalRecord} from "../growth/adaptive-experiments";
@@ -105,9 +106,11 @@ export async function planSelfLearningCreative(context:CreativeContext,resources
     const prior=historyArms.find(a=>a.id===arm.id);if(prior)arm=prior;
     return {conceptId:c.id,arm};
   });
-  // With no comparable real results there is nothing to learn from, so the model's own reasoned pick stands
-  // (when it passed the gates) instead of a random draw among its ideas. Real results switch this back to the experiment.
-  const modelPick=candidates.find(c=>c.conceptId===generated.plan.selectedConceptId);
+  // With no comparable real results there is nothing to learn from, so the best idea that passed the gates is made
+  // (an untold topic and fresh format first, the model's own pick as a tie-break) instead of a random draw among its
+  // ideas. Real results switch this back to the experiment.
+  const best=rankPassingIdeas(generated.plan,generated.output.concepts,resources.storyHistory??{})[0];
+  const modelPick=candidates.find(c=>c.conceptId===best?.id);
   const coldStart=!before.preferredArmId&&!before.assessments.some(a=>a.eligibleForExploitation);
   const decision=decideAdaptiveExperiment({context:adaptiveContext,cycleKey:options.cycleKey,now:resources.now,
     observationWindowHours:24,availableSlots:options.availableSlots,arms:(coldStart&&modelPick?[modelPick]:candidates).map(c=>c.arm),outcomes,ledger,objective});

@@ -36,8 +36,8 @@ def main() -> None:
     data = {"role": "user", "content": "ข้อมูล:\n" + request["prompt"]}
     brainstorm = chat([system, data, {"role": "user", "content":
         "ก่อนเขียนแผน คิดสั้น ๆ เป็นข้อ ๆ: คนดูบัญชีนี้น่าจะสนใจอะไร หัวข้อและข้อเท็จจริงไหนน่าเล่าที่สุด "
-        "ไอเดีย 3 แบบที่ต่างกันจริงคืออะไร อะไรใน recent ที่ควรเลี่ยง และควรเลือกแบบไหนเพราะอะไร ไม่เกิน 12 บรรทัด /no_think"}],
-        max_tokens=700)
+        "ไอเดีย 3 แบบที่ต่างกันจริงคืออะไร อะไรใน recent ที่ควรเลี่ยง และควรเลือกแบบไหนเพราะอะไร ไม่เกิน 8 บรรทัด /no_think"}],
+        max_tokens=int(os.environ.get("LOCAL_LLM_BRAINSTORM_TOKENS", "400")))
     schema = {k: v for k, v in request["schema"].items() if k != "$schema"}
     max_tokens = int(request.get("max_tokens") or 3000)
     output = None
