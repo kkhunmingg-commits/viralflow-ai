@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-TOGGLES = ("AI_LIVE_LITE_REFINE", "AI_LIVE_LITE_CROSSFADE", "AI_LIVE_LITE_BLINK")
+TOGGLES = ("AI_LIVE_LITE_REFINE", "AI_LIVE_LITE_CROSSFADE", "AI_LIVE_LITE_REMEASURE")
 
 
 def main() -> int:
@@ -34,7 +34,12 @@ def main() -> int:
     parser.add_argument("--kbps", type=int, default=2500)
     args = parser.parse_args()
     for name in TOGGLES:
-        os.environ[name] = "0" if args.baseline else "1"
+        if args.baseline:
+            os.environ[name] = "0"
+        else:
+            os.environ.setdefault(name, "1")  # an explicit AI_LIVE_LITE_...=0 still wins
+    if args.baseline:
+        os.environ["AI_LIVE_LITE_BLINK"] = "0"
 
     from direct_stream import resolve_ffmpeg_path
     from lite_presenter_engine import LitePresenterEngine

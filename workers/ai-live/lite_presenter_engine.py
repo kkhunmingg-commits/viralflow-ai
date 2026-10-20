@@ -127,6 +127,12 @@ class LitePresenterEngine:
             raise PresenterPackError("LITE_PACK_FACE_OUTSIDE_FRAME")
         box_w, box_h = x2 - x1, y2 - y1
         alpha = cv2.resize(mask, (box_w, box_h), interpolation=cv2.INTER_LINEAR).astype(np.float32)[..., None] / 255.0
+        if _env_on("AI_LIVE_LITE_REFINE"):
+            # The pack mask spans the whole patch width, so hair at the cheeks was pasted (and smeared)
+            # too. Fade the outer 14 % on each side so only the mouth, chin and inner cheeks change.
+            columns = np.linspace(0.0, 1.0, box_w, dtype=np.float32)
+            taper = np.clip(np.minimum(columns, 1 - columns) / 0.14, 0.0, 1.0)
+            alpha = alpha * (taper * taper * (3 - 2 * taper))[None, :, None]
         # Only rows the mask touches are pasted, so the eyes above stay the base's (and can blink).
         rows = np.nonzero(alpha[..., 0].max(axis=1) > 0.003)[0]
         top = int(rows[0]) if rows.size else 0
@@ -134,12 +140,21 @@ class LitePresenterEngine:
         regions = [refine_patch(cv2.imread(str(pack.root / frame.file), cv2.IMREAD_COLOR), under, alpha)[top:]
                    for frame in pack.frames]
         openness = np.array([frame.openness for frame in pack.frames], dtype=np.float32)
+        if _env_on("AI_LIVE_LITE_REMEASURE"):
+            measured = measured_openness(regions, y2 - y1, top)
+            if measured.max() > 0:
+                # Keep the pack's overall range so the audio tracker's scale still lines up.
+                openness = openness.min() + measured * (openness.max() - openness.min())
         self._order = np.argsort(openness, kind="stable")
         self._open_sorted = openness[self._order]
         self._closed_index = int(self._order[0])
         self._pack, self._fps, self._base, self._regions, self._box = pack, fps, base, regions, (x1, y1, x2, y2)
         self._paste_top = top
-        self._blink_frames = blink_frames(base, (x1, y1, x2, y1 + top)) if _env_on("AI_LIVE_LITE_BLINK") else []
+        # Search the eyes down to 60 % of the face box: the pasted mouth region starts near 40 %, which cut
+        # the lower half of the Haar eye boxes off and found no pair on any of the three Ally X presenters.
+        eye_search = (x1, y1, x2, y1 + max(top, int((y2 - y1) * 0.6)))
+        # Off by default: the eyelid remap left the iris visible through a smeared lid on the Ally X preview.
+        self._blink_frames = blink_frames(base, eye_search) if _env_on("AI_LIVE_LITE_BLINK", "0") else []
         self._next_blink = int(self._fps * self._rng.uniform(1.5, 3.5))
         self._label = _disclosure_overlay(pack.disclosure_text, out_w)
         self._extractor = FrameFeatureExtractor(fps)
@@ -281,7 +296,9 @@ class LitePresenterEngine:
         scale = 1.0 + motion.breath_scale * (0.5 + 0.5 * math.sin(2 * math.pi * t / period))
         dx = motion.sway_px * wave(2.0, 3.7, 1.3)
         dy = motion.sway_px * 0.4 * wave(1.0, 2.9, 0.7) + motion.sway_px * 1.2 * self._energy
-        angle = 0.35 * wave(2.6, 4.3, 1.7) + 0.4 * self._energy * math.sin(2 * math.pi * t / 1.9)
+        # The whole frame is warped, so tilt sways the wall and shirt more than the face (measured 10-14 px
+        # vs 5 px at 0.35/0.4 deg on the Ally X preview) and reads as camera wobble; keep it small.
+        angle = 0.15 * wave(2.6, 4.3, 1.7) + 0.2 * self._energy * math.sin(2 * math.pi * t / 1.9)
         if motion.breath_scale or motion.sway_px:
             h, w = frame.shape[:2]
             centre = (w / 2, h * 0.45)
@@ -321,8 +338,28 @@ class LitePresenterEngine:
         return jpeg
 
 
-def _env_on(name: str) -> bool:
-    return os.getenv(name, "1").strip().lower() not in ("0", "false", "off")
+def _env_on(name: str, default: str = "1") -> bool:
+    return os.getenv(name, default).strip().lower() not in ("0", "false", "off")
+
+
+def measured_openness(regions: list[np.ndarray], box_h: int, top: int) -> np.ndarray:
+    """How open each library mouth really is: dark inner-mouth pixels in the lip area.
+
+    The pack's stored score disagreed with the images on the Ally X (near-closed frames scored
+    above clearly open ones), which made selection jump between shapes.
+    """
+    import cv2
+    values = []
+    for region in regions:
+        h, w = region.shape[:2]
+        # Lips sit around 62-88 % of the face box height, central 34-66 % of its width.
+        a, b = max(0, int(box_h * 0.62) - top), max(1, min(h, int(box_h * 0.88) - top))
+        crop = cv2.cvtColor(region[a:b, int(w * 0.34):int(w * 0.66)], cv2.COLOR_BGR2GRAY).astype(np.float32)
+        skin = float(np.percentile(crop, 75)) if crop.size else 0.0
+        values.append(float((crop < skin * 0.55).mean()) if crop.size else 0.0)
+    values = np.array(values, dtype=np.float32)
+    span = float(values.max() - values.min())
+    return (values - values.min()) / span if span > 1e-6 else values
 
 
 def refine_patch(patch: np.ndarray | None, under: np.ndarray, alpha: np.ndarray) -> np.ndarray:
@@ -350,7 +387,9 @@ def refine_patch(patch: np.ndarray | None, under: np.ndarray, alpha: np.ndarray)
         up += (under[steady].mean(axis=0) - up[steady].mean(axis=0))
         blur_up = cv2.GaussianBlur(up, (0, 0), sigma)
     detail = under - blur_ref
-    sharpened = up + 0.35 * (up - blur_up)  # mild unsharp on the newly generated lips/teeth
+    # Mild unsharp on the newly generated lips/teeth only; near the mask edge (jaw line) it drew a light halo.
+    inner = cv2.GaussianBlur((alpha[..., 0] > 0.9).astype(np.float32), (0, 0), sigma * 3)[..., None]
+    sharpened = up + 0.25 * inner * (up - blur_up)
     refined = changed * sharpened + (1 - changed) * (blur_up + detail)
     return np.clip(refined * alpha + under * (1 - alpha), 0, 255).astype(np.uint8)
 
