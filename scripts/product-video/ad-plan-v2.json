@@ -1,0 +1,9 @@
+{
+  "product": {"name": "CASIO F-91W-1UR", "url": "https://www.central.co.th/th/casio-unisexs-watches-f-91w-1ur-black-mkp1517326"},
+  "shots": [
+    {"id": "v2s1", "image": "scripts/product-video/v2/s1-window.png", "seed": 101,
+     "prompt": "A man slowly raises and turns his wrist toward the warm morning sunlight by the window, glancing at the black digital wristwatch on his wrist, subtle natural arm movement, gentle handheld camera drift, soft sun flare, cinematic lifestyle commercial, photorealistic"},
+    {"id": "v2s3", "image": "scripts/product-video/v2/s3-close.png", "seed": 103,
+     "prompt": "Close-up of a black digital wristwatch on a man's wrist in warm morning sunlight, the wrist moves slightly and naturally, soft light sweeps across the watch, slow camera push in, shallow depth of field, cinematic commercial, photorealistic"}
+  ]
+}
