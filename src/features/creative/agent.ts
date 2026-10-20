@@ -5,7 +5,7 @@ import { evaluateCreativeRisk } from "./risk";
 import { checkProductTruth } from "../compliance/compliance";
 import { EMPTY_HISTORY } from "./storyteller";
 import type { StoryPlan } from "../video/story-director";
-import { LOCAL_AGENT_INSTRUCTIONS, expandLocalOutput, localIdeaBeats, localOutputSchema, localPrompt, storyIssues, type LocalIdea } from "./local-agent";
+import { LOCAL_AGENT_INSTRUCTIONS, expandLocalOutput, localGrammarSchema, localIdeaBeats, localOutputSchema, localPrompt, storyIssues, type LocalIdea, type LocalRecent } from "./local-agent";
 import { GRAPHIC_CARD_MAX_CHARS, graphicCardCopy, graphicCardFits, CREATIVE_STRATEGY_VERSION, approvedAssets, verifiedFacts, summarizeUsableProductionCost,
   strategyEvidenceDigest, type CreativeStrategyInput, type CreativeStrategyPlan, type StrategyConcept } from "./strategist";
 
@@ -76,7 +76,7 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
   let result: Awaited<ReturnType<StructuredCreativeProvider["generateStructured"]>>, output: CreativeAgentOutput;
   // Local models get a compact plan with beats; the beats become the story the Video Factory cuts to.
   let stories = new Map<string, StoryPlan>(), planNotes = new Map<string, string[]>();
-  let localReview: { ideas: LocalIdea[]; facts: Map<string, string>; topics: Map<string, string | null>; revised: boolean } | null = null;
+  let localReview: { ideas: LocalIdea[]; facts: Map<string, string>; topics: Map<string, string | null>; recent: LocalRecent; revised: boolean } | null = null;
   if (local) {
     const mode = input.account.mode === "AFFILIATE" ? "AFFILIATE" as const : "GROWTH" as const, history = input.history ?? EMPTY_HISTORY;
     const { prompt, alias } = localPrompt({ mode, at: input.now.toISOString(), product: input.product?.title ?? null,
@@ -84,13 +84,14 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
       assets: assets.map(a => ({ id: a.id, kind: a.kind, topic: a.topic ?? null, durationSeconds: a.durationSeconds ?? null })),
       recent: { hooks: history.hooks, formats: history.formats, topics: history.topics, stories: history.stories ?? [] },
       learning: learning ? { preferredAngle: learning.preferredAngle, preferredHook: learning.preferredHook, confidence: learning.confidence } : options.learningEvidence ?? null });
+    const recent = { topics: history.topics, hooks: history.hooks };
     const aliasFacts = new Map(facts.map((f, i) => [`F${i + 1}`, f.text])), aliasTopics = new Map(facts.map((f, i) => [`F${i + 1}`, f.topic ?? null]));
-    const format = { name: "local_creative_plan", schema: z.toJSONSchema(localOutputSchema(mode)), instructions: LOCAL_AGENT_INSTRUCTIONS, maxOutputTokens: options.maxOutputTokens ?? 3000 };
+    const format = { name: "local_creative_plan", schema: localGrammarSchema(mode), instructions: LOCAL_AGENT_INSTRUCTIONS, maxOutputTokens: options.maxOutputTokens ?? 3000 };
     result = await provider.generateStructured(prompt, format);
     let plan = localOutputSchema(mode).parse(result.output);
     // When none of its ideas would pass review, the model gets the reviewer's notes and one chance to revise its own plan.
     const visualFor = (m: string) => m === "ORIGINAL_GRAPHIC_STORY" ? "ORIGINAL_GRAPHIC" as const : m === "REAL_FOOTAGE_EDIT" ? "REAL_FOOTAGE" as const : "REAL_IMAGE" as const;
-    const review = (p: typeof plan) => p.ideas.map(localIdeaBeats).map(i => ({ id: i.id, issues: storyIssues(i, aliasFacts, visualFor(i.productionMethod), aliasTopics) }));
+    const review = (p: typeof plan) => p.ideas.map(localIdeaBeats).map(i => ({ id: i.id, issues: storyIssues(i, aliasFacts, visualFor(i.productionMethod), aliasTopics, recent) }));
     const first = review(plan);
     if (first.every(r => r.issues.length)) {
       const revised = await provider.generateStructured(`${prompt}\n\nแผนก่อนหน้าของคุณ:\n${JSON.stringify(plan)}\n\nผลตรวจ (ทุกไอเดียยังใช้ไม่ได้):\n${JSON.stringify(first)}\nแก้แผนให้ผ่านผลตรวจ ยังคิดและเลือกเองเหมือนเดิม`, format);
@@ -98,7 +99,7 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
       result = { raw: { first: result.raw, firstReview: first, revised: revised.raw }, output: revised.output,
         usage: { inputTokens: result.usage.inputTokens + revised.usage.inputTokens, outputTokens: result.usage.outputTokens + revised.usage.outputTokens } };
     }
-    localReview = { ideas: plan.ideas.map(localIdeaBeats), facts: aliasFacts, topics: aliasTopics, revised: first.every(r => r.issues.length) };
+    localReview = { ideas: plan.ideas.map(localIdeaBeats), facts: aliasFacts, topics: aliasTopics, recent, revised: first.every(r => r.issues.length) };
     const expanded = expandLocalOutput(plan, alias, provider.model, new Map(facts.map(f => [f.id, f.topic ?? null])));
     output = creativeAgentOutputSchema.parse(expanded.output); stories = expanded.stories; planNotes = expanded.notes;
   } else {
@@ -174,7 +175,7 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
     if (local) {
       const visual = method === "ORIGINAL_GRAPHIC_STORY" ? "ORIGINAL_GRAPHIC" as const : method === "REAL_FOOTAGE_EDIT" ? "REAL_FOOTAGE" as const : "REAL_IMAGE" as const;
       const idea = localReview!.ideas.find(i => i.id === candidate.id)!;
-      const issues = [...(planNotes.get(candidate.id) ?? []), ...storyIssues(idea, localReview!.facts, visual, localReview!.topics)];
+      const issues = [...(planNotes.get(candidate.id) ?? []), ...storyIssues(idea, localReview!.facts, visual, localReview!.topics, localReview!.recent)];
       if (issues.length) { rejected = true; gateReasons.push(...issues); }
     }
     const ready = !rejected && !missing.length;

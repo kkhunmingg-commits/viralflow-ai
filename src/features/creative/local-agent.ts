@@ -73,8 +73,8 @@ export function localOutputSchema(mode: "GROWTH" | "AFFILIATE") {
     ideas: z.array(z.object({ id: z.string().min(1).max(20), topic: z.string().min(1).max(80),
       renderFormat: z.enum(mode === "GROWTH" ? GROWTH_FORMATS : PRODUCT_FORMATS),
       formatLabel: z.string().min(1).max(60), hookPattern: z.string().min(1).max(60), angle: z.string().min(1).max(80),
-      hook: z.object({ text: line, kicker: z.string().max(12) }).strict(),
-      points: z.array(z.object({ text: line, kicker: z.string().max(12), factIds: z.array(z.string()).min(1).max(3) }).strict()).min(1).max(3),
+      hook: z.object({ text: line, kicker: z.string().max(24) }).strict(),
+      points: z.array(z.object({ text: line, kicker: z.string().max(24), factIds: z.array(z.string()).min(1).max(3) }).strict()).min(1).max(3),
       cta: z.object({ text: line }).strict(), caption: z.string().min(1).max(150), hashtags: z.array(z.string().min(2).max(30)).min(2).max(5),
       // Growth has one way to produce without media; offering a "wait" option made a small model pick it every time.
       productionMethod: z.enum(mode === "GROWTH" ? ["ORIGINAL_GRAPHIC_STORY"] : METHODS),
@@ -83,6 +83,15 @@ export function localOutputSchema(mode: "GROWTH" | "AFFILIATE") {
   }).strict();
 }
 export type LocalOutput = z.infer<ReturnType<typeof localOutputSchema>>;
+/** The schema the model's grammar follows: idea ids are fixed slots, so its pick always names one of its own ideas. */
+export function localGrammarSchema(mode: "GROWTH" | "AFFILIATE") {
+  const schema = z.toJSONSchema(localOutputSchema(mode)) as unknown as { properties: Record<string, Record<string, unknown>> & { ideas: { items: { properties: Record<string, Record<string, unknown>> } } } };
+  const slots = ["I1", "I2", "I3", "I4"];
+  schema.properties.ideas.items.properties.id = { type: "string", enum: slots };
+  schema.properties.selectedId = { type: "string", enum: slots };
+  return schema;
+}
+const KICKER_MAX = 12;
 type LocalPlanIdea = LocalOutput["ideas"][number];
 export interface LocalBeat { role: StoryBeat["role"]; text: string; kicker: string; factIds: string[] }
 export type LocalIdea = Omit<LocalPlanIdea, "hook" | "points" | "cta"> & { beats: LocalBeat[]; trimmed: number };
@@ -90,8 +99,10 @@ export type LocalIdea = Omit<LocalPlanIdea, "hook" | "points" | "cta"> & { beats
  * never mid-sentence) — the same edit a person makes, reported as such. */
 export function localIdeaBeats(idea: LocalPlanIdea): LocalIdea {
   const { hook, points, cta, ...rest } = idea;
-  const beats: LocalBeat[] = [{ role: "HOOK", text: hook.text.trim(), kicker: hook.kicker, factIds: [] },
-    ...points.map(p => ({ role: "POINT" as const, text: p.text.trim(), kicker: p.kicker, factIds: p.factIds })), { role: "CTA", text: cta.text.trim(), kicker: "", factIds: [] }];
+  // A kicker is an optional label; one too long to fit is left off rather than cut mid-word.
+  const kicker = (k: string) => base(k.trim()) <= KICKER_MAX ? k.trim() : "";
+  const beats: LocalBeat[] = [{ role: "HOOK", text: hook.text.trim(), kicker: kicker(hook.kicker), factIds: [] },
+    ...points.map(p => ({ role: "POINT" as const, text: p.text.trim(), kicker: kicker(p.kicker), factIds: p.factIds })), { role: "CTA", text: cta.text.trim(), kicker: "", factIds: [] }];
   let trimmed = 0;
   while (idea.renderFormat !== "LIST" && spokenLength(beats) > SPOKEN_BUDGET && beats.filter(b => b.role === "POINT").length > 1) {
     beats.splice(beats.map(b => b.role).lastIndexOf("POINT"), 1); trimmed++;
@@ -105,7 +116,8 @@ export const LOCAL_AGENT_INSTRUCTIONS = `คุณคือนักวางแ
 เสนอไอเดียที่ต่างกันจริง 3 ข้อ (หัวข้อ มุมเล่า หรือรูปแบบต่างกัน) แล้วเลือกเอง 1 ข้อพร้อมเหตุผลว่าทำไมเหมาะกับบัญชีนี้มากกว่าข้ออื่น
 เขียนเป็นจังหวะ: hook หนึ่งประโยคเปิด points 1-3 ข้อ (ส่วนใหญ่ 1-2 ข้อพอ) และ cta หนึ่งประโยคปิด แต่ละจังหวะสั้นไม่เกิน ${CARD_MAX} ตัวอักษร พูดเป็นภาษาไทยธรรมชาติแบบคนพูด
 ทุก POINT ต้องเล่าข้อเท็จจริงที่ได้รับ และใส่ factIds ของข้อนั้น ห้ามเติมตัวเลข สรรพคุณ รีวิว ยอดขาย หรือข้อเท็จจริงที่ไม่มีในข้อมูล
-ตัวอย่างความยาวที่พอดี: hook "ทำไมฟ้าแลบก่อนฟ้าร้อง?" point "แสงเร็วกว่าเสียงมาก" cta "ติดตามไว้ มีตอนต่อไป" ทั้งคลิปพูดรวมไม่เกินราว 70 ตัวอักษร
+ความยาวที่พอดี: hook ราว 10-20 ตัวอักษร แต่ละ point ราว 15-25 ตัวอักษร cta ราว 10-15 ตัวอักษร ทั้งคลิปพูดรวมไม่เกินราว 70 ตัวอักษร
+แต่ละไอเดียใช้ข้อเท็จจริงคนละหัวข้อ และเลือกหัวข้อที่ไม่อยู่ใน recent ก่อนเสมอ hook และ cta ต้องเขียนใหม่ให้เข้ากับเรื่อง ไม่ใช้ประโยคเดิมซ้ำทุกคลิป
 POINT ส่วนใหญ่ควรใช้ถ้อยคำของข้อเท็จจริงเกือบตรงตัว เรียบเรียงให้เป็นภาษาพูดได้ แต่ห้ามเพิ่มผลลัพธ์หรือประโยชน์ที่ข้อเท็จจริงไม่ได้บอก
 LIST ต้องมี POINT 3 ข้อพอดี NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง QUIZ_REVEAL ให้ HOOK เป็นคำถามแล้วเฉลยด้วยข้อเท็จจริง
 อย่าซ้ำ hook หัวข้อ หรือรูปแบบเดียวกับคลิปใน recent ถ้าเลี่ยงได้
@@ -133,8 +145,17 @@ const ANGLE: Record<StoryFormat, CreativeConcept["angleType"]> = { EXPLAINER: "P
 const VISUAL_ROLE = { REAL_FOOTAGE_EDIT: "PRODUCT_EVIDENCE", REAL_IMAGE_MOTION: "STATIC_PRODUCT_DETAIL", ORIGINAL_GRAPHIC_STORY: "ORIGINAL_GRAPHIC", WAIT_FOR_EVIDENCE: "ORIGINAL_GRAPHIC" } as const;
 
 /** Problems with the model's beats that the renderer or a viewer would hit. Empty means usable. */
-export function storyIssues(idea: LocalIdea, facts: Map<string, string>, visual: ClaimVisual, factTopics: Map<string, string | null> = new Map()) {
+export interface LocalRecent { topics: string[]; hooks: string[] }
+const RECENT_TOPICS = 3;
+const sameLine = (a: string, b: string) => a.replace(/[\s\p{P}]/gu, "") === b.replace(/[\s\p{P}]/gu, "");
+export function storyIssues(idea: LocalIdea, facts: Map<string, string>, visual: ClaimVisual, factTopics: Map<string, string | null> = new Map(),
+  recent: LocalRecent = { topics: [], hooks: [] }) {
   const issues: string[] = [], beats = idea.beats, points = beats.filter(b => b.role === "POINT");
+  // Repeating the last few clips' topic is only a problem when there is verified material on another topic to tell instead.
+  const cited = factTopics.get(points[0]?.factIds[0] ?? ""), justTold = new Set(recent.topics.slice(0, RECENT_TOPICS));
+  const fresh = [...new Set([...factTopics.values()].filter((t): t is string => Boolean(t) && !justTold.has(t!)))];
+  if (cited && justTold.has(cited) && fresh.length) issues.push(`หัวข้อ "${cited}" เพิ่งทำไปในคลิปล่าสุด ยังมีหัวข้อที่ยังไม่ได้เล่า: ${fresh.join(", ")}`);
+  if (beats[0] && recent.hooks.some(h => sameLine(h, beats[0].text))) issues.push(`hook "${beats[0].text}" ซ้ำกับคลิปที่ทำไปแล้ว`);
   if (beats[0]?.role !== "HOOK" || beats.at(-1)?.role !== "CTA" || beats.slice(1, -1).some(b => b.role !== "POINT") || !points.length) issues.push("ลำดับจังหวะต้องเป็น HOOK แล้ว POINT แล้ว CTA");
   if (idea.renderFormat === "LIST" && points.length !== 3) issues.push("ลิสต์ต้องมีสามข้อพอดี");
   if (beats.some(b => base(b.text) > CARD_MAX)) issues.push(`ข้อความบางจังหวะยาวเกิน ${CARD_MAX} ตัวอักษร อ่านไม่ทัน`);

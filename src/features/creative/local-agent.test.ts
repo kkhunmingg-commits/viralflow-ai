@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { runCreativeAgent } from "./agent";
-import { LocalLLMProvider, groundedShare, localOutputSchema, type LocalOutput } from "./local-agent";
+import { LocalLLMProvider, groundedShare, localGrammarSchema, localOutputSchema, type LocalOutput } from "./local-agent";
 import { knownCreativeGenerationCost } from "./cost";
 import type { CreativeStrategyInput } from "./strategist";
 import type { StructuredCreativeProvider } from "./providers";
@@ -49,7 +49,9 @@ describe("local creative LLM", () => {
     expect(a.production.evidenceIds).toContain("uuid-oct-1");
     // The model reworded the topic; the cited fact puts it back on the documented one.
     expect(result.output.concepts.find(c => c.id === "b")!.topic).toBe("น้ำแข็งลอยน้ำ");
-    expect(b.status).toBe("REVIEW_REQUIRED");
+    // The ice topic was the account's last clip while octopus facts are still untold, so it waits its turn.
+    expect(b.status).toBe("REJECTED");
+    expect(b.reasons.join(" ")).toContain("เพิ่งทำไปในคลิปล่าสุด");
     expect(result.plan.selectedConceptId).toBe("a");
     expect(result.plan.warnings.join(" ")).toContain("โมเดลภาษาที่รันบนเครื่องนี้");
   });
@@ -101,6 +103,11 @@ describe("local creative LLM", () => {
     const story0 = result.plan.concepts.find(c => c.id === "t")!.production.story!;
     expect(story0.beats.length).toBeLessThan(5);
     expect(story0.basis).toContain("ตัดจังหวะท้าย");
+  });
+
+  it("lets the model pick only one of its own idea slots", () => {
+    const schema = localGrammarSchema("GROWTH") as unknown as { properties: { selectedId: { enum: string[] }; ideas: { items: { properties: { id: { enum: string[] } } } } } };
+    expect(schema.properties.selectedId.enum).toEqual(schema.properties.ideas.items.properties.id.enum);
   });
 
   it("asks the model for a schema it can fill and prices tokens at zero with machine time kept separate", () => {
