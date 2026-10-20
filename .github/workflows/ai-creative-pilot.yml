@@ -16,6 +16,40 @@ env:
   LOCAL_LLM_MODEL: local/qwen3-4b-q4_k_m
 
 jobs:
+  import-proof:
+    # Every migration on a throwaway local stack, then the owner-report import with a labelled test fixture.
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      APP_ENV: development
+      TIKTOK_PROVIDER: mock
+      TIKTOK_PUBLISHING_PROVIDER: mock
+      TIKTOK_SHOP_PROVIDER: mock
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.121.0
+      - name: Start a throwaway local Supabase with every migration
+        run: |
+          supabase start -x realtime,studio,edge-runtime,logflare,vector,supavisor
+          supabase status -o env > /tmp/sb.env
+          grep -E '^(API_URL|ANON_KEY|SERVICE_ROLE_KEY)=' /tmp/sb.env | sed -e 's/^API_URL=/SUPABASE_URL=/' -e 's/^ANON_KEY=/SUPABASE_ANON_KEY=/' -e 's/^SERVICE_ROLE_KEY=/SUPABASE_SERVICE_KEY=/' -e 's/"//g' >> "$GITHUB_ENV"
+          grep -E '^(API_URL|ANON_KEY)=' /tmp/sb.env | sed -e 's/^API_URL=/NEXT_PUBLIC_SUPABASE_URL=/' -e 's/^ANON_KEY=/NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=/' -e 's/"//g' >> "$GITHUB_ENV"
+      - name: Prove the owner-report import
+        run: |
+          mkdir -p proof-out
+          node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/import-proof.ts proof-out | tee proof-out/proof.log
+
   ai-vs-rules:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ai-pilot]')
     permissions:

@@ -9,7 +9,7 @@ import {mkdir,writeFile} from "node:fs/promises";
 import {cpus,totalmem} from "node:os";
 import {join} from "node:path";
 import type {SupabaseClient} from "@supabase/supabase-js";
-import {acceptMasterIntoBank,bankPackage,bankSummary} from "../../src/features/content-bank/service";
+import {acceptMasterIntoBank,bankPackage,bankSummary,reviewBankItem} from "../../src/features/content-bank/service";
 import {addContentEvidence} from "../../src/features/video/media-rights-service";
 import {GROWTH_TOPICS} from "./topics";
 import {clearRights,log,pilotOwner,runProject,sandboxAccount,sandboxAssignment,sandboxProduct,uploadMedia,type Row} from "./sandbox";
@@ -47,21 +47,23 @@ const TOPICS=GROWTH_TOPICS;
 const GROWTH_CLIPS=Number(process.env.PILOT_GROWTH_CLIPS??0),AFFILIATE_CLIPS=Number(process.env.PILOT_AFFILIATE_CLIPS??3);
 
 interface ClipResult{label:string;mode:string;error?:string;story?:unknown;topic?:unknown;method?:string;quality?:string;bankStatus?:string;
-  rejection?:unknown;slot?:unknown;slotBasis?:unknown;hook?:string;voice?:string;caption?:string;hashtags?:unknown;metrics?:unknown;costActualUsd?:number;costEstimatedThb?:unknown;costBasis?:unknown;checks?:unknown;narration?:unknown;ai?:unknown}
+  rejection?:unknown;slot?:unknown;slotBasis?:unknown;hook?:string;voice?:string;caption?:string;hashtags?:unknown;metrics?:unknown;costActualUsd?:number;costEstimatedThb?:unknown;costBasis?:unknown;checks?:unknown;narration?:unknown;ai?:unknown;publishDecision?:string;publishBlockers?:unknown;contentType?:string;creativeSource?:unknown;mediaRights?:unknown;itemId?:string}
 
 async function produce(admin:SupabaseClient,user:SupabaseClient,owner:string,assignmentId:string,label:string,mode:string):Promise<ClipResult>{
   try{
     const run=await measured(()=>runProject(admin,user,owner,assignmentId,label,outDir));
     const r=run.value,{value:_,...metrics}=run;
     const item=await acceptMasterIntoBank(admin,owner,r.masterId,{peakRssMb:metrics.peakRssMb,machineThbPerHour:MACHINE_THB_PER_HOUR});
-    if(item.status!=="REJECTED")await writeFile(join(outDir,`${label}-package.zip`),await bankPackage(admin,owner,String(item.id)));
+    // Nobody has watched these clips, so they stay PENDING_REVIEW and the packages are review copies marked not to post.
+    if(item.status!=="REJECTED")await writeFile(join(outDir,`${label}-package.zip`),await bankPackage(admin,owner,String(item.id),{reviewCopy:true}));
     const result:ClipResult={label,mode,story:r.selected.story,topic:{topic:r.selected.topic,basis:r.selected.topicBasis},method:r.selected.method,quality:String(r.master.quality_status),
-      bankStatus:String(item.status),rejection:item.rejection_reasons,slot:item.planned_slot_at,slotBasis:item.slot_basis,hook:String(r.script.hook_text),voice:String(r.script.voice_script),
+      bankStatus:String(item.status),rejection:item.rejection_reasons,publishDecision:String(item.publish_decision),publishBlockers:item.publish_blockers,
+      contentType:String(item.content_type),creativeSource:item.creative_source,mediaRights:item.media_rights_evidence,itemId:String(item.id),slot:item.planned_slot_at,slotBasis:item.slot_basis,hook:String(r.script.hook_text),voice:String(r.script.voice_script),
       caption:String(item.caption),hashtags:item.hashtags,metrics:{...metrics,renderSeconds:r.timings.renderSeconds,creativeSeconds:r.timings.creativeSeconds},
       costActualUsd:Number(item.cost_actual_usd),costEstimatedThb:item.cost_estimated_thb,costBasis:item.cost_basis,
       narration:(r.master.quality_explanation_json as Row|null)?.narration,ai:r.ai,
       checks:((r.master.quality_explanation_json as Row|null)?.checks as Array<Row>|undefined)?.map(c=>`${c.passed?"PASS":"FAIL"} ${c.name}: ${c.detail??""}`)};
-    log(`${label}.bank`,{status:result.bankStatus,rejection:result.rejection,format:(result.story as {format?:string}|undefined)?.format,hook:result.hook,narration:result.narration,checks:result.checks,slot:result.slot,metrics:result.metrics});
+    log(`${label}.bank`,{status:result.bankStatus,publish:result.publishDecision,blockers:result.publishBlockers,rejection:result.rejection,format:(result.story as {format?:string}|undefined)?.format,hook:result.hook,narration:result.narration,checks:result.checks,slot:result.slot,metrics:result.metrics});
     return result;
   }catch(error){const message=error instanceof Error?error.message:String(error);log(`${label}.failed`,{message});return {label,mode,error:message}}
 }
@@ -99,13 +101,19 @@ async function main(){
   const first=(await admin.from("content_bank_items").select("id,master_video_id").eq("owner_id",owner).limit(1).maybeSingle()).data as Row|null;
   const again=first?await acceptMasterIntoBank(admin,owner,String(first.master_video_id)):null;
   const count=(await admin.from("content_bank_items").select("id",{count:"exact",head:true}).eq("owner_id",owner)).count;
+  // Guards the owner relies on: a test clip cannot be approved, and an unreviewed clip has no posting package.
+  const guards:Record<string,string>={};
+  const blocked=results.find(r=>r.publishDecision==="DO_NOT_PUBLISH"&&r.bankStatus==="ACCEPTED"),pending=results.find(r=>r.publishDecision==="PENDING_REVIEW");
+  if(blocked?.itemId)guards.approveTestClip=await reviewBankItem(user,blocked.itemId,true).then(v=>`UNEXPECTED:${v}`,(e:Error)=>e.message);
+  if(pending?.itemId)guards.exportUnreviewed=await bankPackage(admin,owner,pending.itemId).then(()=>"UNEXPECTED:PACKAGE_MADE",(e:Error)=>e.message);
+  log("bank.guards",guards);
   const posted=(await admin.from("publishing_queue").select("id",{count:"exact",head:true}).eq("owner_id",owner)).count;
   const report={ranAt:new Date().toISOString(),database:"local supabase start stack, destroyed after the job",
     machine:{cpus:cpus().length,memGb:Math.round(totalmem()/2**30),note:"GitHub-hosted ubuntu-latest runner"},
     assumptions:{machineThbPerHour:MACHINE_THB_PER_HOUR,thbPerUsd:THB_PER_USD,note:"Estimates only. No bill exists for runner time; actual spend comes from generation_costs."},
     env:{creative:process.env.CREATIVE_AI_PROVIDER,tts:process.env.THAI_TTS_PROVIDER??"none"},results,
     bank:{growth:await bankSummary(admin,owner,growth,THB_PER_USD),affiliateTestOnly:await bankSummary(admin,owner,affiliate,THB_PER_USD)},
-    rebankSameMaster:first?{sameRow:again?.id===first.id,rowsInBank:count}:null,publishingQueueRows:posted};
+    guards,rebankSameMaster:first?{sameRow:again?.id===first.id,rowsInBank:count}:null,publishingQueueRows:posted};
   await writeFile(join(outDir,"content-bank-report.json"),JSON.stringify(report,null,2));
   log("done",{accepted:results.filter(r=>r.bankStatus==="ACCEPTED").length,attempts:results.length,errors:results.filter(r=>r.error).length});
   if(results.some(r=>r.error))process.exitCode=1;

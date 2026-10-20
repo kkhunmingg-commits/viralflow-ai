@@ -18,7 +18,8 @@ export interface AdaptiveArm {
 export interface AdaptiveOutcome {
   evidenceId: string; ownerId: string; accountId: string; mode: AdaptiveMode; contextKey: string;
   armId: string; videoId: string;
-  source: "TIKTOK_DISPLAY" | "TIKTOK_SHOP_ANALYTICS" | "VERIFIED_MANUAL" | "SIMULATED";
+  /** OWNER_REPORTED: the owner imported their own TikTok Studio export; real, but a lifetime counter, not an API window. */
+  source: "TIKTOK_DISPLAY" | "TIKTOK_SHOP_ANALYTICS" | "VERIFIED_MANUAL" | "OWNER_REPORTED" | "SIMULATED";
   authorized: boolean; publishedAt: string | null; observedAt: string;
   /** Metrics must describe the same completed post-publication exposure window. */
   window: { startAt: string; endAt: string; complete: boolean } | null;
@@ -38,9 +39,13 @@ export interface AdaptiveEvidencePolicy {
   /** Statistical evidence criteria only; these are not posting/account quotas. */
   minDistinctVideos: number; minSpanDays: number; minEffectiveVideos: number;
   halfLifeDays: number; maxEvidenceAgeDays: number; windowToleranceHours: number;
+  /** Owner-exported reports are lifetime counters read on the day of export. Their ratios are compared only
+   * with each other, and only once the post has been up between these many hours. */
+  ownerReportMinHours: number; ownerReportMaxHours: number;
 }
 const DEFAULT_POLICY: AdaptiveEvidencePolicy = { minDistinctVideos: 6, minSpanDays: 3, minEffectiveVideos: 3,
-  halfLifeDays: 7, maxEvidenceAgeDays: 56, windowToleranceHours: 1 };
+  halfLifeDays: 7, maxEvidenceAgeDays: 56, windowToleranceHours: 1,
+  ownerReportMinHours: 72, ownerReportMaxHours: 672 };
 export interface AdaptiveExperimentInput {
   context: AdaptiveContext; cycleKey: string; now: Date; observationWindowHours: number;
   /** Capacity already approved by the existing adaptive planner/budget gates. */
@@ -86,7 +91,7 @@ function policyFor(input: AdaptiveExperimentInput): AdaptiveEvidencePolicy {
   if (!Object.values(policy).every(value => Number.isFinite(value) && value >= 0) || !Number.isSafeInteger(policy.minDistinctVideos) ||
       policy.minDistinctVideos < 3 || policy.minSpanDays < 1 || policy.minEffectiveVideos < 2 ||
       policy.minEffectiveVideos > policy.minDistinctVideos || policy.halfLifeDays <= 0 || policy.maxEvidenceAgeDays < policy.halfLifeDays ||
-      policy.windowToleranceHours >= input.observationWindowHours)
+      policy.windowToleranceHours >= input.observationWindowHours || policy.ownerReportMinHours < 24 || policy.ownerReportMaxHours <= policy.ownerReportMinHours)
     throw new Error("ADAPTIVE_EVIDENCE_POLICY_INVALID");
   return policy;
 }
@@ -125,14 +130,16 @@ function acceptedEvidence(input: AdaptiveExperimentInput, arms: Map<string, Adap
   for (const row of input.outcomes) {
     const reject = (reason: string) => excluded.push({ evidenceId: row.evidenceId, reason });
     const observed = Date.parse(row.observedAt), published = Date.parse(row.publishedAt ?? ""), start = Date.parse(row.window?.startAt ?? ""), end = Date.parse(row.window?.endAt ?? "");
-    const source = input.context.environment === "SIMULATED" ? row.source === "SIMULATED" : ["TIKTOK_DISPLAY", "TIKTOK_SHOP_ANALYTICS", "VERIFIED_MANUAL"].includes(row.source);
+    const source = input.context.environment === "SIMULATED" ? row.source === "SIMULATED" : ["TIKTOK_DISPLAY", "TIKTOK_SHOP_ANALYTICS", "VERIFIED_MANUAL", "OWNER_REPORTED"].includes(row.source);
     if (!sameContext(row, input.context) || !row.authorized || !source) { reject("SOURCE_OR_CONTEXT_NOT_AUTHORIZED"); continue; }
     if (!arms.has(row.armId) || !row.evidenceId || !row.videoId) { reject("ARM_OR_IDENTITY_UNKNOWN"); continue; }
     if (!row.publishedAt || !row.window || ![observed, published, start, end].every(Number.isFinite)) {
       reject("PUBLICATION_OR_OBSERVATION_WINDOW_UNKNOWN"); continue;
     }
     // Preserve the real elapsed exposure; never relabel an older lifetime counter as a 24-hour window.
-    if (start !== published || end <= start || Math.abs((end - start) / 3_600_000 - input.observationWindowHours) > policy.windowToleranceHours) {
+    const hours = (end - start) / 3_600_000, owner = row.source === "OWNER_REPORTED";
+    if (start !== published || end <= start || (owner ? hours < policy.ownerReportMinHours || hours > policy.ownerReportMaxHours
+      : Math.abs(hours - input.observationWindowHours) > policy.windowToleranceHours)) {
       reject("INCOMPARABLE_EXPOSURE_WINDOW"); continue;
     }
     if (observed > input.now.getTime() || observed < end || !row.window.complete ||
@@ -149,7 +156,12 @@ function acceptedEvidence(input: AdaptiveExperimentInput, arms: Map<string, Adap
     if (!prior || observed > Date.parse(prior.observedAt)) byVideo.set(row.videoId, row);
     else if (observed === Date.parse(prior.observedAt) && fingerprint(prior) !== fingerprint(row)) conflicts.add(row.videoId);
   }
-  const accepted = [...byVideo.values()].filter(row => !conflicts.has(row.videoId));
+  let accepted = [...byVideo.values()].filter(row => !conflicts.has(row.videoId));
+  // A 24-hour API window and a multi-day lifetime export are different measurements; one decision uses one kind.
+  if (accepted.some(row => row.source === "OWNER_REPORTED") && accepted.some(row => row.source !== "OWNER_REPORTED")) {
+    for (const row of accepted) if (row.source === "OWNER_REPORTED") excluded.push({ evidenceId: row.evidenceId, reason: "MIXED_WINDOW_CLASS_API_PREFERRED" });
+    accepted = accepted.filter(row => row.source !== "OWNER_REPORTED");
+  }
   for (const row of evidence.values()) if (conflicts.has(row.videoId)) excluded.push({ evidenceId: row.evidenceId, reason: "IMMUTABLE_EVIDENCE_OR_VIDEO_ASSIGNMENT_CONFLICT" });
   return { rows: accepted, excluded };
 }

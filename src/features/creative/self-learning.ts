@@ -18,6 +18,8 @@ export interface CreativeAttribution {
 export interface CreativeLearningHistory {
   attribution:CreativeAttribution; evidenceId:string; videoId:string; source:AnalyticsSource;
   publishedAt:string|null; observedAt:string; metrics:VideoMetrics;
+  /** New followers TikTok Studio attributes to this post; only owner-imported reports carry it today. */
+  newFollowers?:number|null;
 }
 export function sealCreativeAttribution(value:Omit<CreativeAttribution,"version"|"fingerprint">):CreativeAttribution{
   const payload={...value,version:SELF_LEARNING_VERSION as typeof SELF_LEARNING_VERSION};
@@ -42,15 +44,16 @@ export function readCreativeAttribution(metadata:unknown,scope:{ownerId:string;a
   }catch{return null;}
 }
 
-/** No source offers per-video followers or verified ROI here yet. Keep them unknown;
- * the explicit engagement objective must never be reported as follower growth/sales. */
+/** Only owner-imported Studio reports carry per-post followers; API rows keep them unknown, and verified
+ * ROI stays unknown everywhere. The engagement objective must never be reported as follower growth/sales. */
 export function adaptiveHistoryOutcomes(history:readonly CreativeLearningHistory[]):AdaptiveOutcome[]{
   return history.map(row=>({evidenceId:row.evidenceId,ownerId:row.attribution.ownerId,accountId:row.attribution.arm.accountId,
     mode:row.attribution.arm.mode,contextKey:row.attribution.arm.contextKey,armId:row.attribution.arm.id,videoId:row.videoId,
-    source:row.source==="MOCK"?"SIMULATED":row.source,authorized:row.source!=="MOCK",publishedAt:row.publishedAt,
+    source:row.source==="MOCK"?"SIMULATED":row.source==="OWNER_REPORT_IMPORT"?"OWNER_REPORTED":row.source,authorized:row.source!=="MOCK",publishedAt:row.publishedAt,
     observedAt:row.observedAt,window:row.publishedAt?{startAt:row.publishedAt,endAt:row.observedAt,complete:true}:null,
     views:row.metrics.views,likes:row.metrics.likes,comments:row.metrics.comments,shares:row.metrics.shares,
-    attributedFollowers:null,followerAttribution:"UNKNOWN",orders:row.metrics.orders,
+    ...(row.source==="OWNER_REPORT_IMPORT"&&typeof row.newFollowers==="number"?{attributedFollowers:row.newFollowers,followerAttribution:"VIDEO" as const}
+      :{attributedFollowers:null,followerAttribution:"UNKNOWN" as const}),orders:row.metrics.orders,
     commissionUsd:null,actualCostUsd:null,salesAttribution:"UNKNOWN",commerceVerified:false,costBasis:"UNKNOWN"}));
 }
 

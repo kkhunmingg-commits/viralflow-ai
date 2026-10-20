@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bankAcceptance, bankCostSummary, bankHashtags, creativeFingerprint, machineCostEstimate, planBankSlot } from "./policy";
+import { bankAcceptance, bankCostSummary, bankHashtags, creativeFingerprint, isTestProduct, isTestRights, machineCostEstimate, planBankSlot, publishDecision } from "./policy";
 import { postingRoute } from "./service";
 
 const pass = [{ name: "DURATION", passed: true }, { name: "PACING", passed: true }];
@@ -41,5 +41,28 @@ describe("content bank policy", () => {
     expect(postingRoute(null)).toBe("MANUAL_EXPORT");
     expect(postingRoute({ enabled: true, execution_mode: "ENABLED", publishing_enabled: true, app_audit_status: "IN_REVIEW" })).toBe("MANUAL_EXPORT");
     expect(postingRoute({ enabled: true, execution_mode: "ENABLED", publishing_enabled: true, app_audit_status: "AUDITED" })).toBe("AUTO_API");
+  });
+});
+
+describe("publish decision", () => {
+  const rights = (over = {}) => ({ allowsCommercial: true, allowsPromotion: true, testOnly: false, ...over });
+  it("leaves a clean clip for the owner to review, never ready by itself", () => {
+    expect(publishDecision({ accepted: true, contentType: "GROWTH", accountIsMock: false, testProduct: true, mediaRights: [], graphicOnly: true }))
+      .toEqual({ decision: "PENDING_REVIEW", blockers: [] });
+  });
+  it("blocks affiliate clips of test products and test media", () => {
+    const d = publishDecision({ accepted: true, contentType: "AFFILIATE", accountIsMock: false, testProduct: true, mediaRights: [rights({ testOnly: true })], graphicOnly: false });
+    expect(d.decision).toBe("DO_NOT_PUBLISH");
+    expect(d.blockers).toEqual(["TEST_PRODUCT_MEDIA_NOT_FOR_PUBLISHING", "TEST_MEDIA_NOT_FOR_PUBLISHING"]);
+  });
+  it("blocks rejected renders, missing rights and rights that do not cover promotion", () => {
+    expect(publishDecision({ accepted: false, contentType: "GROWTH", accountIsMock: false, testProduct: false, mediaRights: [], graphicOnly: true }).blockers).toEqual(["MACHINE_REJECTED"]);
+    expect(publishDecision({ accepted: true, contentType: "AFFILIATE", accountIsMock: false, testProduct: false, mediaRights: [], graphicOnly: false }).blockers).toEqual(["NO_MEDIA_RIGHTS_EVIDENCE"]);
+    expect(publishDecision({ accepted: true, contentType: "AFFILIATE", accountIsMock: false, testProduct: false, mediaRights: [rights({ allowsPromotion: false })], graphicOnly: false }).blockers).toEqual(["MEDIA_RIGHTS_DO_NOT_COVER_USE"]);
+  });
+  it("recognises test products and test rights records", () => {
+    expect(isTestProduct({ external_provider: "pilot-mock" })).toBe(true);
+    expect(isTestProduct({ external_provider: "tiktok_shop", provider_metadata: {} })).toBe(false);
+    expect(isTestRights("System-drawn test media. Fictional product, not for publishing.")).toBe(true);
   });
 });

@@ -40,7 +40,7 @@ export function analyzeCreativeLearning(outcomes: CreativeOutcome[], context: Cr
   if (context.optedIn && Number.isFinite(now.getTime())) for (const row of outcomes) {
     const at = Date.parse(row.observedAt);
     if (row.ownerId !== context.ownerId || row.accountId !== context.accountId || row.mode !== context.mode ||
-        !row.authorized || !["TIKTOK_DISPLAY", "TIKTOK_SHOP_ANALYTICS"].includes(row.source) ||
+        !row.authorized || !["TIKTOK_DISPLAY", "TIKTOK_SHOP_ANALYTICS", "OWNER_REPORT_IMPORT"].includes(row.source) ||
         !row.evidenceId || !row.videoId || !Number.isFinite(at) || at > now.getTime() || now.getTime() - at > 30 * 86400000) continue;
     const previousEvidence = evidence.get(row.evidenceId);
     if (previousEvidence && observationFingerprint(previousEvidence) !== observationFingerprint(row)) {

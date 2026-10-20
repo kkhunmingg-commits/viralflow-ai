@@ -89,3 +89,24 @@ export function bankCostSummary(items: Array<{ status: string; cost_actual_usd: 
     actualThbPerUsable: usable && thbPerUsd !== null ? actualUsd * thbPerUsd / usable : null,
     estimatedThbPerUsable: usable && estimatedThb !== null ? estimatedThb / usable : null };
 }
+
+export type PublishDecision = "PENDING_REVIEW" | "READY_TO_EXPORT" | "DO_NOT_PUBLISH";
+/** What the bank lets the owner do with a clip. Only the owner's review moves PENDING_REVIEW to
+ * READY_TO_EXPORT; test media and rejected renders are blocked whatever the review says. */
+export function publishDecision(input: { accepted: boolean; contentType: "GROWTH" | "AFFILIATE"; accountIsMock: boolean; testProduct: boolean;
+  mediaRights: Array<{ allowsCommercial: boolean; allowsPromotion: boolean; testOnly: boolean }>; graphicOnly: boolean }) {
+  const blockers: string[] = [];
+  if (!input.accepted) blockers.push("MACHINE_REJECTED");
+  if (input.accountIsMock) blockers.push("MOCK_ACCOUNT");
+  // A test product's media and claims describe nothing a viewer could buy; publishing it would mislead.
+  if (input.contentType === "AFFILIATE" && input.testProduct) blockers.push("TEST_PRODUCT_MEDIA_NOT_FOR_PUBLISHING");
+  if (input.mediaRights.some(r => r.testOnly)) blockers.push("TEST_MEDIA_NOT_FOR_PUBLISHING");
+  if (!input.graphicOnly && !input.mediaRights.length) blockers.push("NO_MEDIA_RIGHTS_EVIDENCE");
+  if (input.mediaRights.some(r => !r.allowsCommercial || input.contentType === "AFFILIATE" && !r.allowsPromotion)) blockers.push("MEDIA_RIGHTS_DO_NOT_COVER_USE");
+  return { decision: (blockers.length ? "DO_NOT_PUBLISH" : "PENDING_REVIEW") as PublishDecision, blockers };
+}
+/** A product counts as test data when its provider or metadata says so; real catalogue products never carry these marks. */
+export const isTestProduct = (product: { external_provider?: unknown; provider_metadata?: unknown } | null) =>
+  !product || /mock|pilot|test/i.test(String(product.external_provider ?? "")) || (product.provider_metadata as { pilot?: unknown } | null)?.pilot === true;
+/** Rights records written for pipeline tests say so in their reference. */
+export const isTestRights = (reference: string) => /not for publishing|ห้ามเผยแพร่|test only/i.test(reference);
