@@ -12,7 +12,7 @@ import {THAI_FONT_FILE,buildAssSubtitles,composerArgs,composerQc,defaultThaiFont
 
 interface Plan {
   durationSeconds:number;
-  shots:Array<{id:string;seconds:number}>;
+  shots:Array<{id:string;seconds:number}>;timeline?:Array<{id:string;seconds:number}>;
   // V1 closes on a still photo; V2 closes on a video hero shot and only names the headline's time.
   endCard?:{image:string;seconds:number;headline:string};
   headline?:{text:string;start:number;end:number};
@@ -50,7 +50,9 @@ async function main(){
   await run(ffmpeg,["-y","-loglevel","error",...inputs,"-filter_complex",`${delays};${plan.beats.map((_,i)=>`[d${i}]`).join("")}amix=inputs=${plan.beats.length}:normalize=0,apad,atrim=0:${plan.durationSeconds}[a]`,
     "-map","[a]",join(outDir,"narration.wav")]);
 
-  const clips:ComposerClip[]=[...plan.shots.map(s=>({assetId:s.id,path:join(shotsDir,`${s.id}.mp4`),kind:"VIDEO" as const,seconds:s.seconds})),
+  // V2 keeps the render jobs in "shots" and the edit in "timeline".
+  const cut=plan.timeline??plan.shots;
+  const clips:ComposerClip[]=[...cut.map(s=>({assetId:s.id,path:join(shotsDir,`${s.id}.mp4`),kind:"VIDEO" as const,seconds:s.seconds})),
     ...(plan.endCard?[{assetId:"end",path:resolve(plan.endCard.image),kind:"IMAGE" as const,seconds:plan.endCard.seconds,motion:"HOLD" as const,layout:"FRAMED" as const}]:[])];
   const durations=clips.map(c=>c.seconds!);
   const captions=plan.beats.filter(b=>b.position!=="top").map(b=>({text:b.caption,start:b.start,end:b.end}));

@@ -28,5 +28,73 @@
    "seed": 104,
    "prompt": "A man types calmly on a laptop keyboard at a wooden desk in morning light, the black digital wristwatch on his wrist stays facing the camera, small natural finger movements, gentle slow camera drift, cinematic lifestyle commercial, photorealistic"
   }
- ]
+ ],
+ "sku": "F-91W-1UR (Central SKU MKP1517326)",
+ "durationSeconds": 16,
+ "timeline": [
+  {
+   "id": "v2s1",
+   "seconds": 3.6
+  },
+  {
+   "id": "v2s2",
+   "seconds": 2.6
+  },
+  {
+   "id": "v2s2b",
+   "seconds": 3.0
+  },
+  {
+   "id": "v2s3",
+   "seconds": 3.6
+  },
+  {
+   "id": "hero",
+   "seconds": 3.2
+  }
+ ],
+ "headline": {
+  "text": "CASIO F-91W-1UR",
+  "start": 12.85,
+  "end": 16
+ },
+ "headlineMarginV": 260,
+ "captionMarginV": 330,
+ "creditStart": 12.8,
+ "beats": [
+  {
+   "caption": "คลาสสิกที่ใส่ได้ทุกวัน",
+   "spoken": "คลาสสิกที่ใส่ได้ทุกวัน",
+   "start": 0.0,
+   "end": 3.6
+  },
+  {
+   "caption": "ตัวเรือนเรซิน หนัก 21 กรัม",
+   "spoken": "ตัวเรือนเรซิน หนักยี่สิบเอ็ดกรัม",
+   "start": 3.6,
+   "end": 6.2
+  },
+  {
+   "caption": "จับเวลาได้ 1/100 วินาที",
+   "spoken": "จับเวลาได้หนึ่งในร้อยวินาที",
+   "start": 6.2,
+   "end": 9.2
+  },
+  {
+   "caption": "ถ่านใช้ได้ราว 7 ปี มีไฟ LED",
+   "spoken": "ถ่านใช้ได้ราวเจ็ดปี มีไฟแอลอีดี",
+   "start": 9.2,
+   "end": 12.8
+  },
+  {
+   "caption": "ดูรายละเอียดที่ลิงก์สินค้า",
+   "spoken": "ดูรายละเอียดรุ่นนี้ได้ที่ลิงก์สินค้า",
+   "start": 12.8,
+   "end": 16.0,
+   "position": "top"
+  }
+ ],
+ "aiLabel": "ฉากจำลองด้วย AI",
+ "credit": "ภาพสินค้า: Multicherry / Wikimedia Commons, CC BY-SA 4.0",
+ "note": "shots: LTX image-to-video renders (run 39493377748: v2s1, v2s3; run 39495899938: v2s2, v2s2b); final/: tracked and re-composited with the real watch head at 1080x1920 by track_recomposite.py; hero: push_in.py on the flat-lay composite, no AI motion"
 }
