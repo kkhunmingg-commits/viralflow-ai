@@ -19,6 +19,8 @@ interface Plan {
   beats:Array<{caption:string;spoken:string;start:number;end:number;position?:"top"}>;
   aiLabel:string;credit:string;creditStart?:number;
   captionMarginV?:number;headlineMarginV?:number;
+  // Set when the closing product shot fills the lower frame: the credit then sits at the top, this far down.
+  creditMarginV?:number;
 }
 
 const run=(command:string,args:string[],cwd=process.cwd())=>new Promise<string>((ok,fail)=>{
@@ -64,7 +66,7 @@ async function main(){
   // The product fills the middle of these shots, so captions sit lower than on graphic clips (still above TikTok's bottom bar).
   ass=ass.replace(/^(Style: Caption,.*,)(\d+)(,222)$/m,(_,head,_v,tail)=>`${head}${plan.captionMarginV??400}${tail}`);
   // A machine-generated disclosure stays on screen for the whole clip (required by the video model's licence).
-  ass=ass.replace("\n\n[Events]",`\nStyle: Label,Noto Sans Thai,34,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,3,8,0,9,40,40,150,222\nStyle: Headline,Noto Sans Thai,64,&H00111111,&H00FFFFFF,&H002EC8FF,&H002EC8FF,-1,0,0,0,100,100,2,0,3,14,0,8,40,40,${plan.headlineMarginV??1050},222\nStyle: CaptionTop,Noto Sans Thai,64,&H00FFFFFF,&H00FFFFFF,&H38000000,&H00000000,-1,0,0,0,100,100,0,0,3,14,0,8,80,80,${(plan.headlineMarginV??1050)+130},222\nStyle: Credit,Noto Sans Thai,30,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,6,0,2,40,40,330,222\n\n[Events]`)
+  ass=ass.replace("\n\n[Events]",`\nStyle: Label,Noto Sans Thai,34,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,3,8,0,9,40,40,150,222\nStyle: Headline,Noto Sans Thai,64,&H00111111,&H00FFFFFF,&H002EC8FF,&H002EC8FF,-1,0,0,0,100,100,2,0,3,14,0,8,40,40,${plan.headlineMarginV??1050},222\nStyle: CaptionTop,Noto Sans Thai,64,&H00FFFFFF,&H00FFFFFF,&H38000000,&H00000000,-1,0,0,0,100,100,0,0,3,14,0,8,80,80,${(plan.headlineMarginV??1050)+130},222\nStyle: Credit,Noto Sans Thai,30,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,6,0,${plan.creditMarginV?8:2},40,40,${plan.creditMarginV??330},222\n\n[Events]`)
     +`Dialogue: 3,${time(0)},${time(plan.durationSeconds)},Label,,0,0,0,,${plan.aiLabel}\n`
     +`Dialogue: 3,${time(headline.start)},${time(headline.end)},Headline,,0,0,0,,${headline.text}\n`
     // Captions over the product's lower half move to the top of the frame.

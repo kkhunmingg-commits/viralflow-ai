@@ -96,5 +96,6 @@
  ],
  "aiLabel": "ฉากจำลองด้วย AI",
  "credit": "ภาพสินค้า: Multicherry / Wikimedia Commons, CC BY-SA 4.0",
- "note": "shots: LTX image-to-video renders (run 39493377748: v2s1, v2s3; run 39495899938: v2s2, v2s2b); final/: tracked and re-composited with the real watch head at 1080x1920 by track_recomposite.py; hero: push_in.py on the flat-lay composite, no AI motion"
+ "note": "shots: LTX image-to-video renders (run 39493377748: v2s1, v2s3; run 39495899938: v2s2, v2s2b); final/: tracked and re-composited with the real watch head at 1080x1920 by track_recomposite.py; hero: push_in.py on the flat-lay composite, no AI motion",
+ "creditMarginV": 500
 }
