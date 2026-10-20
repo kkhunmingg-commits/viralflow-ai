@@ -9,6 +9,7 @@ import { scoreCreativeConcept } from "./scoring";
 import { CREATIVE_SCORE_VERSION,PROMPT_VERSION,type CreativeProjectRow } from "./types";
 import { canStartCreativeProject,nextProjectStatus } from "./lifecycle";
 import { readCreativeIntelligenceResources } from "./intelligence-service";
+import { chooseHybrid, type HybridSource } from "./hybrid";
 import { CREATIVE_STRATEGY_VERSION, assertHumanProductionReview, planCreativeStrategy, type CreativeStrategyInput } from "./strategist";
 import { creativeScriptDigest, storedProductionStrategy } from "./production-gate";
 import {discoverTrendCandidates,googleSearchDiscoverySource,tikTokTrendDiscoverySource,ownAccountPerformanceSource,ownPerformanceObservations} from "../growth-manager/trend-discovery";
@@ -104,7 +105,7 @@ const EVIDENCE_RUBRIC_MODEL="evidence-rubric-v1";
  * A missing LLM configuration still stops generation; it never silently degrades to template copy. */
 function configuredCreativeAgent(){
   if(serverEnv.creativeAIProvider==="evidence-rubric")return null;
-  if(serverEnv.creativeAIProvider==="local-llm"){const local=configuredLocalLLM();if(!local)throw new Error("CREATIVE_LLM_NOT_CONFIGURED");return local}
+  if(serverEnv.creativeAIProvider==="local-llm"||serverEnv.creativeAIProvider==="hybrid"){const local=configuredLocalLLM();if(!local)throw new Error("CREATIVE_LLM_NOT_CONFIGURED");return local}
   return createCreativeAgent({provider:serverEnv.creativeAIProvider,apiKey:serverEnv.openAIApiKey,model:serverEnv.creativeAIModel});
 }
 /** Same evidence gates and human review as the LLM path, with fixed Thai copy and no token spend. */
@@ -115,6 +116,23 @@ function evidenceRubricCreative(context:Awaited<ReturnType<typeof loadCreativeCo
     facts:resources.facts,assets:resources.assets,costs:resources.costs,trends:discovery.intelligence,history:resources.storyHistory});
   return {plan,arms:[] as Array<{conceptId:string;arm:Parameters<typeof sealCreativeAttribution>[0]["arm"]}>,output:null,decision:null,
     usage:{inputTokens:0,outputTokens:0},promptVersion:EVIDENCE_RUBRIC_MODEL};
+}
+type CreativeSource="RULE_BASED"|"LLM"|HybridSource;
+/** The configured model's plan. In hybrid mode an AI plan is used only when its chosen idea passed every gate;
+ * otherwise (or when the model fails) the rule-based plan is used, and the record says which system's plan it was. */
+async function planWithProvider(context:Awaited<ReturnType<typeof loadCreativeContext>>["context"],
+  resources:Awaited<ReturnType<typeof readCreativeIntelligenceResources>>["resources"],provider:NonNullable<ReturnType<typeof configuredCreativeAgent>>,
+  options:Parameters<typeof planSelfLearningCreative>[3]&{discovery:{intelligence:CreativeStrategyInput["trends"]}}):Promise<{intelligence:Awaited<ReturnType<typeof planSelfLearningCreative>>|ReturnType<typeof evidenceRubricCreative>;creativeSource:CreativeSource}>{
+  if(serverEnv.creativeAIProvider!=="hybrid")return {intelligence:await planSelfLearningCreative(context,resources,provider,options),creativeSource:"LLM"};
+  let ai:Awaited<ReturnType<typeof planSelfLearningCreative>>|null=null,aiError:string|null=null;
+  try{ai=await planSelfLearningCreative(context,resources,provider,options)}catch(error){aiError=error instanceof Error?error.message:String(error)}
+  const rule=evidenceRubricCreative(context,resources,options.discovery);
+  const chosen=ai?ai.plan.concepts.find(c=>c.id===ai!.plan.selectedConceptId):undefined;
+  const aiUsable=Boolean(ai&&chosen?.production.ready&&chosen.status!=="REJECTED");
+  // The AI plan's pick already went through gate ranking (cold start) or the experiment (real results); it is not re-ranked here.
+  if(ai&&aiUsable)return {intelligence:ai,creativeSource:ai.output.selectedId===ai.plan.selectedConceptId?"AI_OWN_PICK":"AI_RANKED"};
+  const choice=chooseHybrid(null,aiError,rule.plan,resources.storyHistory??{});
+  return {intelligence:{...rule,plan:choice.plan,usage:ai?.usage??rule.usage},creativeSource:"RULE_FALLBACK"};
 }
 export async function generateEvidenceStrategyProject(client:SupabaseClient,owner:string,projectId:string,options:{forAutoWorker?:boolean}={}){
   const provider=configuredCreativeAgent();
@@ -131,8 +149,8 @@ export async function generateEvidenceStrategyProject(client:SupabaseClient,owne
   const discovery=await discoverTrendCandidates([publicTrendSource,tikTokTrendDiscoverySource(),
     ownAccountPerformanceSource(async()=>ownPerformanceObservations(resources.adaptiveHistory??[],owner,context.account.id,now))],
     {accountId:context.account.id,region:resources.region,productCategoryKey:context.account.mode==="AFFILIATE"?context.product.category:undefined},now);
-  const intelligence=provider?await planSelfLearningCreative(context,resources,provider,{cycleKey:projectId,availableSlots:1,discovery})
-    :evidenceRubricCreative(context,resources,discovery),plan=intelligence.plan;
+  const {intelligence,creativeSource}=provider?await planWithProvider(context,resources,provider,{cycleKey:projectId,availableSlots:1,discovery})
+    :{intelligence:evidenceRubricCreative(context,resources,discovery),creativeSource:"RULE_BASED" as const},plan=intelligence.plan;
   const angleIds=plan.concepts.map(()=>randomUUID()),createdAt=new Date().toISOString();
   const scripts=plan.concepts.map((s,index)=>({id:randomUUID(),owner_id:owner,creative_project_id:projectId,creative_angle_id:angleIds[index],duration_seconds:8,
     hook_text:s.concept.hook,voice_script:s.concept.voiceScript,overlay_text_json:s.concept.overlayText,scene_plan_json:s.concept.scenePlan,cta_text:s.concept.cta,
@@ -148,7 +166,7 @@ export async function generateEvidenceStrategyProject(client:SupabaseClient,owne
   const cost=provider?knownCreativeGenerationCost(provider.model,intelligence.usage.inputTokens,intelligence.usage.outputTokens):0;
   const generation={id:generationId,owner_id:owner,creative_project_id:projectId,provider:provider?.provider??"local",model:provider?.model??EVIDENCE_RUBRIC_MODEL,
     prompt_version:intelligence.promptVersion,input_tokens:intelligence.usage.inputTokens,output_tokens:intelligence.usage.outputTokens,estimated_cost:cost,
-    raw_response_json:{source:plan.source,humanReview:"PENDING",costBasis:"TEXT_TOKEN_RATE_ESTIMATE_NOT_ACTUAL_BILL"},
+    raw_response_json:{source:plan.source,creativeSource,humanReview:"PENDING",costBasis:"TEXT_TOKEN_RATE_ESTIMATE_NOT_ACTUAL_BILL"},
     validated_output_json:{concepts:plan.concepts.map(c=>c.concept),strategyPlan:plan,agentOutput:intelligence.output,
       adaptiveDecision:intelligence.decision,trendDiscovery:discovery},status:"SUCCEEDED",error:null,created_at:createdAt};
   const result=options.forAutoWorker?await client.rpc("save_auto_creative_generation",{p_owner_id:owner,p_project_id:projectId,p_generation:generation,p_angles:angles,p_scripts:scripts})
