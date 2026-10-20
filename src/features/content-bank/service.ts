@@ -19,7 +19,7 @@ export function postingRoute(runtime: Row | null): "MANUAL_EXPORT" | "AUTO_API" 
 /** Checks a finished master against the bank's rules and records the outcome either way, so a
  * rejected render still counts toward cost per usable clip. Nothing here posts. */
 export async function acceptMasterIntoBank(client: SupabaseClient, owner: string, masterId: string,
-  options: { now?: Date; peakRssMb?: number | null; machineThbPerHour?: number | null } = {}) {
+  options: { now?: Date; peakRssMb?: number | null; machineThbPerHour?: number | null; planningSeconds?: number | null } = {}) {
   const now = options.now ?? new Date();
   const master = must(await client.from("master_videos").select("*").eq("owner_id", owner).eq("id", masterId).maybeSingle(), "BANK_MASTER_NOT_FOUND") as Row;
   const existing = await client.from("content_bank_items").select("*").eq("owner_id", owner).eq("master_video_id", masterId).maybeSingle();
@@ -62,7 +62,7 @@ export async function acceptMasterIntoBank(client: SupabaseClient, owner: string
   const config = (settings.data?.config ?? {}) as Row;
   const copy = postCaption(String(s.caption ?? s.hook_text ?? ""), bankHashtags(Array.isArray(s.hashtags_json) ? s.hashtags_json as string[] : [], Array.isArray(config.categories) ? config.categories as string[] : []));
   const renderSeconds = typeof explanation.renderSeconds === "number" ? explanation.renderSeconds : null;
-  const estimate = machineCostEstimate(renderSeconds, options.machineThbPerHour ?? null);
+  const estimate = machineCostEstimate(renderSeconds, options.machineThbPerHour ?? null, options.planningSeconds ?? null);
   const accepted = decision.accepted && decision.reasons.length === 0;
   const slot = accepted ? planBankSlot({ now, timeZone: typeof config.timezone === "string" ? config.timezone : "Asia/Bangkok",
     audienceMinutes: Array.isArray(config.audienceMinutes) ? config.audienceMinutes as number[] : [],

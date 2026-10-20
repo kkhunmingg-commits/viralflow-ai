@@ -34,6 +34,8 @@ describe("content bank policy", () => {
   it("keeps billed cost and machine estimates apart and counts rejects against usable clips", () => {
     expect(machineCostEstimate(120, null).thb).toBeNull();
     expect(machineCostEstimate(360, 6).thb).toBe(0.6);
+    expect(machineCostEstimate(360, 6).basis).toContain("planning time not measured");
+    expect(machineCostEstimate(120, 6, 240).thb).toBe(0.6);
     expect(bankCostSummary([{ status: "ACCEPTED", cost_actual_usd: 0, cost_estimated_thb: .5 }, { status: "REJECTED", cost_actual_usd: 0, cost_estimated_thb: .5 }], 36))
       .toEqual({ attempts: 2, usable: 1, rejected: 1, actualUsd: 0, actualThbPerUsable: 0, estimatedThbPerUsable: 1 });
   });

@@ -53,7 +53,7 @@ async function produce(admin:SupabaseClient,user:SupabaseClient,owner:string,ass
   try{
     const run=await measured(()=>runProject(admin,user,owner,assignmentId,label,outDir));
     const r=run.value,{value:_,...metrics}=run;
-    const item=await acceptMasterIntoBank(admin,owner,r.masterId,{peakRssMb:metrics.peakRssMb,machineThbPerHour:MACHINE_THB_PER_HOUR});
+    const item=await acceptMasterIntoBank(admin,owner,r.masterId,{peakRssMb:metrics.peakRssMb,machineThbPerHour:MACHINE_THB_PER_HOUR,planningSeconds:r.timings.creativeSeconds??null});
     // Nobody has watched these clips, so they stay PENDING_REVIEW and the packages are review copies marked not to post.
     if(item.status!=="REJECTED")await writeFile(join(outDir,`${label}-package.zip`),await bankPackage(admin,owner,String(item.id),{reviewCopy:true}));
     const result:ClipResult={label,mode,story:r.selected.story,topic:{topic:r.selected.topic,basis:r.selected.topicBasis},method:r.selected.method,quality:String(r.master.quality_status),

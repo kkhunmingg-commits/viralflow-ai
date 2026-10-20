@@ -75,10 +75,14 @@ export function planBankSlot(input: { now: Date; timeZone: string; audienceMinut
 }
 
 /** Machine time is not billed in this setup; with an hourly rate it becomes an estimate, never spend. */
-export function machineCostEstimate(renderSeconds: number | null, thbPerHour: number | null) {
+/** Machine time for one clip. Planning time (a local language model) is counted when it was measured and said
+ * to be missing when it was not, so a cheap-looking render estimate never hides the model's share. */
+export function machineCostEstimate(renderSeconds: number | null, thbPerHour: number | null, planningSeconds: number | null = null) {
   if (renderSeconds === null || !Number.isFinite(renderSeconds) || thbPerHour === null || !Number.isFinite(thbPerHour) || thbPerHour < 0)
     return { thb: null, basis: "ESTIMATE_UNAVAILABLE: no machine rate configured" };
-  return { thb: Number((renderSeconds / 3600 * thbPerHour).toFixed(4)), basis: `ESTIMATE: ${renderSeconds.toFixed(0)} s render at ${thbPerHour} THB/hour` };
+  const planning = planningSeconds !== null && Number.isFinite(planningSeconds) && planningSeconds >= 0 ? planningSeconds : null;
+  return { thb: Number(((renderSeconds + (planning ?? 0)) / 3600 * thbPerHour).toFixed(4)),
+    basis: `ESTIMATE: ${renderSeconds.toFixed(0)} s render ${planning === null ? "(planning time not measured)" : `+ ${planning.toFixed(0)} s planning`} at ${thbPerHour} THB/hour` };
 }
 
 /** Cost per usable clip counts every attempt, accepted or not, against the clips that were accepted. */
