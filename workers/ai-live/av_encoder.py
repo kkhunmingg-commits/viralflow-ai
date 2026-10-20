@@ -151,8 +151,10 @@ class InternalAVEncoder:
             if self.config.video_codec == "libx264":
                 command += ["-preset", "ultrafast", "-tune", "zerolatency", "-threads", "2"]
             elif self.config.video_codec == "h264_amf":
-                # AMD integrated GPU (ROG Ally X); frees CPU for presenter compose.
-                command += ["-usage", "ultralowlatency", "-quality", "speed", "-rc", "cbr"]
+                # AMD integrated GPU (ROG Ally X); frees CPU for presenter compose. "ultralowlatency"
+                # ignores -g and emitted one keyframe per hour on the Ally X; "transcoding" honours the
+                # 2-second GOP that RTMP ingest needs for viewers joining mid-stream.
+                command += ["-usage", "transcoding", "-quality", "speed", "-rc", "cbr"]
             else:
                 command += ["-preset", "p1", "-tune", "ull"]
             command += ["-vf", "pad=ceil(iw/2)*2:ceil(ih/2)*2", "-pix_fmt", "yuv420p",
