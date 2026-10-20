@@ -56,7 +56,18 @@ jobs:
     permissions:
       contents: write
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 300
+    # Two commercially usable sizes (both Apache-2.0) on the same evidence, to see whether size is what limits quality.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { size: 4b, repo: Qwen/Qwen3-4B-GGUF, file: Qwen3-4B-Q4_K_M.gguf, model: local/qwen3-4b-q4_k_m }
+          - { size: 8b, repo: Qwen/Qwen3-8B-GGUF, file: Qwen3-8B-Q4_K_M.gguf, model: local/qwen3-8b-q4_k_m }
+    env:
+      LOCAL_LLM_REPO: ${{ matrix.repo }}
+      LOCAL_LLM_FILE: ${{ matrix.file }}
+      LOCAL_LLM_MODEL: ${{ matrix.model }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -97,8 +108,8 @@ jobs:
         run: |
           mkdir -p /tmp/results && cp -r compare-out /tmp/results/ 2>/dev/null || true
           cd /tmp/results && git init -q -b results && git add -A
-          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "AI vs rules ${{ github.run_id }}"
-          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-compare
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "AI vs rules ${{ matrix.size }} ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-compare-${{ matrix.size }}
 
   ai-content-bank:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ai-pilot]')
@@ -106,7 +117,7 @@ jobs:
       contents: write
     # Local LLM Creative Brain -> Video Factory -> Content Bank on a local supabase stack that exists only in this job.
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 300
     env:
       APP_ENV: development
       OPS_RECOVERY_ENABLED: 'false'

@@ -66,26 +66,47 @@ const METHODS = ["REAL_FOOTAGE_EDIT", "REAL_IMAGE_MOTION", "ORIGINAL_GRAPHIC_STO
 /** A compact plan a small model can fill reliably. It is expanded into the full agent output so the
  * same evidence, risk and product-truth gates apply as for any other model. */
 export function localOutputSchema(mode: "GROWTH" | "AFFILIATE") {
-  const beat = z.object({ role: z.enum(["HOOK", "POINT", "CTA"]), text: z.string().min(1).max(40),
-    kicker: z.string().max(12), factIds: z.array(z.string()).max(3) }).strict();
+  // Length limits are loose on purpose: a grammar cuts text mid-word at its limit, so the gates judge length instead.
+  const line = z.string().min(1).max(56);
   return z.object({
     audience: z.string().min(1).max(120),
     ideas: z.array(z.object({ id: z.string().min(1).max(20), topic: z.string().min(1).max(80),
       renderFormat: z.enum(mode === "GROWTH" ? GROWTH_FORMATS : PRODUCT_FORMATS),
       formatLabel: z.string().min(1).max(60), hookPattern: z.string().min(1).max(60), angle: z.string().min(1).max(80),
-      beats: z.array(beat).min(3).max(5), caption: z.string().min(1).max(150), hashtags: z.array(z.string().min(2).max(30)).min(2).max(5),
-      productionMethod: z.enum(mode === "GROWTH" ? ["ORIGINAL_GRAPHIC_STORY", "WAIT_FOR_EVIDENCE"] : METHODS),
+      hook: z.object({ text: line, kicker: z.string().max(12) }).strict(),
+      points: z.array(z.object({ text: line, kicker: z.string().max(12), factIds: z.array(z.string()).min(1).max(3) }).strict()).min(1).max(3),
+      cta: z.object({ text: line }).strict(), caption: z.string().min(1).max(150), hashtags: z.array(z.string().min(2).max(30)).min(2).max(5),
+      // Growth has one way to produce without media; offering a "wait" option made a small model pick it every time.
+      productionMethod: z.enum(mode === "GROWTH" ? ["ORIGINAL_GRAPHIC_STORY"] : METHODS),
       assetIds: z.array(z.string()).max(4), whyThisIdea: z.string().min(1).max(200) }).strict()).min(3).max(4),
     selectedId: z.string().min(1).max(20), selectionReason: z.string().min(1).max(300), alternativesReason: z.string().min(1).max(300),
   }).strict();
 }
 export type LocalOutput = z.infer<ReturnType<typeof localOutputSchema>>;
+type LocalPlanIdea = LocalOutput["ideas"][number];
+export interface LocalBeat { role: StoryBeat["role"]; text: string; kicker: string; factIds: string[] }
+export type LocalIdea = Omit<LocalPlanIdea, "hook" | "points" | "cta"> & { beats: LocalBeat[]; trimmed: number };
+/** Hook, points and close in order. Narration that would not fit the clip loses trailing points (never a list's,
+ * never mid-sentence) — the same edit a person makes, reported as such. */
+export function localIdeaBeats(idea: LocalPlanIdea): LocalIdea {
+  const { hook, points, cta, ...rest } = idea;
+  const beats: LocalBeat[] = [{ role: "HOOK", text: hook.text.trim(), kicker: hook.kicker, factIds: [] },
+    ...points.map(p => ({ role: "POINT" as const, text: p.text.trim(), kicker: p.kicker, factIds: p.factIds })), { role: "CTA", text: cta.text.trim(), kicker: "", factIds: [] }];
+  let trimmed = 0;
+  while (idea.renderFormat !== "LIST" && spokenLength(beats) > SPOKEN_BUDGET && beats.filter(b => b.role === "POINT").length > 1) {
+    beats.splice(beats.map(b => b.role).lastIndexOf("POINT"), 1); trimmed++;
+  }
+  return { ...rest, beats, trimmed };
+}
+const spokenLength = (beats: Array<{ text: string }>) => beats.reduce((n, b) => n + base(spokenThai(b.text)), 0);
 
 export const LOCAL_AGENT_INSTRUCTIONS = `คุณคือนักวางแผนคอนเทนต์ TikTok ภาษาไทยของ Viral Flow AI ไม่ใช่เครื่องเติมเทมเพลต
 คิดจากข้อมูลที่ได้รับเท่านั้น: ข้อเท็จจริงที่ตรวจแล้ว (facts) สื่อที่ตรวจสิทธิ์แล้ว (assets) ประวัติคลิปล่าสุดของบัญชี (recent) และผลจริง (learning)
 เสนอไอเดียที่ต่างกันจริง 3 ข้อ (หัวข้อ มุมเล่า หรือรูปแบบต่างกัน) แล้วเลือกเอง 1 ข้อพร้อมเหตุผลว่าทำไมเหมาะกับบัญชีนี้มากกว่าข้ออื่น
-เขียนเป็นจังหวะ (beats): HOOK หนึ่งจังหวะแรก POINT 1-3 จังหวะ และ CTA หนึ่งจังหวะสุดท้าย แต่ละจังหวะสั้นไม่เกิน ${CARD_MAX} ตัวอักษร พูดเป็นภาษาไทยธรรมชาติแบบคนพูด
+เขียนเป็นจังหวะ: hook หนึ่งประโยคเปิด points 1-3 ข้อ (ส่วนใหญ่ 1-2 ข้อพอ) และ cta หนึ่งประโยคปิด แต่ละจังหวะสั้นไม่เกิน ${CARD_MAX} ตัวอักษร พูดเป็นภาษาไทยธรรมชาติแบบคนพูด
 ทุก POINT ต้องเล่าข้อเท็จจริงที่ได้รับ และใส่ factIds ของข้อนั้น ห้ามเติมตัวเลข สรรพคุณ รีวิว ยอดขาย หรือข้อเท็จจริงที่ไม่มีในข้อมูล
+ตัวอย่างความยาวที่พอดี: hook "ทำไมฟ้าแลบก่อนฟ้าร้อง?" point "แสงเร็วกว่าเสียงมาก" cta "ติดตามไว้ มีตอนต่อไป" ทั้งคลิปพูดรวมไม่เกินราว 70 ตัวอักษร
+POINT ส่วนใหญ่ควรใช้ถ้อยคำของข้อเท็จจริงเกือบตรงตัว เรียบเรียงให้เป็นภาษาพูดได้ แต่ห้ามเพิ่มผลลัพธ์หรือประโยชน์ที่ข้อเท็จจริงไม่ได้บอก
 LIST ต้องมี POINT 3 ข้อพอดี NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง QUIZ_REVEAL ให้ HOOK เป็นคำถามแล้วเฉลยด้วยข้อเท็จจริง
 อย่าซ้ำ hook หัวข้อ หรือรูปแบบเดียวกับคลิปใน recent ถ้าเลี่ยงได้
 คอนเทนต์ปั้นบัญชี (GROWTH) ห้ามชวนซื้อ ห้ามพูดถึงตะกร้าหรือราคา ปิดด้วยการชวนติดตาม เซฟ หรือคอมเมนต์
@@ -112,17 +133,19 @@ const ANGLE: Record<StoryFormat, CreativeConcept["angleType"]> = { EXPLAINER: "P
 const VISUAL_ROLE = { REAL_FOOTAGE_EDIT: "PRODUCT_EVIDENCE", REAL_IMAGE_MOTION: "STATIC_PRODUCT_DETAIL", ORIGINAL_GRAPHIC_STORY: "ORIGINAL_GRAPHIC", WAIT_FOR_EVIDENCE: "ORIGINAL_GRAPHIC" } as const;
 
 /** Problems with the model's beats that the renderer or a viewer would hit. Empty means usable. */
-export function storyIssues(idea: LocalOutput["ideas"][number], facts: Map<string, string>, visual: ClaimVisual) {
+export function storyIssues(idea: LocalIdea, facts: Map<string, string>, visual: ClaimVisual, factTopics: Map<string, string | null> = new Map()) {
   const issues: string[] = [], beats = idea.beats, points = beats.filter(b => b.role === "POINT");
   if (beats[0]?.role !== "HOOK" || beats.at(-1)?.role !== "CTA" || beats.slice(1, -1).some(b => b.role !== "POINT") || !points.length) issues.push("ลำดับจังหวะต้องเป็น HOOK แล้ว POINT แล้ว CTA");
   if (idea.renderFormat === "LIST" && points.length !== 3) issues.push("ลิสต์ต้องมีสามข้อพอดี");
   if (beats.some(b => base(b.text) > CARD_MAX)) issues.push(`ข้อความบางจังหวะยาวเกิน ${CARD_MAX} ตัวอักษร อ่านไม่ทัน`);
-  const spoken = beats.reduce((n, b) => n + base(spokenThai(b.text)), 0);
+  const spoken = spokenLength(beats);
   if (spoken > (idea.renderFormat === "LIST" ? LIST_SPOKEN_BUDGET : SPOKEN_BUDGET)) issues.push(`คำบรรยายยาว ${spoken} ตัวอักษร เกินที่พูดทันในคลิป`);
   for (const p of points) {
     const cited = p.factIds.map(id => facts.get(id)).filter((t): t is string => Boolean(t));
     if (!cited.length) { issues.push(`จังหวะ "${p.text}" ไม่ได้อ้างข้อเท็จจริงที่ตรวจแล้ว`); continue; }
-    const grounding = groundedShare(p.text, cited);
+    // A point may join two facts of the same topic; it is checked against all of that topic's verified facts.
+    const topics = new Set(p.factIds.map(id => factTopics.get(id)).filter(Boolean));
+    const grounding = groundedShare(p.text, [...cited, ...[...facts].filter(([id]) => topics.has(factTopics.get(id))).map(([, t]) => t)]);
     if (grounding < .6) issues.push(`จังหวะ "${p.text}" เนื้อความตรงกับข้อเท็จจริงที่อ้างเพียง ${Math.round(grounding * 100)}%`);
   }
   if (p0Number(idea) === false) issues.push("NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง");
@@ -130,7 +153,7 @@ export function storyIssues(idea: LocalOutput["ideas"][number], facts: Map<strin
     issues.push(`คำพูดไม่ตรงกับภาพหรือหลักฐาน (${c.code}): ${c.text}`);
   return issues;
 }
-function p0Number(idea: LocalOutput["ideas"][number]) {
+function p0Number(idea: LocalIdea) {
   if (idea.renderFormat !== "NUMBER_SPOTLIGHT") return null;
   return idea.beats.some(b => b.role === "POINT" && /[0-9]/.test(b.text));
 }
@@ -159,12 +182,12 @@ export function expandLocalOutput(local: LocalOutput, alias: Map<string, string>
   const output: CreativeAgentOutput = {
     analysis: { problem: { statement: null, basis: "UNKNOWN", evidenceIds: [] }, sellingPoints: [],
       audience: { segments: [local.audience], basis: "HYPOTHESIS", evidenceIds: [] } },
-    concepts: local.ideas.map(idea => {
+    concepts: local.ideas.map(localIdeaBeats).map(idea => {
       const beats: StoryBeat[] = idea.beats.map(b => ({ role: b.role, text: b.text.trim(), ...(b.kicker.trim() ? { kicker: b.kicker.trim() } : {}) }));
       const hookBeat = beats[0], ctaBeat = beats.at(-1)!;
       if (idea.renderFormat === "LIST" && hookBeat) hookBeat.badge = "3";
       if (idea.renderFormat === "QUIZ_REVEAL" && hookBeat) hookBeat.badge = "?";
-      stories.set(idea.id, { format: idea.renderFormat, beats, basis: `${LOCAL_LLM_STORY_MODE} (${model}): ${idea.whyThisIdea}` });
+      stories.set(idea.id, { format: idea.renderFormat, beats, basis: `${LOCAL_LLM_STORY_MODE} (${model}): ${idea.whyThisIdea}${idea.trimmed ? ` (ระบบตัดจังหวะท้าย ${idea.trimmed} จังหวะให้พูดทันเวลา)` : ""}` });
       const windows = beatTimeline(beats, null, 8);
       const points = beats.filter(b => b.role === "POINT").map(b => b.text);
       const scenes = windows.map((w, i) => ({ start: w.start, end: w.end, visual: idea.productionMethod === "ORIGINAL_GRAPHIC_STORY" ? "การ์ดกราฟิกต้นฉบับ" : "ภาพหรือวิดีโอจริงที่ตรวจสิทธิ์แล้ว",
