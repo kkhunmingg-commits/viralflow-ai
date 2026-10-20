@@ -33,7 +33,7 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
           python -m venv .venv-video
-          .venv-video/bin/pip install --quiet --extra-index-url https://download.pytorch.org/whl/cpu torch "diffusers==0.41.0" "transformers==4.57.1" \
+          .venv-video/bin/pip install --quiet --extra-index-url https://download.pytorch.org/whl/cpu torch "diffusers==0.35.2" "transformers==4.57.1" \
             sentencepiece accelerate safetensors huggingface_hub imageio imageio-ffmpeg Pillow
           .venv-video/bin/pip freeze | grep -i -E "^(torch|diffusers|transformers)==" | tee out/versions.txt
       - name: Tiny run proves the pipeline end to end
@@ -77,7 +77,7 @@ jobs:
       - name: Video runtime
         run: |
           python -m venv .venv-video
-          .venv-video/bin/pip install --quiet --extra-index-url https://download.pytorch.org/whl/cpu torch "diffusers==0.41.0" "transformers==4.57.1" \
+          .venv-video/bin/pip install --quiet --extra-index-url https://download.pytorch.org/whl/cpu torch "diffusers==0.35.2" "transformers==4.57.1" \
             sentencepiece accelerate safetensors huggingface_hub imageio imageio-ffmpeg Pillow
       - name: Generate the shot
         run: |

@@ -7,7 +7,7 @@ No paid API. Reads one shot as JSON on stdin:
 Prints one JSON line with timings and what actually ran.
 
 Setup (render machine only):
-  pip install --extra-index-url https://download.pytorch.org/whl/cpu torch diffusers==0.41.0 transformers \
+  pip install --extra-index-url https://download.pytorch.org/whl/cpu torch diffusers==0.35.2 transformers==4.57.1 \
     sentencepiece accelerate safetensors huggingface_hub imageio imageio-ffmpeg Pillow
 """
 import gc
