@@ -1,0 +1,32 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Caption,Noto Sans Thai,84,&H00FFFFFF,&H00FFFFFF,&H38000000,&H00000000,-1,0,0,0,100,100,0,0,3,16,0,2,80,200,400,222
+Style: Card,Noto Sans Thai,98,&H00FFFFFF,&H00FFFFFF,&H00221A12,&H66000000,-1,0,0,0,100,100,0,0,1,6,3,5,110,190,0,222
+Style: Kicker,Noto Sans Thai,58,&H00111111,&H00FFFFFF,&H002EC8FF,&H002EC8FF,-1,0,0,0,100,100,2,0,3,14,0,8,110,190,560,222
+Style: Badge,Noto Sans Thai,230,&H002EC8FF,&H00FFFFFF,&H00221A12,&H66000000,-1,0,0,0,100,100,0,0,1,8,4,8,110,190,300,222
+Style: Shape,Noto Sans Thai,20,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,222
+Style: Label,Noto Sans Thai,34,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,3,8,0,9,40,40,150,222
+Style: Headline,Noto Sans Thai,64,&H00111111,&H00FFFFFF,&H002EC8FF,&H002EC8FF,-1,0,0,0,100,100,2,0,3,14,0,8,40,40,1050,222
+Style: Credit,Noto Sans Thai,30,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,6,0,2,40,40,330,222
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:03.85,0:00:03.97,Shape,,0,0,0,,{\an7\pos(0,0)\c&HFFFFFF&\alpha&HA8&\fad(0,120)\p1}m 0 0 l 1080 0 1080 1920 0 1920{\p0}
+Dialogue: 0,0:00:05.15,0:00:05.27,Shape,,0,0,0,,{\an7\pos(0,0)\c&HFFFFFF&\alpha&HA8&\fad(0,120)\p1}m 0 0 l 1080 0 1080 1920 0 1920{\p0}
+Dialogue: 0,0:00:09.00,0:00:09.12,Shape,,0,0,0,,{\an7\pos(0,0)\c&HFFFFFF&\alpha&HA8&\fad(0,120)\p1}m 0 0 l 1080 0 1080 1920 0 1920{\p0}
+Dialogue: 0,0:00:12.85,0:00:12.97,Shape,,0,0,0,,{\an7\pos(0,0)\c&HFFFFFF&\alpha&HA8&\fad(0,120)\p1}m 0 0 l 1080 0 1080 1920 0 1920{\p0}
+Dialogue: 2,0:00:00.00,0:00:03.85,Caption,,0,0,0,,{\fad(80,60)\fscx88\fscy88\t(0,140,\fscx100\fscy100)}ถ่านก้อนเดียว\Nใช้ได้ราว {\c&H2EC8FF&}7{\c&HFFFFFF&} ปี
+Dialogue: 2,0:00:03.85,0:00:06.40,Caption,,0,0,0,,{\fad(80,60)\fscx88\fscy88\t(0,140,\fscx100\fscy100)}ตัวเรือนเรซิน หนัก\N{\c&H2EC8FF&}21{\c&HFFFFFF&} กรัม
+Dialogue: 2,0:00:06.40,0:00:09.00,Caption,,0,0,0,,{\fad(80,60)\fscx88\fscy88\t(0,140,\fscx100\fscy100)}จับเวลาได้ {\c&H2EC8FF&}1{\c&HFFFFFF&}/{\c&H2EC8FF&}100{\c&HFFFFFF&}\Nวินาที
+Dialogue: 2,0:00:09.00,0:00:12.85,Caption,,0,0,0,,{\fad(80,60)\fscx88\fscy88\t(0,140,\fscx100\fscy100)}ไฟ LED ปลุกรายวัน\Nกันน้ำใช้ประจำวัน
+Dialogue: 2,0:00:12.85,0:00:16.00,Caption,,0,0,0,,{\fad(80,60)\fscx88\fscy88\t(0,140,\fscx100\fscy100)}ดูรายละเอียด\Nที่ลิงก์สินค้า
+Dialogue: 3,0:00:00.00,0:00:16.00,Label,,0,0,0,,วิดีโอนี้สร้างด้วย AI
+Dialogue: 3,0:00:12.90,0:00:16.00,Headline,,0,0,0,,CASIO F-91W-1UR
+Dialogue: 3,0:00:12.85,0:00:16.00,Credit,,0,0,0,,ภาพต้นฉบับ: Multicherry / Wikimedia Commons, CC BY-SA 4.0

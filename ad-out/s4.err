@@ -1,0 +1,18 @@
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files:  67%|██████▋   | 8/12 [00:04<00:02,  1.85it/s]Fetching 12 files:  67%|██████▋   | 8/12 [00:20<00:10,  2.50s/it]Fetching 12 files:  75%|███████▌  | 9/12 [01:09<00:23,  7.67s/it]Fetching 12 files:  83%|████████▎ | 10/12 [01:32<00:18,  9.28s/it]Fetching 12 files:  92%|█████████▏| 11/12 [01:35<00:08,  8.65s/it]Fetching 12 files: 100%|██████████| 12/12 [01:35<00:00,  7.95s/it]Fetching 12 files: 100%|██████████| 12/12 [01:35<00:00,  7.95s/it]
+Loading pipeline components...:   0%|          | 0/3 [00:00<?, ?it/s]`torch_dtype` is deprecated! Use `dtype` instead!
+
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s][A
+Loading checkpoint shards:  25%|██▌       | 1/4 [00:03<00:11,  3.92s/it][A
+Loading checkpoint shards:  50%|█████     | 2/4 [00:12<00:13,  6.84s/it][A
+Loading checkpoint shards:  75%|███████▌  | 3/4 [00:38<00:15, 15.26s/it][A
+Loading checkpoint shards: 100%|██████████| 4/4 [00:48<00:00, 13.25s/it][ALoading checkpoint shards: 100%|██████████| 4/4 [00:48<00:00, 12.06s/it]
+Loading pipeline components...:  33%|███▎      | 1/3 [00:48<01:36, 48.41s/it]Loading pipeline components...:  67%|██████▋   | 2/3 [00:48<00:20, 20.08s/it]Loading pipeline components...: 100%|██████████| 3/3 [00:48<00:00, 16.24s/it]
+  0%|          | 0/8 [00:00<?, ?it/s]{"step": 0, "seconds": 90.2}
+ 12%|█▎        | 1/8 [01:20<09:21, 80.24s/it]{"step": 1, "seconds": 78.0}
+ 25%|██▌       | 2/8 [02:38<07:53, 78.92s/it]{"step": 2, "seconds": 78.9}
+ 38%|███▊      | 3/8 [03:57<06:34, 78.92s/it]{"step": 3, "seconds": 80.0}
+ 50%|█████     | 4/8 [05:17<05:17, 79.34s/it]{"step": 4, "seconds": 79.9}
+ 62%|██████▎   | 5/8 [06:37<03:58, 79.53s/it]{"step": 5, "seconds": 81.5}
+ 75%|███████▌  | 6/8 [07:58<02:40, 80.18s/it]{"step": 6, "seconds": 81.0}
+ 88%|████████▊ | 7/8 [09:19<01:20, 80.45s/it]{"step": 7, "seconds": 80.3}
+100%|██████████| 8/8 [10:39<00:00, 80.39s/it]100%|██████████| 8/8 [10:39<00:00, 79.96s/it]
