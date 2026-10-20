@@ -1,0 +1,1165 @@
+{
+  "ranAt": "2026-10-20T10:40:06.901Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "machine": {
+    "cpus": 4,
+    "memGb": 16,
+    "note": "GitHub-hosted ubuntu-latest runner"
+  },
+  "assumptions": {
+    "machineThbPerHour": 6,
+    "thbPerUsd": 35,
+    "note": "Estimates only. No bill exists for runner time; actual spend comes from generation_costs."
+  },
+  "env": {
+    "creative": "local-llm",
+    "tts": "voxcpm2"
+  },
+  "results": [
+    {
+      "label": "growth-1",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+            "kicker": "F15,F16,F17",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "แสงเดินทางเร็วกว่าเสียงมาก",
+            "kicker": "F15"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "LOCAL_LLM_STORY_V1 (local/qwen3-4b-q4_k_m): ใช้ข้อเท็จจริงที่ได้รับและสร้างความสนใจได้ดี ไม่ซ้ำกับ recent (ระบบตัดจังหวะท้าย 2 จังหวะให้พูดทันเวลา)"
+      },
+      "topic": {
+        "topic": "ฟ้าแลบก่อนฟ้าร้อง"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "publishDecision": "PENDING_REVIEW",
+      "publishBlockers": [],
+      "contentType": "GROWTH",
+      "creativeSource": "LOCAL_LLM_STORY_V1",
+      "mediaRights": [
+        {
+          "kind": "ORIGINAL_GRAPHIC",
+          "note": "การ์ดกราฟิกที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น"
+        },
+        {
+          "kind": "AI_VOICE",
+          "license": {
+            "voice": "DESIGNED_NO_REFERENCE",
+            "engine": "voxcpm",
+            "modelId": "openbmb/VoxCPM2",
+            "sources": [
+              "https://huggingface.co/openbmb/VoxCPM2",
+              "https://pypi.org/project/voxcpm/",
+              "https://github.com/OpenBMB/VoxCPM"
+            ],
+            "checkedAt": "2026-10-18",
+            "aiGenerated": true,
+            "modelLicense": "Apache-2.0",
+            "commercialUse": true,
+            "engineLicense": "Apache-2.0"
+          }
+        }
+      ],
+      "itemId": "59169196-538b-4d08-912c-e877eef2a6de",
+      "slot": "2026-10-20T12:30:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+      "voice": "ทำไมฟ้าแลบก่อนฟ้าร้อง? แสงเดินทางเร็วกว่าเสียงมาก ติดตามไว้ มีตอนต่อไป",
+      "caption": "ตั้งคำถามแล้วตอบด้วยข้อเท็จจริง #ฟ้าแลบก่อนฟ้าร้อง",
+      "hashtags": [
+        "#ฟ้าแลบก่อนฟ้าร้อง",
+        "#ข้อเท็จจริงแปลกใหม่",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 291.88,
+        "cpuSeconds": 878.1,
+        "avgCpuCores": 3.01,
+        "peakRssMb": 10426,
+        "renderSeconds": 74.909,
+        "creativeSeconds": 216.871
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1247,
+      "costBasis": "ESTIMATE: 75 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 4.48
+      },
+      "ai": {
+        "source": "LLM_EVIDENCE_STRATEGY",
+        "llmSelectedId": "QUIZ_REVEAL",
+        "finalSelectedId": "QUIZ_REVEAL",
+        "experiment": "EXPLORE",
+        "selectionReason": "ใช้ข้อเท็จจริงที่ได้รับและสร้างความสนใจได้ดี ไม่ซ้ำกับ recent รวมถึงมีรูปแบบใหม่ที่เหมาะกับกลุ่มเป้าหมายที่สนใจข้อเท็จจริงแปลกใหม่",
+        "alternativesReason": "NUMBER_SPOTLIGHT และ STORYTELLING ใช้ข้อเท็จจริงที่ได้รับและสร้างความสนใจได้ดี แต่ไม่ใช่รูปแบบใหม่เท่า QUIZ_REVEAL ที่มีการตั้งคำถามแล้วตอบด้วยข้อเท็จจริง",
+        "brainstorm": "คนดูน่าจะสนใจข้อเท็จจริงที่เป็นความรู้พิเศษและน่าประหลาดใจ เช่น วิธีที่แสงเดินทางเร็วกว่าเสียง หรือเหตุผลที่น้ำแข็งเบากว่าน้ำราว 9%  \nไอเดีย 3 แบบ: 1. ตั้งคำถามแล้วตอบด้วยข้อเท็จจริง (QUIZ_REVEAL) 2. ใช้ข้อเท็จจริงเป็นหัวข้อหลัก (NUMBER_SPOTLIGHT) 3. เล่าเรื่องด้วยข้อเท็จจริง (STORYTELLING)  \nRecent ที่ควรหลีกเลี่ยง: ไม่มี hook หรือรูปแบบที่ซ้ำกัน จึงสามารถใช้รูปแบบใหม่ได้  \nควรเลือก QUIZ_REVEAL เพราะใช้ข้อเท็จจริงที่ได้รับและสร้างความสนใจได้ดี ไม่ซ้ำกับ recent",
+        "llmSeconds": 216.398,
+        "usage": {
+          "inputTokens": 3752,
+          "outputTokens": 1721
+        },
+        "ideas": [
+          {
+            "id": "QUIZ_REVEAL",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "QUIZ_REVEAL",
+            "hook": "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+            "beats": [
+              "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+              "แสงเดินทางเร็วกว่าเสียงมาก",
+              "ติดตามไว้ มีตอนต่อไป"
+            ],
+            "reasons": [
+              "มุมเล่า: ใช้ข้อเท็จจริงที่ได้รับเป็นคำตอบ",
+              "รูปแบบ hook: ถามคำถามน่าสนใจ",
+              "ใช้ข้อเท็จจริงที่ได้รับและสร้างความสนใจได้ดี ไม่ซ้ำกับ recent",
+              "ใช้ข้อเท็จจริงที่ได้รับและสร้างความสนใจได้ดี ไม่ซ้ำกับ recent รวมถึงมีรูปแบบใหม่ที่เหมาะกับกลุ่มเป้าหมายที่สนใจข้อเท็จจริงแปลกใหม่"
+            ]
+          },
+          {
+            "id": "NUMBER_SPOTLIGHT",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "น้ำแข็งเบากว่าน้ำราว 9% จริงหรือ?",
+            "beats": [
+              "น้ำแข็งเบากว่าน้ำราว 9% จริงหรือ?",
+              "น้ำแข็งเบากว่าน้ำราว 9%",
+              "ติดตามไว้ มีตอนต่อไป"
+            ],
+            "reasons": [
+              "มุมเล่า: เน้นตัวเลขจากข้อเท็จจริง",
+              "รูปแบบ hook: ใช้ตัวเลขจากข้อเท็จจริงเป็นหัวข้อหลัก",
+              "ใช้ข้อเท็จจริงที่ได้รับและสร้างความสนใจได้ดี ไม่ซ้ำกับ recent"
+            ]
+          },
+          {
+            "id": "STORYTELLING",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "ทำไมขวดเก็บความเย็นมีสองชั้น?",
+            "beats": [
+              "ทำไมขวดเก็บความเย็นมีสองชั้น?",
+              "ผนังขวดมีสองชั้น",
+              "ช่องกลางไม่มีอากาศ",
+              "ติดตามไว้ มีตอนต่อไป"
+            ],
+            "reasons": [
+              "มุมเล่า: ใช้ข้อเท็จจริงเป็นส่วนหนึ่งของเรื่องเล่า",
+              "รูปแบบ hook: เล่าเรื่องด้วยข้อเท็จจริง",
+              "ใช้ข้อเท็จจริงที่ได้รับและสร้างความสนใจได้ดี ไม่ซ้ำกับ recent",
+              "NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง"
+            ]
+          }
+        ]
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.5 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–1.7s",
+        "PASS TEXT_COVERAGE: text on screen 94% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.1s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-2",
+      "mode": "GROWTH",
+      "story": {
+        "format": "EXPLAINER",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+            "kicker": "F15,F16,F17"
+          },
+          {
+            "role": "POINT",
+            "text": "แสงเดินทางเร็วกว่าเสียง",
+            "kicker": "F15"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "LOCAL_LLM_STORY_V1 (local/qwen3-4b-q4_k_m): เนื้อหาสอดคล้องกับความสนใจของผู้ชมที่ชอบข้อเท็จจริงที่น่าประหลาดใจ และเป็นหัวข้อที่มีความรู้สึกเชื่อมโยงกับชีวิตประจำวัน ข้อเท็จจริงที่ใช้เป็นข้อมูลที่ได้รับการตรวจสอบอย่างถูกต้อง (ระบบตัดจังหวะท้าย 2 จังหวะให้พูดทันเวลา)"
+      },
+      "topic": {
+        "topic": "ฟ้าแลบก่อนฟ้าร้อง"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "publishDecision": "PENDING_REVIEW",
+      "publishBlockers": [],
+      "contentType": "GROWTH",
+      "creativeSource": "LOCAL_LLM_STORY_V1",
+      "mediaRights": [
+        {
+          "kind": "ORIGINAL_GRAPHIC",
+          "note": "การ์ดกราฟิกที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น"
+        },
+        {
+          "kind": "AI_VOICE",
+          "license": {
+            "voice": "DESIGNED_NO_REFERENCE",
+            "engine": "voxcpm",
+            "modelId": "openbmb/VoxCPM2",
+            "sources": [
+              "https://huggingface.co/openbmb/VoxCPM2",
+              "https://pypi.org/project/voxcpm/",
+              "https://github.com/OpenBMB/VoxCPM"
+            ],
+            "checkedAt": "2026-10-18",
+            "aiGenerated": true,
+            "modelLicense": "Apache-2.0",
+            "commercialUse": true,
+            "engineLicense": "Apache-2.0"
+          }
+        }
+      ],
+      "itemId": "d65ce979-dae4-4752-9c97-c3fb145ea33f",
+      "slot": "2026-10-21T05:15:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+      "voice": "ทำไมฟ้าแลบก่อนฟ้าร้อง? แสงเดินทางเร็วกว่าเสียง ติดตามไว้ มีตอนต่อไป",
+      "caption": "ฟ้าแลบก่อนฟ้าร้องเพราะแสงเดินทางเร็วกว่าเสียง!",
+      "hashtags": [
+        "#ฟ้าแลบก่อนฟ้าร้อง",
+        "#ข้อเท็จจริงที่คุณไม่รู้",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 310.077,
+        "cpuSeconds": 1023.5,
+        "avgCpuCores": 3.3,
+        "peakRssMb": 11162,
+        "renderSeconds": 61.445,
+        "creativeSeconds": 248.59
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1023,
+      "costBasis": "ESTIMATE: 61 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 5.12
+      },
+      "ai": {
+        "source": "LLM_EVIDENCE_STRATEGY",
+        "llmSelectedId": "IDEA_1",
+        "finalSelectedId": "IDEA_1",
+        "experiment": "EXPLORE",
+        "selectionReason": "เนื้อหาสอดคล้องกับความสนใจของผู้ชมที่ชอบข้อเท็จจริงที่น่าประหลาดใจ และเป็นหัวข้อที่มีความรู้สึกเชื่อมโยงกับชีวิตประจำวัน ข้อเท็จจริงที่ใช้เป็นข้อมูลที่ได้รับการตรวจสอบอย่างถูกต้อง และเป็นหัวข้อที่มีการใช้รูปแบบที่ไม่ซ้ำกับ recent ที่มีรูปแบบ QUIZ_REVEAL ทำให้เนื้อหาใหม่ที่มีความน่าสนใจและสร้างสรรค์",
+        "alternativesReason": "IDEA_2 และ IDEA_3 เป็นข้อเท็จจริงที่น่าสนใจ แต่เนื้อหาอาจดูเหมือนซ้ำกับ recent ที่มีรูปแบบ QUIZ_REVEAL และมีความซ้ำซ้อนกัน ดังนั้นการเลือก IDEA_1 ที่มีความน่าสนใจและสร้างสรรค์มากกว่า",
+        "brainstorm": "คนดูน่าจะสนใจข้อเท็จจริงที่น่าประหลาดใจและมีส่วนเชื่อมโยงกับชีวิตประจำวัน เช่น วิธีการเก็บน้ำผึ้ง หรือเหตุผลที่ฟ้าแลบก่อนฟ้าร้อง  \nไอเดีย 3 แบบ: 1) ใช้ข้อเท็จจริง \"แสงเดินทางเร็วกว่าเสียง\" สร้างคลิปช่วยเข้าใจเหตุผลที่ฟ้าแลบก่อนฟ้าร้อง  \n2) สร้างคลิปด้วยข้อเท็จจริง \"น้ำผึ้งมีน้ำน้อยและเป็นกรดอ่อน\" เพื่ออธิบายทำไมน้ำผึ้งเก็บได้นาน  \n3) ใช้ข้อเท็จจริง \"เลือดหมึกยักษ์มีหัวใจ 3 ดวง\" เพื่อสร้างคลิปที่น่าสนใจและแปลกใหม่  \nหลีกเลี่ยงการใช้รูปแบบ QUIZ_REVEAL เพราะมีใน recent ควรเลือกข้อเท็จจริงเกี่ยวกับแสงและเสียง เพราะมีความน่าสนใจและสอดคล้องกับความสนใจของผู้ชม",
+        "llmSeconds": 248.471,
+        "usage": {
+          "inputTokens": 3874,
+          "outputTokens": 2045
+        },
+        "ideas": [
+          {
+            "id": "IDEA_1",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "EXPLAINER",
+            "hook": "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+            "beats": [
+              "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+              "แสงเดินทางเร็วกว่าเสียง",
+              "ติดตามไว้ มีตอนต่อไป"
+            ],
+            "reasons": [
+              "มุมเล่า: เหตุผลที่ฟ้าแลบก่อนฟ้าร้อง",
+              "รูปแบบ hook: คำถาม",
+              "เนื้อหาสอดคล้องกับความสนใจของผู้ชมที่ชอบข้อเท็จจริงที่น่าประหลาดใจ และเป็นหัวข้อที่มีความรู้สึกเชื่อมโยงกับชีวิตประจำวัน ข้อเท็จจริงที่ใช้เป็นข้อมูลที่ได้รับการตรวจสอบอย่างถูกต้อง",
+              "เนื้อหาสอดคล้องกับความสนใจของผู้ชมที่ชอบข้อเท็จจริงที่น่าประหลาดใจ และเป็นหัวข้อที่มีความรู้สึกเชื่อมโยงกับชีวิตประจำวัน ข้อเท็จจริงที่ใช้เป็นข้อมูลที่ได้รับการตรวจสอบอย่างถูกต้อง และเป็นหัวข้อที่มีการใช้รูปแบบที่ไม่ซ้ำกับ recent ที่มีรูปแบบ QUIZ_REVEAL ทำให้เนื้อหาใหม่ที่มีความน่าสนใจและสร้างสรรค์"
+            ]
+          },
+          {
+            "id": "IDEA_2",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "EXPLAINER",
+            "hook": "น้ำผึ้งเก็บได้นานเพราะ...?",
+            "beats": [
+              "น้ำผึ้งเก็บได้นานเพราะ...?",
+              "น้ำผึ้งมีน้ำน้อยและเป็นกรดอ่อน",
+              "ติดตามไว้ มีตอนต่อไป"
+            ],
+            "reasons": [
+              "มุมเล่า: เหตุผลที่น้ำผึ้งเก็บได้นาน",
+              "รูปแบบ hook: ข้อความ",
+              "เนื้อหาสอดคล้องกับความสนใจของผู้ชมที่ชอบข้อเท็จจริงที่น่าประหลาดใจ และเป็นหัวข้อที่มีความรู้สึกเชื่อมโยงกับชีวิตประจำวัน ข้อเท็จจริงที่ใช้เป็นข้อมูลที่ได้รับการตรวจสอบอย่างถูกต้อง"
+            ]
+          },
+          {
+            "id": "IDEA_3",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "EXPLAINER",
+            "hook": "เลือดหมึกยักษ์มีอะไรที่แปลก?",
+            "beats": [
+              "เลือดหมึกยักษ์มีอะไรที่แปลก?",
+              "เลือดหมึกยักษ์ใช้ทองแดงขนออกซิเจน",
+              "ติดตามไว้ มีตอนต่อไป"
+            ],
+            "reasons": [
+              "มุมเล่า: ความลึกลับของเลือดหมึกยักษ์",
+              "รูปแบบ hook: ข้อความ",
+              "เนื้อหาสอดคล้องกับความสนใจของผู้ชมที่ชอบข้อเท็จจริงที่น่าประหลาดใจ และเป็นหัวข้อที่มีความรู้สึกเชื่อมโยงกับชีวิตประจำวัน ข้อเท็จจริงที่ใช้เป็นข้อมูลที่ได้รับการตรวจสอบอย่างถูกต้อง"
+            ]
+          }
+        ]
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.3 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–1.8s",
+        "PASS TEXT_COVERAGE: text on screen 94% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.2s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-3",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ฟ้าแลบก่อนฟ้าร้อง จริงหรือเท็จ?",
+            "kicker": "F15",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "แสงเดินทางเร็วกว่าเสียงมาก",
+            "kicker": "F15"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "LOCAL_LLM_STORY_V1 (local/qwen3-4b-q4_k_m): เนื้อหาที่มีความน่าสนใจและสร้างความประหลาดใจ ช่วยให้ผู้ชมติดตามได้ดีขึ้น (ระบบตัดจังหวะท้าย 2 จังหวะให้พูดทันเวลา)"
+      },
+      "topic": {
+        "topic": "ฟ้าแลบก่อนฟ้าร้อง"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "REJECTED",
+      "rejection": [
+        "DUPLICATE_OF:59169196-538b-4d08-912c-e877eef2a6de"
+      ],
+      "publishDecision": "DO_NOT_PUBLISH",
+      "publishBlockers": [
+        "MACHINE_REJECTED"
+      ],
+      "contentType": "GROWTH",
+      "creativeSource": "LOCAL_LLM_STORY_V1",
+      "mediaRights": [
+        {
+          "kind": "ORIGINAL_GRAPHIC",
+          "note": "การ์ดกราฟิกที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น"
+        },
+        {
+          "kind": "AI_VOICE",
+          "license": {
+            "voice": "DESIGNED_NO_REFERENCE",
+            "engine": "voxcpm",
+            "modelId": "openbmb/VoxCPM2",
+            "sources": [
+              "https://huggingface.co/openbmb/VoxCPM2",
+              "https://pypi.org/project/voxcpm/",
+              "https://github.com/OpenBMB/VoxCPM"
+            ],
+            "checkedAt": "2026-10-18",
+            "aiGenerated": true,
+            "modelLicense": "Apache-2.0",
+            "commercialUse": true,
+            "engineLicense": "Apache-2.0"
+          }
+        }
+      ],
+      "itemId": "e5909fae-62b1-4aed-b6b8-b728eaf8bbb6",
+      "slot": null,
+      "slotBasis": null,
+      "hook": "ฟ้าแลบก่อนฟ้าร้อง จริงหรือเท็จ?",
+      "voice": "ฟ้าแลบก่อนฟ้าร้อง จริงหรือเท็จ? แสงเดินทางเร็วกว่าเสียงมาก ติดตามไว้ มีตอนต่อไป",
+      "caption": "ฟ้าแลบก่อนฟ้าร้อง ช่วยให้เห็นฟ้าแลบก่อนได้ยินเสียง",
+      "hashtags": [
+        "#ฟ้าแลบก่อนฟ้าร้อง",
+        "#ความรู้วิทยาศาสตร์",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 293.002,
+        "cpuSeconds": 957.9,
+        "avgCpuCores": 3.27,
+        "peakRssMb": 10885,
+        "renderSeconds": 63.831,
+        "creativeSeconds": 229.116
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1063,
+      "costBasis": "ESTIMATE: 64 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 6.56
+      },
+      "ai": {
+        "source": "LLM_EVIDENCE_STRATEGY",
+        "llmSelectedId": "NUMBER_SPOTLIGHT",
+        "finalSelectedId": "QUIZ_REVEAL",
+        "experiment": "EXPLORE",
+        "selectionReason": "เนื้อหาที่มีข้อเท็จจริงชัดเจนและน่าสนใจ ช่วยให้ผู้ชมติดตามได้ดีขึ้น รวมถึงรูปแบบที่ไม่ซ้ำกับคลิปใน recent ที่ใช้ EXPLAINER และ QUIZ_REVEAL ซึ่งเป็นรูปแบบที่มีคนรู้จักแล้ว ทำให้ผู้ชมมีแนวโน้มติดตามได้มากขึ้น",
+        "alternativesReason": "EXPLAINER ช่วยให้ผู้ชมเข้าใจความเป็นจริงของน้ำแข็งลอยน้ำได้ดีขึ้น แต่ไม่ได้สร้างความประหลาดใจเหมือน NUMBER_SPOTLIGHT ที่ใช้ข้อเท็จจริงที่น่าสนใจและน่าสนใจ ขณะที่ QUIZ_REVEAL อาจทำให้ผู้ชมสนใจได้ แต่เนื้อหาที่ใช้เป็นรูปแบบที่เคยทำแล้ว ทำให้ผู้ชมมีแนวโน้มติดตามน้อยกว่า",
+        "brainstorm": "คนดูบัญชีนี้น่าจะสนใจข้อเท็จจริงที่สร้างความประหลาดใจและเรื่องวิทยาศาสตร์ เช่น วิธีที่น้ำแข็งลอยน้ำ หรือเหตุผลที่ฟ้าแลบก่อนฟ้าร้อง หัวข้อที่น่าเล่าคือข้อเท็จจริงที่มีความลึกและน่าสนใจ แต่ไม่ซับซ้อน\n\nไอเดีย 3 แบบ:  \n1. **EXPLAINER** ถึงเหตุผลที่น้ำแข็งลอยน้ำ  \n2. **QUIZ_REVEAL** ว่าทำไมฟ้าแลบก่อนฟ้าร้อง  \n3. **NUMBER_SPOTLIGHT** แสดงความเร็วของแสงและเสียง  \n\nควรหลีกเลี่ยง **EXPLAINER** และ **QUIZ_REVEAL** เนื่องจากใช้รูปแบบที่เคยทำแล้ว ควรเลือก **NUMBER_SPOTLIGHT** เพราะมีข้อเท็จจริงที่ชัดเจนและน่าสนใจ ช่วยให้เนื้อหาดึงดูดได้ดีขึ้น",
+        "llmSeconds": 228.618,
+        "usage": {
+          "inputTokens": 3914,
+          "outputTokens": 1815
+        },
+        "ideas": [
+          {
+            "id": "NUMBER_SPOTLIGHT",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "แสงเร็วกว่าเสียง 3 วินาทีต่อกิโลเมตร",
+            "beats": [
+              "แสงเร็วกว่าเสียง 3 วินาทีต่อกิโลเมตร",
+              "แสงเดินทางเร็วกว่าเสียงมาก",
+              "ติดตามไว้ มีตอนต่อไป"
+            ],
+            "reasons": [
+              "มุมเล่า: เปรียบเทียบความเร็วของแสงและเสียง",
+              "รูปแบบ hook: ถามคำถาม",
+              "เนื้อหาที่ชัดเจนและน่าสนใจ ช่วยให้ผู้ชมติดตามได้ดีขึ้น",
+              "เนื้อหาที่มีข้อเท็จจริงชัดเจนและน่าสนใจ ช่วยให้ผู้ชมติดตามได้ดีขึ้น รวมถึงรูปแบบที่ไม่ซ้ำกับคลิปใน recent ที่ใช้ EXPLAINER และ QUIZ_REVEAL ซึ่งเป็นรูปแบบที่มีคนรู้จักแล้ว ทำให้ผู้ชมมีแนวโน้มติดตามได้มากขึ้น",
+              "NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง"
+            ]
+          },
+          {
+            "id": "EXPLAINER",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "EXPLAINER",
+            "hook": "น้ำแข็งลอยน้ำ ช่วยให้ปลาอยู่ใต้น้ำแข็งได้",
+            "beats": [
+              "น้ำแข็งลอยน้ำ ช่วยให้ปลาอยู่ใต้น้ำแข็งได้",
+              "น้ำแข็งเบากว่าน้ำราว 9%",
+              "ติดตามไว้ มีตอนต่อไป"
+            ],
+            "reasons": [
+              "มุมเล่า: อธิบายเหตุผลที่น้ำแข็งลอยน้ำ",
+              "รูปแบบ hook: บอกความจริง",
+              "เนื้อหาที่มีความลึกและน่าสนใจ ช่วยให้ผู้ชมติดตามได้ดีขึ้น"
+            ]
+          },
+          {
+            "id": "QUIZ_REVEAL",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "QUIZ_REVEAL",
+            "hook": "ฟ้าแลบก่อนฟ้าร้อง จริงหรือเท็จ?",
+            "beats": [
+              "ฟ้าแลบก่อนฟ้าร้อง จริงหรือเท็จ?",
+              "แสงเดินทางเร็วกว่าเสียงมาก",
+              "ติดตามไว้ มีตอนต่อไป"
+            ],
+            "reasons": [
+              "มุมเล่า: เปิดเผยคำตอบว่าทำไมฟ้าแลบก่อนฟ้าร้อง",
+              "รูปแบบ hook: ถามคำถาม",
+              "เนื้อหาที่มีความน่าสนใจและสร้างความประหลาดใจ ช่วยให้ผู้ชมติดตามได้ดีขึ้น",
+              "เลือกทดลองแนวทางนี้เพื่อเก็บหลักฐานเพิ่ม ยังไม่ใช่สูตรไวรัล"
+            ]
+          }
+        ]
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.1 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.5s",
+        "PASS TEXT_COVERAGE: text on screen 96% of clip (min 90%)",
+        "PASS PACING: 3 shot(s), longest 3.1s, 3 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-4",
+      "mode": "GROWTH",
+      "story": {
+        "format": "EXPLAINER",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+            "kicker": "F15"
+          },
+          {
+            "role": "POINT",
+            "text": "แสงเดินทางเร็วกว่าเสียงมาก",
+            "kicker": "F15"
+          },
+          {
+            "role": "CTA",
+            "text": "คลิกเพื่อเรียนรู้ความจริงที่น่าสนใจ"
+          }
+        ],
+        "basis": "LOCAL_LLM_STORY_V1 (local/qwen3-4b-q4_k_m): เนื่องจากข้อมูลแสดงให้เห็นว่าความเร็วของแสงมีความน่าสนใจและน่าประหลาดใจ รวมถึงรูปแบบ EXPLAINER ยังไม่ใช้บ่อยใน recent ทำให้เหมาะกับการทดลองใช้ (ระบบตัดจังหวะท้าย 2 จังหวะให้พูดทันเวลา)"
+      },
+      "topic": {
+        "topic": "ฟ้าแลบก่อนฟ้าร้อง"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "publishDecision": "PENDING_REVIEW",
+      "publishBlockers": [],
+      "contentType": "GROWTH",
+      "creativeSource": "LOCAL_LLM_STORY_V1",
+      "mediaRights": [
+        {
+          "kind": "ORIGINAL_GRAPHIC",
+          "note": "การ์ดกราฟิกที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น"
+        },
+        {
+          "kind": "AI_VOICE",
+          "license": {
+            "voice": "DESIGNED_NO_REFERENCE",
+            "engine": "voxcpm",
+            "modelId": "openbmb/VoxCPM2",
+            "sources": [
+              "https://huggingface.co/openbmb/VoxCPM2",
+              "https://pypi.org/project/voxcpm/",
+              "https://github.com/OpenBMB/VoxCPM"
+            ],
+            "checkedAt": "2026-10-18",
+            "aiGenerated": true,
+            "modelLicense": "Apache-2.0",
+            "commercialUse": true,
+            "engineLicense": "Apache-2.0"
+          }
+        }
+      ],
+      "itemId": "cbb23ae6-58c1-47f6-afd8-b996f4135c13",
+      "slot": "2026-10-21T12:30:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+      "voice": "ทำไมฟ้าแลบก่อนฟ้าร้อง? แสงเดินทางเร็วกว่าเสียงมาก คลิกเพื่อเรียนรู้ความจริงที่น่าสนใจ",
+      "caption": "ความรู้ที่น่าสนใจ ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+      "hashtags": [
+        "#ความรู้ที่น่าสนใจ",
+        "#ฟ้าแลบก่อนฟ้าร้อง",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 293.739,
+        "cpuSeconds": 948.1,
+        "avgCpuCores": 3.23,
+        "peakRssMb": 11150,
+        "renderSeconds": 71.915,
+        "creativeSeconds": 221.74
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1197,
+      "costBasis": "ESTIMATE: 72 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 7.52
+      },
+      "ai": {
+        "source": "LLM_EVIDENCE_STRATEGY",
+        "llmSelectedId": "IDEA1",
+        "finalSelectedId": "IDEA3",
+        "experiment": "EXPLORE",
+        "selectionReason": "IDEA1 ตรงกับการใช้รูปแบบ QUIZ_REVEAL ที่ยังไม่ใช้บ่อยใน recent และเนื้อหาที่น่าประหลาดใจ ซึ่งตรงกับความสนใจของผู้ชมที่ต้องการความรู้แปลกใหม่และข้อเท็จจริงที่น่าสนใจ รวมถึงมีข้อมูลที่ชัดเจนและเป็นที่น่าสนใจในการนำเสนอเป็นคำถาม-คำตอบ ซึ่งทำให้เหมาะกับการใช้ในคอนเทนต์ที่ต้องการความรู้ที่น่าประหลาดใจและ",
+        "alternativesReason": "IDEA2 และ IDEA3 มีความน่าสนใจ แต่รูปแบบ EXPLAINER ใช้บ่อยใน recent ทำให้ควรเลือก IDEA1 ที่มีความน่าสนใจและรูปแบบที่ยังไม่ใช้บ่อย",
+        "brainstorm": "คนดูบัญชีนี้น่าจะสนใจข้อเท็จจริงที่มีความน่าสนใจและแปลกใหม่ เช่น ความจริงเกี่ยวกับหมึกยักษ์ หรือข้อเท็จจริงที่เป็นทั้งน่ารู้และน่าสนใจ เช่น วิธีที่น้ำแข็งลอยน้ำช่วยปลาได้\n\nไอเดีย 3 แบบที่ต่างกันจริงคือ:\n1. ใช้ข้อเท็จจริงเรื่องหมึกยักษ์ในรูปแบบ QUIZ_REVEAL\n2. อธิบายวิธีการเก็บน้ำผึ้งที่มีอายุยาวด้วยรูปแบบ EXPLAINER\n3. ใช้ข้อเท็จจริงเรื่องแสงเดินทางเร็วกว่าเสียงในรูปแบบ HOOK + EXPLAINER\n\nใน recent ควรหลีกเลี่ยงรูปแบบ EXPLAINER เนื่องจากมีการใช้หลายครั้งแล้ว ควรเลือก QUIZ_REVEAL เพราะเป็นรูปแบบที่มีประสิทธิภาพสูงและไม่ซ้ำกับ recent ที่มีอยู่",
+        "llmSeconds": 221.623,
+        "usage": {
+          "inputTokens": 4008,
+          "outputTokens": 1776
+        },
+        "ideas": [
+          {
+            "id": "IDEA1",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "QUIZ_REVEAL",
+            "hook": "หมึกยักษ์มีหัวใจ 3 ดวง จริงหรือเท็จ?",
+            "beats": [
+              "หมึกยักษ์มีหัวใจ 3 ดวง จริงหรือเท็จ?",
+              "เลือดหมึกยักษ์ใช้ทองแดงขนออกซิเจน",
+              "คลิกเพื่อค้นพบความจริงที่น่าประหลาดใจ"
+            ],
+            "reasons": [
+              "มุมเล่า: ความจริงที่น่าประหลาดใจ",
+              "รูปแบบ hook: คำถาม",
+              "เนื่องจากข้อมูลแสดงให้เห็นว่าหมึกยักษ์มีความน่าสนใจและน่าประหลาดใจ รวมถึงรูปแบบ QUIZ_REVEAL ยังไม่ใช้บ่อยใน recent ทำให้เหมาะกับการทดลองใช้",
+              "IDEA1 ตรงกับการใช้รูปแบบ QUIZ_REVEAL ที่ยังไม่ใช้บ่อยใน recent และเนื้อหาที่น่าประหลาดใจ ซึ่งตรงกับความสนใจของผู้ชมที่ต้องการความรู้แปลกใหม่และข้อเท็จจริงที่น่าสนใจ รวมถึงมีข้อมูลที่ชัดเจนและเป็นที่น่าสนใจในการนำเสนอเป็นคำถาม-คำตอบ ซึ่งทำให้เหมาะกับการใช้ในคอนเทนต์ที่ต้องการความรู้ที่น่าประหลาดใจและ",
+              "คำบรรยายยาว 81 ตัวอักษร เกินที่พูดทันในคลิป"
+            ]
+          },
+          {
+            "id": "IDEA2",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "EXPLAINER",
+            "hook": "น้ำผึ้งเก็บได้นานเพราะอะไร?",
+            "beats": [
+              "น้ำผึ้งเก็บได้นานเพราะอะไร?",
+              "น้ำผึ้งมีน้ำน้อยและเป็นกรดอ่อน",
+              "คลิกเพื่อเรียนรู้ว่าทำไมน้ำผึ้งเก็บได้นาน"
+            ],
+            "reasons": [
+              "มุมเล่า: ความรู้ที่มีประโยชน์",
+              "รูปแบบ hook: อธิบาย",
+              "เนื่องจากข้อมูลแสดงให้เห็นว่าการเก็บน้ำผึ้งมีความน่าสนใจและมีประโยชน์ รวมถึงรูปแบบ EXPLAINER ยังไม่ใช้บ่อยใน recent ทำให้เหมาะกับการทดลองใช้",
+              "คำบรรยายยาว 73 ตัวอักษร เกินที่พูดทันในคลิป"
+            ]
+          },
+          {
+            "id": "IDEA3",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "EXPLAINER",
+            "hook": "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+            "beats": [
+              "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+              "แสงเดินทางเร็วกว่าเสียงมาก",
+              "คลิกเพื่อเรียนรู้ความจริงที่น่าสนใจ"
+            ],
+            "reasons": [
+              "มุมเล่า: ความรู้ที่น่าสนใจ",
+              "รูปแบบ hook: อธิบาย",
+              "เนื่องจากข้อมูลแสดงให้เห็นว่าความเร็วของแสงมีความน่าสนใจและน่าประหลาดใจ รวมถึงรูปแบบ EXPLAINER ยังไม่ใช้บ่อยใน recent ทำให้เหมาะกับการทดลองใช้",
+              "เลือกทดลองแนวทางนี้เพื่อเก็บหลักฐานเพิ่ม ยังไม่ใช่สูตรไวรัล"
+            ]
+          }
+        ]
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.1 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.1s",
+        "PASS TEXT_COVERAGE: text on screen 94% of clip (min 90%)",
+        "PASS PACING: 4 shot(s), longest 2.5s, 4 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-5",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "ฟ้าแลบก่อนฟ้าร้อง จริงหรือเท็จ?",
+            "kicker": "ฟ้าแลบก่อนฟ้",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "แสงเดินทางเร็วกว่าเสียงมาก",
+            "kicker": "F15"
+          },
+          {
+            "role": "CTA",
+            "text": "ติดตามไว้ มีตอนต่อไป"
+          }
+        ],
+        "basis": "LOCAL_LLM_STORY_V1 (local/qwen3-4b-q4_k_m): เนื่องจากข้อเท็จจริงเกี่ยวกับฟ้าแลบก่อนฟ้าร้องมีความน่าสนใจและมีการมีส่วนร่วมสูง ซึ่งเหมาะกับรูปแบบแบบทดสอบที่มีการมีส่วนร่วมสูง (ระบบตัดจังหวะท้าย 2 จังหวะให้พูดทันเวลา)"
+      },
+      "topic": {
+        "topic": "ฟ้าแลบก่อนฟ้าร้อง"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "REJECTED",
+      "rejection": [
+        "DUPLICATE_OF:59169196-538b-4d08-912c-e877eef2a6de"
+      ],
+      "publishDecision": "DO_NOT_PUBLISH",
+      "publishBlockers": [
+        "MACHINE_REJECTED"
+      ],
+      "contentType": "GROWTH",
+      "creativeSource": "LOCAL_LLM_STORY_V1",
+      "mediaRights": [
+        {
+          "kind": "ORIGINAL_GRAPHIC",
+          "note": "การ์ดกราฟิกที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น"
+        },
+        {
+          "kind": "AI_VOICE",
+          "license": {
+            "voice": "DESIGNED_NO_REFERENCE",
+            "engine": "voxcpm",
+            "modelId": "openbmb/VoxCPM2",
+            "sources": [
+              "https://huggingface.co/openbmb/VoxCPM2",
+              "https://pypi.org/project/voxcpm/",
+              "https://github.com/OpenBMB/VoxCPM"
+            ],
+            "checkedAt": "2026-10-18",
+            "aiGenerated": true,
+            "modelLicense": "Apache-2.0",
+            "commercialUse": true,
+            "engineLicense": "Apache-2.0"
+          }
+        }
+      ],
+      "itemId": "6f1d13c9-26d0-40c7-8066-14b6a994affc",
+      "slot": null,
+      "slotBasis": null,
+      "hook": "ฟ้าแลบก่อนฟ้าร้อง จริงหรือเท็จ?",
+      "voice": "ฟ้าแลบก่อนฟ้าร้อง จริงหรือเท็จ? แสงเดินทางเร็วกว่าเสียงมาก ติดตามไว้ มีตอนต่อไป",
+      "caption": "ฟ้าแลบก่อนฟ้าร้อง จริงหรือเท็จ? ฟ้าแลบก่อนฟ้... คลิปต่อไปจะบอกทั้งหมด",
+      "hashtags": [
+        "#ฟ้าแลบก่อนฟ้าร้อง",
+        "#ข้อเท็จจริง",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 296.376,
+        "cpuSeconds": 966.9,
+        "avgCpuCores": 3.26,
+        "peakRssMb": 10299,
+        "renderSeconds": 68.117,
+        "creativeSeconds": 228.188
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1133,
+      "costBasis": "ESTIMATE: 68 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 6.56
+      },
+      "ai": {
+        "source": "LLM_EVIDENCE_STRATEGY",
+        "llmSelectedId": "IDEA2",
+        "finalSelectedId": "IDEA2",
+        "experiment": "EXPLORE",
+        "selectionReason": "เนื่องจากข้อเท็จจริงเกี่ยวกับฟ้าแลบก่อนฟ้าร้องมีความน่าสนใจและมีการมีส่วนร่วมสูง ซึ่งเหมาะกับรูปแบบแบบทดสอบที่มีการมีส่วนร่วมสูง และเป็นรูปแบบที่ไม่ซ้ำกับ recent ที่มีการซ้ำกันมาก ทำให้สามารถดึงดูดผู้ชมได้ดีกว่าข้ออื่นๆ ที่มีความเชื่อมโยงกับข้อมูลที่มีอยู่ใน recent มากกว่า",
+        "alternativesReason": "IDEA1 ใช้รูปแบบ EXPLAINER ที่มีการซ้ำกับ recent มาก และ IDEA3 ใช้รูปแบบ NUMBER_SPOTLIGHT ที่มีข้อเท็จจริงที่มีตัวเลขชัดเจน แต่ไม่สามารถดึงดูดผู้ชมได้ดีเท่า IDEA2 ที่ใช้รูปแบบ QUIZ_REVEAL ที่มีการมีส่วนร่วมสูงและไม่ซ้ำกับ recent มากที่สุด",
+        "brainstorm": "คนดูบัญชีนี้น่าจะสนใจข้อเท็จจริงที่มีความลึกลับหรือประหลาดใจ เช่น วิธีที่แสงเดินทางเร็วกว่าเสียง หรือความจริงที่น้ำแข็งเบากว่าน้ำราว 9%  \nไอเดีย 3 แบบที่ต่างกัน:  \n1. **EXPLAINER** ถ่ายทอดข้อเท็จจริงที่ไม่ธรรมดา เช่น ว่าทำไมน้ำแข็งลอยน้ำ  \n2. **QUIZ_REVEAL** ถามคำถามที่คนสนใจ เช่น ทำไมฟ้าแลบก่อนฟ้าร้อง  \n3. **NUMBER_SPOTLIGHT** ใช้ข้อเท็จจริงที่มีตัวเลขชัดเจน เช่น น้ำผึ้งเก็บได้นานเพราะมีน้ำน้อย  \nควรหลีกเลี่ยง **EXPLAINER** ที่เกี่ยวกับฟ้าแลบก่อนฟ้าร้อง เพราะซ้ำกับ recent มาก  \nควรเลือก **QUIZ_REVEAL** เพราะเป็นรูปแบบที่มีการมีส่วนร่วมสูง และใช้ข้อเท็จจริงที่มีความน่าสนใจ",
+        "llmSeconds": 228.052,
+        "usage": {
+          "inputTokens": 4077,
+          "outputTokens": 1874
+        },
+        "ideas": [
+          {
+            "id": "IDEA1",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "EXPLAINER",
+            "hook": "น้ำแข็งลอยน้ำ จริงหรือเท็จ?",
+            "beats": [
+              "น้ำแข็งลอยน้ำ จริงหรือเท็จ?",
+              "น้ำแข็งเบากว่าน้ำราว 9%",
+              "ติดตามไว้ มีตอนต่อไป"
+            ],
+            "reasons": [
+              "มุมเล่า: ว่าทำไมน้ำแข็งลอยน้ำ",
+              "รูปแบบ hook: วิธีที่ทำให้สิ่งที่ดูเหมือนไม่เป็นไปได้เป็นไปได้",
+              "เนื่องจากข้อเท็จจริงเกี่ยวกับน้ำแข็งลอยน้ำมีความลึกลับและประหลาดใจ ซึ่งอาจดึงดูดผู้ชมที่สนใจข้อเท็จจริงที่มีความน่าสนใจ"
+            ]
+          },
+          {
+            "id": "IDEA2",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "QUIZ_REVEAL",
+            "hook": "ฟ้าแลบก่อนฟ้าร้อง จริงหรือเท็จ?",
+            "beats": [
+              "ฟ้าแลบก่อนฟ้าร้อง จริงหรือเท็จ?",
+              "แสงเดินทางเร็วกว่าเสียงมาก",
+              "ติดตามไว้ มีตอนต่อไป"
+            ],
+            "reasons": [
+              "มุมเล่า: ว่าทำไมฟ้าแลบก่อนฟ้าร้อง",
+              "รูปแบบ hook: คำถามที่ทำให้ผู้ชมต้องคิด",
+              "เนื่องจากข้อเท็จจริงเกี่ยวกับฟ้าแลบก่อนฟ้าร้องมีความน่าสนใจและมีการมีส่วนร่วมสูง ซึ่งเหมาะกับรูปแบบแบบทดสอบที่มีการมีส่วนร่วมสูง",
+              "เนื่องจากข้อเท็จจริงเกี่ยวกับฟ้าแลบก่อนฟ้าร้องมีความน่าสนใจและมีการมีส่วนร่วมสูง ซึ่งเหมาะกับรูปแบบแบบทดสอบที่มีการมีส่วนร่วมสูง และเป็นรูปแบบที่ไม่ซ้ำกับ recent ที่มีการซ้ำกันมาก ทำให้สามารถดึงดูดผู้ชมได้ดีกว่าข้ออื่นๆ ที่มีความเชื่อมโยงกับข้อมูลที่มีอยู่ใน recent มากกว่า"
+            ]
+          },
+          {
+            "id": "IDEA3",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "น้ำผึ้งเก็บได้นานเพราะอะไร?",
+            "beats": [
+              "น้ำผึ้งเก็บได้นานเพราะอะไร?",
+              "น้ำผึ้งมีน้ำน้อยและเป็นกรดอ่อน",
+              "ติดตามไว้ มีตอนต่อไป"
+            ],
+            "reasons": [
+              "มุมเล่า: ว่าทำไมน้ำผึ้งเก็บได้นาน",
+              "รูปแบบ hook: ตัวเลขที่ทำให้ผู้ชมประหลาดใจ",
+              "เนื่องจากข้อเท็จจริงเกี่ยวกับน้ำผึ้งเก็บได้นานมีความน่าสนใจและมีข้อเท็จจริงที่มีตัวเลขชัดเจน ซึ่งเหมาะกับรูปแบบที่เน้นตัวเลข",
+              "NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง"
+            ]
+          }
+        ]
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.1 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.5s",
+        "PASS TEXT_COVERAGE: text on screen 96% of clip (min 90%)",
+        "PASS PACING: 3 shot(s), longest 3.1s, 3 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "affiliate-test-1",
+      "mode": "AFFILIATE",
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    },
+    {
+      "label": "affiliate-test-2",
+      "mode": "AFFILIATE",
+      "story": {
+        "format": "DEMONSTRATION",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "500 มล. คือขนาดของขวดน้ำหรือไม่?",
+            "kicker": "ตอบได้ใน 1 ว"
+          },
+          {
+            "role": "POINT",
+            "text": "ความจุ 500 มิลลิลิตร",
+            "kicker": "ข้อมูลจากข้อ"
+          },
+          {
+            "role": "CTA",
+            "text": "คลิกเพื่อเปิดวิดีโอเพื่อดูข้อมูลเพิ่มเติม"
+          }
+        ],
+        "basis": "LOCAL_LLM_STORY_V1 (local/qwen3-4b-q4_k_m): ใช้ข้อเท็จจริงที่มีอยู่และรูปแบบที่ไม่ซ้ำกับ recent (ระบบตัดจังหวะท้าย 1 จังหวะให้พูดทันเวลา)"
+      },
+      "topic": {
+        "topic": "ขนาดของขวดน้ำ"
+      },
+      "method": "REAL_FOOTAGE_EDIT",
+      "quality": "RETRY",
+      "bankStatus": "REJECTED",
+      "rejection": [
+        "QUALITY_RETRY",
+        "CHECK_FAILED:PACING"
+      ],
+      "publishDecision": "DO_NOT_PUBLISH",
+      "publishBlockers": [
+        "MACHINE_REJECTED",
+        "TEST_PRODUCT_MEDIA_NOT_FOR_PUBLISHING",
+        "MEDIA_RIGHTS_DO_NOT_COVER_USE"
+      ],
+      "contentType": "AFFILIATE",
+      "creativeSource": "LOCAL_LLM_STORY_V1",
+      "mediaRights": [
+        {
+          "kind": "ORIGINAL_GRAPHIC",
+          "note": "การ์ดกราฟิกที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น"
+        },
+        {
+          "role": "REAL_FOOTAGE",
+          "origin": "OWNER_CREATED",
+          "license": null,
+          "rightsId": "b50303dc-1c6c-4d8f-86ad-30edaf7b43cc",
+          "testOnly": false,
+          "expiresAt": null,
+          "reference": "",
+          "mediaAssetId": "22b26b2e-a79c-4a01-8750-8868cd815843",
+          "rightsholder": null,
+          "allowsPromotion": false,
+          "allowsCommercial": true
+        },
+        {
+          "kind": "AI_VOICE",
+          "license": {
+            "voice": "DESIGNED_NO_REFERENCE",
+            "engine": "voxcpm",
+            "modelId": "openbmb/VoxCPM2",
+            "sources": [
+              "https://huggingface.co/openbmb/VoxCPM2",
+              "https://pypi.org/project/voxcpm/",
+              "https://github.com/OpenBMB/VoxCPM"
+            ],
+            "checkedAt": "2026-10-18",
+            "aiGenerated": true,
+            "modelLicense": "Apache-2.0",
+            "commercialUse": true,
+            "engineLicense": "Apache-2.0"
+          }
+        }
+      ],
+      "itemId": "7622edc3-9114-4f43-90fe-c53f310b05c3",
+      "slot": null,
+      "slotBasis": null,
+      "hook": "500 มล. คือขนาดของขวดน้ำหรือไม่?",
+      "voice": "500 มล. คือขนาดของขวดน้ำหรือไม่? ความจุ 500 มิลลิลิตร คลิกเพื่อเปิดวิดีโอเพื่อดูข้อมูลเพิ่มเติม",
+      "caption": "ดูวิดีโอเพื่อตรวจสอบความถูกต้องของข้อมูล",
+      "hashtags": [
+        "#ข้อมูลจริง",
+        "#ขวดน้ำ",
+        "#ของใช้ในบ้าน"
+      ],
+      "metrics": {
+        "wallSeconds": 243.209,
+        "cpuSeconds": 751.3,
+        "avgCpuCores": 3.09,
+        "peakRssMb": 11157,
+        "renderSeconds": 73.701,
+        "creativeSeconds": 169.451
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.1227,
+      "costBasis": "ESTIMATE: 74 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 7.651917
+      },
+      "ai": {
+        "source": "LLM_EVIDENCE_STRATEGY",
+        "llmSelectedId": "QUIZ_REVEAL",
+        "finalSelectedId": "QUIZ_REVEAL",
+        "experiment": "EXPLORE",
+        "selectionReason": "ใช้ข้อเท็จจริงที่มีอยู่และรูปแบบที่ไม่ซ้ำกับ recent, รูปแบบการถามคำถามเป็นสิ่งที่ผู้ใช้อาจสนใจและมีโอกาสให้คอมเมนต์ได้มากกว่ารูปแบบอื่นๆ ที่เป็นการบอกข้อมูลโดยตรงหรือแสดงวิดีโอโดยตรง",
+        "alternativesReason": "อีก 2 รูปแบบมีความคล้ายคลึงกันกับ recent ที่ใช้ DEMONSTRATION และการบอกข้อมูลโดยตรง ทำให้ผู้ใช้ไม่รู้สึกตื่นเต้นหรือสนใจน้อยกว่า รูปแบบการถามคำถามจึงเป็นทางเลือกที่ดีกว่า",
+        "brainstorm": "คนดูอาจสนใจข้อเท็จจริงเกี่ยวกับขนาดขวดและดีไซน์  \nข้อเท็จจริงที่น่าเล่าคือ \"ความจุ 500 มิลลิลิตร\" และ \"ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว\"  \nไอเดีย 3 แบบ: 1) ถามคำถามเกี่ยวกับขนาด 2) แสดงข้อเท็จจริงด้วยวิดีโอ 3) บอกข้อเท็จจริงตรงๆ แบบเร็ว  \nหลีกเลี่ยงการใช้รูปแบบเดิมจาก recent ที่ใช้ DEMONSTRATION  \nเลือกรูปแบบถามคำถามเพราะมีความน่าสนใจและใช้ข้อเท็จจริงที่มีอยู่",
+        "llmSeconds": 169.292,
+        "usage": {
+          "inputTokens": 2723,
+          "outputTokens": 1546
+        },
+        "ideas": [
+          {
+            "id": "QUIZ_REVEAL",
+            "status": "REVIEW_REQUIRED",
+            "method": "REAL_FOOTAGE_EDIT",
+            "format": "DEMONSTRATION",
+            "hook": "500 มล. คือขนาดของขวดน้ำหรือไม่?",
+            "beats": [
+              "500 มล. คือขนาดของขวดน้ำหรือไม่?",
+              "ความจุ 500 มิลลิลิตร",
+              "คลิกเพื่อเปิดวิดีโอเพื่อดูข้อมูลเพิ่มเติม"
+            ],
+            "reasons": [
+              "มุมเล่า: ถามคำถามเกี่ยวกับขนาดขวด",
+              "รูปแบบ hook: คำถามเปิด",
+              "ใช้ข้อเท็จจริงที่มีอยู่และรูปแบบที่ไม่ซ้ำกับ recent",
+              "ใช้ข้อเท็จจริงที่มีอยู่และรูปแบบที่ไม่ซ้ำกับ recent, รูปแบบการถามคำถามเป็นสิ่งที่ผู้ใช้อาจสนใจและมีโอกาสให้คอมเมนต์ได้มากกว่ารูปแบบอื่นๆ ที่เป็นการบอกข้อมูลโดยตรงหรือแสดงวิดีโอโดยตรง"
+            ]
+          },
+          {
+            "id": "DEMONSTRATION",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "DEMONSTRATION",
+            "hook": "ดูวิดีโอเพื่อเรียนรู้ข้อมูลจริง",
+            "beats": [
+              "ดูวิดีโอเพื่อเรียนรู้ข้อมูลจริง",
+              "ความจุ 50มล. คือความจุของขวดนี้",
+              "คลิกเพื่อเปิดวิดีโอเพื่อดูข้อมูลเพิ่มเติม"
+            ],
+            "reasons": [
+              "มุมเล่า: แสดงข้อเท็จจริงด้วยวิดีโอ",
+              "รูปแบบ hook: วิดีโอเปิด",
+              "ใช้ข้อเท็จจริงที่มีอยู่และรูปแบบที่ไม่ซ้ำกับ recent",
+              "คำพูดไม่ตรงกับภาพหรือหลักฐาน (UNSUPPORTED_NUMBER): ความจุ 50มล. คือความจุของขวดนี้"
+            ]
+          },
+          {
+            "id": "DIRECT_FACT",
+            "status": "REVIEW_REQUIRED",
+            "method": "REAL_FOOTAGE_EDIT",
+            "format": "DEMONSTRATION",
+            "hook": "ขวดนี้มีข้อเท็จจริงที่น่าสนใจ",
+            "beats": [
+              "ขวดนี้มีข้อเท็จจริงที่น่าสนใจ",
+              "ความจุ 500 มิลลิลิตร",
+              "คลิกเพื่อเปิดวิดีโอเพื่อดูข้อมูลเพิ่มเติม"
+            ],
+            "reasons": [
+              "มุมเล่า: บอกข้อมูลโดยตรง",
+              "รูปแบบ hook: ข้อมูลเปิด",
+              "ใช้ข้อเท็จจริงที่มีอยู่และรูปแบบที่ไม่ซ้ำกับ recent"
+            ]
+          }
+        ]
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.1 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.3s",
+        "PASS TEXT_COVERAGE: text on screen 96% of clip (min 90%)",
+        "FAIL PACING: 4 shot(s), longest 3.0s, 1 distinct framing(s)"
+      ]
+    }
+  ],
+  "bank": {
+    "growth": {
+      "attempts": 5,
+      "usable": 3,
+      "rejected": 2,
+      "actualUsd": 0,
+      "actualThbPerUsable": 0,
+      "estimatedThbPerUsable": 0.18876666666666667
+    },
+    "affiliateTestOnly": {
+      "attempts": 1,
+      "usable": 0,
+      "rejected": 1,
+      "actualUsd": 0,
+      "actualThbPerUsable": null,
+      "estimatedThbPerUsable": null
+    }
+  },
+  "guards": {
+    "exportUnreviewed": "BANK_ITEM_NOT_APPROVED_FOR_EXPORT"
+  },
+  "rebankSameMaster": {
+    "sameRow": true,
+    "rowsInBank": 6
+  },
+  "publishingQueueRows": 0
+}
