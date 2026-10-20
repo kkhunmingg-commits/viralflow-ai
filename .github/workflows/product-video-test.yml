@@ -57,6 +57,27 @@ jobs:
           git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Product video smoke ${{ github.run_id }}"
           git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-video-smoke
 
+  research:
+    # Licensed photos of the product being worn, for the lifestyle storyboard.
+    if: contains(github.event.head_commit.message, '[video-research]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet Pillow && python scripts/product-video/lifestyle_candidates.py out/lifestyle
+      - name: Publish results to a results branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results && cp -r out /tmp/results/ 2>/dev/null || true
+          cd /tmp/results && git init -q -b results && git add -A
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Lifestyle research ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-research
+
   shot:
     # One AI shot per job, all in parallel; each starts from a real licensed photo of the product.
     if: contains(github.event.head_commit.message, '[video-ad]')
