@@ -1,0 +1,260 @@
+{
+  "ranAt": "2026-10-20T12:38:30.093Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "machine": {
+    "cpus": 4,
+    "memGb": 16,
+    "note": "GitHub-hosted ubuntu-latest runner"
+  },
+  "assumptions": {
+    "machineThbPerHour": 6,
+    "thbPerUsd": 35,
+    "note": "Estimates only. No bill exists for runner time; actual spend comes from generation_costs."
+  },
+  "env": {
+    "creative": "local-llm",
+    "tts": "voxcpm2"
+  },
+  "results": [
+    {
+      "label": "growth-1",
+      "mode": "GROWTH",
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    },
+    {
+      "label": "growth-2",
+      "mode": "GROWTH",
+      "story": {
+        "format": "QUIZ_REVEAL",
+        "beats": [
+          {
+            "role": "HOOK",
+            "text": "หมึกยักษ์มีหัวใจ 3 ดวง คุณเชื่อไหม?",
+            "badge": "?"
+          },
+          {
+            "role": "POINT",
+            "text": "เลือดหมึกยักษ์ใช้ทองแดงขนออกซิเจน",
+            "kicker": "F12"
+          },
+          {
+            "role": "CTA",
+            "text": "คลิกเพื่อดูข้อเท็จจริงอื่นๆ"
+          }
+        ],
+        "basis": "LOCAL_LLM_STORY_V1 (local/qwen3-4b-q4_k_m): เนื่องจากข้อมูลเกี่ยวกับหมึกยักษ์เป็นหัวข้อใหม่ที่มีข้อเท็จจริงชัดเจนและไม่เคยมีใน recent ทำให้เหมาะกับการใช้รูปแบบนี้ (ระบบตัดจังหวะท้าย 2 จังหวะให้พูดทันเวลา)"
+      },
+      "topic": {
+        "topic": "หมึกยักษ์"
+      },
+      "method": "ORIGINAL_GRAPHIC_STORY",
+      "quality": "PASS",
+      "bankStatus": "ACCEPTED",
+      "rejection": [],
+      "publishDecision": "PENDING_REVIEW",
+      "publishBlockers": [],
+      "contentType": "GROWTH",
+      "creativeSource": "LOCAL_LLM_STORY_V1",
+      "mediaRights": [
+        {
+          "kind": "ORIGINAL_GRAPHIC",
+          "note": "การ์ดกราฟิกที่ระบบวาดเอง ไม่มีสื่อของผู้อื่น"
+        },
+        {
+          "kind": "AI_VOICE",
+          "license": {
+            "voice": "DESIGNED_NO_REFERENCE",
+            "engine": "voxcpm",
+            "modelId": "openbmb/VoxCPM2",
+            "sources": [
+              "https://huggingface.co/openbmb/VoxCPM2",
+              "https://pypi.org/project/voxcpm/",
+              "https://github.com/OpenBMB/VoxCPM"
+            ],
+            "checkedAt": "2026-10-18",
+            "aiGenerated": true,
+            "modelLicense": "Apache-2.0",
+            "commercialUse": true,
+            "engineLicense": "Apache-2.0"
+          }
+        }
+      ],
+      "itemId": "6314c710-2c11-4f13-ad60-9984786c90e8",
+      "slot": "2026-10-20T12:30:00+00:00",
+      "slotBasis": "DEFAULT_NO_DATA",
+      "hook": "หมึกยักษ์มีหัวใจ 3 ดวง คุณเชื่อไหม?",
+      "voice": "หมึกยักษ์มีหัวใจ 3 ดวง คุณเชื่อไหม? เลือดหมึกยักษ์ใช้ทองแดงขนออกซิเจน คลิกเพื่อดูข้อเท็จจริงอื่นๆ",
+      "caption": "หมึกยักษ์มีหัวใจ 3 ดวง คุณเชื่อไหม? คลิกเพื่อดูข้อเท็จจริงอื่นๆ",
+      "hashtags": [
+        "#หมึกยักษ์",
+        "#ข้อเท็จจริง",
+        "#ความรู้รอบตัว"
+      ],
+      "metrics": {
+        "wallSeconds": 799.78,
+        "cpuSeconds": 2282.2,
+        "avgCpuCores": 2.85,
+        "peakRssMb": 10190,
+        "renderSeconds": 374.213,
+        "creativeSeconds": 425.498
+      },
+      "costActualUsd": 0,
+      "costEstimatedThb": 0.6235,
+      "costBasis": "ESTIMATE: 374 s render at 6 THB/hour",
+      "narration": {
+        "kind": "SYSTEM_TTS",
+        "license": {
+          "voice": "DESIGNED_NO_REFERENCE",
+          "engine": "voxcpm",
+          "modelId": "openbmb/VoxCPM2",
+          "sources": [
+            "https://huggingface.co/openbmb/VoxCPM2",
+            "https://pypi.org/project/voxcpm/",
+            "https://github.com/OpenBMB/VoxCPM"
+          ],
+          "checkedAt": "2026-10-18",
+          "aiGenerated": true,
+          "modelLicense": "Apache-2.0",
+          "commercialUse": true,
+          "engineLicense": "Apache-2.0"
+        },
+        "provider": "voxcpm2-local",
+        "durationSeconds": 7.623771
+      },
+      "ai": {
+        "source": "LLM_EVIDENCE_STRATEGY",
+        "llmSelectedId": "I1",
+        "finalSelectedId": "I2",
+        "experiment": "EXPLORE",
+        "selectionReason": "เนื่องจากข้อมูลเกี่ยวกับขวดเก็บความเย็นเป็นหัวข้อใหม่ที่มีข้อเท็จจริงชัดเจนและไม่เคยมีใน recent ทำให้เหมาะกับการใช้รูปแบบนี้ รูปแบบ NUMBER_SPOTLIGHT ช่วยให้ผู้ชมเห็นความลับที่ไม่ใครรู้เกี่ยวกับขวดเก็บความเย็น สร้างความสนใจได้ดีและสอดคล้องกับเป้าหมายเพื่อเพิ่มการมีส่วนร่วมและความสนใจในเนื้อหา",
+        "alternativesReason": "ไอเดียที่สองและสามมีหัวข้อที่มีอยู่ใน recent หรือมีข้อมูลที่ซ้ำซ้อน ทำให้ไม่เหมาะกับการใช้ในขณะนี้ ไอเดียที่หนึ่งมีหัวข้อใหม่ที่มีข้อเท็จจริงชัดเจนและไม่เคยมีใน recent ทำให้เหมาะกับการใช้รูปแบบนี้",
+        "brainstorm": "คนดูน่าจะสนใจข้อเท็จจริงที่ไม่คุ้นเคย เช่น ทำไมน้ำแข็งลอยน้ำ หรือเหตุผลที่หมึกยักษ์เป็นสีฟ้า  \nไอเดีย 3 แบบ: 1. สรุปข้อเท็จจริง 3 ข้อเกี่ยวกับน้ำแข็งลอยน้ำ 2. ถามคำถามเกี่ยวกับหมึกยักษ์ 3. สรุปข้อเท็จจริง 3 ข้อเกี่ยวกับขวดเก็บความเย็น  \nควรหลีกเลี่ยงเรื่องน้ำแข็งลอยน้ำ เพราะมีใน recent ควรเลือกข้อมูลเกี่ยวกับขวดเก็บความเย็น เพราะเป็นหัวข้อใหม่ที่มีข้อเท็จจริงชัดเจน",
+        "llmSeconds": 425.125,
+        "usage": {
+          "inputTokens": 3952,
+          "outputTokens": 1952
+        },
+        "ideas": [
+          {
+            "id": "I1",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "3 ข้อเท็จจริงที่คุณไม่รู้เกี่ยวกับขวดเก็บความเย็น",
+            "beats": [
+              "3 ข้อเท็จจริงที่คุณไม่รู้เกี่ยวกับขวดเก็บความเย็น",
+              "ผนังขวดมีสองชั้น",
+              "คลิกเพื่อดูข้อเท็จจริงอื่นๆ"
+            ],
+            "reasons": [
+              "มุมเล่า: ชี้ให้เห็นว่าขวดเก็บความเย็นมีความลับที่ไม่ใครรู้",
+              "รูปแบบ hook: ใช้ตัวเลขเปิดต้น",
+              "เนื่องจากข้อมูลเกี่ยวกับขวดเก็บความเย็นเป็นหัวข้อใหม่ที่มีข้อเท็จจริงชัดเจนและไม่เคยมีใน recent ทำให้เหมาะกับการใช้รูปแบบนี้",
+              "เนื่องจากข้อมูลเกี่ยวกับขวดเก็บความเย็นเป็นหัวข้อใหม่ที่มีข้อเท็จจริงชัดเจนและไม่เคยมีใน recent ทำให้เหมาะกับการใช้รูปแบบนี้ รูปแบบ NUMBER_SPOTLIGHT ช่วยให้ผู้ชมเห็นความลับที่ไม่ใครรู้เกี่ยวกับขวดเก็บความเย็น สร้างความสนใจได้ดีและสอดคล้องกับเป้าหมายเพื่อเพิ่มการมีส่วนร่วมและความสนใจในเนื้อหา",
+              "ข้อความบางจังหวะยาวเกิน 32 ตัวอักษร อ่านไม่ทัน",
+              "NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง"
+            ]
+          },
+          {
+            "id": "I2",
+            "status": "REVIEW_REQUIRED",
+            "method": "ORIGINAL_GRAPHIC_STORY",
+            "format": "QUIZ_REVEAL",
+            "hook": "หมึกยักษ์มีหัวใจ 3 ดวง คุณเชื่อไหม?",
+            "beats": [
+              "หมึกยักษ์มีหัวใจ 3 ดวง คุณเชื่อไหม?",
+              "เลือดหมึกยักษ์ใช้ทองแดงขนออกซิเจน",
+              "คลิกเพื่อดูข้อเท็จจริงอื่นๆ"
+            ],
+            "reasons": [
+              "มุมเล่า: สร้างความสนใจด้วยคำถามแล้วตอบอย่างไม่คาดคิด",
+              "รูปแบบ hook: ถามคำถามแล้วเปิดเผยคำตอบ",
+              "เนื่องจากข้อมูลเกี่ยวกับหมึกยักษ์เป็นหัวข้อใหม่ที่มีข้อเท็จจริงชัดเจนและไม่เคยมีใน recent ทำให้เหมาะกับการใช้รูปแบบนี้",
+              "เลือกทดลองแนวทางนี้เพื่อเก็บหลักฐานเพิ่ม ยังไม่ใช่สูตรไวรัล"
+            ]
+          },
+          {
+            "id": "I3",
+            "status": "REJECTED",
+            "method": "WAIT_FOR_EVIDENCE",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "3 ข้อเท็จจริงที่คุณไม่รู้เกี่ยวกับน้ำแข็งลอยน้ำ",
+            "beats": [
+              "3 ข้อเท็จจริงที่คุณไม่รู้เกี่ยวกับน้ำแข็งลอยน้ำ",
+              "น้ำแข็งเบากว่าน้ำราว 9%",
+              "คลิกเพื่อดูข้อเท็จจริงอื่นๆ"
+            ],
+            "reasons": [
+              "มุมเล่า: ชี้ให้เห็นว่าความจริงเกี่ยวกับน้ำแข็งลอยน้ำมีความลับที่ไม่ใครรู้",
+              "รูปแบบ hook: ใช้ตัวเลขเปิดต้น",
+              "เนื่องจากข้อมูลเกี่ยวกับน้ำแข็งลอยน้ำเป็นหัวข้อที่มีอยู่ใน recent แต่ข้อมูลใหม่ที่ไม่เคยมีใน recent ทำให้เหมาะกับการใช้รูปแบบนี้",
+              "หัวข้อ \"น้ำแข็งลอยน้ำ\" เพิ่งทำไปในคลิปล่าสุด ยังมีหัวข้อที่ยังไม่ได้เล่า: ขวดเก็บความเย็น, หม้อความดัน, เกลือกับน้ำแข็ง, หมึกยักษ์, ฟ้าแลบก่อนฟ้าร้อง, น้ำผึ้งเก็บได้นาน",
+              "คำบรรยายยาว 74 ตัวอักษร เกินที่พูดทันในคลิป"
+            ]
+          }
+        ]
+      },
+      "checks": [
+        "PASS DURATION: 8.00s",
+        "PASS RESOLUTION: 1080x1920",
+        "PASS AUDIO_TRACK: aac",
+        "PASS VOICE: narration present",
+        "PASS LOUDNESS: -14.4 LUFS (target -14±2)",
+        "PASS HOOK: hook on screen 0.0–2.7s",
+        "PASS TEXT_COVERAGE: text on screen 95% of clip (min 90%)",
+        "PASS PACING: 3 shot(s), longest 3.0s, 3 distinct framing(s)"
+      ]
+    },
+    {
+      "label": "growth-3",
+      "mode": "GROWTH",
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    },
+    {
+      "label": "growth-4",
+      "mode": "GROWTH",
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    },
+    {
+      "label": "growth-5",
+      "mode": "GROWTH",
+      "error": "CREATIVE_LLM_DUPLICATE_IDEAS"
+    },
+    {
+      "label": "affiliate-test-1",
+      "mode": "AFFILIATE",
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    },
+    {
+      "label": "affiliate-test-2",
+      "mode": "AFFILIATE",
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    }
+  ],
+  "bank": {
+    "growth": {
+      "attempts": 1,
+      "usable": 1,
+      "rejected": 0,
+      "actualUsd": 0,
+      "actualThbPerUsable": 0,
+      "estimatedThbPerUsable": 0.6235
+    },
+    "affiliateTestOnly": {
+      "attempts": 0,
+      "usable": 0,
+      "rejected": 0,
+      "actualUsd": 0,
+      "actualThbPerUsable": null,
+      "estimatedThbPerUsable": null
+    }
+  },
+  "guards": {
+    "exportUnreviewed": "BANK_ITEM_NOT_APPROVED_FOR_EXPORT"
+  },
+  "rebankSameMaster": {
+    "sameRow": true,
+    "rowsInBank": 1
+  },
+  "publishingQueueRows": 0
+}
