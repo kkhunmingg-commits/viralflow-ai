@@ -101,7 +101,7 @@ jobs:
 
   creative-eval-report:
     needs: creative-eval
-    if: always() && needs.creative-eval.result != 'skipped'
+    if: ${{ !cancelled() && needs.creative-eval.result != 'skipped' }}
     permissions:
       contents: write
     runs-on: ubuntu-latest
