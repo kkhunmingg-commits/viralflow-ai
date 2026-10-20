@@ -1,0 +1,75 @@
+{
+  "ranAt": "2026-10-20T09:51:27.479Z",
+  "database": "local supabase start stack, destroyed after the job",
+  "machine": {
+    "cpus": 4,
+    "memGb": 16,
+    "note": "GitHub-hosted ubuntu-latest runner"
+  },
+  "assumptions": {
+    "machineThbPerHour": 6,
+    "thbPerUsd": 35,
+    "note": "Estimates only. No bill exists for runner time; actual spend comes from generation_costs."
+  },
+  "env": {
+    "creative": "local-llm",
+    "tts": "voxcpm2"
+  },
+  "results": [
+    {
+      "label": "growth-1",
+      "mode": "GROWTH",
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    },
+    {
+      "label": "growth-2",
+      "mode": "GROWTH",
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    },
+    {
+      "label": "growth-3",
+      "mode": "GROWTH",
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    },
+    {
+      "label": "growth-4",
+      "mode": "GROWTH",
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    },
+    {
+      "label": "growth-5",
+      "mode": "GROWTH",
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    },
+    {
+      "label": "affiliate-test-1",
+      "mode": "AFFILIATE",
+      "error": "HUMAN_CREATIVE_REVIEW_REQUIRED"
+    },
+    {
+      "label": "affiliate-test-2",
+      "mode": "AFFILIATE",
+      "error": "CREATIVE_LLM_DUPLICATE_IDEAS"
+    }
+  ],
+  "bank": {
+    "growth": {
+      "attempts": 0,
+      "usable": 0,
+      "rejected": 0,
+      "actualUsd": 0,
+      "actualThbPerUsable": null,
+      "estimatedThbPerUsable": null
+    },
+    "affiliateTestOnly": {
+      "attempts": 0,
+      "usable": 0,
+      "rejected": 0,
+      "actualUsd": 0,
+      "actualThbPerUsable": null,
+      "estimatedThbPerUsable": null
+    }
+  },
+  "rebankSameMaster": null,
+  "publishingQueueRows": 0
+}
