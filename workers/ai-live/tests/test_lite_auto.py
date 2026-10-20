@@ -22,7 +22,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from av_encoder import EncoderConfig
-from cloud_tts import (AzureSpeechBackend, CloudTTSError, FreeTierGuard, SpeechProvider, UsageMeter,
+from cloud_tts import (AzureSpeechBackend, WindowsOneCoreBackend, CloudTTSError, FreeTierGuard, SpeechProvider, UsageMeter,
                        backend_from_env)
 from lite_audio_features import FrameFeatureExtractor, OpennessTracker
 from lite_brain import CLARIFY_SPOKEN, UNKNOWN_SPOKEN, LiteRoutedBrain, NoLLMRuntime, similarity
@@ -368,6 +368,54 @@ class SpeechKeyStoreTests(unittest.TestCase):
                 store.put("azure", "short", "southeastasia")
             store.delete()
             self.assertEqual(store.metadata(), {"configured": False})
+
+
+class FakeOneCoreHost:
+    """Stands in for the PowerShell OneCore host: echoes one WAV per request line."""
+
+    def __init__(self, *args, **kwargs):
+        import base64, wave
+        self.args, self.env = args, kwargs.get("env", {})
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as handle:
+            handle.setnchannels(1); handle.setsampwidth(2); handle.setframerate(22050)
+            handle.writeframes((np.ones(22050, dtype="<i2") * 1000).tobytes())
+        self.wav = base64.b64encode(buffer.getvalue()).decode()
+        self.requests = []
+        self.lines = queue.Queue()
+        self.lines.put("READY Microsoft Pattara\n")
+        host = self
+
+        class Stdin:
+            def write(self, line):
+                host.requests.append(line)
+                host.lines.put(f"OK {host.wav}\n")
+            def flush(self): pass
+            def close(self): pass
+
+        class Stdout:
+            def readline(self):
+                return host.lines.get(timeout=1)
+
+        self.stdin, self.stdout = Stdin(), Stdout()
+
+    def poll(self): return None
+    def wait(self, timeout=None): return 0
+    def kill(self): pass
+
+
+class WindowsVoiceTests(unittest.TestCase):
+    def test_onecore_thai_voice_streams_16k_pcm_and_reuses_one_host(self):
+        hosts = []
+        backend = WindowsOneCoreBackend("Pattara", popen=lambda *a, **k: hosts.append(FakeOneCoreHost(*a, **k)) or hosts[-1])
+        for _ in range(2):
+            pcm = b"".join(backend.stream_sentence("สวัสดีค่ะ", threading.Event()))
+            self.assertEqual(len(pcm), 16000 * 2)  # one second resampled to 16 kHz mono
+        self.assertEqual(len(hosts), 1)
+        self.assertEqual(hosts[0].env["LITE_ONECORE_VOICE"], "Pattara")
+        self.assertEqual(backend.health()["voice"], "Microsoft Pattara")
+        self.assertEqual(backend.meter.report()["characters"], 2 * len("สวัสดีค่ะ"))
+        self.assertNotIn("api_key", json.dumps(backend.health()))
 
 
 class DestinationTests(unittest.TestCase):

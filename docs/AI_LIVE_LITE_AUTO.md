@@ -26,7 +26,7 @@ LiteShowDirector ──queue_speech──▶ LocalAISession (ของ Pro: ค�
 |---|---|---|
 | AI Presenter | `lite_presenter_pack.py`, `lite_pack_builder.py`, `lite_presenter_engine.py` | Pack ภาพปาก/ใบหน้าที่เรนเดอร์ไว้ล่วงหน้า เลือกเฟรมตามเสียงจริง + การหายใจ/โยกตัวเบา ๆ + ป้าย "AI presenter" ฝังในวิดีโอ |
 | Lip-Sync | `lite_audio_features.py` | วัดพลังงานและสเปกตรัมเสียงต่อเฟรม แปลงเป็นความกว้างปาก |
-| AI Voice | `cloud_tts.py` | Azure AI Speech / Google Cloud TTS (ใช้คีย์ของเจ้าของเท่านั้น) + มิเตอร์นับตัวอักษรและต้นทุน; espeak-ng สำหรับทดสอบเทคนิค |
+| AI Voice | `cloud_tts.py` | Azure AI Speech F0 (คีย์ของเจ้าของ, เพดานฟรี) / เสียงไทยของ Windows (ฟรี ออฟไลน์) + มิเตอร์นับตัวอักษร; espeak-ng สำหรับทดสอบเทคนิค |
 | AI Brain | `lite_brain.py` | ใช้คำตอบของ Pro ก่อนเสมอ ถ้า Pro ตอบ "ไม่มีข้อมูล" จะจับคู่คำถามที่ถามต่างคำกับ FAQ/คุณสมบัติที่ร้านอนุมัติ (และให้ Qwen เลือกหัวข้อได้ถ้ามี) คำตอบที่พูดออกไปคือข้อมูลร้านเท่านั้น |
 | พิธีกรอัตโนมัติ | `lite_director.py` | พูดแนะนำสินค้าจากข้อมูลจริงต่อเนื่อง หมุนสินค้า หยุดให้คอมเมนต์แทรกได้ |
 | ปลายทาง | `lite_destination.py` | อนุญาต RTMP Test Server (loopback/เครือข่ายภายใน); TikTok ถูกปิดด้วย `TIKTOK_AI_PRESENTER_POLICY_UNVERIFIED`; แพลตฟอร์มอื่นต้องมีบันทึกยืนยันนโยบายจากเจ้าของ |
@@ -61,24 +61,23 @@ python lite_pack_builder.py video --out packs/host-b --video host.mp4 --consent 
 
 `consent.json`: `{"likeness_use": true, "person": "ชื่อผู้ยินยอม", "signed_at": "2026-10-18"}`
 
-## 4. ตั้งค่าเสียง (Cloud TTS)
+## 4. ตั้งค่าเสียง
 
-ไม่มีคีย์ = ไม่มีเสียง (ระบบไม่สลับไปใช้บริการเสียเงินเอง)
+ไม่มีคีย์ = ไม่มีเสียง Azure (ระบบไม่สลับไปใช้บริการเสียเงินเอง)
 
-| ตัวแปร | ค่า |
-|---|---|
-| `AI_LIVE_LITE_TTS` | `azure` / `google` / `espeak` (ทดสอบเทคนิค) |
-| `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `AZURE_SPEECH_VOICE` | เช่น `southeastasia`, `th-TH-PremwadeeNeural` |
-| `GOOGLE_TTS_API_KEY`, `GOOGLE_TTS_VOICE` | เสียง `th-TH-…` |
-| `AI_LIVE_TTS_PRICE_USD_PER_MILLION`, `AI_LIVE_TTS_FREE_CHARACTERS` | ราคาที่เจ้าของกรอกเอง ใช้คำนวณต้นทุนในรายงาน |
+| `AI_LIVE_LITE_TTS` | เสียง | ค่าใช้จ่าย |
+|---|---|---|
+| `azure` | Azure AI Speech Neural ไทย (Premwadee / Achara / Niwat) ตั้ง `AZURE_SPEECH_VOICE` | F0 ฟรี 500,000 ตัวอักษร/เดือน ระบบหยุดเองที่ 450,000 และจำกัด 18 ครั้ง/นาที ไม่มีการเปลี่ยนเป็น Paid |
+| `windows` | เสียงไทยที่มากับ Windows (Microsoft Pattara) ทำงานออฟไลน์ ไม่ต้องใช้คีย์ ไม่ต้องติดตั้ง | ฟรี |
+| `espeak` | espeak-ng (ทดสอบเทคนิคเท่านั้น) | ฟรี |
 
-Azure มี Free tier (F0) สำหรับเริ่มทดสอบ ตรวจโควตาและราคาปัจจุบันในหน้า pricing ก่อนใช้จริง
+คีย์ Azure เก็บแบบเข้ารหัส DPAPI ด้วย `python lite_speech_key.py set --region southeastasia` (หน้าต่างกรอกแบบซ่อนตัวอักษร) ระบบไม่อ่านคีย์จากตัวแปร environment และไม่บันทึกคีย์ลง log
 
 ## 5. ทดสอบบน ROG Ally X
 
 ```powershell
 $env:AI_LIVE_ENCODER = "h264_amf"     # ถ้า ffmpeg ใช้ AMF ไม่ได้ ให้ใช้ libx264
-$env:AI_LIVE_LITE_TTS = "azure"       # หรือ espeak เพื่อทดสอบเฉพาะเทคนิค
+$env:AI_LIVE_LITE_TTS = "azure"       # หรือ windows (เสียงไทยฟรีของ Windows)
 python lite_live_proof.py --output proof-ally --pack packs/host-a --seconds 600
 ```
 

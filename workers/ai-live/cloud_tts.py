@@ -5,8 +5,10 @@ the owner configures their own key; there is no default key, no silent paid
 fallback and no unofficial endpoint. Every request is metered in characters
 so the session report can state usage and the owner-configured price.
 
-espeak-ng and Windows SAPI are technical-test voices: they prove timing and
-transport, not natural Thai speech.
+espeak-ng is a technical-test voice: it proves timing and transport, not
+natural Thai speech. The Windows OneCore Thai voice (Microsoft Pattara) ships
+with Windows, runs offline and costs nothing; it is clearer than espeak but
+less natural than Azure neural voices.
 """
 from __future__ import annotations
 
@@ -17,6 +19,7 @@ import json
 import os
 import shutil
 import subprocess
+import tempfile
 import threading
 import time
 import urllib.error
@@ -325,6 +328,107 @@ class EspeakTechnicalBackend:
         pass
 
 
+# One persistent Windows PowerShell host: base64 UTF-8 text in, base64 WAV out, one line each.
+_ONECORE_HOST = r"""
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Runtime.WindowsRuntime
+$null = [Windows.Media.SpeechSynthesis.SpeechSynthesizer, Windows.Media.SpeechSynthesis, ContentType = WindowsRuntime]
+$asTask = [System.WindowsRuntimeSystemExtensions].GetMethods() | Where-Object {
+  $_.Name -eq 'AsTask' -and $_.GetParameters().Count -eq 1 -and
+  $_.GetParameters()[0].ParameterType.Name -eq 'IAsyncOperation`1' } | Select-Object -First 1
+$asTask = $asTask.MakeGenericMethod([Windows.Media.SpeechSynthesis.SpeechSynthesisStream])
+$synth = New-Object Windows.Media.SpeechSynthesis.SpeechSynthesizer
+$voice = [Windows.Media.SpeechSynthesis.SpeechSynthesizer]::AllVoices |
+  Where-Object { $_.Language -eq 'th-TH' -and ($env:LITE_ONECORE_VOICE -eq '' -or $_.DisplayName -like "*$env:LITE_ONECORE_VOICE*") } |
+  Select-Object -First 1
+if (-not $voice) { [Console]::Out.WriteLine('ERR NO_THAI_VOICE'); exit 3 }
+$synth.Voice = $voice
+[Console]::Out.WriteLine('READY ' + $voice.DisplayName)
+while ($null -ne ($line = [Console]::In.ReadLine())) {
+  try {
+    $text = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($line))
+    $task = $asTask.Invoke($null, @($synth.SynthesizeTextToStreamAsync($text)))
+    $null = $task.Wait(20000)
+    $source = [System.IO.WindowsRuntimeStreamExtensions]::AsStreamForRead($task.Result)
+    $buffer = New-Object System.IO.MemoryStream
+    $source.CopyTo($buffer)
+    [Console]::Out.WriteLine('OK ' + [Convert]::ToBase64String($buffer.ToArray()))
+  } catch { [Console]::Out.WriteLine('ERR SYNTHESIS_FAILED') }
+}
+"""
+
+
+class WindowsOneCoreBackend:
+    """Built-in Windows Thai voice (Microsoft Pattara). Offline, free, no key, no install."""
+    provider = "windows-onecore-th"
+    technical_test_only = False
+
+    def __init__(self, voice: str = "", *, popen: Callable[..., subprocess.Popen] = subprocess.Popen):
+        self._voice = voice
+        self._popen = popen
+        self._process: subprocess.Popen | None = None
+        self._voice_name: str | None = None
+        self._lock = threading.Lock()
+        self.meter = UsageMeter(self.provider, 0.0)
+
+    @property
+    def fingerprint(self) -> str:
+        return hashlib.sha256(f"onecore\0{self._voice}".encode()).hexdigest()
+
+    def _host(self) -> subprocess.Popen:
+        if self._process is not None and self._process.poll() is None:
+            return self._process
+        if os.name != "nt" and self._popen is subprocess.Popen:
+            raise CloudTTSError("TTS_ENGINE_UNAVAILABLE")
+        script = Path(tempfile.gettempdir()) / "viralflow-lite-onecore-host.ps1"
+        script.write_text(_ONECORE_HOST, encoding="utf-8-sig")
+        process = self._popen(["powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                               "-File", str(script)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                              stderr=subprocess.DEVNULL, text=True, encoding="ascii",
+                              env={**os.environ, "LITE_ONECORE_VOICE": self._voice},
+                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        ready = process.stdout.readline().strip()
+        if not ready.startswith("READY"):
+            process.kill()
+            raise CloudTTSError("TTS_ENGINE_UNAVAILABLE")
+        self._voice_name = ready[6:] or None
+        self._process = process
+        return process
+
+    def health(self) -> dict[str, object]:
+        return {"ready": os.name == "nt" or self._popen is not subprocess.Popen,
+                "provider": self.provider, "voice": self._voice_name, "technical_test_only": False}
+
+    def stream_sentence(self, text: str, stop: threading.Event) -> Iterator[bytes]:
+        started = time.monotonic()
+        with self._lock:
+            process = self._host()
+            try:
+                process.stdin.write(base64.b64encode(text.encode("utf-8")).decode("ascii") + "\n")
+                process.stdin.flush()
+                reply = process.stdout.readline().strip()
+            except (OSError, ValueError):
+                self.close()
+                raise CloudTTSError("TTS_ENGINE_FAILED")
+        if not reply.startswith("OK "):
+            raise CloudTTSError("TTS_ENGINE_FAILED")
+        pcm = _wav_to_pcm16(base64.b64decode(reply[3:]))
+        self.meter.record(len(text), (time.monotonic() - started) * 1000)
+        for offset in range(0, len(pcm), CHUNK_BYTES):
+            if stop.is_set():
+                return
+            yield pcm[offset:offset + CHUNK_BYTES]
+
+    def close(self) -> None:
+        process, self._process = self._process, None
+        if process is not None and process.poll() is None:
+            try:
+                process.stdin.close()
+                process.wait(timeout=3)
+            except (OSError, subprocess.TimeoutExpired):
+                process.kill()
+
+
 class SpeechProvider(ManagedLocalTTSProvider):
     """LIVE Pro's sentence/cache/interrupt provider, reporting the real backend."""
 
@@ -362,4 +466,6 @@ def backend_from_env() -> object:
                                   guard=FreeTierGuard(store.root))
     if choice == "espeak":
         return EspeakTechnicalBackend()
+    if choice == "windows":
+        return WindowsOneCoreBackend(os.getenv("AI_LIVE_LITE_WINDOWS_VOICE", "").strip())
     raise CloudTTSError("LITE_TTS_NOT_CONFIGURED")
