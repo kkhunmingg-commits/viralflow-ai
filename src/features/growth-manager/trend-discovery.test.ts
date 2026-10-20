@@ -157,6 +157,11 @@ describe("own performance from validated immutable history", () => {
     expect(report.globalTikTokTrendStatus).toBe("UNKNOWN");
     expect(rows[0].provenance!.reference).not.toContain(record.videoId);
   });
+  it("labels the owner's own imported Studio report as an account-scoped report, not as API data", () => {
+    const rows = ownPerformanceObservations([{ ...history(), source: "OWNER_REPORT_IMPORT" }], "owner", "pilot", now);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ source: "AUTHORIZED_REPORT", provenance: { collection: "AUTHORIZED_REPORT", reference: "https://www.tiktok.com/tiktokstudio", scope: { kind: "ACCOUNT" } } });
+  });
   it("excludes other owners/accounts, mocks, Shop data, future observations, unpublished and stale posts", () => {
     const row = history();
     const invalid: OwnPerformanceHistory[] = [{ ...row, source: "MOCK" }, { ...row, source: "TIKTOK_SHOP_ANALYTICS" },

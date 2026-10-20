@@ -49,6 +49,7 @@ jobs:
         run: |
           mkdir -p proof-out
           node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/pilot/import-proof.ts proof-out | tee proof-out/proof.log
+          echo "::notice title=import proof::$(grep import.proof proof-out/proof.log | cut -c1-3500)"
 
   ai-vs-rules:
     if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ai-pilot]')
