@@ -61,7 +61,7 @@ def inspect_lite_capabilities() -> dict[str, object]:
         load_pack(Path(pack))
     except PresenterPackError as exc:
         blockers.append(exc.code)
-    if os.getenv("AI_LIVE_LITE_TTS", "").strip() not in ("azure", "windows", "espeak"):
+    if os.getenv("AI_LIVE_LITE_TTS", "").strip() not in ("azure", "bank", "windows", "espeak"):
         blockers.append("LITE_TTS_NOT_CONFIGURED")
     return {"ready": not blockers, "blockers": blockers, "dev_fallback": False, "mode": MODE,
             "encoder": codec, "presenter_status": "READY" if not blockers else "LITE_SETUP_REQUIRED"}

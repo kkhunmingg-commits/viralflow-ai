@@ -444,7 +444,10 @@ class SpeechProvider(ManagedLocalTTSProvider):
     def usage(self) -> dict[str, object]:
         meter = getattr(self.backend, "meter", None)
         guard = getattr(self.backend, "guard", None)
-        return {**(meter.report() if meter else {}), **({"free_tier": guard.report()} if guard else {})}
+        bank = {"hits": backend.hits, "misses": backend.misses, "missed": list(backend.missed)} \
+            if hasattr((backend := self.backend), "missed") else None
+        return {**(meter.report() if meter else {}), **({"free_tier": guard.report()} if guard else {}),
+                **({"speech_bank": bank} if bank else {})}
 
 
 def backend_from_env() -> object:
@@ -468,4 +471,13 @@ def backend_from_env() -> object:
         return EspeakTechnicalBackend()
     if choice == "windows":
         return WindowsOneCoreBackend(os.getenv("AI_LIVE_LITE_WINDOWS_VOICE", "").strip())
+    if choice == "bank":
+        # Natural voice rendered ahead of time (VoxCPM2); optional live fallback for unseen sentences.
+        from lite_speech_bank import SpeechBankBackend
+        bank = os.getenv("AI_LIVE_LITE_SPEECH_BANK", "").strip()
+        if not bank or not (Path(bank) / "index.json").is_file():
+            raise CloudTTSError("SPEECH_BANK_NOT_PREPARED")
+        fallback = os.getenv("AI_LIVE_LITE_BANK_FALLBACK", "").strip()
+        return SpeechBankBackend(Path(bank), fallback=WindowsOneCoreBackend(
+            os.getenv("AI_LIVE_LITE_WINDOWS_VOICE", "").strip()) if fallback == "windows" else None)
     raise CloudTTSError("LITE_TTS_NOT_CONFIGURED")

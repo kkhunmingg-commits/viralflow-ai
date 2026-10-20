@@ -418,6 +418,48 @@ class WindowsVoiceTests(unittest.TestCase):
         self.assertNotIn("api_key", json.dumps(backend.health()))
 
 
+class SpeechBankTests(unittest.TestCase):
+    """Natural pre-rendered voice: every line the room can say is in the bank; misses fail closed."""
+
+    def setUp(self):
+        from lite_live_proof import PRODUCTS, QUESTIONS
+        import lite_speech_bank as bank
+        self.bank, self.questions = bank, QUESTIONS
+        self.snapshots = [ProductSnapshot(SCOPE, p["productId"], p["name"], p["version"], p["facts"]) for p in PRODUCTS]
+        self.store = InMemoryProductStore()
+        for snapshot in self.snapshots:
+            self.store.put(snapshot)
+
+    def test_bank_covers_every_answer_and_script_line(self):
+        sentences = set(self.bank.bank_sentences(self.bank.product_utterances(self.snapshots)))
+        brain = LiteRoutedBrain(LocalBrainProvider(NoLLMRuntime(), self.store))
+        spoken = [brain.generate(BrainRequest(SCOPE, question, product.product_id)).text
+                  for product in self.snapshots for question in self.questions]
+        spoken += [line for product in self.snapshots for line in product_script(product.name, product.facts)]
+        missing = {s for text in spoken for s in self.bank.spoken_sentences(text)} - sentences
+        self.assertEqual(missing, set())
+
+    def test_bank_plays_hits_and_fails_closed_on_miss(self):
+        with tempfile.TemporaryDirectory() as temp:
+            out = Path(temp) / "bank"
+            sentences = self.bank.bank_sentences(["ราคาสินค้าตอนนี้ 299 บาทค่ะ"])
+            summary = self.bank.build_bank(sentences, lambda s: b"\x01\x00" * 8000, out,
+                                           voice={"engine": "fixture"}, log=lambda _l: None)
+            self.assertEqual(summary["sentences"], 1)
+            # Resuming renders nothing new; a different voice is refused.
+            self.assertEqual(self.bank.build_bank(sentences, None, out, voice={"engine": "fixture"},
+                                                  log=lambda _l: None)["rendered_now"], 0)
+            with self.assertRaises(SystemExit):
+                self.bank.build_bank(sentences, None, out, voice={"engine": "other"}, log=lambda _l: None)
+            backend = self.bank.SpeechBankBackend(out)
+            provider = SpeechProvider(backend, context_id="test")
+            pcm = b"".join(chunk.pcm16 for chunk in provider.stream_text("ราคาสินค้าตอนนี้ 299 บาทค่ะ", "u1"))
+            self.assertEqual(len(pcm), 16000)
+            with self.assertRaises(CloudTTSError):
+                list(backend.stream_sentence("ประโยคที่ไม่มีในคลัง", threading.Event()))
+            self.assertEqual(provider.usage()["speech_bank"]["misses"], 1)
+
+
 class DestinationTests(unittest.TestCase):
     def test_loopback_test_server_is_technical_only(self):
         destination = classify("rtmp://127.0.0.1:1935/live")

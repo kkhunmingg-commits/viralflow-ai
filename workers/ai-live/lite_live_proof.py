@@ -329,6 +329,7 @@ def run(args) -> dict:
                                 "answered": len(answered), "asked": len(comments)},
         "speech_characters_per_hour": round(usage.get("characters", 0) / hours) if hours else None,
         "speech_requests_per_minute": round(usage.get("requests", 0) / (seconds / 60), 1) if seconds else None,
+        "speech_bank": usage.get("speech_bank"),
         "receiver": _probe(out / "received.flv"),
         "received_bytes": samples[-1]["received_bytes"] if samples else 0,
         "clips": clips,
@@ -352,7 +353,7 @@ def main() -> None:
     report = run(parser.parse_args())
     print(json.dumps({key: report.get(key) for key in (
         "seconds", "presenter_fps", "comment_to_voice_ms", "av_sync_from_received_video",
-        "cpu_percent_of_machine_all_processes", "ram_mib_all_processes", "gpu", "speech_characters_per_hour",
+        "cpu_percent_of_machine_all_processes", "ram_mib_all_processes", "gpu", "speech_characters_per_hour", "speech_bank",
         "received_bytes", "clips", "failure")}, ensure_ascii=False))
 
 
