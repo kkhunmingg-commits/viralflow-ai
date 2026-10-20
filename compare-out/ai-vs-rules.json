@@ -1,0 +1,750 @@
+{
+  "ranAt": "2026-10-20T10:21:37.158Z",
+  "model": "local/qwen3-4b-q4_k_m",
+  "evidence": {
+    "topics": 7,
+    "facts": 20,
+    "note": "Same facts and empty trend/learning data for both systems"
+  },
+  "assumptions": {
+    "machineThbPerHour": 6,
+    "note": "Estimate only; runner time is not billed. Human watchability review is separate and not part of these numbers."
+  },
+  "rules": {
+    "mode": "RULE_BASED_STORYTELLER_V1",
+    "summary": {
+      "cycles": 5,
+      "ownPickPassedGates": 5,
+      "neededFallback": 0,
+      "noUsableIdea": 0,
+      "ideasProposed": 20,
+      "ideasPassed": 10,
+      "ideasRejected": 0,
+      "uniqueTopics": 5,
+      "uniqueFormats": 4,
+      "uniqueHooks": 5,
+      "repeatedStories": 0,
+      "pointsVerbatimFromFacts": 1,
+      "machineSeconds": 0.1,
+      "actualCostThb": 0,
+      "estimatedMachineThb": 0,
+      "tokens": null
+    },
+    "cycles": [
+      {
+        "cycle": 1,
+        "topic": "เกลือกับน้ำแข็ง",
+        "format": "NUMBER_SPOTLIGHT",
+        "hook": "0°C หมายถึงอะไร?",
+        "beats": [
+          "0°C หมายถึงอะไร?",
+          "น้ำเกลือเย็นกว่า 0°C ได้",
+          "ติดตามไว้ มีตอนต่อไป"
+        ],
+        "selectedReady": true,
+        "selectedStatus": "REVIEW_REQUIRED",
+        "usedFallback": false,
+        "ideas": 4,
+        "ideasReady": 2,
+        "ideasRejected": 0,
+        "distinctTopicsInRound": 1,
+        "rejections": [
+          "growth-one-point: ใช้ภาพจริงและตัดต่อ ไม่อ้างว่าการแพนภาพคือการสาธิต",
+          "growth-one-point: คะแนนเป็นความเหมาะสมตามเกณฑ์ที่เปิดเผย ไม่ใช่โอกาสไวรัล",
+          "growth-one-point: ยังไม่มีผลจริงรองรับว่ารูปแบบนี้ทำงานดีในบัญชีนี้",
+          "growth-one-point: หัวข้อและข้อเท็จจริงจากแหล่งที่ได้รับอนุญาต พร้อมภาพที่มีสิทธิ์ใช้",
+          "growth-evidence-story: ใช้ภาพจริงและตัดต่อ ไม่อ้างว่าการแพนภาพคือการสาธิต",
+          "growth-evidence-story: คะแนนเป็นความเหมาะสมตามเกณฑ์ที่เปิดเผย ไม่ใช่โอกาสไวรัล",
+          "growth-evidence-story: ยังไม่มีผลจริงรองรับว่ารูปแบบนี้ทำงานดีในบัญชีนี้",
+          "growth-evidence-story: ข้อเท็จจริงและภาพต้นทางที่อนุญาตให้เล่าเรื่อง โดยไม่แต่งประสบการณ์ผู้ใช้"
+        ],
+        "seconds": 0.056,
+        "tokens": null,
+        "selectionReason": null,
+        "brainstorm": null,
+        "allIdeas": [
+          {
+            "id": "growth-graphic-explainer",
+            "status": "REVIEW_REQUIRED",
+            "topic": "เกลือกับน้ำแข็ง",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "0°C หมายถึงอะไร?",
+            "beats": [
+              "0°C หมายถึงอะไร?",
+              "น้ำเกลือเย็นกว่า 0°C ได้",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          },
+          {
+            "id": "growth-pov-question",
+            "status": "REVIEW_REQUIRED",
+            "topic": "เกลือกับน้ำแข็ง",
+            "format": null,
+            "hook": "ถ้าเป็นคุณ จะสังเกตอะไร?",
+            "beats": null
+          },
+          {
+            "id": "growth-one-point",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "เกลือกับน้ำแข็ง",
+            "format": null,
+            "hook": "เรื่องนี้สังเกตจากอะไร?",
+            "beats": null
+          },
+          {
+            "id": "growth-evidence-story",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "เกลือกับน้ำแข็ง",
+            "format": null,
+            "hook": "เริ่มจากสิ่งที่เห็นจริง",
+            "beats": null
+          }
+        ]
+      },
+      {
+        "cycle": 2,
+        "topic": "ขวดเก็บความเย็น",
+        "format": "LIST",
+        "hook": "รู้ไว้ 3 ข้อ ขวดเก็บความเย็น",
+        "beats": [
+          "รู้ไว้ 3 ข้อ ขวดเก็บความเย็น",
+          "ผนังขวดมีสองชั้น",
+          "ช่องกลางไม่มีอากาศ",
+          "ความร้อนผ่านได้น้อย",
+          "เซฟไว้ดูอีกที"
+        ],
+        "selectedReady": true,
+        "selectedStatus": "REVIEW_REQUIRED",
+        "usedFallback": false,
+        "ideas": 4,
+        "ideasReady": 2,
+        "ideasRejected": 0,
+        "distinctTopicsInRound": 1,
+        "rejections": [
+          "growth-one-point: ใช้ภาพจริงและตัดต่อ ไม่อ้างว่าการแพนภาพคือการสาธิต",
+          "growth-one-point: คะแนนเป็นความเหมาะสมตามเกณฑ์ที่เปิดเผย ไม่ใช่โอกาสไวรัล",
+          "growth-one-point: ยังไม่มีผลจริงรองรับว่ารูปแบบนี้ทำงานดีในบัญชีนี้",
+          "growth-one-point: หัวข้อและข้อเท็จจริงจากแหล่งที่ได้รับอนุญาต พร้อมภาพที่มีสิทธิ์ใช้",
+          "growth-evidence-story: ใช้ภาพจริงและตัดต่อ ไม่อ้างว่าการแพนภาพคือการสาธิต",
+          "growth-evidence-story: คะแนนเป็นความเหมาะสมตามเกณฑ์ที่เปิดเผย ไม่ใช่โอกาสไวรัล",
+          "growth-evidence-story: ยังไม่มีผลจริงรองรับว่ารูปแบบนี้ทำงานดีในบัญชีนี้",
+          "growth-evidence-story: ข้อเท็จจริงและภาพต้นทางที่อนุญาตให้เล่าเรื่อง โดยไม่แต่งประสบการณ์ผู้ใช้"
+        ],
+        "seconds": 0.001,
+        "tokens": null,
+        "selectionReason": null,
+        "brainstorm": null,
+        "allIdeas": [
+          {
+            "id": "growth-graphic-explainer",
+            "status": "REVIEW_REQUIRED",
+            "topic": "ขวดเก็บความเย็น",
+            "format": "LIST",
+            "hook": "รู้ไว้ 3 ข้อ ขวดเก็บความเย็น",
+            "beats": [
+              "รู้ไว้ 3 ข้อ ขวดเก็บความเย็น",
+              "ผนังขวดมีสองชั้น",
+              "ช่องกลางไม่มีอากาศ",
+              "ความร้อนผ่านได้น้อย",
+              "เซฟไว้ดูอีกที"
+            ]
+          },
+          {
+            "id": "growth-pov-question",
+            "status": "REVIEW_REQUIRED",
+            "topic": "ขวดเก็บความเย็น",
+            "format": null,
+            "hook": "ถ้าเป็นคุณ จะสังเกตอะไร?",
+            "beats": null
+          },
+          {
+            "id": "growth-one-point",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "ขวดเก็บความเย็น",
+            "format": null,
+            "hook": "เรื่องนี้สังเกตจากอะไร?",
+            "beats": null
+          },
+          {
+            "id": "growth-evidence-story",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "ขวดเก็บความเย็น",
+            "format": null,
+            "hook": "เริ่มจากสิ่งที่เห็นจริง",
+            "beats": null
+          }
+        ]
+      },
+      {
+        "cycle": 3,
+        "topic": "น้ำแข็งลอยน้ำ",
+        "format": "QUIZ_REVEAL",
+        "hook": "รู้คำตอบไหม? น้ำแข็งลอยน้ำ",
+        "beats": [
+          "รู้คำตอบไหม? น้ำแข็งลอยน้ำ",
+          "น้ำแข็งเบากว่าน้ำราว 9%",
+          "เซฟไว้ดูอีกที"
+        ],
+        "selectedReady": true,
+        "selectedStatus": "REVIEW_REQUIRED",
+        "usedFallback": false,
+        "ideas": 4,
+        "ideasReady": 2,
+        "ideasRejected": 0,
+        "distinctTopicsInRound": 1,
+        "rejections": [
+          "growth-one-point: ใช้ภาพจริงและตัดต่อ ไม่อ้างว่าการแพนภาพคือการสาธิต",
+          "growth-one-point: คะแนนเป็นความเหมาะสมตามเกณฑ์ที่เปิดเผย ไม่ใช่โอกาสไวรัล",
+          "growth-one-point: ยังไม่มีผลจริงรองรับว่ารูปแบบนี้ทำงานดีในบัญชีนี้",
+          "growth-one-point: หัวข้อและข้อเท็จจริงจากแหล่งที่ได้รับอนุญาต พร้อมภาพที่มีสิทธิ์ใช้",
+          "growth-evidence-story: ใช้ภาพจริงและตัดต่อ ไม่อ้างว่าการแพนภาพคือการสาธิต",
+          "growth-evidence-story: คะแนนเป็นความเหมาะสมตามเกณฑ์ที่เปิดเผย ไม่ใช่โอกาสไวรัล",
+          "growth-evidence-story: ยังไม่มีผลจริงรองรับว่ารูปแบบนี้ทำงานดีในบัญชีนี้",
+          "growth-evidence-story: ข้อเท็จจริงและภาพต้นทางที่อนุญาตให้เล่าเรื่อง โดยไม่แต่งประสบการณ์ผู้ใช้"
+        ],
+        "seconds": 0.002,
+        "tokens": null,
+        "selectionReason": null,
+        "brainstorm": null,
+        "allIdeas": [
+          {
+            "id": "growth-graphic-explainer",
+            "status": "REVIEW_REQUIRED",
+            "topic": "น้ำแข็งลอยน้ำ",
+            "format": "QUIZ_REVEAL",
+            "hook": "รู้คำตอบไหม? น้ำแข็งลอยน้ำ",
+            "beats": [
+              "รู้คำตอบไหม? น้ำแข็งลอยน้ำ",
+              "น้ำแข็งเบากว่าน้ำราว 9%",
+              "เซฟไว้ดูอีกที"
+            ]
+          },
+          {
+            "id": "growth-pov-question",
+            "status": "REVIEW_REQUIRED",
+            "topic": "น้ำแข็งลอยน้ำ",
+            "format": null,
+            "hook": "ถ้าเป็นคุณ จะสังเกตอะไร?",
+            "beats": null
+          },
+          {
+            "id": "growth-one-point",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "น้ำแข็งลอยน้ำ",
+            "format": null,
+            "hook": "เรื่องนี้สังเกตจากอะไร?",
+            "beats": null
+          },
+          {
+            "id": "growth-evidence-story",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "น้ำแข็งลอยน้ำ",
+            "format": null,
+            "hook": "เริ่มจากสิ่งที่เห็นจริง",
+            "beats": null
+          }
+        ]
+      },
+      {
+        "cycle": 4,
+        "topic": "น้ำผึ้งเก็บได้นาน",
+        "format": "EXPLAINER",
+        "hook": "เคยสงสัยไหม น้ำผึ้งเก็บได้นาน",
+        "beats": [
+          "เคยสงสัยไหม น้ำผึ้งเก็บได้นาน",
+          "น้ำผึ้งมีน้ำน้อยและเป็นกรดอ่อน",
+          "ติดตามไว้ มีตอนต่อไป"
+        ],
+        "selectedReady": true,
+        "selectedStatus": "REVIEW_REQUIRED",
+        "usedFallback": false,
+        "ideas": 4,
+        "ideasReady": 2,
+        "ideasRejected": 0,
+        "distinctTopicsInRound": 1,
+        "rejections": [
+          "growth-one-point: ใช้ภาพจริงและตัดต่อ ไม่อ้างว่าการแพนภาพคือการสาธิต",
+          "growth-one-point: คะแนนเป็นความเหมาะสมตามเกณฑ์ที่เปิดเผย ไม่ใช่โอกาสไวรัล",
+          "growth-one-point: ยังไม่มีผลจริงรองรับว่ารูปแบบนี้ทำงานดีในบัญชีนี้",
+          "growth-one-point: หัวข้อและข้อเท็จจริงจากแหล่งที่ได้รับอนุญาต พร้อมภาพที่มีสิทธิ์ใช้",
+          "growth-evidence-story: ใช้ภาพจริงและตัดต่อ ไม่อ้างว่าการแพนภาพคือการสาธิต",
+          "growth-evidence-story: คะแนนเป็นความเหมาะสมตามเกณฑ์ที่เปิดเผย ไม่ใช่โอกาสไวรัล",
+          "growth-evidence-story: ยังไม่มีผลจริงรองรับว่ารูปแบบนี้ทำงานดีในบัญชีนี้",
+          "growth-evidence-story: ข้อเท็จจริงและภาพต้นทางที่อนุญาตให้เล่าเรื่อง โดยไม่แต่งประสบการณ์ผู้ใช้"
+        ],
+        "seconds": 0,
+        "tokens": null,
+        "selectionReason": null,
+        "brainstorm": null,
+        "allIdeas": [
+          {
+            "id": "growth-graphic-explainer",
+            "status": "REVIEW_REQUIRED",
+            "topic": "น้ำผึ้งเก็บได้นาน",
+            "format": "EXPLAINER",
+            "hook": "เคยสงสัยไหม น้ำผึ้งเก็บได้นาน",
+            "beats": [
+              "เคยสงสัยไหม น้ำผึ้งเก็บได้นาน",
+              "น้ำผึ้งมีน้ำน้อยและเป็นกรดอ่อน",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          },
+          {
+            "id": "growth-pov-question",
+            "status": "REVIEW_REQUIRED",
+            "topic": "น้ำผึ้งเก็บได้นาน",
+            "format": null,
+            "hook": "ถ้าเป็นคุณ จะสังเกตอะไร?",
+            "beats": null
+          },
+          {
+            "id": "growth-one-point",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "น้ำผึ้งเก็บได้นาน",
+            "format": null,
+            "hook": "เรื่องนี้สังเกตจากอะไร?",
+            "beats": null
+          },
+          {
+            "id": "growth-evidence-story",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "น้ำผึ้งเก็บได้นาน",
+            "format": null,
+            "hook": "เริ่มจากสิ่งที่เห็นจริง",
+            "beats": null
+          }
+        ]
+      },
+      {
+        "cycle": 5,
+        "topic": "ฟ้าแลบก่อนฟ้าร้อง",
+        "format": "NUMBER_SPOTLIGHT",
+        "hook": "ทำไมต้อง 3?",
+        "beats": [
+          "ทำไมต้อง 3?",
+          "เสียงใช้ราว 3 วินาทีต่อกิโลเมตร",
+          "เซฟไว้ดูอีกที"
+        ],
+        "selectedReady": true,
+        "selectedStatus": "REVIEW_REQUIRED",
+        "usedFallback": false,
+        "ideas": 4,
+        "ideasReady": 2,
+        "ideasRejected": 0,
+        "distinctTopicsInRound": 1,
+        "rejections": [
+          "growth-one-point: ใช้ภาพจริงและตัดต่อ ไม่อ้างว่าการแพนภาพคือการสาธิต",
+          "growth-one-point: คะแนนเป็นความเหมาะสมตามเกณฑ์ที่เปิดเผย ไม่ใช่โอกาสไวรัล",
+          "growth-one-point: ยังไม่มีผลจริงรองรับว่ารูปแบบนี้ทำงานดีในบัญชีนี้",
+          "growth-one-point: หัวข้อและข้อเท็จจริงจากแหล่งที่ได้รับอนุญาต พร้อมภาพที่มีสิทธิ์ใช้",
+          "growth-evidence-story: ใช้ภาพจริงและตัดต่อ ไม่อ้างว่าการแพนภาพคือการสาธิต",
+          "growth-evidence-story: คะแนนเป็นความเหมาะสมตามเกณฑ์ที่เปิดเผย ไม่ใช่โอกาสไวรัล",
+          "growth-evidence-story: ยังไม่มีผลจริงรองรับว่ารูปแบบนี้ทำงานดีในบัญชีนี้",
+          "growth-evidence-story: ข้อเท็จจริงและภาพต้นทางที่อนุญาตให้เล่าเรื่อง โดยไม่แต่งประสบการณ์ผู้ใช้"
+        ],
+        "seconds": 0.001,
+        "tokens": null,
+        "selectionReason": null,
+        "brainstorm": null,
+        "allIdeas": [
+          {
+            "id": "growth-graphic-explainer",
+            "status": "REVIEW_REQUIRED",
+            "topic": "ฟ้าแลบก่อนฟ้าร้อง",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "ทำไมต้อง 3?",
+            "beats": [
+              "ทำไมต้อง 3?",
+              "เสียงใช้ราว 3 วินาทีต่อกิโลเมตร",
+              "เซฟไว้ดูอีกที"
+            ]
+          },
+          {
+            "id": "growth-pov-question",
+            "status": "REVIEW_REQUIRED",
+            "topic": "ฟ้าแลบก่อนฟ้าร้อง",
+            "format": null,
+            "hook": "ถ้าเป็นคุณ จะสังเกตอะไร?",
+            "beats": null
+          },
+          {
+            "id": "growth-one-point",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "ฟ้าแลบก่อนฟ้าร้อง",
+            "format": null,
+            "hook": "เรื่องนี้สังเกตจากอะไร?",
+            "beats": null
+          },
+          {
+            "id": "growth-evidence-story",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "ฟ้าแลบก่อนฟ้าร้อง",
+            "format": null,
+            "hook": "เริ่มจากสิ่งที่เห็นจริง",
+            "beats": null
+          }
+        ]
+      }
+    ]
+  },
+  "ai": {
+    "mode": "LOCAL_LLM_STORY_V1",
+    "summary": {
+      "cycles": 5,
+      "ownPickPassedGates": 2,
+      "neededFallback": 1,
+      "noUsableIdea": 2,
+      "ideasProposed": 12,
+      "ideasPassed": 3,
+      "ideasRejected": 5,
+      "uniqueTopics": 2,
+      "uniqueFormats": 1,
+      "uniqueHooks": 3,
+      "repeatedStories": 0,
+      "pointsVerbatimFromFacts": 1,
+      "machineSeconds": 1220.7,
+      "actualCostThb": 0,
+      "estimatedMachineThb": 2.034,
+      "tokens": {
+        "input": 21712,
+        "output": 8046
+      }
+    },
+    "cycles": [
+      {
+        "cycle": 1,
+        "topic": "ฟ้าแลบก่อนฟ้าร้อง",
+        "format": "QUIZ_REVEAL",
+        "hook": "ฟ้าแลบก่อนฟ้าร้องหรือฟ้าร้องก่อนฟ้าแลบ?",
+        "beats": [
+          "ฟ้าแลบก่อนฟ้าร้องหรือฟ้าร้องก่อนฟ้าแลบ?",
+          "แสงเดินทางเร็วกว่าเสียงมาก",
+          "ติดตามไว้ มีตอนต่อไป"
+        ],
+        "selectedReady": true,
+        "selectedStatus": "REVIEW_REQUIRED",
+        "usedFallback": false,
+        "ideas": 3,
+        "ideasReady": 1,
+        "ideasRejected": 1,
+        "distinctTopicsInRound": 3,
+        "rejections": [
+          "NUMBER_SPOTLIGHT: รูปแบบ hook: ข้อเท็จจริง",
+          "NUMBER_SPOTLIGHT: ใช้ข้อเท็จจริงที่มีอยู่และดึงดูดความสนใจได้ดี ไม่ซ้ำกับ recent",
+          "NUMBER_SPOTLIGHT: NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง",
+          "HIGHLIGHT: มุมเล่า: วิทยาศาสตร์",
+          "HIGHLIGHT: รูปแบบ hook: ข้อเท็จจริง",
+          "HIGHLIGHT: ใช้ข้อเท็จจริงที่มีอยู่และดึงดูดความสนใจได้ดี ไม่ซ้ำกับ recent",
+          "HIGHLIGHT: ข้อความบนการ์ดแต่ละใบต้องไม่เกิน 32 ตัวอักษรให้อ่านทัน"
+        ],
+        "seconds": 192.816,
+        "tokens": {
+          "input": 3649,
+          "output": 1585
+        },
+        "selectionReason": "ใช้ข้อเท็จจริงที่มีอยู่และดึงดูดความสนใจได้ดี ไม่ซ้ำกับ recent รวมถึงรูปแบบนี้เหมาะกับผู้สนใจวิทยาศาสตร์เบื้องต้น",
+        "brainstorm": "คนดูอาจสนใจเรื่องวิทยาศาสตร์เบื้องต้น ข้อเท็จจริงที่น่าเล่าคือการที่แสงเดินทางเร็วกว่าเสียง ทำให้ฟ้าแลบก่อนฟ้าร้อง หรือความรู้เกี่ยวกับขวดเก็บความเย็นที่มีผนังสองชั้น  \nไอเดีย 3 แบบ: 1. ถามคำถามแล้วตอบด้วยข้อเท็จจริง (QUIZ_REVEAL) 2. วิดีโอแสดงข้อเท็จจริง (NUMBER_SPOTLIGHT) 3. สรุปข้อเท็จจริงเป็นประโยคสั้น (HIGHLIGHT)  \nควรหลีกเลี่ยงรูปแบบที่มีใน recent ที่เป็นคำถาม ควรเลือก QUIZ_REVEAL เพราะใช้ข้อเท็จจริงที่มีอยู่และดึงดูดความสนใจได้ดี",
+        "allIdeas": [
+          {
+            "id": "QUIZ_REVEAL",
+            "status": "REVIEW_REQUIRED",
+            "topic": "ฟ้าแลบก่อนฟ้าร้อง",
+            "format": "QUIZ_REVEAL",
+            "hook": "ฟ้าแลบก่อนฟ้าร้องหรือฟ้าร้องก่อนฟ้าแลบ?",
+            "beats": [
+              "ฟ้าแลบก่อนฟ้าร้องหรือฟ้าร้องก่อนฟ้าแลบ?",
+              "แสงเดินทางเร็วกว่าเสียงมาก",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          },
+          {
+            "id": "NUMBER_SPOTLIGHT",
+            "status": "REJECTED",
+            "topic": "ขวดเก็บความเย็น",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "ทำไมขวดเก็บความเย็นมีผนังสองชั้น?",
+            "beats": [
+              "ทำไมขวดเก็บความเย็นมีผนังสองชั้น?",
+              "ผนังขวดมีสองชั้น",
+              "ช่องกลางไม่มีอากาศ",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          },
+          {
+            "id": "HIGHLIGHT",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "น้ำผึ้งเก็บได้นาน",
+            "format": "LIST",
+            "hook": "ทำไมน้ำผึ้งเก็บได้นาน?",
+            "beats": [
+              "ทำไมน้ำผึ้งเก็บได้นาน?",
+              "น้ำผึ้งมีน้ำน้อยและเป็นกรดอ่อน",
+              "เชื้อโรคจึงเติบโตได้ยาก",
+              "น้ำผึ้งจึงเก็บได้นานมาก",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          }
+        ]
+      },
+      {
+        "cycle": 2,
+        "topic": "ฟ้าแลบก่อนฟ้าร้อง",
+        "format": "QUIZ_REVEAL",
+        "hook": "ฟ้าแลบก่อนหรือฟ้าร้องก่อน?",
+        "beats": [
+          "ฟ้าแลบก่อนหรือฟ้าร้องก่อน?",
+          "แสงเดินทางเร็วกว่าเสียงมาก",
+          "ติดตามไว้ มีตอนต่อไป"
+        ],
+        "selectedReady": false,
+        "selectedStatus": "REJECTED",
+        "usedFallback": true,
+        "ideas": 3,
+        "ideasReady": 1,
+        "ideasRejected": 1,
+        "distinctTopicsInRound": 3,
+        "rejections": [
+          "NUMBER_SPOTLIGHT: ใช้ข้อเท็จจริง 3 ชิ้นที่มีอยู่ สรุปเป็นข้อสั้น ไม่ซ้ำกับ recent ที่ใช้ QUIZ_REVEAL",
+          "NUMBER_SPOTLIGHT: ใช้ข้อเท็จจริง 3 ชิ้นที่มีอยู่ สรุปเป็นข้อสั้น ไม่ซ้ำกับ recent ที่ใช้ QUIZ_REVEAL",
+          "NUMBER_SPOTLIGHT: NUMBER_SPOTLIGHT ต้องมีตัวเลขจากข้อเท็จจริง",
+          "FACTS_ONLY: มุมเล่า: เปรียบเทียบ",
+          "FACTS_ONLY: รูปแบบ hook: บอกความจริง",
+          "FACTS_ONLY: ใช้ข้อเท็จจริงที่น่าสนใจและใช้ชีวิตจริง ช่วยให้ผู้ชมรู้สึกว่ามีประโยชน์",
+          "FACTS_ONLY: ข้อความบนการ์ดแต่ละใบต้องไม่เกิน 32 ตัวอักษรให้อ่านทัน"
+        ],
+        "seconds": 193.843,
+        "tokens": {
+          "input": 3734,
+          "output": 1594
+        },
+        "selectionReason": "ใช้ข้อเท็จจริง 3 ชิ้นที่มีอยู่ สรุปเป็นข้อสั้น ไม่ซ้ำกับ recent ที่ใช้ QUIZ_REVEAL",
+        "brainstorm": "คนดูน่าจะสนใจข้อเท็จจริงที่น่าประหลาดใจและใช้ชีวิตจริง เช่น วิธีที่น้ำแข็งเบากว่าน้ำ หรือความร้อนผ่านขวดเก็บความเย็นได้น้อย  \nไอเดีย 3 แบบ: 1) ตั้งคำถามแล้วเปิดเผยข้อเท็จจริง (QUIZ_REVEAL) 2) ใช้ข้อเท็จจริง 3 ชิ้นสรุปเป็นข้อสั้น (NUMBER_SPOTLIGHT) 3) บอกความจริงแบบเป็นข้อความ (FACTS_ONLY)  \nควรหลีกเลี่ยงรูปแบบ QUIZ_REVEAL เพราะมีใน recent แล้ว  \nควรเลือก NUMBER_SPOTLIGHT เพราะใช้ข้อเท็จจริงที่มีอยู่ 3 ชิ้นและเป็นรูปแบบใหม่ที่ไม่ซ้ำกับ recent",
+        "allIdeas": [
+          {
+            "id": "NUMBER_SPOTLIGHT",
+            "status": "REJECTED",
+            "topic": "ขวดเก็บความเย็น",
+            "format": "NUMBER_SPOTLIGHT",
+            "hook": "ทำไมขวดเก็บความเย็นมีสองชั้น?",
+            "beats": [
+              "ทำไมขวดเก็บความเย็นมีสองชั้น?",
+              "ผนังขวดมีสองชั้น",
+              "ความร้อนผ่านได้น้อย",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          },
+          {
+            "id": "FACTS_ONLY",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "น้ำแข็งลอยน้ำ",
+            "format": "LIST",
+            "hook": "คุณรู้หรือไม่ว่า",
+            "beats": [
+              "คุณรู้หรือไม่ว่า",
+              "น้ำแข็งเบaking 9% น้อยกว่าน้ำ",
+              "น้ำแข็งขยายตัวเมื่อแข็งตัว",
+              "ปลาอยู่ใต้น้ำแข็งได้",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          },
+          {
+            "id": "QUIZ_REVEAL",
+            "status": "REVIEW_REQUIRED",
+            "topic": "ฟ้าแลบก่อนฟ้าร้อง",
+            "format": "QUIZ_REVEAL",
+            "hook": "ฟ้าแลบก่อนหรือฟ้าร้องก่อน?",
+            "beats": [
+              "ฟ้าแลบก่อนหรือฟ้าร้องก่อน?",
+              "แสงเดินทางเร็วกว่าเสียงมาก",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          }
+        ]
+      },
+      {
+        "cycle": 3,
+        "topic": "ขวดเก็บความเย็น",
+        "format": "LIST",
+        "hook": "ขวดเก็บความเย็นสามารถเย็นได้ถึง 3 องศา?",
+        "beats": [
+          "ขวดเก็บความเย็นสามารถเย็นได้ถึง 3 องศา?",
+          "ผนังขวดมีสองชั้น",
+          "ช่องกลางไม่มีอากาศ",
+          "ความร้อนผ่านได้น้อย",
+          "ติดตามไว้ มีตอนต่อไป"
+        ],
+        "selectedReady": false,
+        "selectedStatus": "WAIT_FOR_EVIDENCE",
+        "usedFallback": false,
+        "ideas": 3,
+        "ideasReady": 0,
+        "ideasRejected": 2,
+        "distinctTopicsInRound": 1,
+        "rejections": [
+          "STORYTELLING: สร้างความสนใจผ่านเรื่องเล่าและใช้ข้อเท็จจริงที่มีอยู่ในข้อมูล รวมถึงมีความลึกกว่าและเหมาะสมกับผู้ชมที่สนใจวิทยาศาสตร์",
+          "STORYTELLING: ข้อความบางจังหวะยาวเกิน 32 ตัวอักษร อ่านไม่ทัน",
+          "STORYTELLING: คำบรรยายยาว 93 ตัวอักษร เกินที่พูดทันในคลิป",
+          "STORYTELLING: ข้อความบนการ์ดแต่ละใบต้องไม่เกิน 32 ตัวอักษรให้อ่านทัน",
+          "NUMBER_SPOTLIGHT: รูปแบบ hook: ข้อความ",
+          "NUMBER_SPOTLIGHT: สร้างความสนใจผ่านเรื่องเล่าและใช้ข้อเท็จจริงที่มีอยู่ในข้อมูล รวมถึงมีความลึกกว่าและเหมาะสมกับผู้ชมที่สนใจวิทยาศาสตร์",
+          "NUMBER_SPOTLIGHT: สร้างความสนใจผ่านเรื่องเล่าและใช้ข้อเท็จจริงที่มีอยู่ในข้อมูล รวมถึงมีความลึกกว่าและเหมาะสมกับผู้ชมที่สนใจวิทยาศาสตร์",
+          "NUMBER_SPOTLIGHT: ข้อความบนการ์ดแต่ละใบต้องไม่เกิน 32 ตัวอักษรให้อ่านทัน",
+          "QUIZ_REVEAL: คำบรรยายยาว 139 ตัวอักษร เกินที่พูดทันในคลิป",
+          "QUIZ_REVEAL: จังหวะ \"ขวดเก็บความเย็นสามารถเย็นได้ถึง 3 องศา\" เนื้อความตรงกับข้อเท็จจริงที่อ้างเพียง 25%",
+          "QUIZ_REVEAL: จังหวะ \"ความร้อนผ่านได้น้อย จึงเย็นได้ถึง 3 องศา\" เนื้อความตรงกับข้อเท็จจริงที่อ้างเพียง 57%",
+          "QUIZ_REVEAL: ข้อความบนการ์ดแต่ละใบต้องไม่เกิน 32 ตัวอักษรให้อ่านทัน"
+        ],
+        "seconds": 423.977,
+        "tokens": {
+          "input": 10341,
+          "output": 3080
+        },
+        "selectionReason": "สร้างความสนใจผ่านเรื่องเล่าและใช้ข้อเท็จจริงที่มีอยู่ในข้อมูล รวมถึงมีความลึกกว่าและเหมาะสมกับผู้ชมที่สนใจวิทยาศาสตร์",
+        "brainstorm": null,
+        "allIdeas": [
+          {
+            "id": "STORYTELLING",
+            "status": "REJECTED",
+            "topic": "ขวดเก็บความเย็น",
+            "format": "LIST",
+            "hook": "ทำไมขวดเก็บความเย็นสามารถเย็นได้ถึง 3 องศา?",
+            "beats": [
+              "ทำไมขวดเก็บความเย็นสามารถเย็นได้ถึง 3 องศา?",
+              "ผนังขวดมีสองชั้น",
+              "ช่องกลางไม่มีอากาศ",
+              "ความร้อนผ่านได้น้อย",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          },
+          {
+            "id": "NUMBER_SPOTLIGHT",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "ขวดเก็บความเย็น",
+            "format": "LIST",
+            "hook": "ขวดเก็บความเย็นสามารถเย็นได้ถึง 3 องศา?",
+            "beats": [
+              "ขวดเก็บความเย็นสามารถเย็นได้ถึง 3 องศา?",
+              "ผนังขวดมีสองชั้น",
+              "ช่องกลางไม่มีอากาศ",
+              "ความร้อนผ่านได้น้อย",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          },
+          {
+            "id": "QUIZ_REVEAL",
+            "status": "REJECTED",
+            "topic": "ขวดเก็บความเย็น",
+            "format": "LIST",
+            "hook": "ขวดเก็บความเย็นสามารถเย็นได้ถึง 3 องศา?",
+            "beats": [
+              "ขวดเก็บความเย็นสามารถเย็นได้ถึง 3 องศา?",
+              "ขวดเก็บความเย็นสามารถเย็นได้ถึง 3 องศา",
+              "เพราะผนังขวดมีสองชั้น ช่องกลางไม่มีอากาศ",
+              "ความร้อนผ่านได้น้อย จึงเย็นได้ถึง 3 องศา",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          }
+        ]
+      },
+      {
+        "cycle": 4,
+        "topic": null,
+        "format": null,
+        "hook": "",
+        "beats": [],
+        "selectedReady": false,
+        "selectedStatus": "ERROR",
+        "usedFallback": false,
+        "ideas": 0,
+        "ideasReady": 0,
+        "ideasRejected": 0,
+        "distinctTopicsInRound": 0,
+        "rejections": [
+          "CREATIVE_LLM_SELECTION_INVALID"
+        ],
+        "seconds": 202.269,
+        "tokens": null,
+        "selectionReason": null,
+        "brainstorm": null,
+        "allIdeas": []
+      },
+      {
+        "cycle": 5,
+        "topic": "หมึกยักษ์",
+        "format": "QUIZ_REVEAL",
+        "hook": "หมึกยักษ์มีหัวใจ 3 ดวงหรือไม่?",
+        "beats": [
+          "หมึกยักษ์มีหัวใจ 3 ดวงหรือไม่?",
+          "เลือดหมึกยักษ์ใช้ทองแดงขนออกซิเจน",
+          "ติดตามไว้ มีตอนต่อไป"
+        ],
+        "selectedReady": true,
+        "selectedStatus": "REVIEW_REQUIRED",
+        "usedFallback": false,
+        "ideas": 3,
+        "ideasReady": 1,
+        "ideasRejected": 1,
+        "distinctTopicsInRound": 3,
+        "rejections": [
+          "IDEA1: รูปแบบ hook: คำถาม",
+          "IDEA1: เหมาะกับบัญชีเพราะเป็นหัวข้อที่ไม่เคยใช้มาก่อน และมีข้อเท็จจริงที่น่าสนใจ",
+          "IDEA1: คำบรรยายยาว 99 ตัวอักษร เกินที่พูดทันในคลิป",
+          "IDEA1: ข้อความบนการ์ดแต่ละใบต้องไม่เกิน 32 ตัวอักษรให้อ่านทัน",
+          "IDEA3: มุมเล่า: ความเย็นของขวด",
+          "IDEA3: รูปแบบ hook: คำถาม",
+          "IDEA3: เหมาะกับบัญชีเพราะเป็นหัวข้อที่ไม่เคยใช้มาก่อน และมีข้อเท็จจริงที่น่าสนใจ",
+          "IDEA3: ข้อความบนการ์ดแต่ละใบต้องไม่เกิน 32 ตัวอักษรให้อ่านทัน"
+        ],
+        "seconds": 207.774,
+        "tokens": {
+          "input": 3988,
+          "output": 1787
+        },
+        "selectionReason": "IDEA2 เป็นหัวข้อที่ไม่เคยใช้มาก่อน และมีข้อเท็จจริงที่น่าสนใจ ช่วยสร้างความแตกต่างและดึงดูดผู้ชมได้ดีกว่าไอเดียอื่นๆ",
+        "brainstorm": "คนดูน่าจะสนใจข้อเท็จจริงที่แปลกใหม่และน่ารู้ อย่างเช่น ว่าทำไมฟ้าแลบก่อนฟ้าร้อง หรือลักษณะของขวดเก็บความเย็น ซึ่งมีข้อเท็จจริงที่น่าสนใจและไม่ใช่สิ่งทั่วไป  \nไอเดีย 3 แบบ: 1) ใช้ข้อเท็จจริงเรื่องฟ้าแลบก่อนฟ้าร้องเป็น hook และอธิบายว่าแสงเดินทางเร็วกว่าเสียง 2) สร้างความสนใจด้วยคำถามแบบ QUIZ_REVEAL ที่ใช้ข้อเท็จจริงเกี่ยวกับขวดเก็บความเย็น 3) ใช้ข้อเท็จจริงเรื่องหมึกยักษ์เป็นมุมเล่าที่ไม่เคยใช้มาก่อน  \nควรหลีกเลี่ยงการใช้หัวข้อที่ซ้ำกับ recent เช่น ฟ้าแลบก่อนฟ้าร้อง ควรเลือกไอเดียที่ใช้ข้อเท็จจริงใหม่และมีความน่าสนใจมากกว่า  \nเลือกไอเดียที่ใช้ข้อเท็จจริงเรื่องหมึกยักษ์ เพราะเป็นหัวข้อที่ไม่เคยใช้มาก่อนและมีข้อเท็จจริงที่น่าสนใจ",
+        "allIdeas": [
+          {
+            "id": "IDEA1",
+            "status": "REJECTED",
+            "topic": "ฟ้าแลบก่อนฟ้าร้อง",
+            "format": "LIST",
+            "hook": "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+            "beats": [
+              "ทำไมฟ้าแลบก่อนฟ้าร้อง?",
+              "แสงเดินทางเร็วกว่าเสียงมาก",
+              "จึงเห็นฟ้าแลบก่อนได้ยินเสียง",
+              "เสียงใช้ราว 3 วินาทีต่อกิโลเมตร",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          },
+          {
+            "id": "IDEA2",
+            "status": "REVIEW_REQUIRED",
+            "topic": "หมึกยักษ์",
+            "format": "QUIZ_REVEAL",
+            "hook": "หมึกยักษ์มีหัวใจ 3 ดวงหรือไม่?",
+            "beats": [
+              "หมึกยักษ์มีหัวใจ 3 ดวงหรือไม่?",
+              "เลือดหมึกยักษ์ใช้ทองแดงขนออกซิเจน",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          },
+          {
+            "id": "IDEA3",
+            "status": "WAIT_FOR_EVIDENCE",
+            "topic": "ขวดเก็บความเย็น",
+            "format": "LIST",
+            "hook": "ขวดเก็บความเย็นสามารถเย็นได้ถึง 3 องศา?",
+            "beats": [
+              "ขวดเก็บความเย็นสามารถเย็นได้ถึง 3 องศา?",
+              "ผนังขวดมีสองชั้น",
+              "ช่องกลางไม่มีอากาศ",
+              "ความร้อนผ่านได้น้อย",
+              "ติดตามไว้ มีตอนต่อไป"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
