@@ -135,7 +135,8 @@ jobs:
           git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-eval
 
   ai-vs-rules:
-    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[ai-pilot]')
+    # Superseded by creative-eval (24 new cases, no render); kept for a manual run.
+    if: github.event_name == 'workflow_dispatch'
     permissions:
       contents: write
     runs-on: ubuntu-latest
