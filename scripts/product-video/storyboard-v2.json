@@ -1,0 +1,9 @@
+{
+  "watch": "a black resin square digital wristwatch with a small rectangular grey LCD screen and a thin blue frame around the screen",
+  "scenes": [
+    {"id": "a", "prompt": "Cinematic lifestyle advertisement photo, early morning golden sunlight through a window, close-up of a man's forearm raised in front of the window, wearing a black resin square digital wristwatch with a small rectangular grey LCD screen and a thin blue frame, relaxed natural hand, warm sun flare, soft bokeh background of a cozy apartment, 35mm photo, shallow depth of field, photorealistic", "seeds": [11, 12, 13]},
+    {"id": "b", "prompt": "Cinematic lifestyle advertisement photo, morning sunlight in a cafe, a man's hand reaching for a white cup of coffee on a wooden table next to an open laptop, he wears a black resin square digital wristwatch with a small rectangular grey LCD screen and a thin blue frame on his wrist, natural relaxed fingers, warm light and soft shadows, 35mm photo, shallow depth of field, photorealistic", "seeds": [21, 22, 23]},
+    {"id": "c", "prompt": "Cinematic close-up advertisement photo of a man's wrist resting on a laptop keyboard, wearing a black resin square digital wristwatch with a small rectangular grey LCD screen and a thin blue frame, watch facing the camera, soft morning window light, warm tones, macro detail, shallow depth of field, photorealistic", "seeds": [31, 32, 33]},
+    {"id": "d", "prompt": "Cinematic product photography background, an empty light wooden coffee table in morning sunlight, a white cup of coffee and a closed notebook at the top of the frame, long soft window shadows, large empty space in the center of the table, warm tones, 35mm photo, photorealistic, no people", "seeds": [41, 42, 43]}
+  ]
+}
