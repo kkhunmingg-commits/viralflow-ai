@@ -1,0 +1,8 @@
+# LIVE Lite Auto runtime on low-spec Windows PCs (no torch/CUDA). Verified on ROG Ally X, Python 3.10.
+-r requirements.txt
+-r local_agent/requirements.txt
+numpy==1.26.4
+opencv-python-headless==4.11.0.86
+psutil==7.0.0
+imageio-ffmpeg==0.6.0
+pillow
