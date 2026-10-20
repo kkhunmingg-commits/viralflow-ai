@@ -1,0 +1,26 @@
+{
+  "product": {
+    "name": "CASIO นาฬิกาข้อมือ F-91W-1UR สีดำ",
+    "sku": "F-91W-1UR (Central SKU MKP1517326)",
+    "url": "https://www.central.co.th/th/casio-unisexs-watches-f-91w-1ur-black-mkp1517326",
+    "seller": "Casio Watch บน central.co.th",
+    "priceChecked": "฿808 (ราคาปกติ ฿950) ตรวจเมื่อ 2026-10-20",
+    "specSources": ["https://www.casio.com/fr/watches/casio/product.F-91W-1/", "https://www.central.co.th/th/casio-unisexs-watches-f-91w-1ur-black-mkp1517326"]
+  },
+  "durationSeconds": 18,
+  "aiLabel": "วิดีโอนี้สร้างด้วย AI",
+  "shots": [
+    {"id": "s1", "seconds": 3.85},
+    {"id": "s2", "seconds": 3.85},
+    {"id": "s3", "seconds": 3.85},
+    {"id": "s4", "seconds": 3.85}
+  ],
+  "endCard": {"image": "PLACEHOLDER", "seconds": 2.6, "headline": "CASIO F-91W-1UR"},
+  "beats": [
+    {"caption": "ถ่านก้อนเดียว ใช้ได้ราว 7 ปี", "spoken": "นาฬิกาเรือนนี้ ใช้ถ่านก้อนเดียวได้ราวเจ็ดปี", "start": 0.0, "end": 3.85},
+    {"caption": "ตัวเรือนเรซิน หนักแค่ 21 กรัม", "spoken": "คาสิโอ เอฟเก้าสิบเอ็ด ตัวเรือนเรซิน หนักแค่ยี่สิบเอ็ดกรัม", "start": 3.85, "end": 7.7},
+    {"caption": "จับเวลา 1/100 วินาที ปลุกรายวัน", "spoken": "มีจับเวลาละเอียดหนึ่งในร้อยวินาที และปลุกรายวัน", "start": 7.7, "end": 11.55},
+    {"caption": "มีไฟ LED กันน้ำใช้ประจำวัน", "spoken": "มีไฟแอลอีดี กันน้ำสำหรับใช้ในชีวิตประจำวัน", "start": 11.55, "end": 15.4},
+    {"caption": "ดูรายละเอียดที่ลิงก์สินค้า", "spoken": "ดูรายละเอียดรุ่นนี้ได้ที่ลิงก์สินค้า", "start": 15.4, "end": 18.0}
+  ]
+}

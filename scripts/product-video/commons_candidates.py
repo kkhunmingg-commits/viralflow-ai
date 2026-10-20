@@ -4,11 +4,13 @@ Usage: python commons_candidates.py "Category:Casio F-91W" out-dir"""
 import json
 import os
 import sys
+import time
+import traceback
 import urllib.parse
 import urllib.request
 
 API = "https://commons.wikimedia.org/w/api.php"
-HEADERS = {"User-Agent": "ViralFlowProductVideoTest/1.0 (research; contact via repository)"}
+HEADERS = {"User-Agent": "ViralFlowProductVideoTest/1.0 (https://github.com/kkhunmingg-commits/viralflow-ai) python-urllib"}
 COMMERCIAL = ("cc0", "public domain", "pd", "cc by ", "cc-by-", "cc by-sa", "cc-by-sa")
 
 
@@ -39,13 +41,22 @@ def main() -> None:
     for row in rows:
         row["commercialUse"] = row["license"].lower().startswith(COMMERCIAL) and not row["restrictions"]
     usable = [r for r in rows if r["commercialUse"] and (r["mime"] or "").startswith("image/") and r["preview"]]
+    save = lambda: json.dump({"category": category, "files": rows}, open(os.path.join(out, "candidates.json"), "w"), ensure_ascii=False, indent=2)
+    save()
+    # Thumbnails are rate limited: pace the downloads and retry, and keep going when one still fails.
     for index, row in enumerate(usable[:40]):
         name = f"{index:02d}.jpg"
-        with urllib.request.urlopen(urllib.request.Request(row["preview"], headers=HEADERS), timeout=60) as response, \
-                open(os.path.join(out, "previews", name), "wb") as file:
-            file.write(response.read())
-        row["previewFile"] = name
-    json.dump({"category": category, "files": rows}, open(os.path.join(out, "candidates.json"), "w"), ensure_ascii=False, indent=2)
+        for attempt in range(4):
+            try:
+                time.sleep(1.5 * (attempt + 1))
+                with urllib.request.urlopen(urllib.request.Request(row["preview"], headers=HEADERS), timeout=60) as response, \
+                        open(os.path.join(out, "previews", name), "wb") as file:
+                    file.write(response.read())
+                row["previewFile"] = name
+                break
+            except Exception:
+                row["previewError"] = traceback.format_exc(limit=1)[-300:]
+    save()
     print(json.dumps({"files": len(rows), "commercialUse": len(usable)}))
 
 
