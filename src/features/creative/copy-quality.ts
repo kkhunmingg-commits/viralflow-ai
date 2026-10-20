@@ -20,7 +20,7 @@ export function copyQualityIssues(beats: CopyBeat[], mode: "GROWTH" | "AFFILIATE
   // Naming the topic in a question is fine; saying the point is not.
   if (hook && points[0] && groundedShare(points[0], [hook]) >= .6) issues.push(`hook "${hook}" พูดซ้ำกับเนื้อหา ควรชวนสงสัยแทนการบอกคำตอบ`);
   // A hook from another subject ("this star is strange" over an octopus fact) misleads the viewer.
-  const digits = (t: string) => t.match(/[0-9]+(?:[.,][0-9]+)?/g) ?? [];
+  const digits = (t: string): string[] => t.match(/[0-9]+(?:[.,][0-9]+)?/g) ?? [];
   if (hook && points.length && groundedShare(hook, points) === 0 && !digits(hook).some(d => points.some(p => digits(p).includes(d))))
     issues.push(`hook "${hook}" ไม่เกี่ยวกับเรื่องในคลิป`);
   if (mode === "GROWTH" && cta && (OFF_CLOSE.test(cta) || !GROWTH_CLOSE.test(cta))) issues.push(`ประโยคปิด "${cta}" ไม่เข้ากับคลิปปั้นบัญชี ควรชวนติดตาม เซฟ คอมเมนต์ หรือแชร์`);
