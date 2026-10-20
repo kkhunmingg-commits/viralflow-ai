@@ -1,9 +1,61 @@
 {
-  "watch": "a black resin square digital wristwatch with a small rectangular grey LCD screen and a thin blue frame around the screen",
-  "scenes": [
-    {"id": "a", "prompt": "Cinematic lifestyle advertisement photo, early morning golden sunlight through a window, close-up of a man's forearm raised in front of the window, wearing a black resin square digital wristwatch with a small rectangular grey LCD screen and a thin blue frame, relaxed natural hand, warm sun flare, soft bokeh background of a cozy apartment, 35mm photo, shallow depth of field, photorealistic", "seeds": [11, 12, 13]},
-    {"id": "b", "prompt": "Cinematic lifestyle advertisement photo, morning sunlight in a cafe, a man's hand reaching for a white cup of coffee on a wooden table next to an open laptop, he wears a black resin square digital wristwatch with a small rectangular grey LCD screen and a thin blue frame on his wrist, natural relaxed fingers, warm light and soft shadows, 35mm photo, shallow depth of field, photorealistic", "seeds": [21, 22, 23]},
-    {"id": "c", "prompt": "Cinematic close-up advertisement photo of a man's wrist resting on a laptop keyboard, wearing a black resin square digital wristwatch with a small rectangular grey LCD screen and a thin blue frame, watch facing the camera, soft morning window light, warm tones, macro detail, shallow depth of field, photorealistic", "seeds": [31, 32, 33]},
-    {"id": "d", "prompt": "Cinematic product photography background, an empty light wooden coffee table in morning sunlight, a white cup of coffee and a closed notebook at the top of the frame, long soft window shadows, large empty space in the center of the table, warm tones, 35mm photo, photorealistic, no people", "seeds": [41, 42, 43]}
-  ]
+ "watch": "a black resin square digital wristwatch with a small rectangular grey LCD screen and a thin blue frame around the screen",
+ "scenes": [
+  {
+   "id": "a",
+   "prompt": "Cinematic lifestyle advertisement photo, early morning golden sunlight through a window, close-up of a man's forearm raised in front of the window, wearing a black resin square digital wristwatch with a small rectangular grey LCD screen and a thin blue frame, relaxed natural hand, warm sun flare, soft bokeh background of a cozy apartment, 35mm photo, shallow depth of field, photorealistic",
+   "seeds": [
+    11,
+    12,
+    13
+   ]
+  },
+  {
+   "id": "b",
+   "prompt": "Cinematic lifestyle advertisement photo, morning sunlight in a cafe, a man's hand reaching for a white cup of coffee on a wooden table next to an open laptop, he wears a black resin square digital wristwatch with a small rectangular grey LCD screen and a thin blue frame on his wrist, natural relaxed fingers, warm light and soft shadows, 35mm photo, shallow depth of field, photorealistic",
+   "seeds": [
+    21,
+    22,
+    23
+   ]
+  },
+  {
+   "id": "c",
+   "prompt": "Cinematic close-up advertisement photo of a man's wrist resting on a laptop keyboard, wearing a black resin square digital wristwatch with a small rectangular grey LCD screen and a thin blue frame, watch facing the camera, soft morning window light, warm tones, macro detail, shallow depth of field, photorealistic",
+   "seeds": [
+    31,
+    32,
+    33
+   ]
+  },
+  {
+   "id": "d",
+   "prompt": "Cinematic product photography background, an empty light wooden coffee table in morning sunlight, a white cup of coffee and a closed notebook at the top of the frame, long soft window shadows, large empty space in the center of the table, warm tones, 35mm photo, photorealistic, no people",
+   "seeds": [
+    41,
+    42,
+    43
+   ]
+  },
+  {
+   "id": "b2",
+   "note": "retake of b: the first round drew metal bracelets and a second watch on the other hand",
+   "prompt": "Photorealistic lifestyle photo, morning window light in a cozy cafe, close view of one man's hand lifting a white ceramic coffee cup from a light wooden table, an open laptop softly blurred behind, on his wrist a small black square digital wristwatch with a plain smooth black rubber strap, watch face turned toward the camera, only one hand in the frame, natural relaxed fingers, warm soft shadows, 35mm photo, shallow depth of field",
+   "negative": "deformed hands, extra fingers, missing fingers, fused fingers, bad anatomy, blurry, lowres, text, watermark, logo, metal bracelet, metal watch band, link bracelet, two watches, second wristwatch, smartwatch, analog watch hands, two hands, extra arm, cartoon, illustration, 3d render, oversaturated",
+   "seeds": [
+    24,
+    25
+   ]
+  },
+  {
+   "id": "b3",
+   "note": "retake of b with the laptop: wearing it while working",
+   "prompt": "Photorealistic lifestyle photo, morning window light at a home desk, side view of one man's forearm and hand typing on a laptop keyboard, on his wrist a small black square digital wristwatch with a plain smooth black rubber strap, watch face turned toward the camera, a white coffee cup nearby, only one hand in the frame, natural relaxed fingers, warm soft light, 35mm photo, shallow depth of field",
+   "negative": "deformed hands, extra fingers, missing fingers, fused fingers, bad anatomy, blurry, lowres, text, watermark, logo, metal bracelet, metal watch band, link bracelet, two watches, second wristwatch, smartwatch, analog watch hands, two hands, extra arm, cartoon, illustration, 3d render, oversaturated",
+   "seeds": [
+    26,
+    27
+   ]
+  }
+ ]
 }
