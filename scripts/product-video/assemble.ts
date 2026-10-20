@@ -53,6 +53,8 @@ async function main(){
   const captions=plan.beats.map(b=>({text:b.caption,start:b.start,end:b.end}));
   const endStart=durations.slice(0,-1).reduce((a,b)=>a+b,0);
   let ass=buildAssSubtitles(captions,plan.durationSeconds,[],shotOverlays(clips,durations));
+  // The product fills the middle of these shots, so captions sit lower than on graphic clips (still above TikTok's bottom bar).
+  ass=ass.replace(/^(Style: Caption,.*,)(\d+)(,222)$/m,(_,head,_v,tail)=>`${head}400${tail}`);
   // A machine-generated disclosure stays on screen for the whole clip (required by the video model's licence).
   ass=ass.replace("\n\n[Events]",`\nStyle: Label,Noto Sans Thai,34,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,3,8,0,9,40,40,150,222\nStyle: Headline,Noto Sans Thai,64,&H00111111,&H00FFFFFF,&H002EC8FF,&H002EC8FF,-1,0,0,0,100,100,2,0,3,14,0,8,40,40,1050,222\nStyle: Credit,Noto Sans Thai,30,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,6,0,2,40,40,330,222\n\n[Events]`)
     +`Dialogue: 3,0:00:00.00,0:00:${plan.durationSeconds.toFixed(2).padStart(5,"0")},Label,,0,0,0,,${plan.aiLabel}\n`

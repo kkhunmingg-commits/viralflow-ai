@@ -10,7 +10,7 @@
       "https://www.central.co.th/th/casio-unisexs-watches-f-91w-1ur-black-mkp1517326"
     ]
   },
-  "durationSeconds": 18,
+  "durationSeconds": 16,
   "aiLabel": "วิดีโอนี้สร้างด้วย AI",
   "shots": [
     {
@@ -22,7 +22,7 @@
     },
     {
       "id": "s2",
-      "seconds": 3.85,
+      "seconds": 1.3,
       "image": "scripts/product-video/source/right-side.jpg",
       "seed": 22,
       "prompt": "Close-up of the right side of a black resin Casio digital wristwatch, showing the case edge and a small round side button against a clean white background. The camera slowly arcs around the watch case from the side toward the front, soft studio lighting, smooth steady motion, realistic product commercial, sharp focus."
@@ -44,40 +44,42 @@
   ],
   "endCard": {
     "image": "scripts/product-video/source/front-time.jpg",
-    "seconds": 2.6,
+    "seconds": 3.15,
     "headline": "CASIO F-91W-1UR"
   },
   "beats": [
     {
       "caption": "ถ่านก้อนเดียว ใช้ได้ราว 7 ปี",
-      "spoken": "นาฬิกาเรือนนี้ ใช้ถ่านก้อนเดียวได้ราวเจ็ดปี",
+      "spoken": "ถ่านก้อนเดียว ใช้ได้ราวเจ็ดปี",
       "start": 0.0,
       "end": 3.85
     },
     {
-      "caption": "ตัวเรือนเรซิน หนักแค่ 21 กรัม",
-      "spoken": "คาสิโอ เอฟเก้าสิบเอ็ด ตัวเรือนเรซิน หนักแค่ยี่สิบเอ็ดกรัม",
+      "caption": "ตัวเรือนเรซิน หนัก 21 กรัม",
+      "spoken": "ตัวเรือนเรซิน หนักยี่สิบเอ็ดกรัม",
       "start": 3.85,
-      "end": 7.7
+      "end": 6.4
     },
     {
-      "caption": "จับเวลา 1/100 วินาที ปลุกรายวัน",
-      "spoken": "มีจับเวลาละเอียดหนึ่งในร้อยวินาที และปลุกรายวัน",
-      "start": 7.7,
-      "end": 11.55
+      "caption": "จับเวลาได้ 1/100 วินาที",
+      "spoken": "จับเวลาได้หนึ่งในร้อยวินาที",
+      "start": 6.4,
+      "end": 9.0
     },
     {
-      "caption": "มีไฟ LED กันน้ำใช้ประจำวัน",
-      "spoken": "มีไฟแอลอีดี กันน้ำสำหรับใช้ในชีวิตประจำวัน",
-      "start": 11.55,
-      "end": 15.4
+      "caption": "ไฟ LED ปลุกรายวัน กันน้ำใช้ประจำวัน",
+      "spoken": "มีไฟแอลอีดี ปลุกรายวัน กันน้ำใช้ประจำวัน",
+      "start": 9.0,
+      "end": 12.85
     },
     {
       "caption": "ดูรายละเอียดที่ลิงก์สินค้า",
       "spoken": "ดูรายละเอียดรุ่นนี้ได้ที่ลิงก์สินค้า",
-      "start": 15.4,
-      "end": 18.0
+      "start": 12.85,
+      "end": 16.0
     }
   ],
-  "credit": "ภาพต้นฉบับ: Multicherry / Wikimedia Commons, CC BY-SA 4.0"
+  "credit": "ภาพต้นฉบับ: Multicherry / Wikimedia Commons, CC BY-SA 4.0",
+  "shotsRun": 39475985708,
+  "notes": "s2 is cut to its first 1.3 s: from about 1.5 s the model turned the watch and drew a face that is not the product (a made-up logo and blank display), so those frames are not used."
 }
