@@ -1,0 +1,15 @@
+Fetching 20 files:   0%|          | 0/20 [00:00<?, ?it/s]Fetching 20 files:  40%|████      | 8/20 [00:00<00:00, 33.23it/s]Fetching 20 files:  80%|████████  | 16/20 [00:07<00:01,  2.25it/s]Fetching 20 files:  85%|████████▌ | 17/20 [00:19<00:03,  1.17s/it]Fetching 20 files:  90%|█████████ | 18/20 [00:28<00:03,  1.61s/it]Fetching 20 files:  95%|█████████▌| 19/20 [00:34<00:01,  1.81s/it]Fetching 20 files: 100%|██████████| 20/20 [01:15<00:00,  3.75s/it]Fetching 20 files: 100%|██████████| 20/20 [01:15<00:00,  3.75s/it]
+Loading pipeline components...:   0%|          | 0/7 [00:00<?, ?it/s]`torch_dtype` is deprecated! Use `dtype` instead!
+Loading pipeline components...:  43%|████▎     | 3/7 [00:00<00:00, 16.94it/s]
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s][ALoading checkpoint shards: 100%|██████████| 2/2 [00:00<00:00, 22.16it/s]
+Loading pipeline components...:  86%|████████▌ | 6/7 [00:00<00:00, 16.80it/s]Loading pipeline components...: 100%|██████████| 7/7 [00:00<00:00, 18.15it/s]
+Token indices sequence length is longer than the specified maximum sequence length for this model (86 > 77). Running this sequence through the model will result in indexing errors
+The following part of your input was truncated because CLIP can only handle sequences up to 77 tokens: ['3 5 mm photo, shallow depth of field']
+Token indices sequence length is longer than the specified maximum sequence length for this model (86 > 77). Running this sequence through the model will result in indexing errors
+The following part of your input was truncated because CLIP can only handle sequences up to 77 tokens: ['3 5 mm photo, shallow depth of field']
+  0%|          | 0/6 [00:00<?, ?it/s] 17%|█▋        | 1/6 [01:02<05:11, 62.24s/it] 33%|███▎      | 2/6 [01:55<03:48, 57.01s/it] 50%|█████     | 3/6 [02:48<02:45, 55.26s/it] 67%|██████▋   | 4/6 [03:41<01:48, 54.25s/it] 83%|████████▎ | 5/6 [04:35<00:54, 54.20s/it]100%|██████████| 6/6 [05:29<00:00, 54.24s/it]100%|██████████| 6/6 [05:29<00:00, 54.98s/it]
+{"seed": 26, "path": "board/b3-26.png", "seconds": 361.1}
+The following part of your input was truncated because CLIP can only handle sequences up to 77 tokens: ['3 5 mm photo, shallow depth of field']
+The following part of your input was truncated because CLIP can only handle sequences up to 77 tokens: ['3 5 mm photo, shallow depth of field']
+  0%|          | 0/6 [00:00<?, ?it/s] 17%|█▋        | 1/6 [00:53<04:29, 53.99s/it] 33%|███▎      | 2/6 [01:46<03:31, 52.87s/it] 50%|█████     | 3/6 [02:37<02:36, 52.32s/it] 67%|██████▋   | 4/6 [03:29<01:44, 52.11s/it] 83%|████████▎ | 5/6 [04:22<00:52, 52.42s/it]100%|██████████| 6/6 [05:16<00:00, 52.86s/it]100%|██████████| 6/6 [05:16<00:00, 52.70s/it]
+{"seed": 27, "path": "board/b3-27.png", "seconds": 346.6}
