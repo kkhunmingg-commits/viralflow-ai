@@ -34,6 +34,8 @@ describe("copy quality", () => {
     const close = copyQualityIssues([{ role: "HOOK", text: "หมึกยักษ์แปลกตรงไหน?" }, { role: "POINT", text: "เลือดหมึกยักษ์ใช้ทองแดงขนออกซิเจน" },
       { role: "CTA", text: "คลิกลิ้งไปดูวิธีใช้ได้เลย" }], "GROWTH");
     expect(close.join(" ")).toContain("ไม่เข้ากับคลิปปั้นบัญชี");
+    expect(copyQualityIssues([{ role: "HOOK", text: "ดาวดวงนี้แปลกมาก" }, { role: "POINT", text: "เลือดหมึกยักษ์ใช้ทองแดงขนออกซิเจน" },
+      { role: "CTA", text: "คอมเมนต์มาเลย" }], "GROWTH").join(" ")).toContain("ไม่เกี่ยวกับเรื่องในคลิป");
     expect(copyQualityIssues([{ role: "HOOK", text: "ทำไมเราเห็นดวงจันทร์ด้านเดียว?" }, { role: "POINT", text: "ดวงจันทร์หันด้านเดียวเข้าหาโลกเสมอ" },
       { role: "CTA", text: "เซฟไว้เล่าต่อ" }], "GROWTH", history)).toEqual([]);
   });

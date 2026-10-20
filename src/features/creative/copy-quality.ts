@@ -19,6 +19,10 @@ export function copyQualityIssues(beats: CopyBeat[], mode: "GROWTH" | "AFFILIATE
   // A hook that already contains most of the first point gives the answer away, so the point only repeats it.
   // Naming the topic in a question is fine; saying the point is not.
   if (hook && points[0] && groundedShare(points[0], [hook]) >= .6) issues.push(`hook "${hook}" พูดซ้ำกับเนื้อหา ควรชวนสงสัยแทนการบอกคำตอบ`);
+  // A hook from another subject ("this star is strange" over an octopus fact) misleads the viewer.
+  const digits = (t: string) => t.match(/[0-9]+(?:[.,][0-9]+)?/g) ?? [];
+  if (hook && points.length && groundedShare(hook, points) === 0 && !digits(hook).some(d => points.some(p => digits(p).includes(d))))
+    issues.push(`hook "${hook}" ไม่เกี่ยวกับเรื่องในคลิป`);
   if (mode === "GROWTH" && cta && (OFF_CLOSE.test(cta) || !GROWTH_CLOSE.test(cta))) issues.push(`ประโยคปิด "${cta}" ไม่เข้ากับคลิปปั้นบัญชี ควรชวนติดตาม เซฟ คอมเมนต์ หรือแชร์`);
   // Rewording the hook does not make a new story: the same facts as a recent clip are the same clip.
   const recent = new Set((history.lines ?? []).slice(0, RECENT_LINES).map(norm));
