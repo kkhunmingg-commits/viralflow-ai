@@ -122,7 +122,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shot: [v2s1, v2s3]
+        shot: [v2s2, v2s2b]
     steps:
       - uses: actions/checkout@v7
       - name: Free disk for model weights
@@ -227,3 +227,48 @@ jobs:
           cd /tmp/results && git init -q -b results && git add -A
           git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Product video ad ${{ github.run_id }}"
           git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-video-ad
+
+  assemble-v2:
+    # V2 lifestyle ad: shots are already tracked and re-composited with the real watch head (scripts/product-video/v2/final).
+    if: contains(github.event.head_commit.message, '[video-assemble-v2]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      FFMPEG_BINARY: /usr/bin/ffmpeg
+      FFPROBE_BINARY: /usr/bin/ffprobe
+      VOXCPM_DEVICE: cpu
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - name: Thai voice (VoxCPM2, local)
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          python -m venv .venv-tts
+          .venv-tts/bin/pip install --extra-index-url https://download.pytorch.org/whl/cpu "voxcpm==2.0.3" soundfile Pillow
+          echo "THAI_TTS_PYTHON=$PWD/.venv-tts/bin/python" >> "$GITHUB_ENV"
+          echo "VOXCPM_MODEL=$(.venv-tts/bin/python -c 'from huggingface_hub import snapshot_download;print(snapshot_download("openbmb/VoxCPM2"))')" >> "$GITHUB_ENV"
+      - name: Assemble the V2 ad
+        run: |
+          mkdir -p ad-out
+          node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/product-video/assemble.ts scripts/product-video/ad-plan-v2.json scripts/product-video/v2/final ad-out 2>&1 | tee ad-out/assemble.log
+      - name: Publish results to a results branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results && cp -r ad-out /tmp/results/ 2>/dev/null || true
+          rm -rf /tmp/results/ad-out/fonts
+          cd /tmp/results && git init -q -b results && git add -A
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Product video ad V2 ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-video-ad-v2

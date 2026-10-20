@@ -1,9 +1,32 @@
 {
-  "product": {"name": "CASIO F-91W-1UR", "url": "https://www.central.co.th/th/casio-unisexs-watches-f-91w-1ur-black-mkp1517326"},
-  "shots": [
-    {"id": "v2s1", "image": "scripts/product-video/v2/s1-window.png", "seed": 101,
-     "prompt": "A man slowly raises and turns his wrist toward the warm morning sunlight by the window, glancing at the black digital wristwatch on his wrist, subtle natural arm movement, gentle handheld camera drift, soft sun flare, cinematic lifestyle commercial, photorealistic"},
-    {"id": "v2s3", "image": "scripts/product-video/v2/s3-close.png", "seed": 103,
-     "prompt": "Close-up of a black digital wristwatch on a man's wrist in warm morning sunlight, the wrist moves slightly and naturally, soft light sweeps across the watch, slow camera push in, shallow depth of field, cinematic commercial, photorealistic"}
-  ]
+ "product": {
+  "name": "CASIO F-91W-1UR",
+  "url": "https://www.central.co.th/th/casio-unisexs-watches-f-91w-1ur-black-mkp1517326"
+ },
+ "shots": [
+  {
+   "id": "v2s1",
+   "image": "scripts/product-video/v2/s1-window.png",
+   "seed": 101,
+   "prompt": "A man slowly raises and turns his wrist toward the warm morning sunlight by the window, glancing at the black digital wristwatch on his wrist, subtle natural arm movement, gentle handheld camera drift, soft sun flare, cinematic lifestyle commercial, photorealistic"
+  },
+  {
+   "id": "v2s3",
+   "image": "scripts/product-video/v2/s3-close.png",
+   "seed": 103,
+   "prompt": "Close-up of a black digital wristwatch on a man's wrist in warm morning sunlight, the wrist moves slightly and naturally, soft light sweeps across the watch, slow camera push in, shallow depth of field, cinematic commercial, photorealistic"
+  },
+  {
+   "id": "v2s2",
+   "image": "scripts/product-video/v2/s2-coffee.png",
+   "seed": 102,
+   "prompt": "A man in a sunny cafe gently lifts a white coffee cup from the wooden table, the black digital wristwatch on his wrist stays in view, slow natural hand movement, soft morning window light, subtle handheld camera, cinematic lifestyle commercial, photorealistic"
+  },
+  {
+   "id": "v2s2b",
+   "image": "scripts/product-video/v2/s2b-laptop.png",
+   "seed": 104,
+   "prompt": "A man types calmly on a laptop keyboard at a wooden desk in morning light, the black digital wristwatch on his wrist stays facing the camera, small natural finger movements, gentle slow camera drift, cinematic lifestyle commercial, photorealistic"
+  }
+ ]
 }
