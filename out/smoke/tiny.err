@@ -1,0 +1,47 @@
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Fetching 12 files:  33%|███▎      | 4/12 [00:00<00:00, 36.19it/s]Fetching 12 files:  67%|██████▋   | 8/12 [00:03<00:01,  2.08it/s]Fetching 12 files:  67%|██████▋   | 8/12 [00:20<00:01,  2.08it/s]Fetching 12 files:  75%|███████▌  | 9/12 [01:25<00:44, 14.74s/it]Fetching 12 files:  83%|████████▎ | 10/12 [01:33<00:26, 13.32s/it]Fetching 12 files:  92%|█████████▏| 11/12 [01:37<00:11, 11.23s/it]Fetching 12 files: 100%|██████████| 12/12 [01:38<00:00,  8.69s/it]Fetching 12 files: 100%|██████████| 12/12 [01:38<00:00,  8.17s/it]
+/home/runner/work/viralflow-ai/viralflow-ai/.venv-video/lib/python3.12/site-packages/diffusers/utils/deprecation_utils.py:23: FutureWarning: `torch_dtype` is deprecated and will be removed in version 1.0.0. Please use `dtype` instead.
+  deprecate("torch_dtype", "1.0.0", _TORCH_DTYPE_DEPRECATION_MESSAGE)
+Loading pipeline components...:   0%|          | 0/3 [00:00<?, ?it/s][transformers] Could not extract SentencePiece model from /home/runner/.cache/huggingface/hub/models--Lightricks--LTX-Video-0.9.5/snapshots/e58e28c39631af4d1468ee57a853764e11c1d37e/tokenizer/spiece.model using sentencepiece library due to 
+SentencePieceExtractor requires the protobuf library but it was not found in your environment. Check out the instructions on the
+installation page of its repo: https://github.com/protocolbuffers/protobuf/tree/master/python#installation and follow the ones
+that match your environment. Please note that you may need to restart your runtime after installation.
+. Falling back to TikToken extractor.
+Loading pipeline components...:   0%|          | 0/3 [00:00<?, ?it/s]
+Traceback (most recent call last):
+  File "/home/runner/work/viralflow-ai/viralflow-ai/.venv-video/lib/python3.12/site-packages/transformers/convert_slow_tokenizer.py", line 1937, in load_tiktoken_bpe
+    from tiktoken.load import load_tiktoken_bpe
+ModuleNotFoundError: No module named 'tiktoken'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/runner/work/viralflow-ai/viralflow-ai/scripts/product-video/ltx_i2v.py", line 96, in <module>
+    main()
+  File "/home/runner/work/viralflow-ai/viralflow-ai/scripts/product-video/ltx_i2v.py", line 51, in main
+    encoder_pipe = LTXConditionPipeline.from_pretrained(base, transformer=None, vae=None, torch_dtype=torch.bfloat16)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/viralflow-ai/viralflow-ai/.venv-video/lib/python3.12/site-packages/huggingface_hub/utils/_validators.py", line 89, in _inner_fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/viralflow-ai/viralflow-ai/.venv-video/lib/python3.12/site-packages/diffusers/pipelines/pipeline_utils.py", line 1044, in from_pretrained
+    loaded_sub_model = load_sub_model(
+                       ^^^^^^^^^^^^^^^
+  File "/home/runner/work/viralflow-ai/viralflow-ai/.venv-video/lib/python3.12/site-packages/diffusers/pipelines/pipeline_loading_utils.py", line 884, in load_sub_model
+    loaded_sub_model = load_method(os.path.join(cached_folder, name), **loading_kwargs)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/viralflow-ai/viralflow-ai/.venv-video/lib/python3.12/site-packages/transformers/tokenization_utils_base.py", line 1750, in from_pretrained
+    return cls._from_pretrained(
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/viralflow-ai/viralflow-ai/.venv-video/lib/python3.12/site-packages/transformers/tokenization_utils_base.py", line 1941, in _from_pretrained
+    init_kwargs = cls.convert_to_native_format(**init_kwargs)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/viralflow-ai/viralflow-ai/.venv-video/lib/python3.12/site-packages/transformers/tokenization_utils_tokenizers.py", line 225, in convert_to_native_format
+    local_kwargs = cls._convert_from_tiktoken(vocab_file, local_kwargs)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/viralflow-ai/viralflow-ai/.venv-video/lib/python3.12/site-packages/transformers/tokenization_utils_tokenizers.py", line 286, in _convert_from_tiktoken
+    base_vocab_size = len(TikTokenConverter.load_tiktoken_bpe(vocab_file))
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/runner/work/viralflow-ai/viralflow-ai/.venv-video/lib/python3.12/site-packages/transformers/convert_slow_tokenizer.py", line 1939, in load_tiktoken_bpe
+    raise ValueError(
+ValueError: `tiktoken` is required to read a `tiktoken` file. Install it with `pip install tiktoken`.
