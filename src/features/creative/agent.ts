@@ -3,6 +3,9 @@ import { OpenAIProvider, type StructuredCreativeProvider } from "./providers";
 import { creativeConceptSchema } from "./schemas";
 import { evaluateCreativeRisk } from "./risk";
 import { checkProductTruth } from "../compliance/compliance";
+import { EMPTY_HISTORY } from "./storyteller";
+import type { StoryPlan } from "../video/story-director";
+import { LOCAL_AGENT_INSTRUCTIONS, expandLocalOutput, localOutputSchema, localPrompt, storyIssues } from "./local-agent";
 import { GRAPHIC_CARD_MAX_CHARS, graphicCardCopy, graphicCardFits, CREATIVE_STRATEGY_VERSION, approvedAssets, verifiedFacts, summarizeUsableProductionCost,
   strategyEvidenceDigest, type CreativeStrategyInput, type CreativeStrategyPlan, type StrategyConcept } from "./strategist";
 
@@ -60,7 +63,7 @@ Output only the requested structured object. This is creative reasoning, not app
  * mock fallback, retries, video generation, database write or TikTok request. */
 export async function runCreativeAgent(input: CreativeStrategyInput, provider: StructuredCreativeProvider,
   options: { maxOutputTokens?: number; learningEvidence?: unknown; trendEvidence?: unknown } = {}) {
-  if (provider.provider !== "openai" || !provider.model.trim()) throw new Error("CREATIVE_LLM_NOT_CONFIGURED");
+  if (!["openai", "local-llm"].includes(provider.provider) || !provider.model.trim()) throw new Error("CREATIVE_LLM_NOT_CONFIGURED");
   if (!Number.isFinite(input.now.getTime())) throw new Error("STRATEGY_CLOCK_REQUIRED");
   const topicNames = new Set([...(input.trends?.observations.map(o => o.topic) ?? []),
     ...(input.trends?.hypotheses.map(o => o.topic) ?? []), ...(input.topics?.map(o => o.name) ?? []),
@@ -69,15 +72,32 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
   const assets = input.product ? approvedAssets(input, null) : [...topicNames].flatMap(t => approvedAssets(input, t));
   const learning = input.learning?.source === "REAL" && input.learning.accountId === input.account.id && input.learning.evidenceIds.length
     ? input.learning : null;
+  const local = provider.provider === "local-llm";
+  let result: Awaited<ReturnType<StructuredCreativeProvider["generateStructured"]>>, output: CreativeAgentOutput;
+  // Local models get a compact plan with beats; the beats become the story the Video Factory cuts to.
+  let stories = new Map<string, StoryPlan>(), planNotes = new Map<string, string[]>();
+  if (local) {
+    const mode = input.account.mode === "AFFILIATE" ? "AFFILIATE" as const : "GROWTH" as const, history = input.history ?? EMPTY_HISTORY;
+    const { prompt, alias } = localPrompt({ mode, at: input.now.toISOString(), product: input.product?.title ?? null,
+      facts: facts.map(f => ({ id: f.id, topic: f.topic ?? null, text: f.text })),
+      assets: assets.map(a => ({ id: a.id, kind: a.kind, topic: a.topic ?? null, durationSeconds: a.durationSeconds ?? null })),
+      recent: { hooks: history.hooks, formats: history.formats, topics: history.topics, stories: history.stories ?? [] },
+      learning: learning ? { preferredAngle: learning.preferredAngle, preferredHook: learning.preferredHook, confidence: learning.confidence } : options.learningEvidence ?? null });
+    result = await provider.generateStructured(prompt, { name: "local_creative_plan", schema: z.toJSONSchema(localOutputSchema(mode)),
+      instructions: LOCAL_AGENT_INSTRUCTIONS, maxOutputTokens: options.maxOutputTokens ?? 3000 });
+    const expanded = expandLocalOutput(localOutputSchema(mode).parse(result.output), alias, provider.model, new Map(facts.map(f => [f.id, f.topic ?? null])));
+    output = creativeAgentOutputSchema.parse(expanded.output); stories = expanded.stories; planNotes = expanded.notes;
+  } else {
   const prompt = JSON.stringify({ task: CREATIVE_AGENT_VERSION, at: input.now.toISOString(), account: input.account,
     product: input.product ?? null, verifiedFacts: facts, reviewedAssets: assets, trends: input.trends ?? null,
     learning, empiricalLearning: options.learningEvidence ?? null, sourceSeparatedTrendEvidence:options.trendEvidence??null,targetUsableClipCostThb: 5,
     costObjective: "Report UNKNOWN until actual bills and human-reviewed usability are available" });
   if (prompt.length > 120_000) throw new Error("CREATIVE_EVIDENCE_CONTEXT_TOO_LARGE");
-  const result = await provider.generateStructured(prompt, { name: "creative_agent_strategy",
+  result = await provider.generateStructured(prompt, { name: "creative_agent_strategy",
     schema: z.toJSONSchema(creativeAgentOutputSchema), instructions: CREATIVE_AGENT_INSTRUCTIONS,
     maxOutputTokens: options.maxOutputTokens ?? 6000 });
-  const output = creativeAgentOutputSchema.parse(result.output);
+  output = creativeAgentOutputSchema.parse(result.output);
+  }
   const ids = output.concepts.map(c => c.id);
   if (new Set(ids).size !== ids.length || !ids.includes(output.selectedId)) throw new Error("CREATIVE_LLM_SELECTION_INVALID");
   if (new Set(output.concepts.map(c => `${c.concept.hook.trim()}:${c.concept.voiceScript.trim()}`)).size !== output.concepts.length)
@@ -136,10 +156,18 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
     const risk = evaluateCreativeRisk(concept, topicFacts.map(f => f.text).join(" "));
     const truth = checkProductTruth([concept.hook, concept.coreMessage, concept.voiceScript, concept.cta, concept.caption].join(" "), topicFacts.map(f => f.text));
     if (risk.status === "REJECT" || truth.status === "REJECT") rejected = true;
+    const story = stories.get(candidate.id);
+    if (local) {
+      const visual = method === "ORIGINAL_GRAPHIC_STORY" ? "ORIGINAL_GRAPHIC" as const : method === "REAL_FOOTAGE_EDIT" ? "REAL_FOOTAGE" as const : "REAL_IMAGE" as const;
+      const idea = (result.output as { ideas: Parameters<typeof storyIssues>[0][] }).ideas.find(i => i.id === candidate.id)!;
+      const aliasFacts = new Map(facts.map((f, i) => [`F${i + 1}`, f.text]));
+      const issues = [...(planNotes.get(candidate.id) ?? []), ...storyIssues(idea, aliasFacts, visual)];
+      if (issues.length) { rejected = true; gateReasons.push(...issues); }
+    }
     const ready = !rejected && !missing.length;
     return { id: candidate.id, concept, production: { method: ready ? method : "WAIT_FOR_EVIDENCE", ready,
       evidenceIds: [...new Set([...candidate.production.evidenceIds, ...candidate.claims.flatMap(c => c.evidenceIds)])],
-      missingEvidence: [...new Set(missing)] }, status: rejected ? "REJECTED" : ready ? "REVIEW_REQUIRED" : "WAIT_FOR_EVIDENCE",
+      missingEvidence: [...new Set(missing)], ...(story ? { story } : {}) }, status: rejected ? "REJECTED" : ready ? "REVIEW_REQUIRED" : "WAIT_FOR_EVIDENCE",
       score: 0, confidence: null, rubric: { evidenceFit: 0, productionFeasibility: 0, modeFit: 0, learningSupport: 0 },
       reasons: [...candidate.reasons, candidate.production.reason, ...(candidate.id === output.selectedId ? [output.selectionReason] : []),
         ...gateReasons, ...risk.reasons, ...truth.issues.map(i => i.message)],
@@ -165,6 +193,7 @@ export async function runCreativeAgent(input: CreativeStrategyInput, provider: S
     warnings: ["แนวคิดและการเลือกมาจาก LLM จริง ยังต้องให้มนุษย์ตรวจความสร้างสรรค์และความถูกต้องก่อนผลิต",
       "score และ rubric เป็นศูนย์เพื่อรองรับข้อมูลเดิม ไม่ใช้จัดอันดับ; ไม่มีคะแนนทำนายไวรัล",
       ...(!selectedTrend ? ["หัวข้อที่เลือกเป็นสมมติฐานเพื่อทดลอง ไม่ใช่เทรนด์ไวรัลที่ยืนยันแล้ว"] : [])] };
+  if (local) plan.warnings.push("แนวคิด เรื่องเล่า และคำพูดเขียนโดยโมเดลภาษาที่รันบนเครื่องนี้ ระบบตรวจเพียงความถูกต้องตามหลักฐานและความยาว ไม่ได้เขียนแทน");
   return { plan, output, usage: result.usage, raw: result.raw, provider: provider.provider, model: provider.model,
     source: "LLM_EVIDENCE_STRATEGY" as const, videoGenerated: false as const, paidVideoCalls: 0 as const, postingCalls: 0 as const };
 }

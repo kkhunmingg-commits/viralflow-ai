@@ -11,6 +11,7 @@ import {join} from "node:path";
 import type {SupabaseClient} from "@supabase/supabase-js";
 import {acceptMasterIntoBank,bankPackage,bankSummary} from "../../src/features/content-bank/service";
 import {addContentEvidence} from "../../src/features/video/media-rights-service";
+import {GROWTH_TOPICS} from "./topics";
 import {clearRights,log,pilotOwner,runProject,sandboxAccount,sandboxAssignment,sandboxProduct,uploadMedia,type Row} from "./sandbox";
 
 const [mediaDir,outDir]=process.argv.slice(2);
@@ -41,16 +42,12 @@ async function measured<T>(work:()=>Promise<T>){
   finally{clearInterval(timer)}
 }
 
-// Owner-recorded facts for Growth topics, each checked against the named public reference.
-const TOPICS:Array<{topic:string;source:string;facts:string[]}>=[
-  {topic:"ขวดเก็บความเย็น",source:"https://en.wikipedia.org/wiki/Vacuum_flask",facts:["ผนังขวดมีสองชั้น","ช่องกลางไม่มีอากาศ","ความร้อนผ่านได้น้อย"]},
-  {topic:"น้ำแข็งลอยน้ำ",source:"https://en.wikipedia.org/wiki/Ice",facts:["น้ำแข็งเบากว่าน้ำราว 9%","น้ำขยายตัวเมื่อแข็งตัว","ปลาอยู่ใต้น้ำแข็งได้"]},
-  {topic:"หม้อความดัน",source:"https://en.wikipedia.org/wiki/Pressure_cooking",facts:["น้ำเดือดได้ถึงราว 120°C","อาหารจึงสุกเร็วขึ้น","อย่าเปิดฝาขณะมีแรงดัน"]},
-  {topic:"เกลือกับน้ำแข็ง",source:"https://en.wikipedia.org/wiki/Freezing-point_depression",facts:["เกลือทำให้จุดเยือกแข็งต่ำลง","น้ำเกลือเย็นกว่า 0°C ได้"]},
-];
+const TOPICS=GROWTH_TOPICS;
+// Clip counts: Phase 3 ran 3 Growth clips, then 4 more if 2 passed, plus 3 Affiliate tests. Overridable for other pilots.
+const GROWTH_CLIPS=Number(process.env.PILOT_GROWTH_CLIPS??0),AFFILIATE_CLIPS=Number(process.env.PILOT_AFFILIATE_CLIPS??3);
 
 interface ClipResult{label:string;mode:string;error?:string;story?:unknown;topic?:unknown;method?:string;quality?:string;bankStatus?:string;
-  rejection?:unknown;slot?:unknown;slotBasis?:unknown;hook?:string;voice?:string;caption?:string;hashtags?:unknown;metrics?:unknown;costActualUsd?:number;costEstimatedThb?:unknown;costBasis?:unknown;checks?:unknown;narration?:unknown}
+  rejection?:unknown;slot?:unknown;slotBasis?:unknown;hook?:string;voice?:string;caption?:string;hashtags?:unknown;metrics?:unknown;costActualUsd?:number;costEstimatedThb?:unknown;costBasis?:unknown;checks?:unknown;narration?:unknown;ai?:unknown}
 
 async function produce(admin:SupabaseClient,user:SupabaseClient,owner:string,assignmentId:string,label:string,mode:string):Promise<ClipResult>{
   try{
@@ -62,7 +59,7 @@ async function produce(admin:SupabaseClient,user:SupabaseClient,owner:string,ass
       bankStatus:String(item.status),rejection:item.rejection_reasons,slot:item.planned_slot_at,slotBasis:item.slot_basis,hook:String(r.script.hook_text),voice:String(r.script.voice_script),
       caption:String(item.caption),hashtags:item.hashtags,metrics:{...metrics,renderSeconds:r.timings.renderSeconds,creativeSeconds:r.timings.creativeSeconds},
       costActualUsd:Number(item.cost_actual_usd),costEstimatedThb:item.cost_estimated_thb,costBasis:item.cost_basis,
-      narration:(r.master.quality_explanation_json as Row|null)?.narration,
+      narration:(r.master.quality_explanation_json as Row|null)?.narration,ai:r.ai,
       checks:((r.master.quality_explanation_json as Row|null)?.checks as Array<Row>|undefined)?.map(c=>`${c.passed?"PASS":"FAIL"} ${c.name}: ${c.detail??""}`)};
     log(`${label}.bank`,{status:result.bankStatus,rejection:result.rejection,format:(result.story as {format?:string}|undefined)?.format,hook:result.hook,narration:result.narration,checks:result.checks,slot:result.slot,metrics:result.metrics});
     return result;
@@ -81,10 +78,13 @@ async function main(){
   const growthProduct=await sandboxProduct(admin,owner,"Growth sandbox placeholder (no product is shown)");
   const results:ClipResult[]=[];
   const growthRun=async(i:number)=>results.push(await produce(admin,user,owner,await sandboxAssignment(admin,owner,growth,growthProduct,"GROWTH",i),`growth-${i+1}`,"GROWTH"));
-  for(let i=0;i<3;i++)await growthRun(i);
-  const firstPassed=results.filter(r=>r.bankStatus==="ACCEPTED").length;
-  log("growth.gate",{accepted:firstPassed,of:3,expand:firstPassed>=2});
-  if(firstPassed>=2)for(let i=3;i<7;i++)await growthRun(i);
+  if(GROWTH_CLIPS>0)for(let i=0;i<GROWTH_CLIPS;i++)await growthRun(i);
+  else{
+    for(let i=0;i<3;i++)await growthRun(i);
+    const firstPassed=results.filter(r=>r.bankStatus==="ACCEPTED").length;
+    log("growth.gate",{accepted:firstPassed,of:3,expand:firstPassed>=2});
+    if(firstPassed>=2)for(let i=3;i<7;i++)await growthRun(i);
+  }
 
   // Affiliate: TEST ONLY mock media. Real affiliate clips wait for owner media with rights.
   const affiliate=await sandboxAccount(admin,owner,"AFFILIATE",{timezone:"Asia/Bangkok",categories:["ของใช้ในบ้าน"],audienceMinutes:[20*60+30],minimumGapMinutes:180});
@@ -93,7 +93,7 @@ async function main(){
     await clearRights(admin,owner,await uploadMedia(admin,owner,product,mediaDir,file,type,seconds),role,affiliate);
   for(const statement of ["ขวดสีฟ้า ฝาสีดำมีห่วงหิ้ว","ความจุ 500 มิลลิลิตร"])
     await addContentEvidence(admin,owner,{productId:product,statement,source:"OWNER_FOOTAGE",sourceReference:"Visible in the pilot test media",role:"SELLING_POINT",capturedAt:day});
-  for(let i=0;i<3;i++)results.push(await produce(admin,user,owner,await sandboxAssignment(admin,owner,affiliate,product,"AFFILIATE",i),`affiliate-test-${i+1}`,"AFFILIATE"));
+  for(let i=0;i<AFFILIATE_CLIPS;i++)results.push(await produce(admin,user,owner,await sandboxAssignment(admin,owner,affiliate,product,"AFFILIATE",i),`affiliate-test-${i+1}`,"AFFILIATE"));
 
   // Re-banking the same master must return the existing record, not a second one.
   const first=(await admin.from("content_bank_items").select("id,master_video_id").eq("owner_id",owner).limit(1).maybeSingle()).data as Row|null;

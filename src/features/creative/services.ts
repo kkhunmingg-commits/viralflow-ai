@@ -13,6 +13,7 @@ import { CREATIVE_STRATEGY_VERSION, assertHumanProductionReview, planCreativeStr
 import { creativeScriptDigest, storedProductionStrategy } from "./production-gate";
 import {discoverTrendCandidates,googleSearchDiscoverySource,tikTokTrendDiscoverySource,ownAccountPerformanceSource,ownPerformanceObservations} from "../growth-manager/trend-discovery";
 import {createCreativeAgent} from "./agent";
+import {configuredLocalLLM} from "./local-agent";
 import {planSelfLearningCreative,sealCreativeAttribution} from "./self-learning";
 const publicTrendSource=googleSearchDiscoverySource();
 
@@ -103,6 +104,7 @@ const EVIDENCE_RUBRIC_MODEL="evidence-rubric-v1";
  * A missing LLM configuration still stops generation; it never silently degrades to template copy. */
 function configuredCreativeAgent(){
   if(serverEnv.creativeAIProvider==="evidence-rubric")return null;
+  if(serverEnv.creativeAIProvider==="local-llm"){const local=configuredLocalLLM();if(!local)throw new Error("CREATIVE_LLM_NOT_CONFIGURED");return local}
   return createCreativeAgent({provider:serverEnv.creativeAIProvider,apiKey:serverEnv.openAIApiKey,model:serverEnv.creativeAIModel});
 }
 /** Same evidence gates and human review as the LLM path, with fixed Thai copy and no token spend. */

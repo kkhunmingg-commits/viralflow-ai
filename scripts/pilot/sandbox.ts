@@ -80,6 +80,15 @@ export async function runProject(admin:SupabaseClient,user:SupabaseClient,owner:
   const project=await createProjectFromAssignment(admin,owner,assignmentId);
   const generated=await generateEvidenceStrategyProject(admin,owner,String(project.id),{forAutoWorker:true});timings.creativeSeconds=(Date.now()-t)/1000;
   const plan=generated.intelligence.plan,selected=plan.concepts.find(c=>c.id===plan.selectedConceptId)!;
+  // What the model thought and chose, next to what the gates and the experiment did with it.
+  const intel=generated.intelligence as {output?:{selectedId?:string;selectionReason?:string;alternativesReason?:string}|null;raw?:{brainstorm?:string;wallSeconds?:number}|null;
+    decision?:{status?:string}|null;usage?:unknown};
+  const ai={source:plan.source,llmSelectedId:intel.output?.selectedId??null,finalSelectedId:plan.selectedConceptId,experiment:intel.decision?.status??null,
+    selectionReason:intel.output?.selectionReason??null,alternativesReason:intel.output?.alternativesReason??null,brainstorm:intel.raw?.brainstorm??null,
+    llmSeconds:intel.raw?.wallSeconds??null,usage:intel.usage??null,
+    ideas:plan.concepts.map(c=>({id:c.id,status:c.status,method:c.production.method,format:c.production.story?.format??null,hook:c.concept.hook,
+      beats:c.production.story?.beats.map(b=>b.text)??null,reasons:c.reasons}))};
+  log(`${label}.ai`,ai);
   log(`${label}.creative`,{selected:selected.id,method:selected.production.method,ready:selected.production.ready,missing:selected.production.missingEvidence,
     topic:plan.topic,topicBasis:plan.topicBasis,story:selected.production.story,concepts:plan.concepts.map(c=>({id:c.id,status:c.status,method:c.production.method}))});
   const row=must(await user.from("creative_projects").select("selected_angle_id,selected_script_id").eq("id",String(project.id)).single(),"project");
@@ -93,5 +102,5 @@ export async function runProject(admin:SupabaseClient,user:SupabaseClient,owner:
   if(blob.error||!blob.data)throw new Error(`download: ${blob.error?.message}`);
   await writeFile(join(outDir,`${label}.mp4`),new Uint8Array(await blob.data.arrayBuffer()));
   log(`${label}.master`,{status:stored.status,quality:stored.quality_status,score:stored.quality_score,timings});
-  return {projectId:String(project.id),masterId:String(stored.id),selected:{id:selected.id,method:selected.production.method,story:selected.production.story,topic:plan.topic,topicBasis:plan.topicBasis,warnings:plan.warnings},script,master:stored,timings};
+  return {projectId:String(project.id),masterId:String(stored.id),selected:{id:selected.id,method:selected.production.method,story:selected.production.story,topic:plan.topic,topicBasis:plan.topicBasis,warnings:plan.warnings},ai,script,master:stored,timings};
 }

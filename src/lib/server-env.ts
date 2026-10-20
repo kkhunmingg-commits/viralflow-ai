@@ -15,7 +15,7 @@ const exactHostnameList = z.string().min(1).refine((value) => {
 
 const serverEnvSchema = z.object({
   ALLOW_DEV_MOCK_SEED: z.enum(["true", "false"]).default("false"),
-  CREATIVE_AI_PROVIDER: z.enum(["mock","openai","evidence-rubric"]).default("mock"),
+  CREATIVE_AI_PROVIDER: z.enum(["mock","openai","evidence-rubric","local-llm"]).default("mock"),
   CREATIVE_AI_MODEL: z.string().min(1).default("gpt-5.4-nano"),
   OPENAI_API_KEY: z.preprocess(value=>value===""?undefined:value,z.string().min(20).optional()),
   GOOGLE_GENAI_API_KEY: z.preprocess(value=>value===""?undefined:value,z.string().min(20).optional()),
