@@ -5,22 +5,79 @@
     "url": "https://www.central.co.th/th/casio-unisexs-watches-f-91w-1ur-black-mkp1517326",
     "seller": "Casio Watch บน central.co.th",
     "priceChecked": "฿808 (ราคาปกติ ฿950) ตรวจเมื่อ 2026-10-20",
-    "specSources": ["https://www.casio.com/fr/watches/casio/product.F-91W-1/", "https://www.central.co.th/th/casio-unisexs-watches-f-91w-1ur-black-mkp1517326"]
+    "specSources": [
+      "https://www.casio.com/fr/watches/casio/product.F-91W-1/",
+      "https://www.central.co.th/th/casio-unisexs-watches-f-91w-1ur-black-mkp1517326"
+    ]
   },
   "durationSeconds": 18,
   "aiLabel": "วิดีโอนี้สร้างด้วย AI",
   "shots": [
-    {"id": "s1", "seconds": 3.85},
-    {"id": "s2", "seconds": 3.85},
-    {"id": "s3", "seconds": 3.85},
-    {"id": "s4", "seconds": 3.85}
+    {
+      "id": "s1",
+      "seconds": 3.85,
+      "image": "scripts/product-video/source/full-length.jpg",
+      "seed": 11,
+      "prompt": "A black Casio F-91W digital wristwatch with a blue-framed face and a grey LCD display, standing upright on a plain white background with its black resin strap. The camera slowly pushes in toward the watch face while a soft studio light gently sweeps across the resin case. Smooth, steady product commercial shot, sharp focus, realistic, high detail."
+    },
+    {
+      "id": "s2",
+      "seconds": 3.85,
+      "image": "scripts/product-video/source/right-side.jpg",
+      "seed": 22,
+      "prompt": "Close-up of the right side of a black resin Casio digital wristwatch, showing the case edge and a small round side button against a clean white background. The camera slowly arcs around the watch case from the side toward the front, soft studio lighting, smooth steady motion, realistic product commercial, sharp focus."
+    },
+    {
+      "id": "s3",
+      "seconds": 3.85,
+      "image": "scripts/product-video/source/stopwatch.jpg",
+      "seed": 33,
+      "prompt": "Macro close-up of a black Casio F-91W digital wristwatch face in stopwatch mode, the grey LCD showing digits, a blue frame and printed white and gold labels. The camera slowly glides sideways across the watch face with a gentle tilt while soft reflections move over the screen. Realistic product commercial, sharp details, steady motion."
+    },
+    {
+      "id": "s4",
+      "seconds": 3.85,
+      "image": "scripts/product-video/source/led-light.jpg",
+      "seed": 44,
+      "prompt": "A black Casio digital wristwatch in a dark room, its green LED backlight glowing softly on the LCD display. The camera slowly pushes in toward the glowing display, dark moody lighting, subtle light falloff, smooth steady motion, realistic product commercial."
+    }
   ],
-  "endCard": {"image": "PLACEHOLDER", "seconds": 2.6, "headline": "CASIO F-91W-1UR"},
+  "endCard": {
+    "image": "scripts/product-video/source/front-time.jpg",
+    "seconds": 2.6,
+    "headline": "CASIO F-91W-1UR"
+  },
   "beats": [
-    {"caption": "ถ่านก้อนเดียว ใช้ได้ราว 7 ปี", "spoken": "นาฬิกาเรือนนี้ ใช้ถ่านก้อนเดียวได้ราวเจ็ดปี", "start": 0.0, "end": 3.85},
-    {"caption": "ตัวเรือนเรซิน หนักแค่ 21 กรัม", "spoken": "คาสิโอ เอฟเก้าสิบเอ็ด ตัวเรือนเรซิน หนักแค่ยี่สิบเอ็ดกรัม", "start": 3.85, "end": 7.7},
-    {"caption": "จับเวลา 1/100 วินาที ปลุกรายวัน", "spoken": "มีจับเวลาละเอียดหนึ่งในร้อยวินาที และปลุกรายวัน", "start": 7.7, "end": 11.55},
-    {"caption": "มีไฟ LED กันน้ำใช้ประจำวัน", "spoken": "มีไฟแอลอีดี กันน้ำสำหรับใช้ในชีวิตประจำวัน", "start": 11.55, "end": 15.4},
-    {"caption": "ดูรายละเอียดที่ลิงก์สินค้า", "spoken": "ดูรายละเอียดรุ่นนี้ได้ที่ลิงก์สินค้า", "start": 15.4, "end": 18.0}
-  ]
+    {
+      "caption": "ถ่านก้อนเดียว ใช้ได้ราว 7 ปี",
+      "spoken": "นาฬิกาเรือนนี้ ใช้ถ่านก้อนเดียวได้ราวเจ็ดปี",
+      "start": 0.0,
+      "end": 3.85
+    },
+    {
+      "caption": "ตัวเรือนเรซิน หนักแค่ 21 กรัม",
+      "spoken": "คาสิโอ เอฟเก้าสิบเอ็ด ตัวเรือนเรซิน หนักแค่ยี่สิบเอ็ดกรัม",
+      "start": 3.85,
+      "end": 7.7
+    },
+    {
+      "caption": "จับเวลา 1/100 วินาที ปลุกรายวัน",
+      "spoken": "มีจับเวลาละเอียดหนึ่งในร้อยวินาที และปลุกรายวัน",
+      "start": 7.7,
+      "end": 11.55
+    },
+    {
+      "caption": "มีไฟ LED กันน้ำใช้ประจำวัน",
+      "spoken": "มีไฟแอลอีดี กันน้ำสำหรับใช้ในชีวิตประจำวัน",
+      "start": 11.55,
+      "end": 15.4
+    },
+    {
+      "caption": "ดูรายละเอียดที่ลิงก์สินค้า",
+      "spoken": "ดูรายละเอียดรุ่นนี้ได้ที่ลิงก์สินค้า",
+      "start": 15.4,
+      "end": 18.0
+    }
+  ],
+  "credit": "ภาพต้นฉบับ: Multicherry / Wikimedia Commons, CC BY-SA 4.0"
 }

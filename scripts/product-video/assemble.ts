@@ -15,7 +15,7 @@ interface Plan {
   shots:Array<{id:string;seconds:number}>;
   endCard:{image:string;seconds:number;headline:string};
   beats:Array<{caption:string;spoken:string;start:number;end:number}>;
-  aiLabel:string;
+  aiLabel:string;credit:string;
 }
 
 const run=(command:string,args:string[],cwd=process.cwd())=>new Promise<string>((ok,fail)=>{
@@ -52,11 +52,13 @@ async function main(){
   const durations=clips.map(c=>c.seconds!);
   const captions=plan.beats.map(b=>({text:b.caption,start:b.start,end:b.end}));
   const endStart=durations.slice(0,-1).reduce((a,b)=>a+b,0);
-  let ass=buildAssSubtitles(captions,plan.durationSeconds,[],[...shotOverlays(clips,durations),
-    {kind:"KICKER",text:plan.endCard.headline,start:endStart+.05,end:plan.durationSeconds}]);
+  let ass=buildAssSubtitles(captions,plan.durationSeconds,[],shotOverlays(clips,durations));
   // A machine-generated disclosure stays on screen for the whole clip (required by the video model's licence).
-  ass=ass.replace("\n\n[Events]",`\nStyle: Label,Noto Sans Thai,34,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,3,8,0,9,40,40,150,222\n\n[Events]`)
-    +`Dialogue: 3,0:00:00.00,0:00:${plan.durationSeconds.toFixed(2).padStart(5,"0")},Label,,0,0,0,,${plan.aiLabel}\n`;
+  ass=ass.replace("\n\n[Events]",`\nStyle: Label,Noto Sans Thai,34,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,3,8,0,9,40,40,150,222\nStyle: Headline,Noto Sans Thai,64,&H00111111,&H00FFFFFF,&H002EC8FF,&H002EC8FF,-1,0,0,0,100,100,2,0,3,14,0,8,40,40,1050,222\nStyle: Credit,Noto Sans Thai,30,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,6,0,2,40,40,330,222\n\n[Events]`)
+    +`Dialogue: 3,0:00:00.00,0:00:${plan.durationSeconds.toFixed(2).padStart(5,"0")},Label,,0,0,0,,${plan.aiLabel}\n`
+    +`Dialogue: 3,0:00:${(endStart+.05).toFixed(2).padStart(5,"0")},0:00:${plan.durationSeconds.toFixed(2).padStart(5,"0")},Headline,,0,0,0,,${plan.endCard.headline}\n`
+    // The source photos are CC BY-SA: the photographer is credited on the closing shot.
+    +`Dialogue: 3,0:00:${endStart.toFixed(2).padStart(5,"0")},0:00:${plan.durationSeconds.toFixed(2).padStart(5,"0")},Credit,,0,0,0,,${plan.credit}\n`;
   await writeFile(join(outDir,"subtitles.ass"),ass,"utf8");
   const gain=voiceGainDb(await measureLoudness(join(outDir,"narration.wav"),`aresample=48000,${VOICE_COMPRESSOR}`));
   const output=join(outDir,"ad.mp4");

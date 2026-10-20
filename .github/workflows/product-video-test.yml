@@ -9,6 +9,10 @@ on:
 permissions:
   contents: write
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   smoke:
     if: contains(github.event.head_commit.message, '[video-smoke]')
@@ -29,7 +33,7 @@ jobs:
         run: |
           sudo apt-get update && sudo apt-get install -y ffmpeg
           python -m venv .venv-video
-          .venv-video/bin/pip install --quiet --extra-index-url https://download.pytorch.org/whl/cpu torch "diffusers==0.41.0" transformers \
+          .venv-video/bin/pip install --quiet --extra-index-url https://download.pytorch.org/whl/cpu torch "diffusers==0.41.0" "transformers==4.57.1" \
             sentencepiece accelerate safetensors huggingface_hub imageio imageio-ffmpeg Pillow
           .venv-video/bin/pip freeze | grep -i -E "^(torch|diffusers|transformers)==" | tee out/versions.txt
       - name: Tiny run proves the pipeline end to end
@@ -51,3 +55,99 @@ jobs:
           cd /tmp/results && git init -q -b results && git add -A
           git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Product video smoke ${{ github.run_id }}"
           git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-video-smoke
+
+  shot:
+    # One AI shot per job, all in parallel; each starts from a real licensed photo of the product.
+    if: contains(github.event.head_commit.message, '[video-ad]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        shot: [s1, s2, s3, s4]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Free disk for model weights
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost
+          df -h / && nproc && free -m
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Video runtime
+        run: |
+          python -m venv .venv-video
+          .venv-video/bin/pip install --quiet --extra-index-url https://download.pytorch.org/whl/cpu torch "diffusers==0.41.0" "transformers==4.57.1" \
+            sentencepiece accelerate safetensors huggingface_hub imageio imageio-ffmpeg Pillow
+      - name: Generate the shot
+        run: |
+          mkdir -p shot-out
+          jq --arg id "${{ matrix.shot }}" -c '.shots[]|select(.id==$id)|{image,prompt,seed,output:("shot-out/"+.id+".mp4"),width:480,height:832,frames:97}' scripts/product-video/ad-plan.json \
+            | .venv-video/bin/python scripts/product-video/ltx_i2v.py 2>shot-out/${{ matrix.shot }}.err | tee shot-out/${{ matrix.shot }}.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shot-${{ matrix.shot }}
+          path: shot-out/
+
+  assemble:
+    needs: shot
+    if: ${{ !cancelled() && contains(github.event.head_commit.message, '[video-ad]') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      FFMPEG_BINARY: /usr/bin/ffmpeg
+      FFPROBE_BINARY: /usr/bin/ffprobe
+      VOXCPM_DEVICE: cpu
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v4
+        with:
+          path: shots
+          pattern: shot-*
+          merge-multiple: true
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - name: Thai voice (VoxCPM2, local)
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          python -m venv .venv-tts
+          .venv-tts/bin/pip install --extra-index-url https://download.pytorch.org/whl/cpu "voxcpm==2.0.3" soundfile Pillow
+          echo "THAI_TTS_PYTHON=$PWD/.venv-tts/bin/python" >> "$GITHUB_ENV"
+          echo "VOXCPM_MODEL=$(.venv-tts/bin/python -c 'from huggingface_hub import snapshot_download;print(snapshot_download("openbmb/VoxCPM2"))')" >> "$GITHUB_ENV"
+      - name: Assemble the ad
+        run: |
+          mkdir -p ad-out
+          ls -la shots
+          node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/product-video/assemble.ts scripts/product-video/ad-plan.json shots ad-out 2>&1 | tee ad-out/assemble.log
+      - name: Real photo next to AI frames for review
+        if: always()
+        run: |
+          mkdir -p ad-out/compare
+          for id in s1 s2 s3 s4; do
+            [ -f shots/$id.mp4 ] || continue
+            for t in 0 1.9 3.8; do ffmpeg -loglevel error -y -ss $t -i shots/$id.mp4 -frames:v 1 shots/$id-at-$t.png; done
+            ffmpeg -loglevel error -y -i shots/$id-first-frame.png -i shots/$id-at-0.png -i shots/$id-at-1.9.png -i shots/$id-at-3.8.png \
+              -filter_complex "[0][1][2][3]hstack=4" ad-out/compare/$id.jpg
+          done
+          cp shots/*.json shots/*.err shots/*.mp4 shots/*first-frame.png ad-out/ 2>/dev/null || true
+      - name: Publish results to a results branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results && cp -r ad-out /tmp/results/ 2>/dev/null || true
+          rm -rf /tmp/results/ad-out/fonts
+          cd /tmp/results && git init -q -b results && git add -A
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Product video ad ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-video-ad
