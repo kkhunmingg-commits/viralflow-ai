@@ -6,22 +6,22 @@
  "sku": "M9160C (converse.co.th M9160CU_COBKXX)",
  "shots": [
   {
-   "id": "c2b",
-   "image": "scripts/product-video/more/c2-bg.png",
-   "seed": 302,
-   "prompt": "Grey concrete outdoor steps at golden hour, warm sun flare, light dust drifting in the air, slow smooth camera push in toward the nearest step, steady camera, cinematic lifestyle commercial, photorealistic"
+   "id": "q1",
+   "image": "scripts/product-video/more/r/sc1-141-bg.png",
+   "seed": 501,
+   "prompt": "A calm bright bedroom with a light oak floor and a big window in soft overcast daylight, a plant by the window, slow smooth camera push in along the floor, steady camera, cinematic lifestyle commercial, photorealistic"
   },
   {
-   "id": "c3",
-   "image": "scripts/product-video/more/c3.png",
-   "seed": 303,
-   "prompt": "A black canvas high-top sneaker stands still on a light oak floor in a cozy bedroom, soft daylight from the window, curtain moves gently, slow smooth camera pull back, the shoe does not move, cinematic lifestyle commercial, photorealistic"
+   "id": "q2",
+   "image": "scripts/product-video/more/r/sc1-143-bg.png",
+   "seed": 502,
+   "prompt": "A bright room with a light oak floor, white curtains moving gently in soft daylight, a potted plant by the window, slow smooth lateral camera slide at floor level, steady camera, cinematic lifestyle commercial, photorealistic"
   },
   {
-   "id": "c1b",
-   "image": "scripts/product-video/more/c1-bg.png",
-   "seed": 304,
-   "prompt": "An empty wooden park bench in warm morning city sunlight, tree shadows drift softly across the bench seat, blurred street in the background, slow smooth camera push in toward the bench seat, steady camera, cinematic lifestyle commercial, photorealistic"
+   "id": "q3",
+   "image": "scripts/product-video/more/r/sc2-152-bg.png",
+   "seed": 503,
+   "prompt": "A quiet city sidewalk of smooth grey concrete in soft overcast daylight, trees and shop fronts in the background, leaves move slightly, slow smooth camera push in at ground level, steady camera, cinematic lifestyle commercial, photorealistic"
   }
  ],
  "durationSeconds": 16,

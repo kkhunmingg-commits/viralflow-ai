@@ -254,7 +254,12 @@ jobs:
       matrix:
         # Each entry names the plan that holds the shot, so one push can render shots for several products.
         include:
-          - {plan: ad-plan-chuck.json, shot: c1b}
+          - {plan: ad-plan-moka.json, shot: r1}
+          - {plan: ad-plan-moka.json, shot: r2}
+          - {plan: ad-plan-moka.json, shot: r3}
+          - {plan: ad-plan-chuck.json, shot: q1}
+          - {plan: ad-plan-chuck.json, shot: q2}
+          - {plan: ad-plan-chuck.json, shot: q3}
     steps:
       - uses: actions/checkout@v7
       - name: Free disk for model weights

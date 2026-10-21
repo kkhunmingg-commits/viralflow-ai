@@ -6,22 +6,22 @@
  "sku": "Good Living Thailand BL-0001162",
  "shots": [
   {
-   "id": "m1",
-   "image": "scripts/product-video/more/m1-bg.png",
-   "seed": 201,
-   "prompt": "A clean sunny home kitchen with a gas stove and white subway tiles in the morning, soft sunlight shifts gently, slow smooth camera push in toward the front burner, steady camera, nothing moves on the stove, cinematic lifestyle commercial, photorealistic"
+   "id": "r1",
+   "image": "scripts/product-video/more/r/sm2-121-bg.png",
+   "seed": 401,
+   "prompt": "A bright home kitchen with a wooden table by a window in soft natural daylight, a white mug on the table, gentle slow camera push in toward the table, steady camera, soft light, cinematic lifestyle commercial, photorealistic"
   },
   {
-   "id": "m2",
-   "image": "scripts/product-video/more/m2-bg.png",
-   "seed": 202,
-   "prompt": "A rustic wooden table by a sunny window in the morning with a small glass of coffee, warm light and leaf shadows flicker softly across the table, slow smooth camera push in, steady camera, cinematic lifestyle commercial, photorealistic"
+   "id": "r2",
+   "image": "scripts/product-video/more/r/sm2-122-bg.png",
+   "seed": 402,
+   "prompt": "A wooden table by a window in soft natural daylight with a glass mug of coffee, steam rises softly from the mug, slow smooth lateral camera slide, steady camera, cinematic lifestyle commercial, photorealistic"
   },
   {
-   "id": "m3",
-   "image": "scripts/product-video/more/m3-bg.png",
-   "seed": 203,
-   "prompt": "A small wooden table on a sunny apartment balcony with a croissant on a plate and a potted plant, leaves sway softly in a light breeze, warm morning sun, slow smooth camera push in, steady camera, cinematic lifestyle commercial, photorealistic"
+   "id": "r3",
+   "image": "scripts/product-video/more/r/sm3-131-bg.png",
+   "seed": 403,
+   "prompt": "A white marble kitchen counter with a glass jar of coffee beans and a green plant in soft daylight, leaves move very slightly, slow smooth camera push in, steady camera, cinematic lifestyle commercial, photorealistic"
   }
  ],
  "durationSeconds": 16,
