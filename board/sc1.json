@@ -1,0 +1,1 @@
+{"engine": "SG161222/RealVisXL_V5.0_Lightning", "device": "cpu", "loadSeconds": 73.3, "images": [{"seed": 141, "path": "board/sc1-141.png", "seconds": 384.0}, {"seed": 142, "path": "board/sc1-142.png", "seconds": 382.2}, {"seed": 143, "path": "board/sc1-143.png", "seconds": 388.1}], "totalSeconds": 1227.7}
