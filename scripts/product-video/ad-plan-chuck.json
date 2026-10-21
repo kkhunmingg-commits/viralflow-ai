@@ -22,6 +22,12 @@
    "image": "scripts/product-video/more/c3.png",
    "seed": 303,
    "prompt": "A black canvas high-top sneaker stands still on a light oak floor in a cozy bedroom, soft daylight from the window, curtain moves gently, slow smooth camera pull back, the shoe does not move, cinematic lifestyle commercial, photorealistic"
+  },
+  {
+   "id": "c1b",
+   "image": "scripts/product-video/more/c1-bg.png",
+   "seed": 304,
+   "prompt": "An empty wooden park bench in warm morning city sunlight, tree shadows drift softly across the bench seat, blurred street in the background, slow smooth camera push in toward the bench seat, steady camera, cinematic lifestyle commercial, photorealistic"
   }
  ],
  "durationSeconds": 16,
@@ -31,7 +37,7 @@
    "seconds": 3.6
   },
   {
-   "id": "c1",
+   "id": "c1b",
    "seconds": 3.0
   },
   {
