@@ -12,7 +12,7 @@ import numpy as np
 
 import os
 
-from composite_head import alpha_box, composite
+from composite_head import alpha_box, composite, ground_shadow
 
 
 def read_frames(path: str) -> list:
@@ -24,12 +24,21 @@ def read_frames(path: str) -> list:
         frames.append(frame)
 
 
-def track(frames: list, quad: np.ndarray) -> tuple:
+def track(frames: list, quad: np.ndarray, surface: bool = False) -> tuple:
     """Quad per frame from feature tracks on and around the watch. The motion is limited to move, turn and scale
-    (no shear or keystone), so the real case keeps its true shape instead of bending into a trapezoid."""
+    (no shear or keystone), so the real case keeps its true shape instead of bending into a trapezoid.
+    surface=True follows the surface under the product's base instead (the shot was rendered without the product,
+    so the product stays put on the table or floor however the camera moves)."""
     def region(q):
         mask = np.zeros(frames[0].shape[:2], np.uint8)
         c = q.mean(0)
+        if surface:
+            w, h = np.linalg.norm(q[2] - q[3]), np.linalg.norm(q[3] - q[0])
+            base = (q[2] + q[3]) / 2
+            x0, x1 = base[0] - w * 0.7, base[0] + w * 0.7
+            y0, y1 = base[1] - h * 0.3, base[1] + h * 0.3
+            cv2.rectangle(mask, (int(x0), int(y0)), (int(x1), int(y1)), 255, -1)
+            return mask
         cv2.fillPoly(mask, [np.int32(c + (q - c) * 1.3)], 255)
         return mask
 
@@ -79,14 +88,18 @@ def main() -> None:
     # WHOLE_PRODUCT=1: the quad is the bounding box of the whole cutout (moka pot, shoe) instead of the watch case.
     source = alpha_box(head) if os.environ.get("WHOLE_PRODUCT") == "1" else None
     frames = read_frames(shot)
-    quads, inliers = track(frames, quad)
+    surface = os.environ.get("TRACK") == "surface"
+    quads, inliers = track(frames, quad, surface)
     sx, sy = width / frames[0].shape[1], height / frames[0].shape[0]
     writer = subprocess.Popen(["ffmpeg", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{width}x{height}",
                                "-r", "25", "-i", "-", "-c:v", "libx264", "-crf", "16", "-preset", "medium", "-pix_fmt", "yuv420p", out],
                               stdin=subprocess.PIPE)
     for i, (frame, q) in enumerate(zip(frames, quads)):
         big = cv2.resize(frame, (width, height), interpolation=cv2.INTER_LANCZOS4)
-        writer.stdin.write(composite(head, big, q * np.float32([sx, sy]), tone, blend=True, seed=i, source=source).tobytes())
+        q = q * np.float32([sx, sy])
+        if surface:
+            big = ground_shadow(big, q)
+        writer.stdin.write(composite(head, big, q, tone, blend=True, seed=i, source=source).tobytes())
     writer.stdin.close()
     writer.wait()
     drift = float(np.abs(quads[-1] - quads[0]).max())

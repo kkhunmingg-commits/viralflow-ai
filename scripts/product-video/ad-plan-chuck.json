@@ -12,10 +12,10 @@
    "prompt": "A black canvas high-top sneaker stands still on a wooden park bench in warm morning city sunlight, tree shadows drift softly across the bench, blurred street life in the background, slow smooth camera push in, the shoe does not move, cinematic lifestyle commercial, photorealistic"
   },
   {
-   "id": "c2",
-   "image": "scripts/product-video/more/c2.png",
+   "id": "c2b",
+   "image": "scripts/product-video/more/c2-bg.png",
    "seed": 302,
-   "prompt": "A black canvas high-top sneaker stands still on grey concrete steps at golden hour, warm sun flare, light dust in the air, slow smooth lateral camera slide, the shoe does not move, cinematic lifestyle commercial, photorealistic"
+   "prompt": "Grey concrete outdoor steps at golden hour, warm sun flare, light dust drifting in the air, slow smooth camera push in toward the nearest step, steady camera, cinematic lifestyle commercial, photorealistic"
   },
   {
    "id": "c3",
@@ -35,7 +35,7 @@
    "seconds": 3.0
   },
   {
-   "id": "c2",
+   "id": "c2b",
    "seconds": 3.0
   },
   {

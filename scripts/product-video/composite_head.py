@@ -60,6 +60,18 @@ def alpha_box(cutout: np.ndarray) -> np.ndarray:
     return box_quad(xs.min(), ys.min(), xs.max() + 1, ys.max() + 1)
 
 
+def ground_shadow(bg: np.ndarray, quad: np.ndarray, strength: float = 0.55) -> np.ndarray:
+    """Soft shadow under the base edge (quad BR-BL), so a standing product rests on the surface instead of floating."""
+    left, right = np.float32(quad[3]), np.float32(quad[2])
+    width = float(np.linalg.norm(right - left))
+    centre = (left + right) / 2
+    angle = float(np.degrees(np.arctan2(right[1] - left[1], right[0] - left[0])))
+    shadow = np.zeros(bg.shape[:2], np.float32)
+    cv2.ellipse(shadow, (int(centre[0]), int(centre[1] - width * 0.01)), (int(width * 0.47), max(2, int(width * 0.035))), angle, 0, 360, 1.0, -1)
+    shadow = cv2.GaussianBlur(shadow, (0, 0), max(1.0, width * 0.025))
+    return np.clip(bg.astype(np.float32) * (1 - strength * shadow[..., None]), 0, 255).astype(np.uint8)
+
+
 def main() -> None:
     head = cv2.imread(sys.argv[1], cv2.IMREAD_UNCHANGED)
     bg = cv2.imread(sys.argv[2])
