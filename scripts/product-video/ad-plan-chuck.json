@@ -45,30 +45,30 @@
  "durationSeconds": 16,
  "timeline": [
   {
-   "id": "c3",
+   "id": "s1",
+   "seconds": 3.2
+  },
+  {
+   "id": "s2",
+   "seconds": 3.2
+  },
+  {
+   "id": "s3",
    "seconds": 3.6
   },
   {
-   "id": "c1b",
-   "seconds": 3.4
-  },
-  {
-   "id": "c2b",
-   "seconds": 2.6
-  },
-  {
    "id": "hero",
-   "seconds": 6.4
+   "seconds": 6.0
   }
  ],
  "headline": {
   "text": "Converse Chuck Taylor All Star",
-  "start": 9.65,
+  "start": 10.05,
   "end": 16
  },
  "headlineMarginV": 260,
  "captionMarginV": 330,
- "creditStart": 9.6,
+ "creditStart": 10.0,
  "creditMarginV": 500,
  "beats": [
   {
@@ -107,7 +107,7 @@
    "position": "top"
   }
  ],
- "aiLabel": "ฉากจำลองด้วย AI",
+ "aiLabel": "เสียงพากย์ AI",
  "credit": "ภาพสินค้า: Converse / Wikimedia Commons, CC BY-SA 4.0",
- "note": "c3: the shoe was pasted into the still and animated by LTX, then tracked and pasted again at 1080x1920 (WHOLE_PRODUCT=1). c1b, c2b: LTX animated the empty set and the real shoe is pasted into every frame, held to the surface (TRACK=surface), with a ground shadow. Hero: push_in.py on a composite, no AI motion. Claims from converse.co.th."
+ "note": "Round 3. No AI imagery. The licensed product photo is a studio shot, so it is placed on a drawn studio sweep lit the same way, with a contact shadow along the product's own bottom edge and a faint satin-floor reflection (studio_render.py, jobs in more/studio-<product>/*.json). Camera moves (push-in, close-up, slide, pull-back) are rendered from the original photo pixels every frame. Narration is VoxCPM2 TTS, so the label says the voice is AI. Round 2 lifestyle-set composites were rejected in review: the AI camera kept moving and the product floated."
 }

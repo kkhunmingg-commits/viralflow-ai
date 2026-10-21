@@ -402,7 +402,7 @@ jobs:
       - name: Assemble the ad
         run: |
           mkdir -p ad-out
-          node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/product-video/assemble.ts scripts/product-video/ad-plan-${{ matrix.product }}.json scripts/product-video/more/final-${{ matrix.product }} ad-out 2>&1 | tee ad-out/assemble.log
+          node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/product-video/assemble.ts scripts/product-video/ad-plan-${{ matrix.product }}.json scripts/product-video/more/studio-${{ matrix.product }} ad-out 2>&1 | tee ad-out/assemble.log
       - name: Publish results to a results branch
         if: always()
         env:
