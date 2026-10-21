@@ -1,0 +1,1 @@
+{"engine": "SG161222/RealVisXL_V5.0_Lightning", "mode": "inpaint around the fixed product", "loadSeconds": 73.8, "images": [{"seed": 21, "path": "board/am2-21.png", "seconds": 568.9}, {"seed": 22, "path": "board/am2-22.png", "seconds": 573.8}, {"seed": 23, "path": "board/am2-23.png", "seconds": 555.6}], "totalSeconds": 1772.2}
