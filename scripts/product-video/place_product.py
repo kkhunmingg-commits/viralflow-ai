@@ -1,6 +1,6 @@
 """Places a whole-product cutout (transparent PNG from the licensed photo) into an empty lifestyle still, standing on a
 surface: the bottom edge sits at y, centred on x, at the given width. Prints the quad for track_recomposite.py.
-Usage: python place_product.py cutout.png bg.png out.png x bottom_y width [tilt_degrees tone]"""
+Usage: python place_product.py cutout.png bg.png out.png x bottom_y width [tilt_degrees tone mask_out.png]"""
 import sys
 
 import cv2
@@ -28,6 +28,13 @@ def main() -> None:
     quad = quad_for(cutout, x, bottom, width, tilt)
     bg = ground_shadow(bg, quad)
     cv2.imwrite(sys.argv[3], composite(cutout, bg, quad, tone, blend=True, source=alpha_box(cutout)))
+    if len(sys.argv) > 9:
+        # The product's mask in the still, for harmonize_merge.py.
+        mask = np.zeros(bg.shape[:2], np.uint8)
+        box = alpha_box(cutout)
+        warp = cv2.getPerspectiveTransform(box, quad.astype(np.float32))
+        mask = cv2.warpPerspective(cutout[..., 3], warp, (bg.shape[1], bg.shape[0]))
+        cv2.imwrite(sys.argv[9], mask)
     print(" ".join(f"{px:.1f},{py:.1f}" for px, py in quad))
 
 

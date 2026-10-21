@@ -1,0 +1,13 @@
+{
+ "note": "Composites of the real product (place_product.py) relit as one photo by sdxl_harmonize.py; harmonize_merge.py restores the product's detail.",
+ "scenes": [
+  {"id": "m1", "image": "scripts/product-video/more/h/m1.png", "prompt": "Lifestyle product photo of a silver aluminium stovetop moka pot standing on a gas stove burner in a bright white kitchen, soft morning window light, realistic reflections on the polished metal, soft contact shadow, photorealistic, 35mm photo"},
+  {"id": "m2", "image": "scripts/product-video/more/h/m2.png", "prompt": "Lifestyle product photo of a silver aluminium stovetop moka pot standing on a rustic wooden table next to a glass of coffee, warm morning sunlight from the window behind, rim light and warm reflections on the polished metal, soft shadow on the table, photorealistic, 35mm photo"},
+  {"id": "m3", "image": "scripts/product-video/more/h/m3.png", "prompt": "Lifestyle product photo of a silver aluminium stovetop moka pot standing on a wooden balcony table beside a croissant and a potted plant, warm morning sunlight, warm reflections on the polished metal, soft shadow on the table, photorealistic, 35mm photo"},
+  {"id": "c1", "image": "scripts/product-video/more/h/c1.png", "prompt": "Lifestyle product photo of a black canvas high-top sneaker standing on a wooden park bench in warm morning sunlight, soft shadow under the sole, warm light on the canvas, photorealistic, 35mm photo"},
+  {"id": "c2", "image": "scripts/product-video/more/h/c2.png", "prompt": "Lifestyle product photo of a black canvas high-top sneaker standing on grey concrete steps at golden hour, warm side light on the canvas and rubber sole, soft shadow on the step, photorealistic, 35mm photo"},
+  {"id": "c3", "image": "scripts/product-video/more/h/c3.png", "prompt": "Lifestyle product photo of a black canvas high-top sneaker standing on a light oak floor in a cozy bedroom, soft daylight from the window, soft shadow under the sole, photorealistic, 35mm photo"}
+ ],
+ "strengths": [0.3, 0.45],
+ "seeds": [7, 8]
+}
