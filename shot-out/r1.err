@@ -1,0 +1,18 @@
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files:  67%|██████▋   | 8/12 [00:02<00:01,  2.95it/s]Fetching 12 files:  67%|██████▋   | 8/12 [00:20<00:10,  2.50s/it]Fetching 12 files:  75%|███████▌  | 9/12 [01:21<00:27,  9.09s/it]Fetching 12 files:  83%|████████▎ | 10/12 [01:32<00:18,  9.29s/it]Fetching 12 files:  92%|█████████▏| 11/12 [01:35<00:08,  8.66s/it]Fetching 12 files: 100%|██████████| 12/12 [01:36<00:00,  8.02s/it]Fetching 12 files: 100%|██████████| 12/12 [01:36<00:00,  8.02s/it]
+Loading pipeline components...:   0%|          | 0/3 [00:00<?, ?it/s]Loading pipeline components...:  33%|███▎      | 1/3 [00:00<00:00,  9.38it/s]`torch_dtype` is deprecated! Use `dtype` instead!
+
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s][A
+Loading checkpoint shards:  25%|██▌       | 1/4 [00:06<00:20,  6.83s/it][A
+Loading checkpoint shards:  50%|█████     | 2/4 [00:17<00:18,  9.03s/it][A
+Loading checkpoint shards:  75%|███████▌  | 3/4 [00:42<00:16, 16.53s/it][A
+Loading checkpoint shards: 100%|██████████| 4/4 [00:52<00:00, 14.00s/it][ALoading checkpoint shards: 100%|██████████| 4/4 [00:52<00:00, 13.24s/it]
+Loading pipeline components...: 100%|██████████| 3/3 [00:53<00:00, 19.69s/it]Loading pipeline components...: 100%|██████████| 3/3 [00:53<00:00, 17.73s/it]
+  0%|          | 0/8 [00:00<?, ?it/s]{"step": 0, "seconds": 439.5}
+ 12%|█▎        | 1/8 [06:55<48:30, 415.84s/it]{"step": 1, "seconds": 377.9}
+ 25%|██▌       | 2/8 [13:13<39:21, 393.51s/it]{"step": 2, "seconds": 387.6}
+ 38%|███▊      | 3/8 [19:41<32:34, 390.80s/it]{"step": 3, "seconds": 438.7}
+ 50%|█████     | 4/8 [27:00<27:18, 409.72s/it]{"step": 4, "seconds": 374.4}
+ 62%|██████▎   | 5/8 [33:14<19:50, 396.98s/it]{"step": 5, "seconds": 396.3}
+ 75%|███████▌  | 6/8 [39:50<13:13, 396.76s/it]{"step": 6, "seconds": 396.0}
+ 88%|████████▊ | 7/8 [46:26<06:36, 396.52s/it]{"step": 7, "seconds": 427.1}
+100%|██████████| 8/8 [53:33<00:00, 406.27s/it]100%|██████████| 8/8 [53:33<00:00, 401.74s/it]
