@@ -1,0 +1,72 @@
+{
+  "voice": {
+    "engine": "openbmb/VoxCPM2 (Apache-2.0), local CPU",
+    "takes": [
+      {
+        "beat": 0,
+        "seconds": 2.56,
+        "ttsSeconds": 121
+      },
+      {
+        "beat": 1,
+        "seconds": 2.85,
+        "ttsSeconds": 148.5
+      },
+      {
+        "beat": 2,
+        "seconds": 2.83,
+        "ttsSeconds": 149.2
+      },
+      {
+        "beat": 3,
+        "seconds": 3.52,
+        "ttsSeconds": 160.9
+      },
+      {
+        "beat": 4,
+        "seconds": 2.24,
+        "ttsSeconds": 110.9
+      }
+    ]
+  },
+  "media": {
+    "path": "/home/runner/work/viralflow-ai/viralflow-ai/ad-out/ad.mp4",
+    "duration": 16,
+    "width": 1080,
+    "height": 1920,
+    "fps": 30,
+    "videoCodec": "h264",
+    "audioCodec": "aac",
+    "hasAudio": true,
+    "sizeBytes": 7037319
+  },
+  "loudnessLufs": -14.2,
+  "checks": [
+    {
+      "name": "DURATION",
+      "passed": true,
+      "detail": "16.00s"
+    },
+    {
+      "name": "RESOLUTION",
+      "passed": true,
+      "detail": "1080x1920"
+    },
+    {
+      "name": "AUDIO_TRACK",
+      "passed": true,
+      "detail": "aac"
+    },
+    {
+      "name": "VOICE",
+      "passed": true,
+      "detail": "narration present"
+    },
+    {
+      "name": "LOUDNESS",
+      "passed": true,
+      "detail": "-14.2 LUFS (target -14±2)"
+    }
+  ],
+  "assembleSeconds": 710.6
+}
