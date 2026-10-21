@@ -1,0 +1,1 @@
+{"engine": "IC-Light fbc (lllyasviel/ic-light) on stablediffusionapi/realistic-vision-v51", "loadSeconds": 45.4, "images": [{"seed": 5, "path": "board/sc2-152-5.png", "seconds": 433.0}, {"seed": 6, "path": "board/sc2-152-6.png", "seconds": 434.0}], "totalSeconds": 912.3}
