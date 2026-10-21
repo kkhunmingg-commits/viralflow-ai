@@ -36,7 +36,7 @@ def track(frames: list, quad: np.ndarray, surface: bool = False) -> tuple:
             w, h = np.linalg.norm(q[2] - q[3]), np.linalg.norm(q[3] - q[0])
             base = (q[2] + q[3]) / 2
             x0, x1 = base[0] - w * 0.7, base[0] + w * 0.7
-            y0, y1 = base[1] - h * 0.3, base[1] + h * 0.3
+            y0, y1 = base[1] - h * 0.1, base[1] + h * 0.35
             cv2.rectangle(mask, (int(x0), int(y0)), (int(x1), int(y1)), 255, -1)
             return mask
         cv2.fillPoly(mask, [np.int32(c + (q - c) * 1.3)], 255)

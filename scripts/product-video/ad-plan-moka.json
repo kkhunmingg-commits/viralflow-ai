@@ -28,29 +28,29 @@
  "timeline": [
   {
    "id": "m1",
-   "seconds": 3.6
+   "seconds": 3.0
   },
   {
    "id": "m2",
-   "seconds": 3.0
+   "seconds": 2.4
   },
   {
    "id": "m3",
-   "seconds": 3.0
+   "seconds": 3.8
   },
   {
    "id": "hero",
-   "seconds": 6.4
+   "seconds": 6.8
   }
  ],
  "headline": {
   "text": "Bialetti Moka Express",
-  "start": 9.65,
+  "start": 9.25,
   "end": 16
  },
  "headlineMarginV": 260,
  "captionMarginV": 330,
- "creditStart": 9.6,
+ "creditStart": 9.2,
  "creditMarginV": 500,
  "beats": [
   {
@@ -88,5 +88,5 @@
  ],
  "aiLabel": "ฉากจำลองด้วย AI",
  "credit": "ภาพสินค้า: Bialetti Industrie / Wikimedia Commons, CC BY-SA 4.0",
- "note": "Backgrounds are AI stills drawn with no product and animated by LTX with no product in them; the real pot from the licensed photo is pasted into every frame at 1080x1920, held to the table by tracking the surface under it (track_recomposite.py, WHOLE_PRODUCT=1 TRACK=surface), with a ground shadow. Hero: push_in.py on a composite, no AI motion. Claims from the seller page."
+ "note": "Backgrounds are AI stills drawn with no product and animated by LTX with no product in them; the real pot from the licensed photo is pasted into every frame at 1080x1920, held to the table by tracking the surface under it (track_recomposite.py, WHOLE_PRODUCT=1 TRACK=surface), with a ground shadow. Hero: push_in.py on a composite, no AI motion. Claims from the seller page. m1 uses the first 2 s of its render slowed to 3 s (ffmpeg minterpolate on the empty set, before the pot is pasted)."
 }

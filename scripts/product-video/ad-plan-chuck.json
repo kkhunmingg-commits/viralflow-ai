@@ -6,12 +6,6 @@
  "sku": "M9160C (converse.co.th M9160CU_COBKXX)",
  "shots": [
   {
-   "id": "c1",
-   "image": "scripts/product-video/more/c1.png",
-   "seed": 301,
-   "prompt": "A black canvas high-top sneaker stands still on a wooden park bench in warm morning city sunlight, tree shadows drift softly across the bench, blurred street life in the background, slow smooth camera push in, the shoe does not move, cinematic lifestyle commercial, photorealistic"
-  },
-  {
    "id": "c2b",
    "image": "scripts/product-video/more/c2-bg.png",
    "seed": 302,
@@ -38,11 +32,11 @@
   },
   {
    "id": "c1b",
-   "seconds": 3.0
+   "seconds": 3.4
   },
   {
    "id": "c2b",
-   "seconds": 3.0
+   "seconds": 2.6
   },
   {
    "id": "hero",
@@ -94,5 +88,5 @@
  ],
  "aiLabel": "ฉากจำลองด้วย AI",
  "credit": "ภาพสินค้า: Converse / Wikimedia Commons, CC BY-SA 4.0",
- "note": "Backgrounds are AI stills drawn with no product; the real shoe from the licensed photo is pasted in, animated by LTX, then tracked and pasted again at 1080x1920 (track_recomposite.py, WHOLE_PRODUCT=1). Hero: push_in.py on a composite, no AI motion. Claims from converse.co.th."
+ "note": "c3: the shoe was pasted into the still and animated by LTX, then tracked and pasted again at 1080x1920 (WHOLE_PRODUCT=1). c1b, c2b: LTX animated the empty set and the real shoe is pasted into every frame, held to the surface (TRACK=surface), with a ground shadow. Hero: push_in.py on a composite, no AI motion. Claims from converse.co.th."
 }
