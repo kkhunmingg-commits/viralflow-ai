@@ -12,7 +12,7 @@ SOURCE_QUAD = np.float32([[185, 172], [1142, 172], [1142, 1003], [185, 1003]])
 
 
 def composite(head: np.ndarray, bg: np.ndarray, quad: np.ndarray, tone: float = 0.6, blend: bool = False,
-              seed: int = 0, source: np.ndarray = None) -> np.ndarray:
+              seed: int = 0, source: np.ndarray = None, prelit: bool = False) -> np.ndarray:
     """source is the rectangle in the cutout that quad refers to (default: the watch case)."""
     SOURCE_QUAD = source if source is not None else globals()["SOURCE_QUAD"]
     h, w = bg.shape[:2]
@@ -29,20 +29,24 @@ def composite(head: np.ndarray, bg: np.ndarray, quad: np.ndarray, tone: float = 
     base = bg.astype(np.float32)
     # Match the scene's light: shift the head's mean colour toward the region it replaces (tone=0 keeps the photo's colour).
     region = alpha > 0.5
-    if region.any():
+    if region.any() and not prelit:
         gain = (base[region].mean(0) + 1) / (rgb[region].mean(0) + 1)
         rgb = np.clip(rgb * (1 + tone * (np.clip(gain, 0.6, 1.6) - 1)), 0, 255)
     if blend and region.any():
-        rgb = match_exposure(rgb, region, bg, quad)
+        if not prelit:
+            rgb = match_exposure(rgb, region, bg, quad)
         # The scene's light falls across the case the same way it falls across the wrist under it.
+        # A prelit cutout (relit to this scene by IC-Light) already carries the scene's light.
         lum = cv2.GaussianBlur(cv2.cvtColor(bg, cv2.COLOR_BGR2GRAY).astype(np.float32), (0, 0), size * 0.35)
-        shade = np.clip(lum / (lum[region].mean() + 1), 0.7, 1.3) ** 0.6
+        shade = np.clip(lum / (lum[region].mean() + 1), 0.7, 1.3) ** (0.0 if prelit else 0.6)
         rgb = np.clip(rgb * shade[..., None], 0, 255)
         # Contact shadow where the case sits on the skin, slightly below and around it.
         shadow = cv2.GaussianBlur(np.roll(alpha, int(size * 0.04), 0), (0, 0), size * 0.06)
         base = base * (1 - 0.45 * np.clip(shadow - alpha, 0, 1)[..., None])
         # Same softness and grain as the scene right where the product stands, so it does not read as a sharper sticker.
-        rgb = cv2.GaussianBlur(rgb, (0, 0), max(0.6 + size / 900, match_focus(bg, quad, rgb, region)))
+        # A prelit cutout was already matched to the still's focus; only the resampling softness is added.
+        focus = 0.4 if prelit else max(0.6 + size / 900, match_focus(bg, quad, rgb, region))
+        rgb = cv2.GaussianBlur(rgb, (0, 0), focus)
         rgb = rgb + np.random.default_rng(seed).normal(0, 2.5, rgb.shape).astype(np.float32)
     else:
         # Soften to the still's sharpness so the paste does not look like a sticker.
@@ -72,7 +76,8 @@ def ground_shadow(bg: np.ndarray, quad: np.ndarray, strength: float = 0.55) -> n
     shadow = cv2.GaussianBlur(shadow, (0, 0), max(1.0, width * 0.025))
     # A thin dark contact line where the base touches the surface.
     contact = np.zeros(bg.shape[:2], np.float32)
-    cv2.line(contact, tuple(int(v) for v in left + (right - left) * 0.06), tuple(int(v) for v in right - (right - left) * 0.04), 1.0, max(2, int(width * 0.012)))
+    up = np.float32([0, width * 0.006])
+    cv2.line(contact, tuple(int(v) for v in left + (right - left) * 0.06 - up), tuple(int(v) for v in right - (right - left) * 0.04 - up), 1.0, max(2, int(width * 0.012)))
     shadow = np.maximum(shadow, cv2.GaussianBlur(contact, (0, 0), max(1.0, width * 0.006)) * 0.9)
     return np.clip(bg.astype(np.float32) * (1 - strength * shadow[..., None]), 0, 255).astype(np.uint8)
 

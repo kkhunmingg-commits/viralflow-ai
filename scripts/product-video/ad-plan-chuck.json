@@ -22,6 +22,24 @@
    "image": "scripts/product-video/more/r/sc2-152-bg.png",
    "seed": 503,
    "prompt": "A quiet city sidewalk of smooth grey concrete in soft overcast daylight, trees and shop fronts in the background, leaves move slightly, slow smooth camera push in at ground level, steady camera, cinematic lifestyle commercial, photorealistic"
+  },
+  {
+   "id": "q1s",
+   "image": "scripts/product-video/more/r/sc1-141-bg.png",
+   "seed": 601,
+   "prompt": "Locked-off static camera on a tripod, no camera movement, a calm bright bedroom with a light oak floor and a big window in soft overcast daylight, plant leaves move very slightly in a soft breeze, everything else stays still, cinematic lifestyle commercial, photorealistic"
+  },
+  {
+   "id": "q2s",
+   "image": "scripts/product-video/more/r/sc1-143-bg.png",
+   "seed": 602,
+   "prompt": "Locked-off static camera on a tripod, no camera movement, a bright room with a light oak floor, white curtains move gently, everything else stays still, cinematic lifestyle commercial, photorealistic"
+  },
+  {
+   "id": "q3s",
+   "image": "scripts/product-video/more/r/sc2-152-bg.png",
+   "seed": 603,
+   "prompt": "Locked-off static camera on a tripod, no camera movement, a quiet city sidewalk of smooth grey concrete in soft overcast daylight, tree leaves move slightly, distant cars pass softly, everything else stays still, cinematic lifestyle commercial, photorealistic"
   }
  ],
  "durationSeconds": 16,

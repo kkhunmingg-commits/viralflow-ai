@@ -22,6 +22,24 @@
    "image": "scripts/product-video/more/r/sm3-131-bg.png",
    "seed": 403,
    "prompt": "A white marble kitchen counter with a glass jar of coffee beans and a green plant in soft daylight, leaves move very slightly, slow smooth camera push in, steady camera, cinematic lifestyle commercial, photorealistic"
+  },
+  {
+   "id": "r1s",
+   "image": "scripts/product-video/more/r/sm2-121-bg.png",
+   "seed": 501,
+   "prompt": "Locked-off static camera on a tripod, no camera movement, a bright home kitchen with a wooden table by a window in soft natural daylight, soft daylight shifts very gently, curtain moves slightly, everything else stays still, cinematic lifestyle commercial, photorealistic"
+  },
+  {
+   "id": "r2s",
+   "image": "scripts/product-video/more/r/sm2-122-bg.png",
+   "seed": 502,
+   "prompt": "Locked-off static camera on a tripod, no camera movement, a wooden table by a window in soft natural daylight with a glass mug of coffee, steam rises softly from the glass mug, everything else stays still, cinematic lifestyle commercial, photorealistic"
+  },
+  {
+   "id": "r3s",
+   "image": "scripts/product-video/more/r/sm3-131-bg.png",
+   "seed": 503,
+   "prompt": "Locked-off static camera on a tripod, no camera movement, a white marble kitchen counter with a glass jar of coffee beans and a green plant in soft daylight, plant leaves move very slightly, everything else stays still, cinematic lifestyle commercial, photorealistic"
   }
  ],
  "durationSeconds": 16,

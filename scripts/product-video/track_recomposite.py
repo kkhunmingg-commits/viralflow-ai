@@ -33,17 +33,23 @@ def track(frames: list, quad: np.ndarray, surface: bool = False) -> tuple:
         mask = np.zeros(frames[0].shape[:2], np.uint8)
         c = q.mean(0)
         if surface:
-            w, h = np.linalg.norm(q[2] - q[3]), np.linalg.norm(q[3] - q[0])
+            # The floor or table around the base, widened across the frame: plain surfaces have few corners.
+            h = np.linalg.norm(q[3] - q[0])
             base = (q[2] + q[3]) / 2
-            x0, x1 = base[0] - w * 0.7, base[0] + w * 0.7
-            y0, y1 = base[1] - h * 0.1, base[1] + h * 0.35
-            cv2.rectangle(mask, (int(x0), int(y0)), (int(x1), int(y1)), 255, -1)
+            y0, y1 = base[1] - h * 0.8, base[1] + h * 1.2
+            cv2.rectangle(mask, (0, int(max(0, y0))), (mask.shape[1], int(min(mask.shape[0], y1))), 255, -1)
             return mask
         cv2.fillPoly(mask, [np.int32(c + (q - c) * 1.3)], 255)
         return mask
 
     grey = cv2.cvtColor(frames[0], cv2.COLOR_BGR2GRAY)
-    points = cv2.goodFeaturesToTrack(grey, 300, 0.01, 4, mask=region(quad))
+    def features(image, q):
+        found = cv2.goodFeaturesToTrack(image, 300, 0.01, 4, mask=region(q))
+        if found is None or len(found) < 20:
+            found = cv2.goodFeaturesToTrack(image, 300, 0.005, 4)
+        return found
+
+    points = features(grey, quad)
     total, params, inliers, current = np.eye(3), [(0.0, 0.0, 0.0, 0.0)], [1.0], quad.copy()
     centre0 = quad.mean(0)
     for frame in frames[1:]:
@@ -65,7 +71,7 @@ def track(frames: list, quad: np.ndarray, surface: bool = False) -> tuple:
         c = current.mean(0)
         params.append((float(c[0] - centre0[0]), float(c[1] - centre0[1]), angle, float(np.log(scale))))
         grey = nxt
-        points = cv2.goodFeaturesToTrack(grey, 300, 0.01, 4, mask=region(current))
+        points = features(grey, current)
     # Gaussian smoothing over about a third of a second removes the jitter the eye reads as the watch sliding on the skin.
     p = np.array(params)
     kernel = np.exp(-0.5 * (np.arange(-6, 7) / 2.5) ** 2)
@@ -100,7 +106,7 @@ def main() -> None:
         if surface:
             big = reflection(head, big, q, float(os.environ.get("REFLECTION", "0")), source)
             big = ground_shadow(big, q)
-        writer.stdin.write(composite(head, big, q, tone, blend=True, seed=i, source=source).tobytes())
+        writer.stdin.write(composite(head, big, q, tone, blend=True, seed=i, source=source, prelit=os.environ.get("PRELIT") == "1").tobytes())
     writer.stdin.close()
     writer.wait()
     drift = float(np.abs(quads[-1] - quads[0]).max())
