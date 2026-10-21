@@ -23,39 +23,49 @@ def read_frames(path: str) -> list:
 
 
 def track(frames: list, quad: np.ndarray) -> tuple:
-    """Quad per frame from feature tracks on and around the watch, chained frame to frame with RANSAC homographies."""
-    mask = np.zeros(frames[0].shape[:2], np.uint8)
-    centre = quad.mean(0)
-    cv2.fillPoly(mask, [np.int32(centre + (quad - centre) * 1.5)], 255)
+    """Quad per frame from feature tracks on and around the watch. The motion is limited to move, turn and scale
+    (no shear or keystone), so the real case keeps its true shape instead of bending into a trapezoid."""
+    def region(q):
+        mask = np.zeros(frames[0].shape[:2], np.uint8)
+        c = q.mean(0)
+        cv2.fillPoly(mask, [np.int32(c + (q - c) * 1.3)], 255)
+        return mask
+
     grey = cv2.cvtColor(frames[0], cv2.COLOR_BGR2GRAY)
-    points = cv2.goodFeaturesToTrack(grey, 300, 0.01, 4, mask=mask)
-    quads, inliers, current = [quad.copy()], [1.0], quad.copy()
+    points = cv2.goodFeaturesToTrack(grey, 300, 0.01, 4, mask=region(quad))
+    total, params, inliers, current = np.eye(3), [(0.0, 0.0, 0.0, 0.0)], [1.0], quad.copy()
+    centre0 = quad.mean(0)
     for frame in frames[1:]:
         nxt = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         moved, status, _ = cv2.calcOpticalFlowPyrLK(grey, nxt, points, None, winSize=(21, 21), maxLevel=3)
         good = status.ravel() == 1
-        h, inl = (None, None)
-        if good.sum() >= 8:
-            h, inl = cv2.findHomography(points[good], moved[good], cv2.RANSAC, 2.0)
-        if h is not None:
-            current = cv2.perspectiveTransform(current[None], h)[0]
+        m, inl = (None, None)
+        if good.sum() >= 6:
+            m, inl = cv2.estimateAffinePartial2D(points[good], moved[good], method=cv2.RANSAC, ransacReprojThreshold=2.0)
+        if m is not None:
+            total = np.vstack([m, [0, 0, 1]]) @ total
             inliers.append(float(inl.mean()))
         else:
             inliers.append(0.0)
-        quads.append(current.copy())
-        grey = nxt
-        # Re-seed features inside the tracked region so long shots do not run out of points.
-        mask = np.zeros_like(mask)
+        current = cv2.perspectiveTransform(quad[None], total)[0]
+        # Keep motion as (dx, dy, angle, log scale) of the case centre so it can be smoothed without distortion.
+        scale = float(np.hypot(total[0, 0], total[1, 0]))
+        angle = float(np.arctan2(total[1, 0], total[0, 0]))
         c = current.mean(0)
-        cv2.fillPoly(mask, [np.int32(c + (current - c) * 1.5)], 255)
-        points = cv2.goodFeaturesToTrack(grey, 300, 0.01, 4, mask=mask)
-    # Light temporal smoothing of the corners removes tracking jitter without lagging real motion.
-    stack = np.array(quads)
-    smooth = stack.copy()
-    for i in range(len(stack)):
-        lo, hi = max(0, i - 2), min(len(stack), i + 3)
-        smooth[i] = stack[lo:hi].mean(0)
-    return smooth, inliers
+        params.append((float(c[0] - centre0[0]), float(c[1] - centre0[1]), angle, float(np.log(scale))))
+        grey = nxt
+        points = cv2.goodFeaturesToTrack(grey, 300, 0.01, 4, mask=region(current))
+    # Gaussian smoothing over about a third of a second removes the jitter the eye reads as the watch sliding on the skin.
+    p = np.array(params)
+    kernel = np.exp(-0.5 * (np.arange(-6, 7) / 2.5) ** 2)
+    kernel /= kernel.sum()
+    padded = np.pad(p, ((6, 6), (0, 0)), mode="edge")
+    smooth = np.stack([np.convolve(padded[:, k], kernel, mode="valid") for k in range(4)], 1)
+    quads = []
+    for dx, dy, angle, log_scale in smooth:
+        rot = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]) * np.exp(log_scale)
+        quads.append(((quad - centre0) @ rot.T + centre0 + [dx, dy]).astype(np.float32))
+    return np.array(quads), inliers
 
 
 def main() -> None:
@@ -70,9 +80,9 @@ def main() -> None:
     writer = subprocess.Popen(["ffmpeg", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{width}x{height}",
                                "-r", "25", "-i", "-", "-c:v", "libx264", "-crf", "16", "-preset", "medium", "-pix_fmt", "yuv420p", out],
                               stdin=subprocess.PIPE)
-    for frame, q in zip(frames, quads):
+    for i, (frame, q) in enumerate(zip(frames, quads)):
         big = cv2.resize(frame, (width, height), interpolation=cv2.INTER_LANCZOS4)
-        writer.stdin.write(composite(head, big, q * np.float32([sx, sy]), tone).tobytes())
+        writer.stdin.write(composite(head, big, q * np.float32([sx, sy]), tone, blend=True, seed=i).tobytes())
     writer.stdin.close()
     writer.wait()
     drift = float(np.abs(quads[-1] - quads[0]).max())
