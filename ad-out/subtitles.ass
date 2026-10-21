@@ -1,0 +1,32 @@
+[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Caption,Noto Sans Thai,84,&H00FFFFFF,&H00FFFFFF,&H38000000,&H00000000,-1,0,0,0,100,100,0,0,3,16,0,2,80,200,330,222
+Style: Card,Noto Sans Thai,98,&H00FFFFFF,&H00FFFFFF,&H00221A12,&H66000000,-1,0,0,0,100,100,0,0,1,6,3,5,110,190,0,222
+Style: Kicker,Noto Sans Thai,58,&H00111111,&H00FFFFFF,&H002EC8FF,&H002EC8FF,-1,0,0,0,100,100,2,0,3,14,0,8,110,190,560,222
+Style: Badge,Noto Sans Thai,230,&H002EC8FF,&H00FFFFFF,&H00221A12,&H66000000,-1,0,0,0,100,100,0,0,1,8,4,8,110,190,300,222
+Style: Shape,Noto Sans Thai,20,&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,0,0,7,0,0,0,222
+Style: Label,Noto Sans Thai,34,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,3,8,0,9,40,40,150,222
+Style: Headline,Noto Sans Thai,64,&H00111111,&H00FFFFFF,&H002EC8FF,&H002EC8FF,-1,0,0,0,100,100,2,0,3,14,0,8,40,40,260,222
+Style: CaptionTop,Noto Sans Thai,64,&H00FFFFFF,&H00FFFFFF,&H38000000,&H00000000,-1,0,0,0,100,100,0,0,3,14,0,8,80,80,390,222
+Style: Credit,Noto Sans Thai,30,&H00FFFFFF,&H00FFFFFF,&H00000000,&H80000000,0,0,0,0,100,100,0,0,3,6,0,8,40,40,500,222
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+Dialogue: 0,0:00:03.60,0:00:03.72,Shape,,0,0,0,,{\an7\pos(0,0)\c&HFFFFFF&\alpha&HA8&\fad(0,120)\p1}m 0 0 l 1080 0 1080 1920 0 1920{\p0}
+Dialogue: 0,0:00:07.00,0:00:07.12,Shape,,0,0,0,,{\an7\pos(0,0)\c&HFFFFFF&\alpha&HA8&\fad(0,120)\p1}m 0 0 l 1080 0 1080 1920 0 1920{\p0}
+Dialogue: 0,0:00:09.60,0:00:09.72,Shape,,0,0,0,,{\an7\pos(0,0)\c&HFFFFFF&\alpha&HA8&\fad(0,120)\p1}m 0 0 l 1080 0 1080 1920 0 1920{\p0}
+Dialogue: 2,0:00:00.00,0:00:03.60,Caption,,0,0,0,,{\fad(80,60)\fscx88\fscy88\t(0,140,\fscx100\fscy100)}หุ้มข้อสีดำ\Nทรงคลาสสิก
+Dialogue: 2,0:00:03.60,0:00:06.60,Caption,,0,0,0,,{\fad(80,60)\fscx88\fscy88\t(0,140,\fscx100\fscy100)}ผ้าแคนวาสทนทาน
+Dialogue: 2,0:00:06.60,0:00:09.60,Caption,,0,0,0,,{\fad(80,60)\fscx88\fscy88\t(0,140,\fscx100\fscy100)}แผ่นรองนุ่ม\NOrthoLite
+Dialogue: 3,0:00:00.00,0:00:16.00,Label,,0,0,0,,ฉากจำลองด้วย AI
+Dialogue: 3,0:00:09.65,0:00:16.00,Headline,,0,0,0,,Converse Chuck Taylor All Star
+Dialogue: 2,0:00:09.60,0:00:13.00,CaptionTop,,0,0,0,,รูตาไก่ด้านในช่วยระบายอากาศ
+Dialogue: 2,0:00:13.00,0:00:16.00,CaptionTop,,0,0,0,,ดูรายละเอียดที่ลิงก์สินค้า
+Dialogue: 3,0:00:09.60,0:00:16.00,Credit,,0,0,0,,ภาพสินค้า: Converse / Wikimedia Commons, CC BY-SA 4.0
