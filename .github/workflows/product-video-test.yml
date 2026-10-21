@@ -110,7 +110,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scene: [m1, m2, m3, c1, c2, c3]
+        scene: [m1, m2, m3]
     steps:
       - uses: actions/checkout@v7
       - name: Free disk for model weights
@@ -146,7 +146,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shot: [v2s2, v2s2b]
+        # Each entry names the plan that holds the shot, so one push can render shots for several products.
+        include:
+          - {plan: ad-plan-chuck.json, shot: c1}
+          - {plan: ad-plan-chuck.json, shot: c2}
+          - {plan: ad-plan-chuck.json, shot: c3}
     steps:
       - uses: actions/checkout@v7
       - name: Free disk for model weights
@@ -164,7 +168,7 @@ jobs:
       - name: Generate the shot
         run: |
           mkdir -p shot-out
-          jq --arg id "${{ matrix.shot }}" -c '.shots[]|select(.id==$id)|{image,prompt,seed,output:("shot-out/"+.id+".mp4"),width:480,height:832,frames:97}' scripts/product-video/ad-plan-v2.json \
+          jq --arg id "${{ matrix.shot }}" -c '.shots[]|select(.id==$id)|{image,prompt,seed,output:("shot-out/"+.id+".mp4"),width:480,height:832,frames:97}' scripts/product-video/${{ matrix.plan }} \
             | .venv-video/bin/python scripts/product-video/ltx_i2v.py 2>shot-out/${{ matrix.shot }}.err | tee shot-out/${{ matrix.shot }}.json
       - uses: actions/upload-artifact@v4
         if: always()
@@ -251,6 +255,55 @@ jobs:
           cd /tmp/results && git init -q -b results && git add -A
           git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Product video ad ${{ github.run_id }}"
           git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-video-ad
+
+  assemble-more:
+    # Lifestyle ads for further products; finals are already re-composited with the real product from the licensed photo.
+    if: contains(github.event.head_commit.message, '[video-assemble-more]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        product: [moka, chuck]
+    env:
+      FFMPEG_BINARY: /usr/bin/ffmpeg
+      FFPROBE_BINARY: /usr/bin/ffprobe
+      VOXCPM_DEVICE: cpu
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.19.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: pnpm
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pnpm install --frozen-lockfile
+      - name: Thai voice (VoxCPM2, local)
+        run: |
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+          python -m venv .venv-tts
+          .venv-tts/bin/pip install --extra-index-url https://download.pytorch.org/whl/cpu "voxcpm==2.0.3" soundfile Pillow
+          echo "THAI_TTS_PYTHON=$PWD/.venv-tts/bin/python" >> "$GITHUB_ENV"
+          echo "VOXCPM_MODEL=$(.venv-tts/bin/python -c 'from huggingface_hub import snapshot_download;print(snapshot_download("openbmb/VoxCPM2"))')" >> "$GITHUB_ENV"
+      - name: Assemble the ad
+        run: |
+          mkdir -p ad-out
+          node --import ./scripts/pilot/server-only-shim.mjs --import tsx scripts/product-video/assemble.ts scripts/product-video/ad-plan-${{ matrix.product }}.json scripts/product-video/more/final-${{ matrix.product }} ad-out 2>&1 | tee ad-out/assemble.log
+      - name: Publish results to a results branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results && cp -r ad-out /tmp/results/ 2>/dev/null || true
+          rm -rf /tmp/results/ad-out/fonts
+          cd /tmp/results && git init -q -b results && git add -A
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Product video ad ${{ matrix.product }} ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-ad-${{ matrix.product }}
 
   assemble-v2:
     # V2 lifestyle ad: shots are already tracked and re-composited with the real watch head (scripts/product-video/v2/final).

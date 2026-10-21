@@ -10,7 +10,9 @@ import sys
 import cv2
 import numpy as np
 
-from composite_head import composite
+import os
+
+from composite_head import alpha_box, composite
 
 
 def read_frames(path: str) -> list:
@@ -74,6 +76,8 @@ def main() -> None:
     width, height = (int(sys.argv[5]), int(sys.argv[6])) if len(sys.argv) > 6 else (1080, 1920)
     tone = float(sys.argv[7]) if len(sys.argv) > 7 else 0.4
     head = cv2.imread(head_path, cv2.IMREAD_UNCHANGED)
+    # WHOLE_PRODUCT=1: the quad is the bounding box of the whole cutout (moka pot, shoe) instead of the watch case.
+    source = alpha_box(head) if os.environ.get("WHOLE_PRODUCT") == "1" else None
     frames = read_frames(shot)
     quads, inliers = track(frames, quad)
     sx, sy = width / frames[0].shape[1], height / frames[0].shape[0]
@@ -82,7 +86,7 @@ def main() -> None:
                               stdin=subprocess.PIPE)
     for i, (frame, q) in enumerate(zip(frames, quads)):
         big = cv2.resize(frame, (width, height), interpolation=cv2.INTER_LANCZOS4)
-        writer.stdin.write(composite(head, big, q * np.float32([sx, sy]), tone, blend=True, seed=i).tobytes())
+        writer.stdin.write(composite(head, big, q * np.float32([sx, sy]), tone, blend=True, seed=i, source=source).tobytes())
     writer.stdin.close()
     writer.wait()
     drift = float(np.abs(quads[-1] - quads[0]).max())

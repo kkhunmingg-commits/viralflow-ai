@@ -12,7 +12,9 @@ SOURCE_QUAD = np.float32([[185, 172], [1142, 172], [1142, 1003], [185, 1003]])
 
 
 def composite(head: np.ndarray, bg: np.ndarray, quad: np.ndarray, tone: float = 0.6, blend: bool = False,
-              seed: int = 0) -> np.ndarray:
+              seed: int = 0, source: np.ndarray = None) -> np.ndarray:
+    """source is the rectangle in the cutout that quad refers to (default: the watch case)."""
+    SOURCE_QUAD = source if source is not None else globals()["SOURCE_QUAD"]
     h, w = bg.shape[:2]
     # Shrink the photo close to the target size first, so the warp does not alias the small lettering.
     shrink = float(min(1.0, 2 * np.sqrt(cv2.contourArea(quad.astype(np.float32)) / cv2.contourArea(SOURCE_QUAD))))
@@ -46,6 +48,16 @@ def composite(head: np.ndarray, bg: np.ndarray, quad: np.ndarray, tone: float = 
         rgb = cv2.GaussianBlur(rgb, (0, 0), 0.3 + scale * 0.1)
     out = base * (1 - alpha[..., None]) + rgb * alpha[..., None]
     return np.clip(out, 0, 255).astype(np.uint8)
+
+
+def box_quad(x0: float, y0: float, x1: float, y1: float) -> np.ndarray:
+    return np.float32([[x0, y0], [x1, y0], [x1, y1], [x0, y1]])
+
+
+def alpha_box(cutout: np.ndarray) -> np.ndarray:
+    """Bounding rectangle of a whole-product cutout, used as its source quad."""
+    ys, xs = np.where(cutout[..., 3] > 128)
+    return box_quad(xs.min(), ys.min(), xs.max() + 1, ys.max() + 1)
 
 
 def main() -> None:

@@ -1,0 +1,92 @@
+{
+ "product": {
+  "name": "Converse Chuck Taylor All Star Canvas (Black, Hi)",
+  "url": "https://converse.co.th/collections/classic-chuck/products/chuck-taylor-all-star-canvas-m9160cu-cobkxx"
+ },
+ "sku": "M9160C (converse.co.th M9160CU_COBKXX)",
+ "shots": [
+  {
+   "id": "c1",
+   "image": "scripts/product-video/more/c1.png",
+   "seed": 301,
+   "prompt": "A black canvas high-top sneaker stands still on a wooden park bench in warm morning city sunlight, tree shadows drift softly across the bench, blurred street life in the background, slow smooth camera push in, the shoe does not move, cinematic lifestyle commercial, photorealistic"
+  },
+  {
+   "id": "c2",
+   "image": "scripts/product-video/more/c2.png",
+   "seed": 302,
+   "prompt": "A black canvas high-top sneaker stands still on grey concrete steps at golden hour, warm sun flare, light dust in the air, slow smooth lateral camera slide, the shoe does not move, cinematic lifestyle commercial, photorealistic"
+  },
+  {
+   "id": "c3",
+   "image": "scripts/product-video/more/c3.png",
+   "seed": 303,
+   "prompt": "A black canvas high-top sneaker stands still on a light oak floor in a cozy bedroom, soft daylight from the window, curtain moves gently, slow smooth camera pull back, the shoe does not move, cinematic lifestyle commercial, photorealistic"
+  }
+ ],
+ "durationSeconds": 16,
+ "timeline": [
+  {
+   "id": "c3",
+   "seconds": 3.6
+  },
+  {
+   "id": "c1",
+   "seconds": 3.0
+  },
+  {
+   "id": "c2",
+   "seconds": 3.0
+  },
+  {
+   "id": "hero",
+   "seconds": 6.4
+  }
+ ],
+ "headline": {
+  "text": "Converse Chuck Taylor All Star",
+  "start": 9.65,
+  "end": 16
+ },
+ "headlineMarginV": 260,
+ "captionMarginV": 330,
+ "creditStart": 9.6,
+ "creditMarginV": 500,
+ "beats": [
+  {
+   "caption": "หุ้มข้อสีดำ ทรงคลาสสิก",
+   "spoken": "หุ้มข้อสีดำ ทรงคลาสสิก",
+   "start": 0.0,
+   "end": 3.6
+  },
+  {
+   "caption": "ผ้าแคนวาสทนทาน",
+   "spoken": "ตัวรองเท้าผ้าแคนวาสทนทาน",
+   "start": 3.6,
+   "end": 6.6
+  },
+  {
+   "caption": "แผ่นรองนุ่ม OrthoLite",
+   "spoken": "แผ่นรองนุ่มออร์โธไลต์",
+   "start": 6.6,
+   "end": 9.6
+  },
+  {
+   "caption": "รูตาไก่ด้านในช่วยระบายอากาศ",
+   "spoken": "รูตาไก่ด้านใน ช่วยระบายอากาศ",
+   "start": 9.6,
+   "end": 13.0,
+   "position": "top"
+  },
+  {
+   "caption": "ดูรายละเอียดที่ลิงก์สินค้า",
+   "spoken": "ดูรายละเอียดได้ที่ลิงก์สินค้า",
+   "start": 13.0,
+   "end": 16.0,
+   "position": "top"
+  }
+ ],
+ "aiLabel": "ฉากจำลองด้วย AI",
+ "credit": "ภาพสินค้า: Converse / Wikimedia Commons, CC BY-SA 4.0",
+ "note": "Backgrounds are AI stills drawn with no product; the real shoe from the licensed photo is pasted in, animated by LTX, then tracked and pasted again at 1080x1920 (track_recomposite.py, WHOLE_PRODUCT=1). Hero: push_in.py on a composite, no AI motion. Claims from converse.co.th."
+}
