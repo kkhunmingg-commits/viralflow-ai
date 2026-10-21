@@ -1,0 +1,17 @@
+{
+ "note": "The scene is drawn around the real product (sdxl_around_product.py). Soft diffused light so the light matches the product photo.",
+ "scenes": [
+  {"id": "am1", "product": "scripts/product-video/more/source/moka.png", "x": 384, "bottom": 1010, "width_px": 340, "seeds": [11, 12, 13],
+   "prompt": "Professional lifestyle product photo, eye-level, a silver aluminium stovetop moka pot standing on the black cast iron grate of a gas stove burner in a bright home kitchen, white tiles, soft diffused morning daylight from a window, natural soft shadow under the pot, subtle reflections on the metal, shallow depth of field, 35mm photo, photorealistic"},
+  {"id": "am2", "product": "scripts/product-video/more/source/moka.png", "x": 384, "bottom": 1060, "width_px": 340, "seeds": [21, 22, 23],
+   "prompt": "Professional lifestyle product photo, eye-level, a silver aluminium stovetop moka pot standing on a rustic wooden kitchen table, a small white espresso cup beside it, soft diffused morning daylight from a window, natural soft contact shadow, subtle warm reflections on the metal, cozy blurred kitchen background, shallow depth of field, 35mm photo, photorealistic"},
+  {"id": "am3", "product": "scripts/product-video/more/source/moka.png", "x": 384, "bottom": 1060, "width_px": 330, "seeds": [31, 32, 33],
+   "prompt": "Professional lifestyle product photo, eye-level, a silver aluminium stovetop moka pot standing on a small wooden table on a bright apartment balcony, a croissant on a plate beside it, green plants, soft diffused morning light, natural soft contact shadow, blurred city background, shallow depth of field, 35mm photo, photorealistic"},
+  {"id": "ac1", "product": "scripts/product-video/more/source/chuck.png", "x": 384, "bottom": 1110, "width_px": 430, "seeds": [41, 42, 43],
+   "prompt": "Professional lifestyle product photo, low eye-level side view, a black canvas high-top sneaker standing on a light oak wooden floor in a cozy bedroom, soft diffused daylight from a window, natural soft contact shadow under the sole, blurred bed and backpack in the background, shallow depth of field, 35mm photo, photorealistic"},
+  {"id": "ac2", "product": "scripts/product-video/more/source/chuck.png", "x": 384, "bottom": 1110, "width_px": 430, "seeds": [51, 52, 53],
+   "prompt": "Professional lifestyle product photo, low eye-level side view, a black canvas high-top sneaker standing on a weathered wooden park bench seat, soft diffused morning light, natural soft contact shadow under the sole, blurred green park and street in the background, shallow depth of field, 35mm photo, photorealistic"},
+  {"id": "ac3", "product": "scripts/product-video/more/source/chuck.png", "x": 384, "bottom": 1110, "width_px": 430, "seeds": [61, 62, 63],
+   "prompt": "Professional lifestyle product photo, low eye-level side view, a black canvas high-top sneaker standing on a grey concrete step outdoors, soft diffused evening light, natural soft contact shadow under the sole, blurred urban street in the background, shallow depth of field, 35mm photo, photorealistic"}
+ ]
+}

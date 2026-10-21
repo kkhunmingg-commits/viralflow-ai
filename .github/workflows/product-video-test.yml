@@ -138,6 +138,42 @@ jobs:
           git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Storyboard ${{ matrix.scene }} ${{ github.run_id }}"
           git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-board-${{ matrix.scene }}
 
+  around:
+    # Scenes drawn around the fixed real product (the product's pixels are never repainted), three seeds per scene.
+    if: contains(github.event.head_commit.message, '[video-around]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        scene: [am1, am2, am3, ac1, ac2, ac3]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Free disk for model weights
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h / && free -m
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Image runtime
+        run: |
+          python -m venv .venv-img
+          .venv-img/bin/pip install --quiet --extra-index-url https://download.pytorch.org/whl/cpu torch "diffusers==0.35.2" "transformers==4.57.1" \
+            accelerate safetensors huggingface_hub torchsde Pillow numpy
+      - name: Draw the scenes
+        run: |
+          mkdir -p board
+          jq --arg id "${{ matrix.scene }}" -c '.scenes[]|select(.id==$id)|.+{output_prefix:("board/"+.id)}' scripts/product-video/around-scenes.json \
+            | .venv-img/bin/python scripts/product-video/sdxl_around_product.py 2>board/${{ matrix.scene }}.err | tee board/${{ matrix.scene }}.json
+      - name: Publish results to a results branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results && cp -r board /tmp/results/ 2>/dev/null || true
+          cd /tmp/results && git init -q -b results && git add -A
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Around ${{ matrix.scene }} ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-around-${{ matrix.scene }}
+
   shot:
     # One AI shot per job, all in parallel; each starts from a real licensed photo of the product.
     if: contains(github.event.head_commit.message, '[video-ad]')
