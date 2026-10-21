@@ -1,0 +1,18 @@
+Fetching 12 files:   0%|          | 0/12 [00:00<?, ?it/s]Fetching 12 files:  67%|██████▋   | 8/12 [00:02<00:01,  3.14it/s]Fetching 12 files:  67%|██████▋   | 8/12 [00:20<00:10,  2.50s/it]Fetching 12 files:  75%|███████▌  | 9/12 [01:23<00:27,  9.32s/it]Fetching 12 files:  83%|████████▎ | 10/12 [01:30<00:18,  9.04s/it]Fetching 12 files:  92%|█████████▏| 11/12 [01:35<00:08,  8.67s/it]Fetching 12 files: 100%|██████████| 12/12 [01:36<00:00,  8.07s/it]Fetching 12 files: 100%|██████████| 12/12 [01:36<00:00,  8.07s/it]
+Loading pipeline components...:   0%|          | 0/3 [00:00<?, ?it/s]`torch_dtype` is deprecated! Use `dtype` instead!
+
+Loading checkpoint shards:   0%|          | 0/4 [00:00<?, ?it/s][A
+Loading checkpoint shards:  25%|██▌       | 1/4 [00:07<00:23,  7.75s/it][A
+Loading checkpoint shards:  50%|█████     | 2/4 [00:20<00:20, 10.46s/it][A
+Loading checkpoint shards:  75%|███████▌  | 3/4 [00:47<00:17, 17.97s/it][A
+Loading checkpoint shards: 100%|██████████| 4/4 [00:57<00:00, 14.99s/it][ALoading checkpoint shards: 100%|██████████| 4/4 [00:57<00:00, 14.36s/it]
+Loading pipeline components...:  67%|██████▋   | 2/3 [00:57<00:28, 28.81s/it]Loading pipeline components...: 100%|██████████| 3/3 [00:57<00:00, 19.23s/it]
+  0%|          | 0/8 [00:00<?, ?it/s]{"step": 0, "seconds": 147.2}
+ 12%|█▎        | 1/8 [02:12<15:28, 132.67s/it]{"step": 1, "seconds": 131.2}
+ 25%|██▌       | 2/8 [04:23<13:10, 131.78s/it]{"step": 2, "seconds": 130.5}
+ 38%|███▊      | 3/8 [06:34<10:55, 131.18s/it]{"step": 3, "seconds": 130.7}
+ 50%|█████     | 4/8 [08:45<08:44, 131.00s/it]{"step": 4, "seconds": 131.2}
+ 62%|██████▎   | 5/8 [10:56<06:33, 131.09s/it]{"step": 5, "seconds": 132.1}
+ 75%|███████▌  | 6/8 [13:08<04:22, 131.44s/it]{"step": 6, "seconds": 132.9}
+ 88%|████████▊ | 7/8 [15:21<02:11, 131.91s/it]{"step": 7, "seconds": 134.2}
+100%|██████████| 8/8 [17:35<00:00, 132.65s/it]100%|██████████| 8/8 [17:35<00:00, 131.94s/it]
