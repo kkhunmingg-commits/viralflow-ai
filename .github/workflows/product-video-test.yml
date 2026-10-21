@@ -210,6 +210,40 @@ jobs:
           git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Harmonize ${{ matrix.scene }} ${{ github.run_id }}"
           git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-harmonize-${{ matrix.scene }}
 
+  relight:
+    # IC-Light relights the real product to each scene; only its soft light is kept, the photo's detail is restored after.
+    if: contains(github.event.head_commit.message, '[video-relight]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        scene: [sm2-121, sm2-122, sm3-131, sc1-141, sc1-143, sc2-152]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Image runtime
+        run: |
+          python -m venv .venv-img
+          .venv-img/bin/pip install --quiet --extra-index-url https://download.pytorch.org/whl/cpu torch "diffusers==0.35.2" "transformers==4.57.1" \
+            accelerate safetensors huggingface_hub Pillow numpy
+      - name: Relight
+        run: |
+          mkdir -p board
+          jq --arg id "${{ matrix.scene }}" -c '. as $r|.scenes[]|select(.id==$id)|.+{seeds:$r.seeds,output_prefix:("board/"+.id)}' scripts/product-video/relight-scenes.json \
+            | .venv-img/bin/python scripts/product-video/iclight_relight.py 2>board/${{ matrix.scene }}.err | tee board/${{ matrix.scene }}.json
+      - name: Publish results to a results branch
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p /tmp/results && cp -r board /tmp/results/ 2>/dev/null || true
+          cd /tmp/results && git init -q -b results && git add -A
+          git -c user.name=viralflow-pilot -c user.email=pilot@users.noreply.github.com commit -qm "Relight ${{ matrix.scene }} ${{ github.run_id }}"
+          git push -q "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}" HEAD:refs/heads/claude/pilot-results-${{ github.run_id }}-relight-${{ matrix.scene }}
+
   shot:
     # One AI shot per job, all in parallel; each starts from a real licensed photo of the product.
     if: contains(github.event.head_commit.message, '[video-ad]')

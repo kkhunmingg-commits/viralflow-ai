@@ -1,12 +1,13 @@
 """Places a whole-product cutout (transparent PNG from the licensed photo) into an empty lifestyle still, standing on a
 surface: the bottom edge sits at y, centred on x, at the given width. Prints the quad for track_recomposite.py.
 Usage: python place_product.py cutout.png bg.png out.png x bottom_y width [tilt_degrees tone mask_out.png]"""
+import os
 import sys
 
 import cv2
 import numpy as np
 
-from composite_head import alpha_box, composite, ground_shadow
+from composite_head import alpha_box, composite, ground_shadow, reflection
 
 
 def quad_for(cutout: np.ndarray, x: float, bottom: float, width: float, tilt: float = 0.0) -> np.ndarray:
@@ -26,6 +27,7 @@ def main() -> None:
     tilt = float(sys.argv[7]) if len(sys.argv) > 7 else 0.0
     tone = float(sys.argv[8]) if len(sys.argv) > 8 else 0.35
     quad = quad_for(cutout, x, bottom, width, tilt)
+    bg = reflection(cutout, bg, quad, float(os.environ.get("REFLECTION", "0")), alpha_box(cutout))
     bg = ground_shadow(bg, quad)
     cv2.imwrite(sys.argv[3], composite(cutout, bg, quad, tone, blend=True, source=alpha_box(cutout)))
     if len(sys.argv) > 9:

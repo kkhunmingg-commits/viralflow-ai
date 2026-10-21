@@ -12,7 +12,7 @@ import numpy as np
 
 import os
 
-from composite_head import alpha_box, composite, ground_shadow
+from composite_head import alpha_box, composite, ground_shadow, reflection
 
 
 def read_frames(path: str) -> list:
@@ -98,6 +98,7 @@ def main() -> None:
         big = cv2.resize(frame, (width, height), interpolation=cv2.INTER_LANCZOS4)
         q = q * np.float32([sx, sy])
         if surface:
+            big = reflection(head, big, q, float(os.environ.get("REFLECTION", "0")), source)
             big = ground_shadow(big, q)
         writer.stdin.write(composite(head, big, q, tone, blend=True, seed=i, source=source).tobytes())
     writer.stdin.close()

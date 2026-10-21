@@ -1,0 +1,51 @@
+{
+ "note": "IC-Light relight of the round-2 composites; only low-frequency light is kept (harmonize_merge.py).",
+ "seeds": [
+  5,
+  6
+ ],
+ "scenes": [
+  {
+   "id": "sm2-121",
+   "composite": "scripts/product-video/more/r/sm2-121.png",
+   "mask": "scripts/product-video/more/r/sm2-121-mask.png",
+   "background": "scripts/product-video/more/r/sm2-121-bg.png",
+   "prompt": "a silver aluminium stovetop moka pot on a table, soft natural window light"
+  },
+  {
+   "id": "sm2-122",
+   "composite": "scripts/product-video/more/r/sm2-122.png",
+   "mask": "scripts/product-video/more/r/sm2-122-mask.png",
+   "background": "scripts/product-video/more/r/sm2-122-bg.png",
+   "prompt": "a silver aluminium stovetop moka pot on a table, soft natural window light"
+  },
+  {
+   "id": "sm3-131",
+   "composite": "scripts/product-video/more/r/sm3-131.png",
+   "mask": "scripts/product-video/more/r/sm3-131-mask.png",
+   "background": "scripts/product-video/more/r/sm3-131-bg.png",
+   "prompt": "a silver aluminium stovetop moka pot on a table, soft natural window light"
+  },
+  {
+   "id": "sc1-141",
+   "composite": "scripts/product-video/more/r/sc1-141.png",
+   "mask": "scripts/product-video/more/r/sc1-141-mask.png",
+   "background": "scripts/product-video/more/r/sc1-141-bg.png",
+   "prompt": "a black canvas high-top sneaker on the ground, soft natural daylight"
+  },
+  {
+   "id": "sc1-143",
+   "composite": "scripts/product-video/more/r/sc1-143.png",
+   "mask": "scripts/product-video/more/r/sc1-143-mask.png",
+   "background": "scripts/product-video/more/r/sc1-143-bg.png",
+   "prompt": "a black canvas high-top sneaker on the ground, soft natural daylight"
+  },
+  {
+   "id": "sc2-152",
+   "composite": "scripts/product-video/more/r/sc2-152.png",
+   "mask": "scripts/product-video/more/r/sc2-152-mask.png",
+   "background": "scripts/product-video/more/r/sc2-152-bg.png",
+   "prompt": "a black canvas high-top sneaker on the ground, soft natural daylight"
+  }
+ ]
+}
