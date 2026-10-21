@@ -110,7 +110,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scene: [m1, m2, m3]
+        scene: [sm1, sm2, sm3, sc1, sc2, sc3]
     steps:
       - uses: actions/checkout@v7
       - name: Free disk for model weights
@@ -126,7 +126,7 @@ jobs:
       - name: Generate the stills
         run: |
           mkdir -p board
-          jq --arg id "${{ matrix.scene }}" -c '.scenes[]|select(.id==$id)|{prompt,seeds,output_prefix:("board/"+.id)}+(if .negative then {negative} else {} end)' scripts/product-video/storyboard-more.json \
+          jq --arg id "${{ matrix.scene }}" -c '.scenes[]|select(.id==$id)|{prompt,seeds,output_prefix:("board/"+.id)}+(if .negative then {negative} else {} end)' scripts/product-video/storyboard-soft.json \
             | .venv-img/bin/python scripts/product-video/sdxl_t2i.py 2>board/${{ matrix.scene }}.err | tee board/${{ matrix.scene }}.json
       - name: Publish results to a results branch
         if: always()

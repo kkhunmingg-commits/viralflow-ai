@@ -1,0 +1,65 @@
+{
+ "note": "Soft-light, eye-level empty sets: the product photos are soft studio light shot from the side, so the scene must match that light and angle.",
+ "scenes": [
+  {
+   "id": "sm1",
+   "prompt": "Camera at counter height, eye-level, an empty light grey stone kitchen countertop fills the foreground, soft overcast daylight, no direct sunlight, soft even light, a bright white kitchen with a gas stove and green plants softly blurred in the background, calm morning, the center of the surface is completely empty, 35mm lifestyle product photo, shallow depth of field, photorealistic",
+   "negative": "pot, kettle, pan, cookware, coffee maker, bottle, jar in the center, people, hands, text, watermark, logo, harsh sunlight, sun rays, hard shadows, top-down view",
+   "seeds": [
+    111,
+    112,
+    113
+   ]
+  },
+  {
+   "id": "sm2",
+   "prompt": "Camera at table height, eye-level, an empty light oak wooden table top fills the foreground, soft diffused window light, no direct sunlight, soft even light, a small white espresso cup at the far right edge, cozy blurred home kitchen background, the center of the surface is completely empty, 35mm lifestyle product photo, shallow depth of field, photorealistic",
+   "negative": "pot, kettle, pan, cookware, coffee maker, bottle, jar in the center, people, hands, text, watermark, logo, harsh sunlight, sun rays, hard shadows, top-down view",
+   "seeds": [
+    121,
+    122,
+    123
+   ]
+  },
+  {
+   "id": "sm3",
+   "prompt": "Camera at counter height, eye-level, an empty white marble counter fills the foreground, soft diffused daylight, no direct sunlight, soft even light, coffee beans in a glass jar and a plant softly blurred in the far background, minimal bright kitchen, the center of the surface is completely empty, 35mm lifestyle product photo, shallow depth of field, photorealistic",
+   "negative": "pot, kettle, pan, cookware, coffee maker, bottle, jar in the center, people, hands, text, watermark, logo, harsh sunlight, sun rays, hard shadows, top-down view",
+   "seeds": [
+    131,
+    132,
+    133
+   ]
+  },
+  {
+   "id": "sc1",
+   "prompt": "Camera at floor level, eye-level with the floor, an empty light oak wooden floor fills the foreground, soft overcast daylight from a large window, no direct sunlight, soft even light, a bed and a green plant softly blurred in the background, calm bedroom, the center of the surface is completely empty, 35mm lifestyle product photo, shallow depth of field, photorealistic",
+   "negative": "shoe, sneaker, boots, bag in the center, people, legs, feet, hands, text, watermark, logo, harsh sunlight, sun rays, hard shadows, top-down view",
+   "seeds": [
+    141,
+    142,
+    143
+   ]
+  },
+  {
+   "id": "sc2",
+   "prompt": "Camera at ground level, an empty smooth light grey concrete pavement fills the foreground, soft overcast daylight, no direct sunlight, soft even light, an urban street with trees and shop fronts softly blurred in the background, the center of the surface is completely empty, 35mm lifestyle product photo, shallow depth of field, photorealistic",
+   "negative": "shoe, sneaker, boots, bag in the center, people, legs, feet, hands, text, watermark, logo, harsh sunlight, sun rays, hard shadows, top-down view",
+   "seeds": [
+    151,
+    152,
+    153
+   ]
+  },
+  {
+   "id": "sc3",
+   "prompt": "Camera at bench height, eye-level, the empty wooden seat of a park bench runs across the foreground, soft overcast daylight, no direct sunlight, soft even light, a green park softly blurred in the background, the center of the surface is completely empty, 35mm lifestyle product photo, shallow depth of field, photorealistic",
+   "negative": "shoe, sneaker, boots, bag in the center, people, legs, feet, hands, text, watermark, logo, harsh sunlight, sun rays, hard shadows, top-down view",
+   "seeds": [
+    161,
+    162,
+    163
+   ]
+  }
+ ]
+}
