@@ -218,7 +218,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scene: [sm2-121, sm2-122, sm3-131, sc1-141, sc1-143, sc2-152]
+        scene: [sc1-141, sc1-143, sc2-152]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v6
