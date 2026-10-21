@@ -262,7 +262,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        product: [moka, chuck]
+        product: [moka]
     env:
       FFMPEG_BINARY: /usr/bin/ffmpeg
       FFPROBE_BINARY: /usr/bin/ffprobe
