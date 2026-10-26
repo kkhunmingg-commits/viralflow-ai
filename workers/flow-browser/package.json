@@ -1,0 +1,15 @@
+{
+  "name": "viralflow-flow-browser-worker",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "test": "node --test core.test.mjs",
+    "login": "node worker.mjs --login",
+    "pilot": "node worker.mjs --once",
+    "dry-run": "node worker.mjs --dry-run"
+  },
+  "dependencies": {
+    "playwright": "1.55.0"
+  }
+}
