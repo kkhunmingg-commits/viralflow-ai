@@ -1,0 +1,251 @@
+{
+  "date": "2026-10-26",
+  "status": "PENDING_PRIVATE_TRANSFER_NOT_UPLOADED",
+  "files": 8270,
+  "bytes": 24525754577,
+  "scope": "Nontracked files in the primary workspace excluding named caches and secret/session filenames. Includes rebuildable vendor files. Does not include external Downloads/Videos or visualization folder.",
+  "privateFullManifest": ".handoff-backup/migration-inventory-20261026.json",
+  "groups": {
+    ".ai-live-dev/.viralflow-local-brain-state": {
+      "files": 1,
+      "bytes": 43
+    },
+    ".ai-live-dev/cache": {
+      "files": 1,
+      "bytes": 1
+    },
+    ".ai-live-dev/compliance": {
+      "files": 1,
+      "bytes": 820215
+    },
+    ".ai-live-dev/digital-human-ui-proof": {
+      "files": 9,
+      "bytes": 2543316
+    },
+    ".ai-live-dev/direct-stream": {
+      "files": 76,
+      "bytes": 112750843
+    },
+    ".ai-live-dev/evidence": {
+      "files": 2,
+      "bytes": 22211
+    },
+    ".ai-live-dev/lite-banks": {
+      "files": 236,
+      "bytes": 228930851
+    },
+    ".ai-live-dev/lite-calibration": {
+      "files": 4,
+      "bytes": 5998008
+    },
+    ".ai-live-dev/lite-deliver": {
+      "files": 77,
+      "bytes": 316760627
+    },
+    ".ai-live-dev/lite-packs": {
+      "files": 869,
+      "bytes": 13439983
+    },
+    ".ai-live-dev/lite-presenter": {
+      "files": 26,
+      "bytes": 10869502942
+    },
+    ".ai-live-dev/lite-presenters": {
+      "files": 37,
+      "bytes": 30833989
+    },
+    ".ai-live-dev/lite-presenters-collect": {
+      "files": 10,
+      "bytes": 14814633
+    },
+    ".ai-live-dev/lite-raw": {
+      "files": 391,
+      "bytes": 813289316
+    },
+    ".ai-live-dev/lite-voxcpm-bench": {
+      "files": 7,
+      "bytes": 2567012
+    },
+    ".ai-live-dev/local-brain-proof": {
+      "files": 61,
+      "bytes": 2566258551
+    },
+    ".ai-live-dev/model-manifest.json": {
+      "files": 1,
+      "bytes": 1805
+    },
+    ".ai-live-dev/models": {
+      "files": 7,
+      "bytes": 3885968140
+    },
+    ".ai-live-dev/multi-account-customer-ui-proof": {
+      "files": 25,
+      "bytes": 11990683
+    },
+    ".ai-live-dev/multi-account-live-ui-proof": {
+      "files": 17,
+      "bytes": 4213458
+    },
+    ".ai-live-dev/post-multi-account-proof": {
+      "files": 18,
+      "bytes": 6561876
+    },
+    ".ai-live-dev/prepare_tts_cpu_proof.py": {
+      "files": 1,
+      "bytes": 2977
+    },
+    ".ai-live-dev/proof": {
+      "files": 16,
+      "bytes": 1724559
+    },
+    ".ai-live-dev/reference-astronaut.png": {
+      "files": 1,
+      "bytes": 791555
+    },
+    ".ai-live-dev/run_tts_cpu_preflight.py": {
+      "files": 1,
+      "bytes": 1653
+    },
+    ".ai-live-dev/tts-packages": {
+      "files": 4976,
+      "bytes": 351737690
+    },
+    ".ai-live-dev/tts-proof": {
+      "files": 7,
+      "bytes": 4957058221
+    },
+    ".video-benchmark": {
+      "files": 84,
+      "bytes": 22769517
+    },
+    ".video-cache": {
+      "files": 158,
+      "bytes": 11882958
+    },
+    "benchmark-assets": {
+      "files": 7,
+      "bytes": 606708
+    },
+    "workers/ai-live/installer/.dist": {
+      "files": 1143,
+      "bytes": 291910236
+    }
+  },
+  "largeRuntimeFiles": [
+    {
+      "path": ".ai-live-dev/local-brain-proof/Qwen3-4B-Q4_K_M.gguf",
+      "bytes": 2497280256,
+      "sha256": "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5",
+      "sourceCandidate": false,
+      "status": "LOCAL_ONLY_REQUIRES_REVIEW",
+      "source": "See docs/handoff/ARTIFACTS.json and existing model/runtime manifests; UNKNOWN if absent",
+      "license": "REVIEW_BEFORE_REDISTRIBUTION",
+      "restore": "Private transfer and verify SHA256, or re-download exact revision when documented"
+    },
+    {
+      "path": ".ai-live-dev/models/musetalkV15/unet.pth",
+      "bytes": 3400074924,
+      "sha256": "7ebf6c98c181e20838e4c0054e96e944ac60d5d692cc01db42839fe11b787007",
+      "sourceCandidate": false,
+      "status": "LOCAL_ONLY_REQUIRES_REVIEW",
+      "source": "See docs/handoff/ARTIFACTS.json and existing model/runtime manifests; UNKNOWN if absent",
+      "license": "REVIEW_BEFORE_REDISTRIBUTION",
+      "restore": "Private transfer and verify SHA256, or re-download exact revision when documented"
+    },
+    {
+      "path": ".ai-live-dev/models/sd-vae/diffusion_pytorch_model.safetensors",
+      "bytes": 334643276,
+      "sha256": "a1d993488569e928462932c8c38a0760b874d166399b14414135bd9c42df5815",
+      "sourceCandidate": false,
+      "status": "LOCAL_ONLY_REQUIRES_REVIEW",
+      "source": "See docs/handoff/ARTIFACTS.json and existing model/runtime manifests; UNKNOWN if absent",
+      "license": "REVIEW_BEFORE_REDISTRIBUTION",
+      "restore": "Private transfer and verify SHA256, or re-download exact revision when documented"
+    },
+    {
+      "path": ".ai-live-dev/models/whisper/model.safetensors",
+      "bytes": 151061672,
+      "sha256": "7ebd0e69e78190ffe1438491fa05cc1f5c1aa3a4c4db3bc1723adbb551ea2395",
+      "sourceCandidate": false,
+      "status": "LOCAL_ONLY_REQUIRES_REVIEW",
+      "source": "See docs/handoff/ARTIFACTS.json and existing model/runtime manifests; UNKNOWN if absent",
+      "license": "REVIEW_BEFORE_REDISTRIBUTION",
+      "restore": "Private transfer and verify SHA256, or re-download exact revision when documented"
+    },
+    {
+      "path": ".ai-live-dev/tts-proof/models/voxcpm2/audiovae.pth",
+      "bytes": 376951122,
+      "sha256": "94b5d51e107e0507d4acc976cfdadb64edd6fd06d1f751dadbf2fd1594274bf1",
+      "sourceCandidate": false,
+      "status": "LOCAL_ONLY_REQUIRES_REVIEW",
+      "source": "See docs/handoff/ARTIFACTS.json and existing model/runtime manifests; UNKNOWN if absent",
+      "license": "REVIEW_BEFORE_REDISTRIBUTION",
+      "restore": "Private transfer and verify SHA256, or re-download exact revision when documented"
+    },
+    {
+      "path": ".ai-live-dev/tts-proof/models/voxcpm2/model.safetensors",
+      "bytes": 4580080592,
+      "sha256": "f7f964cfa9da23653baec6e6f7750719977ad944ed9f95fe52fe3a620506891d",
+      "sourceCandidate": false,
+      "status": "LOCAL_ONLY_REQUIRES_REVIEW",
+      "source": "See docs/handoff/ARTIFACTS.json and existing model/runtime manifests; UNKNOWN if absent",
+      "license": "REVIEW_BEFORE_REDISTRIBUTION",
+      "restore": "Private transfer and verify SHA256, or re-download exact revision when documented"
+    },
+    {
+      "path": "workers/ai-live/installer/.dist/LocalLiveAgent/ffmpeg.exe",
+      "bytes": 82797568,
+      "sha256": "04e1307997530f9cf2fe35cba2ca7e8875ca91da02f89d6c7243df819c94ad00",
+      "sourceCandidate": false,
+      "status": "LOCAL_ONLY_REQUIRES_REVIEW",
+      "source": "See docs/handoff/ARTIFACTS.json and existing model/runtime manifests; UNKNOWN if absent",
+      "license": "REVIEW_BEFORE_REDISTRIBUTION",
+      "restore": "Private transfer and verify SHA256, or re-download exact revision when documented"
+    },
+    {
+      "path": "workers/ai-live/installer/.dist/ViralFlow-AI-Setup-0.4.0.exe",
+      "bytes": 60671888,
+      "sha256": "f4e6d15e780bbcbc535614364cdffa5c437f60758e71e8db2f25101f7b7be28a",
+      "sourceCandidate": false,
+      "status": "LOCAL_ONLY_REQUIRES_REVIEW",
+      "source": "See docs/handoff/ARTIFACTS.json and existing model/runtime manifests; UNKNOWN if absent",
+      "license": "REVIEW_BEFORE_REDISTRIBUTION",
+      "restore": "Private transfer and verify SHA256, or re-download exact revision when documented"
+    },
+    {
+      "path": "workers/ai-live/installer/.dist/ViralFlow-Live-Agent-Setup-0.2.0.exe",
+      "bytes": 54003280,
+      "sha256": "4cedf8615fa6eb9805b52448155746ee17b92b3b9566cad765917c6567bd2681",
+      "sourceCandidate": false,
+      "status": "LOCAL_ONLY_REQUIRES_REVIEW",
+      "source": "See docs/handoff/ARTIFACTS.json and existing model/runtime manifests; UNKNOWN if absent",
+      "license": "REVIEW_BEFORE_REDISTRIBUTION",
+      "restore": "Private transfer and verify SHA256, or re-download exact revision when documented"
+    },
+    {
+      "path": "workers/ai-live/installer/.dist/ViralFlow-Live-Agent-Setup-0.3.0.exe",
+      "bytes": 56278774,
+      "sha256": "d6b3168c7025d6f81ef903fe95a4917be7253ac312ca81bcd9f14ab36a1adda5",
+      "sourceCandidate": false,
+      "status": "LOCAL_ONLY_REQUIRES_REVIEW",
+      "source": "See docs/handoff/ARTIFACTS.json and existing model/runtime manifests; UNKNOWN if absent",
+      "license": "REVIEW_BEFORE_REDISTRIBUTION",
+      "restore": "Private transfer and verify SHA256, or re-download exact revision when documented"
+    }
+  ],
+  "archivedReports": [
+    {
+      "originalPath": ".video-benchmark/viral-intelligence-20261013/CREATIVE_REVIEW.md",
+      "path": "handoff/migration-20261026/reports/CREATIVE_REVIEW.md",
+      "bytes": 14666,
+      "sha256": "02f0204a8a4e14c4708ed9161b7c8d6fb0450b9df7fb84b6530006d79a46b102"
+    },
+    {
+      "originalPath": ".video-benchmark/economy-20261013/REPORT.md",
+      "path": "handoff/migration-20261026/reports/REPORT.md",
+      "bytes": 8134,
+      "sha256": "5020cff63c5a555e345690430d6aa36057633abefdbee58a008c90c088102080"
+    }
+  ],
+  "archivedOriginalSourcesUnchanged": 30
+}

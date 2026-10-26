@@ -1,0 +1,1445 @@
+{
+  "date": "2026-10-26",
+  "remoteRefs": [
+    {
+      "branch": "origin",
+      "commit": "dad413f9834efd0797206421bb67ef08e87342e0"
+    },
+    {
+      "branch": "backup/ai-live-a7d5530-20261018",
+      "commit": "a7d55301c8080a621a3330804173cf5d56be58eb"
+    },
+    {
+      "branch": "claude/backup-google-vids-local-20261018",
+      "commit": "2cfdbcf13a930df19e8b690fbfbd141f113fac16"
+    },
+    {
+      "branch": "claude/phase0-ffmpeg-linux",
+      "commit": "e2dad697f0b480a1ac8812dd225f6c4ebd8ff0a9"
+    },
+    {
+      "branch": "claude/phase1-rights-ledger",
+      "commit": "81aac54b32f4eb4f96f93706cdbf6dec0fc8c4a0"
+    },
+    {
+      "branch": "claude/phase2-full-path-pilot",
+      "commit": "ec6f94b8c3750f5aeccc0764697dc1eaaf007064"
+    },
+    {
+      "branch": "claude/phase2-local-composer",
+      "commit": "c125a03af0766844904ebd250b38ec9e25a5d53a"
+    },
+    {
+      "branch": "claude/phase2-thai-voice-graphic",
+      "commit": "d677f56cb9885beb1e721f6e9fa81f9efba26d5c"
+    },
+    {
+      "branch": "claude/phase3-creative-quality",
+      "commit": "49b71e568b165ca1c5e908eeed98175ff67be5eb"
+    },
+    {
+      "branch": "claude/phase4-1-hybrid-ai",
+      "commit": "2870e7b81615c0df1328ecaf7fbc937f30b47c69"
+    },
+    {
+      "branch": "claude/phase4-autonomous-intelligence",
+      "commit": "cb4b26ef261c0add824e9b39e3d0a6ebda960a37"
+    },
+    {
+      "branch": "claude/pilot-results-39154110092",
+      "commit": "d984e7d5554bca182c60ab09d8df1ea79a2778b0"
+    },
+    {
+      "branch": "claude/pilot-results-39154538593",
+      "commit": "878a977873f96c89292cf1d9542eb98eea872cde"
+    },
+    {
+      "branch": "claude/pilot-results-39154989685",
+      "commit": "a47412ff26c5bd5581f4710072308693f64a6e4f"
+    },
+    {
+      "branch": "claude/pilot-results-39155440171",
+      "commit": "e9a3ea4b877ed3727232f3d1efcaf568f0e35f39"
+    },
+    {
+      "branch": "claude/pilot-results-39155955678",
+      "commit": "5c278eb3751fc6c8e6b350dc06c9f2029b683ae9"
+    },
+    {
+      "branch": "claude/pilot-results-39156685727",
+      "commit": "445c5edc19d02e20a2ea02d67373d94dfba34c72"
+    },
+    {
+      "branch": "claude/pilot-results-39158370174",
+      "commit": "760cade213e4a411d587279967439acd7a2a72c0"
+    },
+    {
+      "branch": "claude/pilot-results-39160320718",
+      "commit": "cc3ec2cc81e59032e8add2000ab733dcab73b61c"
+    },
+    {
+      "branch": "claude/pilot-results-39165241130",
+      "commit": "868e0870e2895cd2e7484755e9505c96a001e710"
+    },
+    {
+      "branch": "claude/pilot-results-39165241130-bank",
+      "commit": "dbcf4a0b79383970c59d0d5a122adf9a3bad5b49"
+    },
+    {
+      "branch": "claude/pilot-results-39167338540",
+      "commit": "5c40dc3fccae514ca644a0bdffa92687e7f5c8e2"
+    },
+    {
+      "branch": "claude/pilot-results-39167338540-bank",
+      "commit": "e51e71e2dc4f87c311af2980d8138ec63c58b020"
+    },
+    {
+      "branch": "claude/pilot-results-39172118421",
+      "commit": "b481552e3092ded6b73af89fd265f3a96dbfb955"
+    },
+    {
+      "branch": "claude/pilot-results-39172118421-bank",
+      "commit": "534ffb786a8e8e669966c4c54ebcb76903f8139d"
+    },
+    {
+      "branch": "claude/pilot-results-39176972962",
+      "commit": "ec62ff1f3da52c3482621f934a5723440bda08cd"
+    },
+    {
+      "branch": "claude/pilot-results-39176972962-bank",
+      "commit": "e8f5abecc7e9c84d0001e3c59295aca685599dd4"
+    },
+    {
+      "branch": "claude/pilot-results-39179305819",
+      "commit": "fc2418a007b653508fc5759ea865bc48b4f614f2"
+    },
+    {
+      "branch": "claude/pilot-results-39179305819-bank",
+      "commit": "eb8ea20bf7e585cc827608a498dce24f8eb0a8e9"
+    },
+    {
+      "branch": "claude/pilot-results-39183967171",
+      "commit": "0734719551d11b1e7ca2071a3e3ed18c222139ec"
+    },
+    {
+      "branch": "claude/pilot-results-39183967171-bank",
+      "commit": "f812b00e19007f6cb0f60214b4c5d02276030c87"
+    },
+    {
+      "branch": "claude/pilot-results-39398348339-ai",
+      "commit": "9c0ccb526f1eb6046484107bf099f14d341c9753"
+    },
+    {
+      "branch": "claude/pilot-results-39398348339-compare",
+      "commit": "9b0af9bb8df1b0be68e625a516c23954ab379823"
+    },
+    {
+      "branch": "claude/pilot-results-39404574685-ai",
+      "commit": "bf6a95c35070a6ad7a0265e0291bf1d5cb1b2800"
+    },
+    {
+      "branch": "claude/pilot-results-39404574685-compare-4b",
+      "commit": "6df54ad31f651f01c64fc637830fb874e1a2fc30"
+    },
+    {
+      "branch": "claude/pilot-results-39404574685-compare-8b",
+      "commit": "da6adb97493f87ec2b37e8807646948c7948a94b"
+    },
+    {
+      "branch": "claude/pilot-results-39410103599-ai",
+      "commit": "f5eab7a5a4f418987f8efd603ae728d655100cfe"
+    },
+    {
+      "branch": "claude/pilot-results-39410103599-compare-4b",
+      "commit": "13edbcf0f86b2a5d63e43d3e60ecab8911bf7579"
+    },
+    {
+      "branch": "claude/pilot-results-39410103599-compare-8b",
+      "commit": "ca8055d82ad28c5548bed82b0718e21ead87de06"
+    },
+    {
+      "branch": "claude/pilot-results-39424535998-ai",
+      "commit": "3038a8bdb4fc83ad0ce164f38b181bc32fd97297"
+    },
+    {
+      "branch": "claude/pilot-results-39424535998-compare-4b",
+      "commit": "4639f392e5e9c234e1e0a42caa34f333cb6bba22"
+    },
+    {
+      "branch": "claude/pilot-results-39431962342-ai",
+      "commit": "49a52a0e57ae932d13846068bb63c7747de8cc67"
+    },
+    {
+      "branch": "claude/pilot-results-39431962342-compare-4b",
+      "commit": "ddbd4c59fb41221db93e2fb4aff0d6d78000ca62"
+    },
+    {
+      "branch": "claude/pilot-results-39455054803-eval",
+      "commit": "4a52cbafcd183d7d76d64f6eae61371b4af945b7"
+    },
+    {
+      "branch": "claude/pilot-results-39463765797-ai",
+      "commit": "f141c9bb648e67ebaeff9f468de5d1fa7e46bfd0"
+    },
+    {
+      "branch": "claude/pilot-results-39463765797-eval",
+      "commit": "d9f1d9f33e0a4fd7538f8d08dab1eff42e86e29d"
+    },
+    {
+      "branch": "claude/pilot-results-39473570716-video-smoke",
+      "commit": "aba3c6820c36f8e7ed7c501a815cb0b760018cc3"
+    },
+    {
+      "branch": "claude/pilot-results-39474026783-video-smoke",
+      "commit": "2cb416fac114b155f7d619097a33fc9e751b1733"
+    },
+    {
+      "branch": "claude/pilot-results-39475985708-video-ad",
+      "commit": "e6d3a34d02d4ac21d7ca6a69486b3e47e1002c73"
+    },
+    {
+      "branch": "claude/pilot-results-39483177304-video-ad",
+      "commit": "66c02162f1e0b24fc5be179cdd213d608d77f8e6"
+    },
+    {
+      "branch": "claude/pilot-results-39486837507-research",
+      "commit": "29a90d0e884a5bde23266cd7c9866041eb90221a"
+    },
+    {
+      "branch": "claude/pilot-results-39487409874-board-a",
+      "commit": "69c495821936cbed3ed861016ead4df0c4b1238a"
+    },
+    {
+      "branch": "claude/pilot-results-39487409874-board-b",
+      "commit": "ab896ceb41608145fcb21f20be54a0f648764c59"
+    },
+    {
+      "branch": "claude/pilot-results-39487409874-board-c",
+      "commit": "7906690b1453d73e65ccb9260689d61ba02559fb"
+    },
+    {
+      "branch": "claude/pilot-results-39487409874-board-d",
+      "commit": "70e9cb51652c007c5af5fd8e196b387ba69aa12a"
+    },
+    {
+      "branch": "claude/pilot-results-39493122080-board-b2",
+      "commit": "186f611faab06be0d702e3d33af45eeb46228864"
+    },
+    {
+      "branch": "claude/pilot-results-39493122080-board-b3",
+      "commit": "8a5fb131b72c4d7de71280667850caa8d8d94804"
+    },
+    {
+      "branch": "claude/pilot-results-39493377748-shot-v2s1",
+      "commit": "0ed4c8688012ff4f5e7be8a59a50487129465764"
+    },
+    {
+      "branch": "claude/pilot-results-39493377748-shot-v2s3",
+      "commit": "4e448d49221d1accade23479d5a8184f4245602b"
+    },
+    {
+      "branch": "claude/pilot-results-39495899938-shot-v2s2",
+      "commit": "b178c0aeda408c7b659dc4e9f9296045cc3df48d"
+    },
+    {
+      "branch": "claude/pilot-results-39495899938-shot-v2s2b",
+      "commit": "c3f42722c64c19cffeb4613eaba56ef5a8cee2ca"
+    },
+    {
+      "branch": "claude/pilot-results-39500744111-video-ad-v2",
+      "commit": "5feebc40eaa3013f23ff1621c81c0a860b1db52c"
+    },
+    {
+      "branch": "claude/pilot-results-39502712774-video-ad-v2",
+      "commit": "6b12fb8e72f67474ef9f36c7843a3d7237e7a2d0"
+    },
+    {
+      "branch": "claude/pilot-results-39535387997-video-ad-v2",
+      "commit": "6681494d1c6a657653d8055dde9cec3a06345b4c"
+    },
+    {
+      "branch": "claude/pilot-results-39542785086-scout",
+      "commit": "f66185f7b3b4f16a44f231b7b086fca89d43fcce"
+    },
+    {
+      "branch": "claude/pilot-results-39543988035-board-c1",
+      "commit": "313cb2798f9571c96deb229ddee16fd6d62504df"
+    },
+    {
+      "branch": "claude/pilot-results-39543988035-board-c2",
+      "commit": "884c7f470946e1f4056e9b6795dc9c9da050d5bd"
+    },
+    {
+      "branch": "claude/pilot-results-39543988035-board-c3",
+      "commit": "d86a2165f75642d119faacd3341a0828365f44a3"
+    },
+    {
+      "branch": "claude/pilot-results-39543988035-board-m1",
+      "commit": "b2dd7e98d5a9e463eecaa618d12775cd93ace012"
+    },
+    {
+      "branch": "claude/pilot-results-39543988035-board-m2",
+      "commit": "42053a9c2fa39bc65dbb9322d0073ba3faa1d4f4"
+    },
+    {
+      "branch": "claude/pilot-results-39543988035-board-m3",
+      "commit": "8ded019e5ce9e8c7b523e802cdb2e5d804e74775"
+    },
+    {
+      "branch": "claude/pilot-results-39547488185-board-m1",
+      "commit": "a3c1eee6cf2ae3c9e819bc7766a1359e1b395f11"
+    },
+    {
+      "branch": "claude/pilot-results-39547488185-board-m2",
+      "commit": "9ae783fde636702b2be6ea6c09532933553eb776"
+    },
+    {
+      "branch": "claude/pilot-results-39547488185-board-m3",
+      "commit": "243fc6eaae449e80ccafb6f01768db152016a4dd"
+    },
+    {
+      "branch": "claude/pilot-results-39547488185-shot-c2",
+      "commit": "cff73dea3869b2561b42cb40bc4a186132453a9c"
+    },
+    {
+      "branch": "claude/pilot-results-39547488185-shot-c3",
+      "commit": "868a49c4838dc759cacf9f8c53de1cc932c79299"
+    },
+    {
+      "branch": "claude/pilot-results-39550982920-shot-c2b",
+      "commit": "94ec1e4f1ad22d81d89e039ce14ac0f502d53b05"
+    },
+    {
+      "branch": "claude/pilot-results-39550982920-shot-m1",
+      "commit": "de97b6279a7ee7447b6bee894ac15a98da161e29"
+    },
+    {
+      "branch": "claude/pilot-results-39550982920-shot-m2",
+      "commit": "8dea7ce31de6b68ab6bcbef7e257671b9f4b4685"
+    },
+    {
+      "branch": "claude/pilot-results-39550982920-shot-m3",
+      "commit": "3b67e2a4ef5b80cda73a6d70588845daa59a34f7"
+    },
+    {
+      "branch": "claude/pilot-results-39552557618-shot-c1b",
+      "commit": "5d43cdb63f5fe36237e4f00851b66282fef82292"
+    },
+    {
+      "branch": "claude/pilot-results-39557931509-ad-chuck",
+      "commit": "26ad760abc6bb51652c3ebcc332811b6a6029cbe"
+    },
+    {
+      "branch": "claude/pilot-results-39557931509-ad-moka",
+      "commit": "7fb1dd6d72c570dad5ce1f4175c8ec390a409d61"
+    },
+    {
+      "branch": "claude/pilot-results-39559458428-ad-chuck",
+      "commit": "ee299ddaa61bb42dc7f6b5f040cf77e4d3bddc9a"
+    },
+    {
+      "branch": "claude/pilot-results-39559458428-ad-moka",
+      "commit": "d2f86fa40059dd0735d6c134c9711540b06fdb53"
+    },
+    {
+      "branch": "claude/pilot-results-39564277796-around-ac1",
+      "commit": "32da694c9a3535d63a0ac23403edd5fd7eeb7921"
+    },
+    {
+      "branch": "claude/pilot-results-39564277796-around-ac2",
+      "commit": "67fe07d6264606754c993b7fa0fd8689ee8a1990"
+    },
+    {
+      "branch": "claude/pilot-results-39564277796-around-ac3",
+      "commit": "3cb7191317d2e484f05c6eaf89b15f6ed0423ad0"
+    },
+    {
+      "branch": "claude/pilot-results-39564277796-around-am1",
+      "commit": "88226d962ccec769e5d98c42aa7fcd301e6d7179"
+    },
+    {
+      "branch": "claude/pilot-results-39564277796-around-am2",
+      "commit": "0ac41690c33f9e42fc8d43a7b4e220dd43952c3a"
+    },
+    {
+      "branch": "claude/pilot-results-39564277796-around-am3",
+      "commit": "d042197b0ee8d6ed9c16358f32cf34efc1a15b57"
+    },
+    {
+      "branch": "claude/pilot-results-39569410933-harmonize-c1",
+      "commit": "24502310550a44040177aca57b8599c34f8e2ab6"
+    },
+    {
+      "branch": "claude/pilot-results-39569410933-harmonize-c2",
+      "commit": "a395a874f1c74ab00f132cab17ffd6db1732962d"
+    },
+    {
+      "branch": "claude/pilot-results-39569410933-harmonize-c3",
+      "commit": "54d22c0e4fae94f1cdb6a4726af76e354c684223"
+    },
+    {
+      "branch": "claude/pilot-results-39569410933-harmonize-m1",
+      "commit": "b2ba8e465a72126822be4d706da89949cecde562"
+    },
+    {
+      "branch": "claude/pilot-results-39569410933-harmonize-m2",
+      "commit": "c23e2788d80c282c1cfca3e933156f5db25f816b"
+    },
+    {
+      "branch": "claude/pilot-results-39569410933-harmonize-m3",
+      "commit": "a2d0185d1989f759d247785706b1b75a3af32a3a"
+    },
+    {
+      "branch": "claude/pilot-results-39573232534-board-sc1",
+      "commit": "89e2d2ec9dfdbbbb47e252c664c06c890606ca07"
+    },
+    {
+      "branch": "claude/pilot-results-39573232534-board-sc2",
+      "commit": "67bb2c65877a4f5fd72e6135974b7f49baf8f07f"
+    },
+    {
+      "branch": "claude/pilot-results-39573232534-board-sc3",
+      "commit": "02d3139d55521699270dcfedf92ce453cb1d09b9"
+    },
+    {
+      "branch": "claude/pilot-results-39573232534-board-sm1",
+      "commit": "a1da7ed1e01dd2a1c1938d88553c8c441f2a26ad"
+    },
+    {
+      "branch": "claude/pilot-results-39573232534-board-sm2",
+      "commit": "5e9070fff1ada1511f40d876926821a7335a34e8"
+    },
+    {
+      "branch": "claude/pilot-results-39573232534-board-sm3",
+      "commit": "3ef5558bf9903acdc3767083dfc58c94bb6a44c2"
+    },
+    {
+      "branch": "claude/pilot-results-39578009248-relight-sc1-141",
+      "commit": "90385037dd7361b74079e1541fc438f493c84a06"
+    },
+    {
+      "branch": "claude/pilot-results-39578009248-relight-sc1-143",
+      "commit": "5c03196d24f56c314970f51e81059876d4f60760"
+    },
+    {
+      "branch": "claude/pilot-results-39578009248-relight-sc2-152",
+      "commit": "5830330699342b1756f0d9a35da3b88e1ab325d1"
+    },
+    {
+      "branch": "claude/pilot-results-39578009248-relight-sm2-121",
+      "commit": "4cbc728ef325636602e36982172db476ee7579f4"
+    },
+    {
+      "branch": "claude/pilot-results-39578009248-relight-sm2-122",
+      "commit": "21cbe22de72e4712f31b4786f51e4773631e192e"
+    },
+    {
+      "branch": "claude/pilot-results-39578009248-relight-sm3-131",
+      "commit": "6ffd7c725ce764b8e6ccbaddff658a63be27c7f1"
+    },
+    {
+      "branch": "claude/pilot-results-39580294691-relight-sc1-141",
+      "commit": "ba470d3515c7e0b76c3f01b62e8d4f0a639b91dd"
+    },
+    {
+      "branch": "claude/pilot-results-39580294691-relight-sc1-143",
+      "commit": "bc122223f4fad22f28e782d85a0456a3a6cebca1"
+    },
+    {
+      "branch": "claude/pilot-results-39580294691-relight-sc2-152",
+      "commit": "4c4870dc7b0f6072d411f25da5223d6335747dd0"
+    },
+    {
+      "branch": "claude/pilot-results-39580356704-shot-q1",
+      "commit": "b6986e7056c3a79359acd6d9c87257dbe1e5ac84"
+    },
+    {
+      "branch": "claude/pilot-results-39580356704-shot-q2",
+      "commit": "415b4a5550f4aefd59eda4745f9ed2a43fb736bb"
+    },
+    {
+      "branch": "claude/pilot-results-39580356704-shot-q3",
+      "commit": "419d9a8b1fb2f414c297dba2083908308edec9fe"
+    },
+    {
+      "branch": "claude/pilot-results-39580356704-shot-r1",
+      "commit": "e76d0310859a9cb0eeba0909cb9c2533990ff49c"
+    },
+    {
+      "branch": "claude/pilot-results-39580356704-shot-r2",
+      "commit": "936fbaac6f262d4f1d9e182a38d8e2dd64ca81b1"
+    },
+    {
+      "branch": "claude/pilot-results-39580356704-shot-r3",
+      "commit": "a571e2f3e4b1eee929add2070ea8281d6c2b59b0"
+    },
+    {
+      "branch": "claude/pilot-results-39584782101-shot-q1s",
+      "commit": "b9836f620f67a35c25ff56c4eba0c6ed061b3586"
+    },
+    {
+      "branch": "claude/pilot-results-39584782101-shot-q2s",
+      "commit": "357d47b78380d8d313cafbf7abeb6b657563e3b8"
+    },
+    {
+      "branch": "claude/pilot-results-39584782101-shot-q3s",
+      "commit": "c9cf202c404207aaf7fa8bb359b709aeea20fa97"
+    },
+    {
+      "branch": "claude/pilot-results-39584782101-shot-r1s",
+      "commit": "1d7617c3d53ed11a841be5424ff4e4ff59f6f39d"
+    },
+    {
+      "branch": "claude/pilot-results-39584782101-shot-r2s",
+      "commit": "706a8b3d4c4982ee89b2c9009c090a697b46ae4c"
+    },
+    {
+      "branch": "claude/pilot-results-39584782101-shot-r3s",
+      "commit": "a4aab99149e0f9b0995de03979a41db2f33f4abb"
+    },
+    {
+      "branch": "claude/pilot-results-39590924004-ad-chuck",
+      "commit": "c10dd9a5fe8a5ed746b957e4455dc3e3352c8ff1"
+    },
+    {
+      "branch": "claude/pilot-results-39590924004-ad-moka",
+      "commit": "57b82b8978c1e8ef396835bc601e330c34eb14b3"
+    },
+    {
+      "branch": "claude/real-product-video-test",
+      "commit": "0faece07de939408f4b1ce98b5cddd60c27dcd7c"
+    },
+    {
+      "branch": "claude/tts-benchmark",
+      "commit": "0b781b9804e4dd61483e337b0705609869f62bb6"
+    },
+    {
+      "branch": "claude/tts-results-39154110092",
+      "commit": "71a1b9c4d39017e52a89f6a4dfeab69a6759b43d"
+    },
+    {
+      "branch": "claude/tts-results-39154538593",
+      "commit": "836e002f457b7e2ad4e0c742a2484fb612e9c433"
+    },
+    {
+      "branch": "claude/tts-results-39154989685",
+      "commit": "aa2dbd3c00e63617b8411bb0f80e3931923646f3"
+    },
+    {
+      "branch": "claude/tts-results-39155440171",
+      "commit": "55f4d149d4731a74a3c3faf019594fc60b0d2960"
+    },
+    {
+      "branch": "claude/tts-results-39155955678",
+      "commit": "5c30cb600848ce92c4f24e8d5de88cb3fbce3643"
+    },
+    {
+      "branch": "claude/tts-results-39156685727",
+      "commit": "9f199bcfb65633d80a6ba8ea34a00d83bb8f4e1f"
+    },
+    {
+      "branch": "claude/tts-results-39158370174",
+      "commit": "f9c11623960212e6b5436ecd596686817d4a472b"
+    },
+    {
+      "branch": "claude/tts-results-39160320718",
+      "commit": "d7881348e3cdb3fbbc6b524ef6493bcf2200f25f"
+    },
+    {
+      "branch": "codex/backup-content-before-google-3571383",
+      "commit": "35713835000696556d18e063566c29af14d91fcb"
+    },
+    {
+      "branch": "codex/backup-local-develop-20261014",
+      "commit": "c7db763bda65fc3fa1f57b8d3c2b379e3bbef72b"
+    },
+    {
+      "branch": "codex/backup-local-feature-account-product-assignment-20261014",
+      "commit": "2dd21a632961cbc25d4cddfb79ed4f781a7542dd"
+    },
+    {
+      "branch": "codex/backup-local-feature-category-intelligence-20261014",
+      "commit": "e5c4576732e0a8f4358a558f8eabdd4594040375"
+    },
+    {
+      "branch": "codex/backup-local-feature-creative-brain-20261014",
+      "commit": "fabd005d13b7fcad02176fb27021207febf28d32"
+    },
+    {
+      "branch": "codex/backup-local-feature-foundation-20261014",
+      "commit": "cbb32ac5cc2df89c7be09022d1b0e2b22754e21d"
+    },
+    {
+      "branch": "codex/backup-local-feature-multi-account-brain-20261014",
+      "commit": "b5ccba185cbdebb4f13eb41ddfdc6557eccd0198"
+    },
+    {
+      "branch": "codex/backup-local-feature-product-radar-20261014",
+      "commit": "6a74ed6f7584e5882e4343d718f2fe4d2cd38a83"
+    },
+    {
+      "branch": "codex/backup-local-main-20261014",
+      "commit": "c7db763bda65fc3fa1f57b8d3c2b379e3bbef72b"
+    },
+    {
+      "branch": "codex/claude-handoff-20261014",
+      "commit": "d1a71980ca8b872863dda68145b1b16bb9e6c1c1"
+    },
+    {
+      "branch": "codex/content-generation-export",
+      "commit": "35713835000696556d18e063566c29af14d91fcb"
+    },
+    {
+      "branch": "codex/fal-production-integration",
+      "commit": "57eedc81c522d2a191d9bebe47e85756d663f18a"
+    },
+    {
+      "branch": "codex/google-vids-fal-router",
+      "commit": "9545a003d9f2d5ef7b572b08896724b32ce9ca02"
+    },
+    {
+      "branch": "codex/manual-post-export",
+      "commit": "d5185edcebdf485d5d2ca87301ebdb49db3876b3"
+    },
+    {
+      "branch": "codex/production-readiness-integration",
+      "commit": "d684eb4680178fcec9985f315595ec673148f994"
+    },
+    {
+      "branch": "codex/tiktok-icon-review-fix",
+      "commit": "c52b67bd4b352e93a47416190806b6e7d7978697"
+    },
+    {
+      "branch": "codex/tiktok-review-website",
+      "commit": "3900b773358f5556a81d664c87ea0c49d38e4a5b"
+    },
+    {
+      "branch": "develop",
+      "commit": "dad413f9834efd0797206421bb67ef08e87342e0"
+    },
+    {
+      "branch": "feat/flow-browser-worker-mvp",
+      "commit": "523fae8b31e5bb7c0cae4b1a11d27c504643cfe9"
+    },
+    {
+      "branch": "feature/account-product-assignment",
+      "commit": "db3324c60c3b55db9bed90b62690d0728fb34fe9"
+    },
+    {
+      "branch": "feature/ai-live",
+      "commit": "a7d55301c8080a621a3330804173cf5d56be58eb"
+    },
+    {
+      "branch": "feature/ai-live-lite",
+      "commit": "a40dd953f38b1736e70a5faf59654c4b9075b404"
+    },
+    {
+      "branch": "feature/analytics-learning",
+      "commit": "a0ef575cb107a5919d0a2ecbbae730f176e1293e"
+    },
+    {
+      "branch": "feature/category-intelligence",
+      "commit": "43fa284c4a662557ddf5c8db09f6fafa8e335135"
+    },
+    {
+      "branch": "feature/compliance-brain",
+      "commit": "239fe51e8f9cb61da654ba6cc05f439ec8b02a89"
+    },
+    {
+      "branch": "feature/compliance-originality",
+      "commit": "bdfb088e4b1c1b0c3f30a8251b3e2389e19d9dc0"
+    },
+    {
+      "branch": "feature/creative-brain",
+      "commit": "b2a30a20a4764154c65697d6bb147feff9ba9deb"
+    },
+    {
+      "branch": "feature/fal-wan-primary-provider",
+      "commit": "401d7c0aed4a09142b8b4df9da8861c9fdf9cffd"
+    },
+    {
+      "branch": "feature/foundation",
+      "commit": "8eaf14b10ae26c5a0a4477d15ef61c306ef3788c"
+    },
+    {
+      "branch": "feature/full-auto-mode",
+      "commit": "42bfaa02ea73ae511bcf521948987e19f2f5cd9b"
+    },
+    {
+      "branch": "feature/google-veo-provider",
+      "commit": "2ae6bae3ff5d9105cd29da884118da60fecd8157"
+    },
+    {
+      "branch": "feature/growth-learning-engine",
+      "commit": "a26a82f4b7f06d9f5370ab25d1ae2616cfd7a3fc"
+    },
+    {
+      "branch": "feature/multi-account-brain",
+      "commit": "9fe1d5a70b455d56e63bfe358f2eb0f798bb9f8a"
+    },
+    {
+      "branch": "feature/post-multi-account",
+      "commit": "2614eadcc4afca7dbd579adc3a5baa5748e24eef"
+    },
+    {
+      "branch": "feature/product-radar",
+      "commit": "a65fddbfd85ab56a3365fee527c5c08383c29474"
+    },
+    {
+      "branch": "feature/tiktok-oauth-foundation",
+      "commit": "c62390545b47c2df07bfd3439cc21889989da763"
+    },
+    {
+      "branch": "feature/tiktok-publishing-foundation",
+      "commit": "1297536e53c924b9b6af0c1e697a3721049f4829"
+    },
+    {
+      "branch": "feature/tiktok-shop-foundation",
+      "commit": "946b095ea87630aed1b4e0ad206b3fcfa099d879"
+    },
+    {
+      "branch": "feature/ui-control-center",
+      "commit": "ff85ee94f691facac9ed587f28f07e771d12efe0"
+    },
+    {
+      "branch": "feature/video-factory",
+      "commit": "7c6044a998f614fe9b8911f8ac48b5e3a40367ec"
+    },
+    {
+      "branch": "feature/video-provider-benchmark",
+      "commit": "fd405830e299cebbc346b2cebafc342b837412ee"
+    },
+    {
+      "branch": "main",
+      "commit": "dad413f9834efd0797206421bb67ef08e87342e0"
+    }
+  ],
+  "localBranchPreservation": [
+    {
+      "branch": "codex/backup-content-before-google-3571383",
+      "commit": "35713835000696556d18e063566c29af14d91fcb",
+      "preservedBy": [
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/feat/flow-browser-worker-mvp"
+      ]
+    },
+    {
+      "branch": "codex/claude-handoff-20261014",
+      "commit": "d1a71980ca8b872863dda68145b1b16bb9e6c1c1",
+      "preservedBy": [
+        "origin/codex/claude-handoff-20261014"
+      ]
+    },
+    {
+      "branch": "codex/content-generation-export",
+      "commit": "35713835000696556d18e063566c29af14d91fcb",
+      "preservedBy": [
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/feat/flow-browser-worker-mvp"
+      ]
+    },
+    {
+      "branch": "codex/fal-production-integration",
+      "commit": "57eedc81c522d2a191d9bebe47e85756d663f18a",
+      "preservedBy": [
+        "origin/codex/fal-production-integration"
+      ]
+    },
+    {
+      "branch": "codex/google-vids-fal-router",
+      "commit": "9545a003d9f2d5ef7b572b08896724b32ce9ca02",
+      "preservedBy": [
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/google-vids-fal-router",
+        "origin/feat/flow-browser-worker-mvp"
+      ]
+    },
+    {
+      "branch": "codex/machine-migration-20261026",
+      "commit": "d1a71980ca8b872863dda68145b1b16bb9e6c1c1",
+      "preservedBy": [
+        "origin/codex/claude-handoff-20261014"
+      ]
+    },
+    {
+      "branch": "codex/manual-post-export",
+      "commit": "d5185edcebdf485d5d2ca87301ebdb49db3876b3",
+      "preservedBy": [
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/feat/flow-browser-worker-mvp"
+      ]
+    },
+    {
+      "branch": "codex/production-readiness-integration",
+      "commit": "d684eb4680178fcec9985f315595ec673148f994",
+      "preservedBy": [
+        "origin/codex/production-readiness-integration"
+      ]
+    },
+    {
+      "branch": "codex/tiktok-icon-review-fix",
+      "commit": "c52b67bd4b352e93a47416190806b6e7d7978697",
+      "preservedBy": [
+        "origin/codex/tiktok-icon-review-fix"
+      ]
+    },
+    {
+      "branch": "codex/tiktok-review-website",
+      "commit": "3900b773358f5556a81d664c87ea0c49d38e4a5b",
+      "preservedBy": [
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/codex/tiktok-review-website",
+        "origin/feat/flow-browser-worker-mvp"
+      ]
+    },
+    {
+      "branch": "develop",
+      "commit": "c7db763bda65fc3fa1f57b8d3c2b379e3bbef72b",
+      "preservedBy": [
+        "origin/codex/backup-local-develop-20261014",
+        "origin/codex/backup-local-feature-account-product-assignment-20261014",
+        "origin/codex/backup-local-feature-category-intelligence-20261014",
+        "origin/codex/backup-local-feature-creative-brain-20261014",
+        "origin/codex/backup-local-feature-foundation-20261014",
+        "origin/codex/backup-local-feature-multi-account-brain-20261014",
+        "origin/codex/backup-local-feature-product-radar-20261014",
+        "origin/codex/backup-local-main-20261014"
+      ]
+    },
+    {
+      "branch": "feature/account-product-assignment",
+      "commit": "2dd21a632961cbc25d4cddfb79ed4f781a7542dd",
+      "preservedBy": [
+        "origin/codex/backup-local-feature-account-product-assignment-20261014",
+        "origin/codex/backup-local-feature-creative-brain-20261014"
+      ]
+    },
+    {
+      "branch": "feature/ai-live",
+      "commit": "a7d55301c8080a621a3330804173cf5d56be58eb",
+      "preservedBy": [
+        "origin/backup/ai-live-a7d5530-20261018",
+        "origin/codex/production-readiness-integration",
+        "origin/feature/ai-live",
+        "origin/feature/ai-live-lite",
+        "origin/feature/compliance-brain",
+        "origin/feature/post-multi-account"
+      ]
+    },
+    {
+      "branch": "feature/ai-live-lite",
+      "commit": "a40dd953f38b1736e70a5faf59654c4b9075b404",
+      "preservedBy": [
+        "origin/feature/ai-live-lite"
+      ]
+    },
+    {
+      "branch": "feature/analytics-learning",
+      "commit": "a0ef575cb107a5919d0a2ecbbae730f176e1293e",
+      "preservedBy": [
+        "origin/backup/ai-live-a7d5530-20261018",
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/fal-production-integration",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/production-readiness-integration",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/codex/tiktok-review-website",
+        "origin/feat/flow-browser-worker-mvp",
+        "origin/feature/ai-live",
+        "origin/feature/ai-live-lite",
+        "origin/feature/analytics-learning",
+        "origin/feature/compliance-brain",
+        "origin/feature/fal-wan-primary-provider",
+        "origin/feature/full-auto-mode",
+        "origin/feature/google-veo-provider",
+        "origin/feature/growth-learning-engine",
+        "origin/feature/post-multi-account",
+        "origin/feature/ui-control-center"
+      ]
+    },
+    {
+      "branch": "feature/category-intelligence",
+      "commit": "e5c4576732e0a8f4358a558f8eabdd4594040375",
+      "preservedBy": [
+        "origin/codex/backup-local-feature-account-product-assignment-20261014",
+        "origin/codex/backup-local-feature-category-intelligence-20261014",
+        "origin/codex/backup-local-feature-creative-brain-20261014"
+      ]
+    },
+    {
+      "branch": "feature/compliance-brain",
+      "commit": "239fe51e8f9cb61da654ba6cc05f439ec8b02a89",
+      "preservedBy": [
+        "origin/codex/production-readiness-integration",
+        "origin/feature/compliance-brain"
+      ]
+    },
+    {
+      "branch": "feature/compliance-originality",
+      "commit": "bdfb088e4b1c1b0c3f30a8251b3e2389e19d9dc0",
+      "preservedBy": [
+        "origin/backup/ai-live-a7d5530-20261018",
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/fal-production-integration",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/production-readiness-integration",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/codex/tiktok-review-website",
+        "origin/feat/flow-browser-worker-mvp",
+        "origin/feature/ai-live",
+        "origin/feature/ai-live-lite",
+        "origin/feature/analytics-learning",
+        "origin/feature/compliance-brain",
+        "origin/feature/compliance-originality",
+        "origin/feature/fal-wan-primary-provider",
+        "origin/feature/full-auto-mode",
+        "origin/feature/google-veo-provider",
+        "origin/feature/growth-learning-engine",
+        "origin/feature/post-multi-account",
+        "origin/feature/tiktok-oauth-foundation",
+        "origin/feature/tiktok-publishing-foundation",
+        "origin/feature/tiktok-shop-foundation",
+        "origin/feature/ui-control-center"
+      ]
+    },
+    {
+      "branch": "feature/creative-brain",
+      "commit": "fabd005d13b7fcad02176fb27021207febf28d32",
+      "preservedBy": [
+        "origin/codex/backup-local-feature-creative-brain-20261014"
+      ]
+    },
+    {
+      "branch": "feature/fal-wan-primary-provider",
+      "commit": "401d7c0aed4a09142b8b4df9da8861c9fdf9cffd",
+      "preservedBy": [
+        "origin/backup/ai-live-a7d5530-20261018",
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/fal-production-integration",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/production-readiness-integration",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/codex/tiktok-review-website",
+        "origin/feat/flow-browser-worker-mvp",
+        "origin/feature/ai-live",
+        "origin/feature/ai-live-lite",
+        "origin/feature/compliance-brain",
+        "origin/feature/fal-wan-primary-provider",
+        "origin/feature/post-multi-account",
+        "origin/feature/ui-control-center"
+      ]
+    },
+    {
+      "branch": "feature/foundation",
+      "commit": "cbb32ac5cc2df89c7be09022d1b0e2b22754e21d",
+      "preservedBy": [
+        "origin/codex/backup-local-feature-account-product-assignment-20261014",
+        "origin/codex/backup-local-feature-category-intelligence-20261014",
+        "origin/codex/backup-local-feature-creative-brain-20261014",
+        "origin/codex/backup-local-feature-foundation-20261014",
+        "origin/codex/backup-local-feature-multi-account-brain-20261014",
+        "origin/codex/backup-local-feature-product-radar-20261014"
+      ]
+    },
+    {
+      "branch": "feature/full-auto-mode",
+      "commit": "42bfaa02ea73ae511bcf521948987e19f2f5cd9b",
+      "preservedBy": [
+        "origin/backup/ai-live-a7d5530-20261018",
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/fal-production-integration",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/production-readiness-integration",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/codex/tiktok-review-website",
+        "origin/feat/flow-browser-worker-mvp",
+        "origin/feature/ai-live",
+        "origin/feature/ai-live-lite",
+        "origin/feature/compliance-brain",
+        "origin/feature/fal-wan-primary-provider",
+        "origin/feature/full-auto-mode",
+        "origin/feature/google-veo-provider",
+        "origin/feature/post-multi-account",
+        "origin/feature/ui-control-center"
+      ]
+    },
+    {
+      "branch": "feature/google-veo-provider",
+      "commit": "2ae6bae3ff5d9105cd29da884118da60fecd8157",
+      "preservedBy": [
+        "origin/backup/ai-live-a7d5530-20261018",
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/fal-production-integration",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/production-readiness-integration",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/codex/tiktok-review-website",
+        "origin/feat/flow-browser-worker-mvp",
+        "origin/feature/ai-live",
+        "origin/feature/ai-live-lite",
+        "origin/feature/compliance-brain",
+        "origin/feature/fal-wan-primary-provider",
+        "origin/feature/google-veo-provider",
+        "origin/feature/post-multi-account",
+        "origin/feature/ui-control-center"
+      ]
+    },
+    {
+      "branch": "feature/growth-learning-engine",
+      "commit": "a26a82f4b7f06d9f5370ab25d1ae2616cfd7a3fc",
+      "preservedBy": [
+        "origin/backup/ai-live-a7d5530-20261018",
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/fal-production-integration",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/production-readiness-integration",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/codex/tiktok-review-website",
+        "origin/feat/flow-browser-worker-mvp",
+        "origin/feature/ai-live",
+        "origin/feature/ai-live-lite",
+        "origin/feature/compliance-brain",
+        "origin/feature/fal-wan-primary-provider",
+        "origin/feature/full-auto-mode",
+        "origin/feature/google-veo-provider",
+        "origin/feature/growth-learning-engine",
+        "origin/feature/post-multi-account",
+        "origin/feature/ui-control-center"
+      ]
+    },
+    {
+      "branch": "feature/multi-account-brain",
+      "commit": "b5ccba185cbdebb4f13eb41ddfdc6557eccd0198",
+      "preservedBy": [
+        "origin/codex/backup-local-feature-account-product-assignment-20261014",
+        "origin/codex/backup-local-feature-category-intelligence-20261014",
+        "origin/codex/backup-local-feature-creative-brain-20261014",
+        "origin/codex/backup-local-feature-multi-account-brain-20261014",
+        "origin/codex/backup-local-feature-product-radar-20261014"
+      ]
+    },
+    {
+      "branch": "feature/post-multi-account",
+      "commit": "2614eadcc4afca7dbd579adc3a5baa5748e24eef",
+      "preservedBy": [
+        "origin/codex/production-readiness-integration",
+        "origin/feature/compliance-brain",
+        "origin/feature/post-multi-account"
+      ]
+    },
+    {
+      "branch": "feature/product-radar",
+      "commit": "6a74ed6f7584e5882e4343d718f2fe4d2cd38a83",
+      "preservedBy": [
+        "origin/codex/backup-local-feature-account-product-assignment-20261014",
+        "origin/codex/backup-local-feature-category-intelligence-20261014",
+        "origin/codex/backup-local-feature-creative-brain-20261014",
+        "origin/codex/backup-local-feature-product-radar-20261014"
+      ]
+    },
+    {
+      "branch": "feature/tiktok-oauth-foundation",
+      "commit": "c62390545b47c2df07bfd3439cc21889989da763",
+      "preservedBy": [
+        "origin/backup/ai-live-a7d5530-20261018",
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/fal-production-integration",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/production-readiness-integration",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/codex/tiktok-review-website",
+        "origin/feat/flow-browser-worker-mvp",
+        "origin/feature/ai-live",
+        "origin/feature/ai-live-lite",
+        "origin/feature/analytics-learning",
+        "origin/feature/compliance-brain",
+        "origin/feature/fal-wan-primary-provider",
+        "origin/feature/full-auto-mode",
+        "origin/feature/google-veo-provider",
+        "origin/feature/growth-learning-engine",
+        "origin/feature/post-multi-account",
+        "origin/feature/tiktok-oauth-foundation",
+        "origin/feature/tiktok-publishing-foundation",
+        "origin/feature/tiktok-shop-foundation",
+        "origin/feature/ui-control-center"
+      ]
+    },
+    {
+      "branch": "feature/tiktok-publishing-foundation",
+      "commit": "1297536e53c924b9b6af0c1e697a3721049f4829",
+      "preservedBy": [
+        "origin/backup/ai-live-a7d5530-20261018",
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/fal-production-integration",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/production-readiness-integration",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/codex/tiktok-review-website",
+        "origin/feat/flow-browser-worker-mvp",
+        "origin/feature/ai-live",
+        "origin/feature/ai-live-lite",
+        "origin/feature/analytics-learning",
+        "origin/feature/compliance-brain",
+        "origin/feature/fal-wan-primary-provider",
+        "origin/feature/full-auto-mode",
+        "origin/feature/google-veo-provider",
+        "origin/feature/growth-learning-engine",
+        "origin/feature/post-multi-account",
+        "origin/feature/tiktok-publishing-foundation",
+        "origin/feature/tiktok-shop-foundation",
+        "origin/feature/ui-control-center"
+      ]
+    },
+    {
+      "branch": "feature/tiktok-shop-foundation",
+      "commit": "946b095ea87630aed1b4e0ad206b3fcfa099d879",
+      "preservedBy": [
+        "origin/backup/ai-live-a7d5530-20261018",
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/fal-production-integration",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/production-readiness-integration",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/codex/tiktok-review-website",
+        "origin/feat/flow-browser-worker-mvp",
+        "origin/feature/ai-live",
+        "origin/feature/ai-live-lite",
+        "origin/feature/analytics-learning",
+        "origin/feature/compliance-brain",
+        "origin/feature/fal-wan-primary-provider",
+        "origin/feature/full-auto-mode",
+        "origin/feature/google-veo-provider",
+        "origin/feature/growth-learning-engine",
+        "origin/feature/post-multi-account",
+        "origin/feature/tiktok-shop-foundation",
+        "origin/feature/ui-control-center"
+      ]
+    },
+    {
+      "branch": "feature/ui-control-center",
+      "commit": "ff85ee94f691facac9ed587f28f07e771d12efe0",
+      "preservedBy": [
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/codex/tiktok-review-website",
+        "origin/feat/flow-browser-worker-mvp",
+        "origin/feature/ui-control-center"
+      ]
+    },
+    {
+      "branch": "feature/video-factory",
+      "commit": "7c6044a998f614fe9b8911f8ac48b5e3a40367ec",
+      "preservedBy": [
+        "origin/backup/ai-live-a7d5530-20261018",
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/fal-production-integration",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/production-readiness-integration",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/codex/tiktok-review-website",
+        "origin/feat/flow-browser-worker-mvp",
+        "origin/feature/ai-live",
+        "origin/feature/ai-live-lite",
+        "origin/feature/analytics-learning",
+        "origin/feature/compliance-brain",
+        "origin/feature/compliance-originality",
+        "origin/feature/fal-wan-primary-provider",
+        "origin/feature/full-auto-mode",
+        "origin/feature/google-veo-provider",
+        "origin/feature/growth-learning-engine",
+        "origin/feature/post-multi-account",
+        "origin/feature/tiktok-oauth-foundation",
+        "origin/feature/tiktok-publishing-foundation",
+        "origin/feature/tiktok-shop-foundation",
+        "origin/feature/ui-control-center",
+        "origin/feature/video-factory",
+        "origin/feature/video-provider-benchmark"
+      ]
+    },
+    {
+      "branch": "feature/video-provider-benchmark",
+      "commit": "fd405830e299cebbc346b2cebafc342b837412ee",
+      "preservedBy": [
+        "origin/backup/ai-live-a7d5530-20261018",
+        "origin/claude/backup-google-vids-local-20261018",
+        "origin/claude/phase0-ffmpeg-linux",
+        "origin/claude/phase1-rights-ledger",
+        "origin/claude/phase2-full-path-pilot",
+        "origin/claude/phase2-local-composer",
+        "origin/claude/phase2-thai-voice-graphic",
+        "origin/claude/phase3-creative-quality",
+        "origin/claude/phase4-1-hybrid-ai",
+        "origin/claude/phase4-autonomous-intelligence",
+        "origin/claude/real-product-video-test",
+        "origin/claude/tts-benchmark",
+        "origin/codex/backup-content-before-google-3571383",
+        "origin/codex/claude-handoff-20261014",
+        "origin/codex/content-generation-export",
+        "origin/codex/fal-production-integration",
+        "origin/codex/google-vids-fal-router",
+        "origin/codex/manual-post-export",
+        "origin/codex/production-readiness-integration",
+        "origin/codex/tiktok-icon-review-fix",
+        "origin/codex/tiktok-review-website",
+        "origin/feat/flow-browser-worker-mvp",
+        "origin/feature/ai-live",
+        "origin/feature/ai-live-lite",
+        "origin/feature/analytics-learning",
+        "origin/feature/compliance-brain",
+        "origin/feature/compliance-originality",
+        "origin/feature/fal-wan-primary-provider",
+        "origin/feature/full-auto-mode",
+        "origin/feature/google-veo-provider",
+        "origin/feature/growth-learning-engine",
+        "origin/feature/post-multi-account",
+        "origin/feature/tiktok-oauth-foundation",
+        "origin/feature/tiktok-publishing-foundation",
+        "origin/feature/tiktok-shop-foundation",
+        "origin/feature/ui-control-center",
+        "origin/feature/video-provider-benchmark"
+      ]
+    },
+    {
+      "branch": "main",
+      "commit": "c7db763bda65fc3fa1f57b8d3c2b379e3bbef72b",
+      "preservedBy": [
+        "origin/codex/backup-local-develop-20261014",
+        "origin/codex/backup-local-feature-account-product-assignment-20261014",
+        "origin/codex/backup-local-feature-category-intelligence-20261014",
+        "origin/codex/backup-local-feature-creative-brain-20261014",
+        "origin/codex/backup-local-feature-foundation-20261014",
+        "origin/codex/backup-local-feature-multi-account-brain-20261014",
+        "origin/codex/backup-local-feature-product-radar-20261014",
+        "origin/codex/backup-local-main-20261014"
+      ]
+    }
+  ]
+}

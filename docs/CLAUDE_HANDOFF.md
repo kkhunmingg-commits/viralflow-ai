@@ -1,5 +1,9 @@
 # ViralFlow AI — Claude handoff
 
+> Machine migration update (2026-10-26): read [MACHINE_MIGRATION.md](MACHINE_MIGRATION.md)
+> for the latest LIVE Lite branch, verified remote branch map and remaining private
+> asset transfer. The dated implementation/test details below remain historical.
+
 Prepared 2026-10-14 (Asia/Bangkok). Repository:
 `https://github.com/kkhunmingg-commits/viralflow-ai`.
 

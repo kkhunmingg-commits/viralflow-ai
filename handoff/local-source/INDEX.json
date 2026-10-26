@@ -187,5 +187,26 @@
     "Bytes": 740,
     "SHA256": "b8f0a7c3ffeaaf4180d536704e0556fb2b82ad85bf140b47e21442df7a88fde0",
     "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/digital-human-ui-proof/browser-marker.js",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/digital-human-ui-proof/browser-marker.js.source",
+    "Bytes": 84,
+    "SHA256": "de9f360b261f5ea440acc59771a04777843328c2f273099f81e33029fa5611f2",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/multi-account-live-ui-proof/browser-marker.js",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/multi-account-live-ui-proof/browser-marker.js.source",
+    "Bytes": 11,
+    "SHA256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
+  },
+  {
+    "OriginalPath": ".ai-live-dev/multi-account-live-ui-proof/check.js",
+    "ArchivePath": "handoff/local-source/.ai-live-dev/multi-account-live-ui-proof/check.js.source",
+    "Bytes": 1500,
+    "SHA256": "62d96c797c421d536d1b87442534a3cbccafdcee0793215079dd3417a4fa52cc",
+    "Status": "WIP_ARCHIVE_NOT_INTEGRATED_NOT_EXECUTION_APPROVAL"
   }
 ]

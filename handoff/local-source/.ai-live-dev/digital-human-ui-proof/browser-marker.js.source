@@ -1,0 +1,2 @@
+// Next.js compiles this client-boundary marker away in a browser build.
+export {};

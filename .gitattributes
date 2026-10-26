@@ -1,2 +1,3 @@
 # Preserve exact archived source bytes for checksum-based restoration on Windows.
 handoff/local-source/**/*.source -text
+handoff/migration-20261026/reports/*.md -text

@@ -1,0 +1,18 @@
+(() => {
+  const root = document.querySelector('.live-control-center');
+  const text = root?.innerText || '';
+  const overflow = [...document.querySelectorAll('.live-control-center *')].filter(el => {
+    const rect = el.getBoundingClientRect();
+    return rect.width > 0 && getComputedStyle(el).display !== 'none' && (rect.right > innerWidth + 1 || rect.left < -1);
+  }).map(el => ({tag:el.tagName, className:el.className, text:el.innerText?.slice(0,70)}));
+  return {width:innerWidth, height:innerHeight, documentWidth:document.documentElement.scrollWidth,
+    horizontalOverflow:document.documentElement.scrollWidth > innerWidth,
+    cards:document.querySelectorAll('.live-account-card').length,
+    unknown:text.includes('ยังไม่มีข้อมูล'),capacityUnknown:text.includes('ยังไม่ได้ทดสอบจำนวนห้องพร้อมกัน'),
+    disabledSchedule:document.querySelector('input[type=datetime-local]')?.disabled === true,
+    disabledPlatformOptions:document.querySelector('.live-platform-options fieldset')?.disabled === true,
+    wizardSteps:document.querySelectorAll('.presenter-wizard-steps li').length,
+    technicalStrings:/FFmpeg|MuseTalk|Ditto|CUDA|NVENC|RTMPS?|8766|open_id|UNVERIFIED_CAPACITY/.test(text),
+    errors:window.__uiErrors,overflow,
+    blank:document.body.innerText.trim().length===0,overlay:!!document.querySelector('[data-nextjs-dialog], .vite-error-overlay, #webpack-dev-server-client-overlay')};
+})();
