@@ -283,9 +283,9 @@ export async function getVideoDetail(client:SupabaseClient,owner:string,masterId
   const jobIds=(jobs.data??[]).map(j=>j.id);
   const costs=jobIds.length?await client.from("generation_costs").select("*").eq("owner_id",owner).in("generation_job_id",jobIds).order("created_at",{ascending:false}).limit(200):{data:[],error:null};
   if(costs.error)throw new Error(costs.error.message);
-  let signedUrl:string|null=null;if(master.storage_path){const signed=await client.storage.from(VIDEO_BUCKET).createSignedUrl(String(master.storage_path),900);if(signed.error)throw new Error(signed.error.message);signedUrl=signed.data.signedUrl}
+  let signedUrl:string|null=null,downloadUrl:string|null=null;if(master.storage_path){const [signed,download]=await Promise.all([client.storage.from(VIDEO_BUCKET).createSignedUrl(String(master.storage_path),900),client.storage.from(VIDEO_BUCKET).createSignedUrl(String(master.storage_path),900,{download:"viralflow-master-"+masterId+".mp4"})]);if(signed.error||download.error)throw new Error(signed.error?.message??download.error?.message);signedUrl=signed.data.signedUrl;downloadUrl=download.data.signedUrl}
   const variationRows=await Promise.all((variations.data??[]).map(async v=>{let url:string|null=null;if(v.storage_path){const s=await client.storage.from(VIDEO_BUCKET).createSignedUrl(v.storage_path,900);url=s.data?.signedUrl??null}return {...v,signed_url:url}}));
-  return {master,project,script,account,product,variations:variationRows,jobs:jobs.data??[],costs:costs.data??[],signedUrl};
+  return {master,project,script,account,product,variations:variationRows,jobs:jobs.data??[],costs:costs.data??[],signedUrl,downloadUrl};
 }
 export const videoCostRouter=new CostRouter();
 // Reuse the existing selected-product/script/account safety boundary.
