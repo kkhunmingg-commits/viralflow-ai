@@ -39,4 +39,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ffmpeg
           ffmpeg -hide_banner -filters | grep -q drawtext
+      - name: Test optional Flow browser worker safeguards
+        run: node --test workers/flow-browser/core.test.mjs
       - run: pnpm release:check
