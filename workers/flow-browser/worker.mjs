@@ -4,7 +4,7 @@
  * It never uses private APIs, scrapes credentials, solves CAPTCHA, or posts to TikTok.
  * UI selectors need calibration against the owner's actual page before first submission.
  */
-import { readFile, readdir, mkdir, writeFile, rm, open } from "node:fs/promises";
+import { readFile, readdir, mkdir, writeFile, rm, open, chmod } from "node:fs/promises";
 import { resolve, join, dirname } from "node:path";
 import { createInterface } from "node:readline/promises";
 import process from "node:process";
@@ -33,7 +33,8 @@ async function safeWrite(path, value) {
   await rename(tmp, path);
 }
 async function setup() {
-  for (const dir of [queueDir, readyDir, stateDir, profileDir]) await mkdir(dir, { recursive: true });
+  for (const dir of [queueDir, readyDir, stateDir, profileDir]) await mkdir(dir, { recursive: true, mode: 0o700 });
+  await chmod(profileDir, 0o700);
 }
 async function queued() {
   const names = (await readdir(queueDir)).filter(n => n.endsWith(".json")).sort();
@@ -129,7 +130,7 @@ async function processJob(context, selectors, path) {
   if (state.state === "GENERATING" || state.state === "NEEDS_REVIEW") {
     return console.warn("Manual reconciliation needed. No duplicate Generate:", job.jobId);
   }
-  let downloaded = state.state === "DOWNLOADED" ? state.path : null;
+  let downloaded = state.state === "DOWNLOADED" ? assertContained(readyDir, state.path || "") : null;
   if (!downloaded && shouldGenerate(state)) {
     const page = await context.newPage();
     try {
@@ -171,14 +172,25 @@ async function main() {
     if (arg === "--login") {
       const flow = await browser.newPage();
       await flow.goto(FLOW_URL, { waitUntil: "domcontentloaded" });
-      console.log("Log into Google Flow in the opened browser. Log into ViralFlow in a second tab.");
+      if (files.length) {
+        const first = validateJob(await json(files[0]));
+        const portal = await browser.newPage();
+        await portal.goto(first.portalUrl + "/video-factory/providers", { waitUntil: "domcontentloaded" });
+      }
+      console.log("Sign into Google Flow and ViralFlow in the opened browser windows (do not share this profile).");
       const input = createInterface({ input: process.stdin, output: process.stdout });
       await input.question("Press Enter when both logins are finished: ");
       input.close();
       await flow.close();
       return;
     }
-    if (arg !== "--once") throw new Error("USE_LOGIN_ONCE_OR_DRY_RUN");
+    if (arg === "--inspect") {
+      const page = await browser.newPage();
+      await page.goto(FLOW_URL, { waitUntil: "domcontentloaded" });
+      await page.pause();
+      return;
+    }
+    if (arg !== "--once") throw new Error("USE_LOGIN_ONCE_INSPECT_OR_DRY_RUN");
     const selectors = await json(selectorsPath);
     if (!selectors) throw new Error("SELECTORS_CONFIG_MISSING");
     // Require calibration before opening / submitting a Google job.
