@@ -38,7 +38,7 @@ export function ProviderPanel({settings,jobs,choices,selectedProject,totals,hist
   async function exportFlowJob(jobId:string,label:string){
     const prepared=await googleBriefAction(jobId);
     const payload={schema:"viralflow-flow-job-v1",jobId,prompt:prepared.prompt,instructions:prepared.instructions,
-      imageUrl:prepared.imageUrl??null,label,portalUrl:window.location.origin,createdAt:new Date().toISOString()};
+      imageUrl:("imageUrl" in prepared?prepared.imageUrl:null)??null,label,portalUrl:window.location.origin,createdAt:new Date().toISOString()};
     const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});
     const url=URL.createObjectURL(blob),link=document.createElement("a");
     link.href=url;link.download="flow-job-"+jobId+".json";document.body.appendChild(link);link.click();link.remove();

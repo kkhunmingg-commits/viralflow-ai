@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateJob, inspectMp4, assertContained, safeJobFilename, shouldGenerate } from "./core.mjs";
+import { validateJob, inspectMp4, assertContained, safeJobFilename, shouldGenerate, newResultId } from "./core.mjs";
 
 const id = "11111111-1111-4111-8111-111111111111";
 const valid = { jobId: id, prompt: "Eight second portrait product atmosphere", portalUrl: "https://viralflow.example" };
@@ -30,5 +30,18 @@ test("rejects traversal and ambiguous retry after submission", () => {
   assert.equal(shouldGenerate({ state: "GENERATING" }), false);
   assert.equal(shouldGenerate({ state: "DOWNLOADED" }), false);
   assert.equal(shouldGenerate({ state: "IMPORTED" }), false);
+  assert.equal(shouldGenerate({ state: "NEEDS_REVIEW" }), false);
+  assert.equal(shouldGenerate({ state: "UNKNOWN" }), false);
   assert.equal(shouldGenerate(null), true);
+});
+
+test('selects a new result when Flow prepends it or changes result order', () => {
+  assert.equal(newResultId(['old'], ['new', 'old']), 'new');
+  assert.equal(newResultId(['a', 'b'], ['b', 'a']), null);
+  assert.equal(newResultId(['a', 'b'], ['new', 'b']), 'new');
+});
+test('stops on ambiguous or uncalibrated result identity', () => {
+  assert.throws(() => newResultId(['old'], ['new-1', 'old', 'new-2']), /AMBIGUOUS_NEW_RESULTS/);
+  assert.throws(() => newResultId([], [null]), /CALIBRATE_UNIQUE_RESULT_IDS/);
+  assert.throws(() => newResultId(['same', 'same'], ['same']), /CALIBRATE_UNIQUE_RESULT_IDS/);
 });

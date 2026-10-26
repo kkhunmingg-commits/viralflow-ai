@@ -108,8 +108,8 @@ describe("Phase 11A request security", () => {
   it("keeps representative owner data behind auth.uid RLS predicates", () => {
     const foundation = readFileSync("supabase/migrations/20260914112027_phase_1_foundation.sql", "utf8");
     const video = readFileSync("supabase/migrations/20260915195004_phase_6_video_factory.sql", "utf8");
-    const publishing = readFileSync("supabase/migrations/20260917191816_phase_7b_tiktok_publishing_foundation.sql", "utf8");
-    expect(foundation).toContain("on public.tiktok_accounts for select\nto authenticated\nusing ((select auth.uid()) = owner_id)");
+    const publishing = readFileSync("supabase/migrations/20260917191816_phase_7b_tiktok_publishing_foundation.sql", "utf8").replace(/\r\n/g, "\n");
+    expect(foundation.replace(/\r\n/g, "\n")).toContain("on public.tiktok_accounts for select\nto authenticated\nusing ((select auth.uid()) = owner_id)");
     expect(video).toContain("on public.master_videos for select to authenticated using((select auth.uid())=owner_id)");
     expect(publishing).toContain("on public.publishing_queue\nfor select to authenticated using ((select auth.uid()) = owner_id)");
   });

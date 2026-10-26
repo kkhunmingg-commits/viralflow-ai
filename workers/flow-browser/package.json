@@ -7,6 +7,7 @@
     "test": "node --test core.test.mjs",
     "login": "node worker.mjs --login",
     "pilot": "node worker.mjs --once",
+    "import-only": "node worker.mjs --import-only",
     "dry-run": "node worker.mjs --dry-run"
   },
   "dependencies": {

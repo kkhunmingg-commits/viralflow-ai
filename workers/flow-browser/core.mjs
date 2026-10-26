@@ -57,4 +57,21 @@ export function shouldGenerate(record) {
   return !record || record.state === "NEW";
 }
 
+// Stable DOM identity is required: result order/count can change while Flow renders.
+export function validateResultIds(ids) {
+  if (ids.some(id => typeof id !== 'string' || !id.trim()) || new Set(ids).size !== ids.length) {
+    throw new Error('CALIBRATE_UNIQUE_RESULT_IDS');
+  }
+  return ids;
+}
+
+export function newResultId(before, current) {
+  validateResultIds(before);
+  validateResultIds(current);
+  const previous = new Set(before);
+  const added = current.filter(id => !previous.has(id));
+  if (added.length > 1) throw new Error('AMBIGUOUS_NEW_RESULTS_REVIEW_REQUIRED');
+  return added[0] ?? null;
+}
+
 export const STATES = Object.freeze(["NEW", "GENERATING", "DOWNLOADED", "IMPORTED", "NEEDS_REVIEW"]);
