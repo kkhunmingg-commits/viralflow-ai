@@ -85,3 +85,19 @@ No schema change, no Telegram, no separate dashboard.
 1. Approve (or not) **one** Flow generation for a storyboard context scene, using the compiled prompt shown in Creative Studio. Nothing is generated until then.
 2. Choose how a local storyboard edit should enter Video Factory: a new local-composer master for project `e86d380a…`, or keep the original job for a real Flow result only.
 3. Optional: provide a local model (e.g. Qwen3-4B GGUF, Apache-2.0) and set `CREATIVE_AI_PROVIDER=hybrid` with `LOCAL_LLM_PYTHON`/`LOCAL_LLM_MODEL_PATH` on drive D to switch the director to INTELLIGENT mode at zero per-token cost.
+
+## 8. Owner feedback round: Flow-native production (28 Oct, later)
+
+What happened after the first round:
+
+- The owner approved one Flow generation. I clicked Generate **once** (Veo 3.1 Lite, 9:16, 720p, 8 s, x1, 10 credits shown) after verifying that the project was empty. The context clip (a desk with coffee, no product) was composed with the real Casio photo. The critic passed it, but the **owner rejected it as a cut-and-paste look**. It was **not** imported into job `9dd0e1ba`.
+- The owner supplied an approved reference made in Flow: one continuous photoreal take in which hands lift a product and point to it inside a styled set (lamp, tulips, soft light), with no cards or burned-in text and an audible track at about −15 LUFS.
+
+Changes:
+
+- `creative/owner-taste.ts` stores approved and rejected looks as data, with the reason in Thai and the source file, plus the measured benchmark from the reference. Rejected looks: pasted photo card, gradient kinetic-type slide, static macro push-in, silent track. Approved look: hands in a styled set.
+- `creative/flow-native.ts`, the **Flow-native Shot Director**, is now the default production. It ranks set × hand action × camera options from a category set library, using the real product photo as Flow's reference (ingredient) image. Every prompt pins product fidelity: shape, colours, logo, printed text, and display digits that must not move. Narration comes only from verified facts. Recently used sets and actions are avoided. Ads of 16 or 24 s get several distinct takes, and each take is one generation that the owner must approve.
+- `video/creative-critic.ts` handles a `FLOW_NATIVE_TAKE` as one take by design. It has no cut or text-card requirements. It checks a continuous take, natural motion, audio, no burned-in text, AI disclosure and duplication. Product fidelity and set/hands meaning stay UNKNOWN until a vision model or the owner checks them. An `ownerTaste` check fails any clip that carries a rejected look. `storyboard-composer.ts` now reports its looks (`styleTags`), so its pasted-card edits fail on owner taste. The local multi-shot edit is kept only as a zero-credit fallback.
+- In Creative Studio the Flow-native plan is shown first: the chosen set, hand action, camera and audio, the fidelity risk, the full Flow prompt, and settings with the credit estimate. The panel was verified in Chrome on the real project (logged in as the owner).
+
+Machine signals do not separate a good take from a bad one. The reference and the rejected Casio clip have similar motion and look statistics. The difference is semantic: hands, set and product fidelity. So the critic routes those checks to human review rather than claiming a pass.

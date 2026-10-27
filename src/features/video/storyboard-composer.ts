@@ -12,6 +12,7 @@ import {FFmpegVideoRenderer} from "./renderer";
 import {imageShot,measureLoudness,THAI_FONT_FAMILY,THAI_FONT_FILE,defaultThaiFontPath,wrapThaiCaption} from "./local-composer";
 import {subjectBox} from "./story-director";
 import type {Storyboard,StoryboardScene,Transition} from "../creative/storyboard";
+import type {StyleTag} from "../creative/owner-taste";
 
 export const STORYBOARD_COMPOSER_VERSION="storyboard-composer-v1";
 const W=1080,H=1920,FPS=30,XF=.25,LOUDNESS_TARGET=-14;
@@ -30,7 +31,9 @@ export interface StoryboardComposeInput {
 export interface SceneRenderReport {sceneId:string;layout:string;background:"AI_CLIP"|"GRAPHIC"|"GRAPHIC_SUBSTITUTE_FOR_AI";productAsset:string|null}
 export interface StoryboardComposeResult {
   version:string;outputPath:string;durationSeconds:number;width:number;height:number;hasAudio:boolean;loudnessLufs:number|null;
-  scenes:SceneRenderReport[];audio:"NARRATION_WITH_MUSIC"|"FLOW_OR_LICENSED_MUSIC"|"LOCAL_SYNTH_MUSIC";textEvents:Array<{text:string;start:number;end:number;kind:string}>;
+  scenes:SceneRenderReport[];
+  /** Looks this edit actually contains, so the critic can hold them against the owner's verdicts. */
+  styleTags:StyleTag[];audio:"NARRATION_WITH_MUSIC"|"FLOW_OR_LICENSED_MUSIC"|"LOCAL_SYNTH_MUSIC";textEvents:Array<{text:string;start:number;end:number;kind:string}>;
 }
 
 const XFADE:Record<Transition,string>={CUT:"fade",WHIP:"hblur",FADE:"fade",SLIDE_UP:"slideup",ZOOM:"zoomin"};
@@ -169,5 +172,6 @@ export async function composeStoryboard(input:StoryboardComposeInput):Promise<St
     "-map","0:v","-map","[a]","-t",String(D),"-c:v","copy","-c:a","aac","-b:a","160k","-ar","48000","-movflags","+faststart",resolve(input.outputPath)],input.workDir);
   const media=await new FFmpegVideoRenderer().probe(input.outputPath);
   return {version:STORYBOARD_COMPOSER_VERSION,outputPath:input.outputPath,durationSeconds:media.duration,width:media.width,height:media.height,hasAudio:media.hasAudio,
-    loudnessLufs:await measureLoudness(input.outputPath),scenes:reports,audio:input.narrationPath?"NARRATION_WITH_MUSIC":input.musicPath?"FLOW_OR_LICENSED_MUSIC":"LOCAL_SYNTH_MUSIC",textEvents:events};
+    loudnessLufs:await measureLoudness(input.outputPath),scenes:reports,
+    styleTags:[...new Set(reports.flatMap((r):StyleTag[]=>CARD[r.layout as StoryboardScene["layout"]]?["PASTED_PHOTO_CARD"]:r.layout==="KINETIC_TYPE"||r.layout==="CHECKLIST"?["GRADIENT_KINETIC_TYPE"]:[]))],audio:input.narrationPath?"NARRATION_WITH_MUSIC":input.musicPath?"FLOW_OR_LICENSED_MUSIC":"LOCAL_SYNTH_MUSIC",textEvents:events};
 }

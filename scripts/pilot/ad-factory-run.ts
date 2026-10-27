@@ -73,7 +73,7 @@ async function main(){
     const work=join(OUT,`after-${i+1}-work`),output=join(OUT,`AFTER_${i+1}_${concept.format}_SYNTHETIC_PREVIEW.mp4`);
     await mkdir(work,{recursive:true});
     const composed=await composeStoryboard({board,assets:{[casio.assets[0].id]:PHOTO},credit:CREDIT,workDir:work,outputPath:output});
-    const critique=critiqueVideo(await analyzeVideo(output),{storyboard:board,productPixels:"REAL_ASSET_COMPOSITE",textEvents:composed.textEvents,cost:{flowCredits:0,thb:0,note:"local FFmpeg only; electricity not metered"}});
+    const critique=critiqueVideo(await analyzeVideo(output),{storyboard:board,productPixels:"REAL_ASSET_COMPOSITE",textEvents:composed.textEvents,styleTags:composed.styleTags,cost:{flowCredits:0,thb:0,note:"local FFmpeg only; electricity not metered"}});
     renders.push({concept,critic:crit,storyboard:board,storyboardIssues:issues,flowPlan:flow,composed,critique,output});
   }
   // 5. Before: the clip the owner rejected.

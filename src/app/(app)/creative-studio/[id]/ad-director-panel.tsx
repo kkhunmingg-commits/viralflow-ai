@@ -10,7 +10,7 @@ export async function AdDirectorPanel({owner,projectId}:{owner:string;projectId:
   const client=await createClient();
   let view;try{view=await readAdDirectorView(client,owner,projectId)}catch(error){
     return <section className="panel"><h2>AI Creative Director</h2><p className="muted">ยังแสดงแผนไม่ได้: {error instanceof Error?error.message:String(error)}</p></section>}
-  const {ranking,plan,storyboard,storyboardIssues,flow,evidence}=view,product=ranking.items[0];
+  const {ranking,flowNative,flowNativeError,plan,storyboard,storyboardIssues,flow,evidence}=view,product=ranking.items[0];
   const critique=new Map(plan.critiques.map(c=>[c.conceptId,c]));
   return <section className="panel ad-director">
     <h2>AI Creative Director</h2>
@@ -21,6 +21,16 @@ export async function AdDirectorPanel({owner,projectId}:{owner:string;projectId:
       <li>ความมั่นใจของข้อมูล: {product.dataConfidence.label} ({product.dataConfidence.reasons.join(" · ")})</li>
       <li>สิทธิ์ผลิต: {product.eligibility.eligible?"ผ่าน":`ไม่ผ่าน — ${product.eligibility.blockers.join(" / ")}`}{product.eligibility.warnings.length?` · ข้อควรระวัง: ${product.eligibility.warnings.join(" / ")}`:""}</li></ul>}
     <p className="muted">หลักฐานที่ใช้ได้: ข้อเท็จจริง {evidence.facts} ข้อ · สื่อที่ผ่านสิทธิ์ {evidence.clearedAssets} ชิ้น</p>
+    <h3>แผนผลิตหลัก: Flow-native (ช็อตจริงต่อเนื่อง มือหยิบสินค้าในฉากที่จัดสวย)</h3>
+    {flowNative?<>
+      <p className="muted">{flowNative.tasteBasis.join(" · ")}</p>
+      {flowNative.selected.map(s=><div key={s.id} className="panel">
+        <p><strong>{s.style.nameTh}</strong> · ท่ามือ: {s.action} · กล้อง: {s.camera} · เสียง: {s.audio}</p>
+        <p>ความเสี่ยงสินค้าเพี้ยน: {s.fidelityRisk}{s.fidelityNotes.length?` — ${s.fidelityNotes.join(" / ")}`:""}</p>
+        <details><summary>พรอมป์ที่จะส่งให้ Google Flow (แนบภาพสินค้าจริงเป็นภาพอ้างอิง)</summary><pre className="prompt-preview">{s.prompt}</pre></details></div>)}
+      <p>ตั้งค่า: {flowNative.settings.model} · {flowNative.settings.aspect} · {flowNative.settings.resolution} · {flowNative.settings.seconds} วินาที · x{flowNative.settings.outputs} · {flowNative.generations} ครั้ง ≈ {flowNative.estimatedCredits??"?"} เครดิต — ต้องได้รับอนุมัติจากเจ้าของก่อนกด</p>
+      <details><summary>ทางเลือกอื่นที่ระบบพิจารณา ({flowNative.shots.length})</summary><ul>{flowNative.shots.slice(0,8).map(s=><li key={s.id}>{s.style.nameTh} · {s.action} · คะแนน {s.score} · {s.reasons.join(", ")}</li>)}</ul></details>
+    </>:<p className="error-text">ยังวางแผน Flow-native ไม่ได้: {flowNativeError}</p>}
     <h3>กลุ่มผู้ชมและ Insight</h3>
     <ul>{plan.insight.audience.map(a=><li key={a.text}>{a.text} <span className="muted">({a.status})</span></li>)}
       {plan.insight.differentiators.map(d=><li key={d.text}>จุดต่างที่ยืนยันได้: {d.text} <span className="muted">(EVIDENCED)</span></li>)}</ul>
@@ -32,7 +42,7 @@ export async function AdDirectorPanel({owner,projectId}:{owner:string;projectId:
         <td>{c.id===plan.selectedConceptId?"★ ":""}{c.formatLabel}<br/><span className="muted">{c.angle}</span></td><td>{c.hook.text}</td><td>{c.message}</td><td>{c.cta}</td>
         <td title={r?CRITIC_CRITERIA.map(k=>`${CRITERION_TH[k]} ${r.scores[k]}/10`).join(" · "):""}>{r?.total??"-"}</td><td>{r?.reasons.join(" · ")}</td></tr>})}
     </tbody></table></div>
-    {storyboard&&<><h3>Storyboard ({storyboard.durationSeconds} วินาที · {storyboard.scenes.length} ฉาก)</h3>
+    {storyboard&&<><h3>แผนสำรองแบบตัดต่อในเครื่อง (0 เครดิต — เจ้าของไม่ชอบสไตล์การ์ดแปะ ใช้เมื่อไม่มีงบ Flow เท่านั้น) · Storyboard ({storyboard.durationSeconds} วินาที · {storyboard.scenes.length} ฉาก)</h3>
       {storyboardIssues.length?<p className="error-text">ต้องแก้ก่อนผลิต: {storyboardIssues.map(i=>i.detail).join(" / ")}</p>:<p className="muted">ผ่านการตรวจโครงสร้าง หลักฐาน และสิทธิ์สื่อ</p>}
       <div className="table-wrap"><table><thead><tr><th>เวลา</th><th>บทบาท</th><th>ภาพ</th><th>กล้อง</th><th>ข้อความบนจอ</th><th>เสียง</th><th>หลักฐาน</th></tr></thead><tbody>
         {storyboard.scenes.map(s=><tr key={s.id}><td>{s.start.toFixed(1)}–{s.end.toFixed(1)}s</td><td>{s.role}</td><td>{s.shot}<br/><span className="muted">{s.background.kind==="AI_SCENE"?"ฉากบริบทจาก Flow (ไม่มีสินค้า)":"กราฟิกในเครื่อง"}{s.product?" + ภาพสินค้าจริง":""}</span></td>

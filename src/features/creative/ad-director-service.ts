@@ -9,11 +9,16 @@ import {configuredLocalLLM} from "./local-agent";
 import {serverEnv} from "@/lib/server-env";
 import {rankProducts,unknown,type ProductRankingReport} from "../products/intelligence";
 import type {StrategyAsset,StrategyFact} from "./strategist";
+import {planFlowNative,type FlowNativePlan} from "./flow-native";
 
 /** Owner-visible director view for one Creative Project: reads only, writes nothing, spends nothing.
  * Uses the local model when the owner configured one; never calls a paid provider from a page view. */
 export interface AdDirectorView {
-  ranking:ProductRankingReport;plan:DirectorPlan;storyboard:Storyboard|null;storyboardIssues:StoryboardIssue[];flow:FlowGenerationPlan|null;
+  ranking:ProductRankingReport;
+  /** The default production: one Flow take per shot in the look the owner approved. */
+  flowNative:FlowNativePlan|null;flowNativeError:string|null;
+  /** The older multi-shot edit plan, kept as a zero-credit fallback. */
+  plan:DirectorPlan;storyboard:Storyboard|null;storyboardIssues:StoryboardIssue[];flow:FlowGenerationPlan|null;
   evidence:{facts:number;clearedAssets:number};
 }
 const kindOf=(a:StrategyAsset):DirectorInput["assets"][number]["kind"]=>a.kind==="REAL_FOOTAGE"||a.kind==="COMPARISON_FOOTAGE"?(a.depictsOperation?"OPERATION_FOOTAGE":"REAL_FOOTAGE"):"REAL_IMAGE";
@@ -44,5 +49,7 @@ export async function readAdDirectorView(client:SupabaseClient,owner:string,proj
   let storyboard:Storyboard|null=null,issues:StoryboardIssue[]=[],flow:FlowGenerationPlan|null=null;
   if(selected){try{storyboard=buildStoryboard(selected,input);issues=validateStoryboard(storyboard,input);flow=compileFlowPlan(storyboard,context.product.title,{maxGenerations:1,observedCreditsPerGeneration:10})}
     catch(error){issues=[{code:"STORYBOARD_UNAVAILABLE",detail:error instanceof Error?error.message:String(error)}]}}
-  return {ranking,plan,storyboard,storyboardIssues:issues,flow,evidence:{facts:input.facts.length,clearedAssets:input.assets.filter(a=>a.rightsCleared).length}};
+  let flowNative:FlowNativePlan|null=null,flowNativeError:string|null=null;
+  try{flowNative=planFlowNative({product:input.product,facts:input.facts,assets:input.assets},{creditsPerGeneration:10})}catch(error){flowNativeError=error instanceof Error?error.message:String(error)}
+  return {ranking,flowNative,flowNativeError,plan,storyboard,storyboardIssues:issues,flow,evidence:{facts:input.facts.length,clearedAssets:input.assets.filter(a=>a.rightsCleared).length}};
 }

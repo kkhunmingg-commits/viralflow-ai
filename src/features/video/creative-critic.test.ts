@@ -32,7 +32,19 @@ describe("video critic",()=>{
     expect(verdict.failureRecord).toMatchObject({rejected:true,cost:{flowCredits:10}});
     expect(verdict.semantic.status).toBe("UNKNOWN");
   });
-  it("renders a storyboard into a multi-shot advert that passes both gates (synthetic fixture, local only)",async()=>{
+  it("treats an approved-style continuous take as review-ready, not as a failed edit",()=>{
+    // Signals measured on the owner's approved reference: one take, no cuts, natural motion, audible track.
+    const take:VideoSignals={...staticClip,loudnessLufs:-15.1,truePeakDb:-2,maxVolumeDb:-2,distinctLooks:2,longestStaticSeconds:4.25,meanAdjacentDistance:2.71,visualChanges:1};
+    const verdict=critiqueVideo(take,{production:"FLOW_NATIVE_TAKE",productPixels:"AI_RENDERED_FROM_REFERENCE",aigcDisclosed:true,styleTags:["HANDS_IN_STYLED_SET"]});
+    expect(verdict.technical.status).toBe("TECHNICAL_PASS");
+    expect(verdict.creative.status).toBe("CREATIVE_REVIEW");
+    expect(verdict.decision).toBe("READY_FOR_OWNER_REVIEW");
+    expect(verdict.visual.checks.find(c=>c.key==="productAccuracy")!.status).toBe("UNKNOWN");
+    // The rejected Casio take is still rejected under the same rules: silent and a rejected look.
+    const casio=critiqueVideo(staticClip,{production:"FLOW_NATIVE_TAKE",productPixels:"AI_RENDERED_FROM_REFERENCE",styleTags:["STATIC_MACRO_PUSH_IN","SILENT_TRACK"]});
+    expect(casio.creative.status).toBe("CREATIVE_FAIL");expect(casio.decision).toBe("REVISE_STORYBOARD_OR_EDIT");
+  });
+  it("renders a storyboard into a multi-shot edit and rejects its pasted-card look by owner taste (synthetic fixture, local only)",async()=>{
     const dir=await mkdtemp(join(tmpdir(),"storyboard-test-"));
     try{
       const photo=join(dir,"product.png");
@@ -45,11 +57,13 @@ describe("video critic",()=>{
       expect(composed).toMatchObject({width:1080,height:1920,hasAudio:true,audio:"LOCAL_SYNTH_MUSIC"});
       expect(composed.durationSeconds).toBeCloseTo(8,1);expect(Math.abs(composed.loudnessLufs!+14)).toBeLessThanOrEqual(2);
       expect(composed.textEvents.some(e=>e.kind==="CTA")).toBe(true);
-      const verdict=critiqueVideo(await analyzeVideo(out),{storyboard:board,productPixels:"REAL_ASSET_COMPOSITE",textEvents:composed.textEvents});
+      expect(composed.styleTags).toContain("PASTED_PHOTO_CARD");
+      const verdict=critiqueVideo(await analyzeVideo(out),{storyboard:board,productPixels:"REAL_ASSET_COMPOSITE",textEvents:composed.textEvents,styleTags:composed.styleTags});
       expect(verdict.technical.status).toBe("TECHNICAL_PASS");
-      expect(verdict.creative.status).toBe("CREATIVE_PASS");
       expect(verdict.signals.distinctLooks).toBeGreaterThanOrEqual(3);
-      expect(verdict.decision).toBe("READY_FOR_OWNER_REVIEW");
+      // Mechanically sound, but the owner rejected this look, so it goes back to the director.
+      expect(verdict.creative.checks.filter(c=>c.status==="FAIL").map(c=>c.key)).toEqual(["ownerTaste"]);
+      expect(verdict.decision).toBe("REVISE_STORYBOARD_OR_EDIT");
     }finally{await rm(dir,{recursive:true,force:true})}
   },300000);
 });

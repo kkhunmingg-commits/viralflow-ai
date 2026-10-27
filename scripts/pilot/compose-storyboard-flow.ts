@@ -19,7 +19,7 @@ async function main(){
   const composed=await composeStoryboard({board:storyboard,assets:{[storyboard.scenes.find(s=>s.product)!.product!.assetId]:PHOTO},aiClips:{[aiScene.id]:clip},
     credit:CREDIT,workDir:join(out,"work"),outputPath:output});
   const flowSha=createHash("sha256").update(await readFile(clip)).digest("hex"),finalSha=createHash("sha256").update(await readFile(output)).digest("hex");
-  const critique=critiqueVideo(await analyzeVideo(output),{storyboard,productPixels:"REAL_ASSET_COMPOSITE",textEvents:composed.textEvents,
+  const critique=critiqueVideo(await analyzeVideo(output),{storyboard,productPixels:"REAL_ASSET_COMPOSITE",textEvents:composed.textEvents,styleTags:composed.styleTags,
     cost:{flowCredits:10,thb:null,note:"one owner-approved Veo 3.1 Lite generation; THB value of credits unknown"}});
   await writeFile(join(out,"compose-report.json"),JSON.stringify({flowClip:clip,flowSha,output,finalSha,composed,critique},null,2),"utf8");
   console.log(JSON.stringify({output,finalSha,scenes:composed.scenes,loudness:composed.loudnessLufs,technical:critique.technical.status,creative:critique.creative.status,decision:critique.decision,reasons:critique.reasonsTh},null,1));

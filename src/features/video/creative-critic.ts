@@ -9,6 +9,7 @@ import {spawn} from "node:child_process";
 import {ffmpegBinary} from "./ffmpeg-binary";
 import {FFmpegVideoRenderer} from "./renderer";
 import type {Storyboard} from "../creative/storyboard";
+import {OWNER_STYLE_VERDICTS,rejectedTags,type ProductionStyle,type StyleTag} from "../creative/owner-taste";
 
 export const CREATIVE_CRITIC_VERSION="video-creative-critic-v1";
 export type CheckStatus="PASS"|"FAIL"|"UNKNOWN";
@@ -24,7 +25,13 @@ export interface VideoSignals {
 export interface CriticContext {
   storyboard?:Storyboard|null;
   /** How the product pixels got into the clip; AI_RECONSTRUCTED means a model redrew the product. */
-  productPixels:"REAL_ASSET_COMPOSITE"|"AI_RECONSTRUCTED"|"UNKNOWN";
+  productPixels:"REAL_ASSET_COMPOSITE"|"AI_RECONSTRUCTED"|"AI_RENDERED_FROM_REFERENCE"|"UNKNOWN";
+  /** FLOW_NATIVE_TAKE is one continuous photoreal take by design; it is not judged on cuts or text cards. */
+  production?:ProductionStyle;
+  /** Looks present in the clip, from the editor or the plan; rejected looks fail against the owner's taste. */
+  styleTags?:StyleTag[];
+  /** True when the plan carries an AI-generated disclosure for posting. */
+  aigcDisclosed?:boolean;
   textEvents?:Array<{text:string;start:number;end:number;kind:string}>;
   previousClipHashes?:Array<{id:string;hashes:string[]}>;
   /** Semantic result from a vision model if one is allowed; null keeps those checks UNKNOWN. */
@@ -121,6 +128,22 @@ export function critiqueVideo(s:VideoSignals,ctx:CriticContext):VideoCritique{
     c("notDuplicate",nearest?nearest.d>10:true,nearest?`ใกล้คลิป ${nearest.id} ระยะเฉลี่ย ${nearest.d.toFixed(1)} bit`:"ไม่มีคลิปเก่าให้เทียบ"),
     c("noDeception",ctx.productPixels==="AI_RECONSTRUCTED"?false:board?true:null,ctx.productPixels==="AI_RECONSTRUCTED"?"ภาพสินค้าที่ AI สร้างอาจทำให้เข้าใจผิดว่าเป็นของจริง":board?"ข้อความทั้งหมดมาจาก Storyboard ที่ผ่านการตรวจหลักฐาน":"ไม่มีแผนให้ตรวจข้อความ (UNKNOWN)"),
   ];
+  const rejected=rejectedTags(),bad=(ctx.styleTags??[]).filter(t=>rejected.has(t));
+  const taste=c("ownerTaste",bad.length?false:true,bad.length?`เจ้าของเคยปฏิเสธสไตล์นี้: ${bad.map(t=>OWNER_STYLE_VERDICTS.find(v=>v.tag===t)?.reasonTh).join(" / ")}`:"ไม่มีสไตล์ที่เจ้าของเคยปฏิเสธ");
+  if(ctx.production==="FLOW_NATIVE_TAKE"){
+    // A continuous take is the approved look; meaning and product fidelity need eyes (vision model or owner).
+    visual.splice(0,visual.length,
+      c("productAccuracy",ctx.vision?ctx.vision.productMatches:null,ctx.vision?"vision model เทียบกับภาพอ้างอิง":"สินค้าเรนเดอร์โดย AI จากภาพอ้างอิง — ต้องตรวจโลโก้/ตัวอักษร/ตัวเลขทุกเฟรม (UNKNOWN)"),
+      c("naturalMotion",s.meanAdjacentDistance>=1&&s.frozenSeconds<=1,`การเคลื่อนไหวเฉลี่ย ${s.meanAdjacentDistance} bit/เฟรม, freeze ${s.frozenSeconds}s`),
+      c("noBurnedInText",copy.length===0,copy.length?"มีข้อความแปะบนภาพ":"ไม่มีการ์ดหรือข้อความแปะ ตามสไตล์ที่เจ้าของอนุมัติ"));
+    creative.splice(0,creative.length,
+      c("continuousTake",s.sceneCuts.length===0&&s.visualChanges<=1,`ตัดภาพ ${s.sceneCuts.length} ครั้ง`),
+      creative.find(x=>x.key==="audioPresence")??c("audioPresence",false,"ไม่มีเสียง"),
+      c("notDuplicate",nearest?nearest.d>10:true,nearest?`ใกล้คลิป ${nearest.id}`:"ไม่มีคลิปเก่าให้เทียบ"),
+      c("aigcDisclosed",ctx.aigcDisclosed===true,ctx.aigcDisclosed?"แผนโพสต์ระบุว่าเป็นเนื้อหา AI":"ยังไม่ได้ระบุว่าเป็นเนื้อหา AI"),
+      c("setAndHandsMeaning",ctx.vision?true:null,"ฉาก/มือ/อารมณ์ภาพต้องให้คนหรือ vision model ตรวจ (UNKNOWN)"));
+  }
+  creative.push(taste);
   const techPass=technical.every(x=>x.status==="PASS"),creativeFail=[...creative,...visual].some(x=>x.status==="FAIL"),creativeUnknown=[...creative,...visual].some(x=>x.status==="UNKNOWN");
   const creativeStatus=creativeFail?"CREATIVE_FAIL":creativeUnknown?"CREATIVE_REVIEW":"CREATIVE_PASS";
   const decision=!techPass||creativeFail?"REVISE_STORYBOARD_OR_EDIT":"READY_FOR_OWNER_REVIEW";
