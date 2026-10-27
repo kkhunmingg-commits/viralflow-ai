@@ -105,8 +105,8 @@ export function heuristicConcepts(input: DirectorInput, insight: ConsumerInsight
     const points = (format === "CINEMATIC_HERO" ? facts.slice(0, 1) : facts.slice(0, 2)).map(f => ({ factId: f.id, text: f.text }));
     const audience = insight.audience[i % insight.audience.length].text, need = insight.needs[i % insight.needs.length]?.text ?? "";
     const visual = {
-      PROBLEM_SOLUTION: `ฉากบริบทปัญหา: ${book.contextScenes[0]}`, CURIOSITY: "เปิดด้วยภาพมาโครสินค้าจริงที่ยังไม่บอกว่าคืออะไร แล้วค่อยเฉลย",
-      LIFESTYLE: `ฉากกราฟิก/บรรยากาศชีวิตประจำวัน (${book.contextScenes[0]}) ตัดเข้าภาพสินค้าจริง`, PRODUCT_DETAIL: "ซูมรายละเอียดสินค้าจริงทีละจุดพร้อม callout",
+      PROBLEM_SOLUTION: book.contextScenes[0], CURIOSITY: "เปิดด้วยภาพมาโครสินค้าจริงที่ยังไม่บอกว่าคืออะไร แล้วค่อยเฉลย",
+      LIFESTYLE: book.contextScenes[0], PRODUCT_DETAIL: "ซูมรายละเอียดสินค้าจริงทีละจุดพร้อม callout",
       BUYING_GUIDE: "การ์ดเช็กลิสต์ 2–3 ข้อ สลับกับภาพสินค้าจริง", COMPARISON: "แบ่งจอเทียบจากสเปกที่ยืนยัน", CINEMATIC_HERO: "แสงกวาดผ่านสินค้าจริงบนฉากโทนแบรนด์",
       UGC_STORY: "ฟุตเทจใช้งานจริงที่ได้รับสิทธิ์ เล่าแบบผู้สร้างคอนเทนต์ (ไม่อ้างเป็นลูกค้า)", ASMR_SENSORY: "เสียงและภาพระยะใกล้จากฟุตเทจจริง",
     }[format];

@@ -49,7 +49,7 @@ const PLAYBOOKS: CategoryPlaybook[] = [
     ],
     formats: ["PRODUCT_DETAIL", "LIFESTYLE", "CINEMATIC_HERO", "BUYING_GUIDE", "CURIOSITY", "PROBLEM_SOLUTION"],
     hooks: { ...generalHooks, LIFESTYLE: ["ชีวิตวุ่นแค่ไหน ข้อมือก็ไม่ต้องหนัก", "สำหรับคนที่ชอบความเรียบง่าย"], PRODUCT_DETAIL: ["ซูมดูทุกปุ่มก่อนซื้อ", "หน้าปัดนี้บอกอะไรบ้าง?"] },
-    contextScenes: ["busy morning desk with phone notifications, laptop and coffee, no wristwatch visible", "city commute motion blur, abstract", "calm minimalist desk at dawn"],
+    contextScenes: ["busy weekday on a small home desk: a steaming coffee cup, an open paper planner, sticky notes and keys, warm window light, slightly hurried mood, no people, no devices or screens", "city commute motion blur, abstract", "calm minimalist desk at dawn"],
     forbiddenClaims: [...FORBIDDEN_COMMON, /กันน้ำ\s*\d+\s*(เมตร|ม\.)/], forbiddenNote: "ห้ามอ้างระดับกันน้ำ ความทนทาน หรือฟังก์ชันที่ไม่มีในข้อเท็จจริงที่บันทึก" },
   { family: "BEAUTY",
     audiences: ["คนที่ดูแลผิวทุกวันและอ่านส่วนผสมก่อนซื้อ", "มือใหม่ที่อยากได้ขั้นตอนง่าย"],
