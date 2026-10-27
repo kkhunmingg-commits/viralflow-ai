@@ -7,6 +7,7 @@ import { approveEvidenceStrategyAction,editCreativeAction,generateEvidenceStrate
 import {storedProductionStrategy} from "@/features/creative/production-gate";
 import {createVideoFromCreativeAction} from "../../video-factory/actions";
 import {uploadOwnerVoiceAction} from "../../video-factory/rights/actions";
+import {AdDirectorPanel} from "./ad-director-panel";
 const money=(n:number|string)=>new Intl.NumberFormat("th-TH",{style:"currency",currency:"USD",minimumFractionDigits:4}).format(Number(n));
 export default async function CreativeProjectPage({params}:{params:Promise<{id:string}>}){
   const {id}=await params,client=await createClient(),{data}=await client.auth.getUser();if(!data.user)redirect("/login");
@@ -15,6 +16,7 @@ export default async function CreativeProjectPage({params}:{params:Promise<{id:s
   return <><PageHeading eyebrow="CREATIVE PROJECT" title={context.product.title} description={`${context.account.name} · ${context.account.mode} · Assignment ${context.assignment.score.toFixed(2)}`} action={<Link className="secondary-action" href="/creative-studio">← Creative Studio</Link>}/>
     {project.selected_script_id&&<Link className="secondary-action" href={`/video-factory/providers?project=${id}`}>Google Vids / fal · เลือกบริการและวงเงิน</Link>}
     <section className="panel creative-context"><div><strong>เหตุผลจาก Assignment</strong><p>{context.assignment.reason}</p></div><div><strong>Product / Category</strong><p>Momentum {context.product.momentum} · Category {context.category.momentum} · Commercial {context.category.commercialOpportunity}</p></div><div><strong>Account fit</strong><p>{context.signals.accountProductFit} · Final Opportunity {context.signals.finalViralOpportunity}</p></div></section>
+    <AdDirectorPanel owner={data.user.id} projectId={id}/>
     <div className="creative-generate"><form action={generateEvidenceStrategyAction}><input type="hidden" name="projectId" value={id}/><button className="primary-action">{angles.length?"ให้ AI คิดแนวทางใหม่":"ให้ AI วางแผนคอนเทนต์"}</button></form>{project.selected_script_id?<form action={createVideoFromCreativeAction}><input type="hidden" name="projectId" value={id}/><button className="primary-action" disabled={angles.find(a=>a.id===project.selected_angle_id)?.policy_status!=="SAFE"}>เตรียมวิดีโอ</button></form>:null}<span className="muted">AI เลือกแนวทางให้ · ตรวจข้อเท็จจริงและสิทธิ์ใช้ภาพก่อนผลิต</span></div>
     {project.selected_script_id&&<details className="content-product-input"><summary>อัปโหลดเสียงพากย์ของฉัน</summary><form action={uploadOwnerVoiceAction} className="content-form"><input type="hidden" name="projectId" value={id}/>
       <label>ไฟล์เสียง (ไม่เกิน 8 วินาที และไม่เกิน 900 KB)<input name="voice" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/webm,audio/ogg" required/></label>
