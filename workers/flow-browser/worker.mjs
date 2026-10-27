@@ -8,7 +8,7 @@ import { readFile, readdir, mkdir, writeFile, rm, open, chmod, copyFile } from "
 import { resolve, join, dirname } from "node:path";
 import { createInterface } from "node:readline/promises";
 import process from "node:process";
-import { validateJob, inspectMp4, safeJobFilename, assertContained, shouldGenerate, validateResultIds, newResultId } from "./core.mjs";
+import { validateJob, inspectMp4, safeJobFilename, assertContained, shouldGenerate, validateResultIds, newResultId, isFlowLocation } from "./core.mjs";
 import { inspectVideo, probeBinary } from './media.mjs';
 import { importTarget } from './portal.mjs';
 
@@ -18,7 +18,7 @@ const readyDir = join(root, "ready");
 const stateDir = join(root, "state");
 const profileDir = join(root, "chrome-profile");
 const selectorsPath = resolve(process.env.FLOW_SELECTORS || join(process.cwd(), "selectors.json"));
-const FLOW_URL = "https://labs.google/fx/tools/flow";
+const FLOW_URL = "https://flow.google.com/";
 const arg = process.argv[2] || "--dry-run";
 const MAX_WAIT_MS = 12 * 60_000;
 
@@ -95,7 +95,7 @@ async function downloadIngredient(page, input, job) {
 }
 async function prepareFlow(page, selectors, job) {
   await page.goto(FLOW_URL, { waitUntil: "domcontentloaded", timeout: 60_000 });
-  if (!page.url().startsWith(FLOW_URL)) throw new Error("FLOW_LOGIN_REQUIRED");
+  if (!isFlowLocation(page.url())) throw new Error("FLOW_LOGIN_REQUIRED");
   if (selectors.newProject) await page.locator(selectors.newProject).click({ timeout: 10_000 });
   if (selectors.videoMode) await page.locator(selectors.videoMode).click({ timeout: 10_000 });
   if (selectors.portraitMode) await page.locator(selectors.portraitMode).click({ timeout: 10_000 });

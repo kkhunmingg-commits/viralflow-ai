@@ -1,9 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validateJob, inspectMp4, assertContained, safeJobFilename, shouldGenerate, newResultId } from "./core.mjs";
+import { validateJob, inspectMp4, assertContained, safeJobFilename, shouldGenerate, newResultId, isFlowLocation } from "./core.mjs";
 
 const id = "11111111-1111-4111-8111-111111111111";
 const valid = { jobId: id, prompt: "Eight second portrait product atmosphere", portalUrl: "https://viralflow.example" };
+
+test('recognizes the current official Flow domain and legacy entry without accepting lookalikes', () => {
+  for (const url of ['https://flow.google.com/?pli=1', `https://flow.google.com/project/${id}`, 'https://labs.google/fx/tools/flow', 'https://labs.google/fx/tools/flow/project/1']) {
+    assert.equal(isFlowLocation(url), true, url);
+  }
+  for (const url of ['https://flow.google.com.evil.example/', 'https://flow.google.com@evil.example/', 'https://user@flow.google.com/', 'http://flow.google.com/', 'https://flow.google.com:444/', 'https://accounts.google.com/', 'https://labs.google/fx/tools/flow-lookalike', 'invalid']) {
+    assert.equal(isFlowLocation(url), false, url);
+  }
+});
 
 test("parses valid Flow handoff without credentials", () => {
   const job = validateJob(valid);

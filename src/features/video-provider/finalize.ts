@@ -13,6 +13,8 @@ import { DeterministicVideoQualityEvaluator } from "@/features/video/quality";
 import { videoStoragePath, ownsVideoStoragePath } from "@/features/video/storage";
 import type { VideoRenderInput } from "@/features/video/types";
 import type { ProviderId } from "./contracts";
+import {reviewedProductionConcept} from "../creative/production-gate";
+import {recordRealMediaUsages,selectRealMedia} from "../video/real-media-master";
 export interface ProviderCreativeSource { project: Record<string,unknown>; product: Record<string,unknown>; script: Record<string,unknown>; angle: Record<string,unknown>; input: VideoRenderInput; }
 function checked(result: {error:unknown}) { if (result.error) throw new Error("PROVIDER_STORAGE_FAILED"); }
 export async function finalizeProviderMaster(admin: SupabaseClient, owner: string, job: {id:string;generation_job_id:string;tiktok_account_id:string;creative_project_id:string;provider:ProviderId;estimated_cost_usd:number;checkpoint?:{geminiRequest?:{task:string};usageCostUsd?:number|null}},
@@ -21,10 +23,14 @@ export async function finalizeProviderMaster(admin: SupabaseClient, owner: strin
   if(voice)await validateNarrationAudio(new Blob([new Uint8Array(voice)]),8);
   const prior=await admin.from("master_videos").select("id,status,generation_job_id").eq("owner_id",owner).eq("creative_project_id",job.creative_project_id).maybeSingle(); checked(prior);
   if (prior.data && prior.data.generation_job_id!==job.generation_job_id) throw new Error("EXISTING_MASTER_REQUIRES_REVIEW");
+  const concept=reviewedProductionConcept({...source,account:{id:job.tiktok_account_id}},owner);
+  const cleared=concept&&["REAL_IMAGE_MOTION","REAL_FOOTAGE_EDIT"].includes(concept.production.method)?await selectRealMedia(admin,owner,
+    {productId:String(source.product.id),accountId:job.tiktok_account_id,creativeProjectId:job.creative_project_id,evidenceIds:concept.production.evidenceIds,at:new Date()}):null;
   const asset = await admin.from("media_assets").select("storage_path").eq("owner_id",owner).eq("product_id",source.product.id).eq("asset_type","PRODUCT_IMAGE").in("source_type",["UPLOAD","PRODUCT"]).order("created_at",{ascending:false}).limit(1).maybeSingle();
   const textOnly=job.provider==="gemini_omni_api"&&job.checkpoint?.geminiRequest?.task==="text_to_video";
   checked(asset); if ((!asset.data || !ownsVideoStoragePath(owner,asset.data.storage_path))&&!textOnly) throw new Error("REAL_PRODUCT_IMAGE_REQUIRED");
-  const reference=asset.data&&ownsVideoStoragePath(owner,asset.data.storage_path)?await admin.storage.from("video-assets").download(asset.data.storage_path):null;
+  const referencePath=cleared?.clips.find(c=>c.kind==="IMAGE")?.storagePath??asset.data?.storage_path;
+  const reference=referencePath&&ownsVideoStoragePath(owner,referencePath)?await admin.storage.from("video-assets").download(referencePath):null;
   if(reference){checked(reference);if(!reference.data||reference.data.size>12_000_000)throw new Error("REAL_PRODUCT_IMAGE_REQUIRED");}
   const dir=join(tmpdir(),"viralflow-provider",job.id,randomUUID()); await mkdir(dir,{recursive:true});
   try {
@@ -49,8 +55,9 @@ export async function finalizeProviderMaster(admin: SupabaseClient, owner: strin
       quality_score:quality.score,quality_status:quality.status,quality_explanation_json:{...quality.explanation,assistedImport:job.provider==="google_vids_omni",sourceProvenance:job.provider==="google_vids_omni"?"OWNER_ATTESTED":"PROVIDER_RESPONSE",costBasis:job.provider==="google_vids_omni"?"UNKNOWN_ACCOUNT_QUOTA":job.provider==="gemini_omni_api"?"PROVIDER_USAGE_ESTIMATE_PENDING_BILLING":"ESTIMATED_PENDING_BILLING",usageCostUsd:job.checkpoint?.usageCostUsd??null,thaiNarrationVerified:false},
       estimated_cost_usd:job.estimated_cost_usd,status:quality.status==="REJECT"?"FAILED":"READY"},{onConflict:"owner_id,creative_project_id"}).select("id,quality_status").single(); checked(master);
     checked(await admin.from("media_assets").upsert({owner_id:owner,product_id:source.product.id,creative_project_id:job.creative_project_id,
-      asset_type:"VIDEO",source_type:job.provider==="google_vids_omni"?"UPLOAD":"GENERATED",storage_path:path,mime_type:"video/mp4",provider:job.provider,
+      asset_type:"VIDEO",source_type:job.provider==="google_vids_omni"?"UPLOAD":"GENERATED",storage_path:path,mime_type:"video/mp4",provider:job.provider,model:"provider-import-composition-v1",
       width:composed.media.width,height:composed.media.height,duration_seconds:composed.media.duration,checksum:createHash("sha256").update(result).digest("hex")},{onConflict:"owner_id,storage_path"}));
+    if(cleared)await recordRealMediaUsages(admin,owner,master.data!.id,{...cleared,voice:voice?cleared.voice:null},`${job.provider}:assisted-composition`);
     checked(await admin.from("generation_jobs").update({status:"COMPLETED",master_video_id:master.data!.id,output_json:{masterId:master.data!.id,quality,recordedCostUsd:null},completed_at:new Date().toISOString()}).eq("owner_id",owner).eq("id",job.generation_job_id));
     return master.data!;
   } finally {await rm(dir,{recursive:true,force:true});}

@@ -1,5 +1,7 @@
 # Flow pilot continuation — 27 October 2026
 
+Historical checkpoint. See [28 October continuation](FLOW_PILOT_20261028.md) for the subsequently approved/applied Local callback, owner role, rights schema, real product import, Creative Brain project and authenticated Flow UI preparation. The unresolved-state descriptions below reflect the earlier checkpoint, not the latest live state.
+
 Workspace `D:\ViralFlowAI`, branch `codex/flow-drive-d-restore-20261026`, continuing Draft PR #10. No merge or production deployment. The owner explicitly approved the single queue migration below, which has now been applied and verified; other changes remain unapproved.
 
 ## Completed

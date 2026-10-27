@@ -19,7 +19,7 @@ function clientFor(denyClaim=false){
     product_assignments:[{id:"assignment",owner_id:"owner",score_id:"fit"}],tiktok_accounts:[{id:"pilot",owner_id:"owner"}],
     products:[{id:"mop",owner_id:"owner",external_provider:"fixture",category_key:"home"}],account_product_scores:[{id:"fit",owner_id:"owner"}]};
   const writes: Array<{table:string;patch:Row;filters:Array<[string,unknown]>}>=[];
-  const client={from(table:string){const filters:Array<[string,unknown]>=[];let patch:Row|null=null;
+  const client={auth:{getUser:vi.fn(async()=>({data:{user:{id:"owner",app_metadata:{viralflow_role:"developer"}}},error:null}))},from(table:string){const filters:Array<[string,unknown]>=[];let patch:Row|null=null;
     const execute=(single:boolean)=>{
       const found=(rows[table]??[]).filter(row=>filters.every(([k,v])=>row[k]===v));
       if(patch){writes.push({table,patch,filters:[...filters]});if(denyClaim&&patch.status==="GENERATING")return {data:null,error:null};found.forEach(row=>Object.assign(row,patch));}
@@ -67,6 +67,26 @@ describe("local-only real creative runtime wiring (model transport separately mo
     mocks.resources.mockResolvedValue({resources:{realAccount:true,optedIn:false}});const state=clientFor();
     await expect(generateEvidenceStrategyProject(state.client,"owner","project")).rejects.toThrow("CREATIVE_ACCOUNT_AUTOMATION_NOT_AUTHORIZED");
     expect(mocks.plan).not.toHaveBeenCalled();expect(state.writes).toEqual([]);
+  });
+  it("plans a product for explicit offline owner selection without granting automatic participation",async()=>{
+    mocks.env.creativeAIProvider="evidence-rubric";
+    const context=creativeFixture("GROWTH","home");context.account.id="pilot";context.product.id="mop";
+    context.account.mode="GROWTH";context.assignment.purpose="OWNER_OFFLINE_PRODUCT";context.assignment.score=0;mocks.context.mockReset().mockReturnValue(context);
+    mocks.resources.mockResolvedValue({resources:{ownerId:"owner",now:new Date("2026-10-13T12:00:00Z"),realAccount:true,optedIn:false,affiliateEligible:false,
+      facts:[{id:"fact-1",text:"หน้าปัดดิจิทัล",source:"PDP",reference:"manufacturer",verified:true,capturedAt:"2026-10-13T10:00:00Z",productId:"mop",role:"OBSERVATION"}],
+      assets:[{id:"image",kind:"REAL_IMAGE",source:"AUTHORIZED_CATALOG",reference:"ledger",rightsConfirmed:true,reviewed:true,productId:"mop"}]}});
+    const state=clientFor(),result=await generateEvidenceStrategyProject(state.client,"owner","project");
+    expect(result).toMatchObject({cost:0,humanReview:"PENDING"});
+    expect(result.intelligence.plan.concepts.some(c=>c.production.method==="REAL_IMAGE_MOTION"&&c.production.ready)).toBe(true);
+    expect(state.writes.every(w=>w.table!=="tiktok_accounts"&&w.table!=="auto_account_discovery"&&w.table!=="account_product_scores")).toBe(true);
+    expect(mocks.plan).not.toHaveBeenCalled();
+  });
+  it("never lets an automatic worker execute an offline owner selection",async()=>{
+    mocks.env.creativeAIProvider="evidence-rubric";
+    const context=creativeFixture("GROWTH","home");context.account.mode="GROWTH";context.assignment.purpose="OWNER_OFFLINE_PRODUCT";mocks.context.mockReset().mockReturnValue(context);
+    mocks.resources.mockResolvedValue({resources:{realAccount:true,optedIn:false}});const state=clientFor();
+    await expect(generateEvidenceStrategyProject(state.client,"owner","project",{forAutoWorker:true})).rejects.toThrow("OFFLINE_OWNER_SESSION_REQUIRED");
+    expect(state.writes).toEqual([]);expect(state.rpc).not.toHaveBeenCalled();
   });
   it("does not treat an unknown model price as zero-cost authorization",async()=>{
     mocks.env.creativeAIModel="unknown-priced-model";const state=clientFor();

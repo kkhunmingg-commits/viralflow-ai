@@ -4,7 +4,7 @@ import {PageHeading} from "@/components/page-heading";
 import {createClient} from "@/lib/supabase/server";
 import {listRightsWorkspace} from "@/features/video/media-rights-service";
 import {addContentEvidenceAction,recordMediaRightsAction,reviewMediaRightsAction,revokeContentEvidenceAction,revokeMediaRightsAction} from "./actions";
-const ORIGINS={OWNER_CREATED:"ฉันถ่าย/ทำเอง",COMMISSIONED:"จ้างคนถ่ายและได้สิทธิ์",MERCHANT_LICENSED:"ร้านค้า/แบรนด์อนุญาต",LICENSED_STOCK:"สต็อกที่ซื้อสิทธิ์",ORIGINAL_GRAPHIC:"กราฟิกที่ทำเอง"};
+const ORIGINS={OWNER_CREATED:"ฉันถ่าย/ทำเอง",COMMISSIONED:"จ้างคนถ่ายและได้สิทธิ์",MERCHANT_LICENSED:"ร้านค้า/แบรนด์อนุญาต",LICENSED_STOCK:"ภาพสต็อก/สัญญาอนุญาต",ORIGINAL_GRAPHIC:"กราฟิกที่ทำเอง"};
 const ROLES={REAL_FOOTAGE:"คลิปสินค้าจริง",REAL_IMAGE:"ภาพสินค้าจริง",COMPARISON_FOOTAGE:"คลิปเปรียบเทียบ",ORIGINAL_GRAPHIC:"กราฟิก",LICENSED_STOCK:"สต็อก",MUSIC:"เพลง",VOICE:"เสียงพากย์"};
 const BLOCKERS:Record<string,string>={NO_RIGHTS_RECORD:"ยังไม่บันทึกสิทธิ์",NOT_APPROVED:"รอตรวจ",REVOKED:"ถอนสิทธิ์แล้ว",EXPIRED:"หมดอายุ",COMMERCIAL_NOT_ALLOWED:"ห้ามใช้เชิงพาณิชย์",EDIT_NOT_ALLOWED:"ห้ามตัดต่อ",PLATFORM_OUT_OF_SCOPE:"ไม่ครอบคลุม TikTok"};
 export default async function MediaRightsPage(){

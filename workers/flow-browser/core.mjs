@@ -4,6 +4,18 @@ import { basename, resolve, sep } from "node:path";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_VIDEO_BYTES = 50_000_000;
 
+// The legacy Labs entry point now redirects to the dedicated official Flow domain.
+// This validates location only; visible login/selector checks are still required.
+export function isFlowLocation(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.username || url.password || url.port) return false;
+    if (url.hostname === 'flow.google.com') return true;
+    return url.hostname === 'labs.google' &&
+      (url.pathname === '/fx/tools/flow' || url.pathname.startsWith('/fx/tools/flow/'));
+  } catch { return false; }
+}
+
 export function validateJob(input) {
   if (!input || typeof input !== "object" || !UUID.test(String(input.jobId ?? ""))) {
     throw new Error("INVALID_JOB_ID");

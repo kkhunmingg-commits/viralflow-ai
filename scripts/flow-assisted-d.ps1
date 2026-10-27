@@ -20,7 +20,7 @@ if (-not (Test-Path -LiteralPath $preferences)) {
 Start-Process -FilePath $chrome -WindowStyle Normal -ArgumentList @(
   "--user-data-dir=`"$manualProfile`"",
   "--disk-cache-dir=`"$(Join-Path $runtimeRoot 'manual-chrome-cache')`"",
-  '--new-window', 'https://labs.google/fx/tools/flow',
+  '--new-window', 'https://flow.google.com/',
   ($portal.GetLeftPart([UriPartial]::Authority) + '/video-factory/providers')
 )
 Write-Host "Save MP4 and exported job JSON under $downloadDirectory (drive D)."

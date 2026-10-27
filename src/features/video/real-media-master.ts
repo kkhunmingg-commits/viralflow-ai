@@ -94,10 +94,10 @@ export async function renderRealMediaMaster(client:SupabaseClient,owner:string,i
 }
 
 /** Links an output to the exact rights seen at build time so a later revocation stops it. */
-export async function recordRealMediaUsages(client:SupabaseClient,owner:string,masterId:string,selection:RealMediaSelection){
+export async function recordRealMediaUsages(client:SupabaseClient,owner:string,masterId:string,selection:RealMediaSelection,composer:string=LOCAL_COMPOSER_MODEL){
   const sources=[...selection.clips.map(c=>({assetId:c.assetId,rights:c.rights})),...(selection.voice?[selection.voice]:[])];
   const rows=sources.map(source=>({owner_id:owner,media_asset_id:source.assetId,rights_id:source.rights.id,master_video_id:masterId,
-    rights_snapshot:{...source.rights,composer:LOCAL_COMPOSER_MODEL,recordedAt:new Date().toISOString()}}));
+    rights_snapshot:{...source.rights,composer,recordedAt:new Date().toISOString()}}));
   // The unique index is partial, so PostgREST cannot upsert against it; insert only what is missing.
   const existing=await client.from("media_asset_usages").select("media_asset_id").eq("owner_id",owner).eq("master_video_id",masterId);
   if(existing.error)throw new Error("real_media_usage_record_failed");

@@ -7,10 +7,16 @@ import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { assignmentDate } from "@/features/assignments/planner";
 import { persistDailyAssignments } from "@/features/assignments/services";
 import { approveEvidenceCreative,createProjectFromAssignment,generateCreativeProject,generateEvidenceStrategyProject,rejectScript,selectCreative,updateScript } from "@/features/creative/services";
+import {createOfflineProductProject} from "@/features/creative/offline-product";
 const uuid=z.string().uuid();
 async function auth(){
   const client=await createClient(),{data}=await client.auth.getUser();
   if(!data.user)throw new Error("Authentication required");await enforceOwnerMutationRateLimit("creative-studio",data.user.id);return {client,owner:data.user.id};
+}
+export async function createOfflineProductAction(form:FormData){
+  const productId=uuid.parse(form.get("productId")),accountId=uuid.parse(form.get("accountId"));
+  const {client,owner}=await auth();const project=await createOfflineProductProject(client,owner,productId,accountId);
+  redirect(`/creative-studio/${project.id}`);
 }
 export async function createCreativeFromRecommendation(formData:FormData){
   const accountId=uuid.parse(formData.get("accountId")),productId=uuid.parse(formData.get("productId"));
