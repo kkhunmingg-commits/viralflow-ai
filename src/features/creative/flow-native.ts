@@ -27,7 +27,7 @@ export interface FlowNativePlan {
 /** Set dressing per category, written like an art director's brief. Several per family so clips do not repeat. */
 const SETS: Partial<Record<CategoryFamily, SetStyle[]>> & { GENERAL: SetStyle[] } = {
   WATCH_ACCESSORY: [
-    { id: "oak-desk-morning", nameTh: "โต๊ะไม้โอ๊กยามเช้า", set: "a light-oak desk beside a sheer-curtained window", props: "a linen-bound notebook, a small ceramic coffee cup, a brass key ring, a sprig of eucalyptus in a glass", lighting: "soft diffused morning daylight from the side with a gentle warm bounce", palette: "warm neutrals, cream, oak and sage green", hands: "clean natural hands, short neat nails, a plain light-grey knit sleeve", mood: "calm, simple, everyday" },
+    { id: "oak-desk-morning", nameTh: "โต๊ะไม้โอ๊กยามเช้า", set: "a light-oak desk beside a sheer-curtained window", props: "a linen-bound notebook, a small ceramic coffee cup, a brass key ring, a sprig of eucalyptus in a glass", lighting: "soft diffused morning daylight from the side with a gentle warm bounce", palette: "warm neutrals, cream, oak and sage green", hands: "bare natural skin hands with short neat nails (no gloves), a light-grey knit sweater cuff visible at the wrist", mood: "calm, simple, everyday" },
     { id: "concrete-street", nameTh: "สตรีทคอนกรีตยามเย็น", set: "a matte concrete ledge by a city window at golden hour", props: "a folded denim jacket, a paper coffee cup, a pair of sunglasses", lighting: "low golden-hour sun with long soft shadows", palette: "warm amber, concrete grey and indigo denim", hands: "natural hands with a rolled-up denim sleeve", mood: "casual, retro, confident" },
     { id: "studio-paper", nameTh: "สตูดิโอกระดาษสีพาสเทล", set: "a seamless pale-blue paper sweep on a small tabletop", props: "two stacked pastel acrylic blocks and a soft shadow pattern from a plant", lighting: "large soft key light from above-left, clean highlights", palette: "pale blue, white and a hint of navy", hands: "clean natural hands, no jewellery", mood: "minimal, crisp, modern" },
   ],
@@ -57,7 +57,7 @@ function fidelity(family: CategoryFamily, action: HandAction) {
 export function flowNativePrompt(input: Pick<DirectorInput, "product" | "facts">, style: SetStyle, action: HandAction, camera: string, narrationTh: string | null) {
   const negative = ["any change to the product's shape, colours, strap, logo, model name or printed text versus the reference image",
     "changing, animating or flickering digits or screen content", "extra buttons, extra text, extra logos or a different product",
-    "faces, testimonials, captions, subtitles, watermarks or on-screen text", "the product being used to perform a feature it is not shown performing in the reference", "cuts or scene changes"];
+    "gloves, mittens or covered hands", "faces, testimonials, captions, subtitles, watermarks or on-screen text", "the product being used to perform a feature it is not shown performing in the reference", "cuts or scene changes"];
   const prompt = [
     `Use the attached reference image as the exact product (${input.product.title}). Photoreal vertical 9:16 video, 8 seconds, one continuous take.`,
     `SET: ${style.set}; props: ${style.props}. Styled like a premium product advert, uncluttered, product is the hero in the middle third.`,
