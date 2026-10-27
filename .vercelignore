@@ -7,3 +7,6 @@ benchmark-assets/
 workers/ai-live/installer/
 **/__pycache__/
 **/*.pyc
+.runtime/
+workers/flow-browser/workspace/
+workers/flow-browser/selectors.json

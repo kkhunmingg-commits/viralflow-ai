@@ -4,7 +4,8 @@
   "type": "module",
   "engines": { "node": ">=20" },
   "scripts": {
-    "test": "node --test core.test.mjs",
+    "test": "node --test core.test.mjs media.test.mjs",
+    "test:browser": "node --test portal.browser-test.mjs",
     "login": "node worker.mjs --login",
     "pilot": "node worker.mjs --once",
     "import-only": "node worker.mjs --import-only",

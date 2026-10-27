@@ -32,10 +32,13 @@ Run from `D:\ViralFlowAI`. Every wrapper invocation configures its own process a
 .\scripts\dev-d.ps1 npm ci --prefix workers/flow-browser --ignore-scripts
 .\scripts\dev-d.ps1 node workers/flow-browser/node_modules/playwright/cli.js install chromium
 .\scripts\dev-d.ps1 node --test workers/flow-browser/core.test.mjs
+.\scripts\dev-d.ps1 node --test workers/flow-browser/media.test.mjs
+.\scripts\dev-d.ps1 node --test workers/flow-browser/portal.browser-test.mjs
 $env:FLOW_PORTAL_URL='https://viralflow-ai-blond.vercel.app'
 .\scripts\dev-d.ps1 node workers/flow-browser/worker.mjs --login
 .\scripts\dev-d.ps1 node workers/flow-browser/worker.mjs --inspect
 .\scripts\dev-d.ps1 node workers/flow-browser/worker.mjs --dry-run
+.\scripts\dev-d.ps1 node workers/flow-browser/worker.mjs --preflight
 .\scripts\dev-d.ps1 node workers/flow-browser/worker.mjs --once
 ```
 
@@ -43,6 +46,8 @@ If Google rejects the automated browser:
 
 ```powershell
 .\scripts\flow-assisted-d.ps1
+# Local testing uses the same D-only ordinary Chrome profile:
+.\scripts\flow-assisted-d.ps1 -PortalUrl http://localhost:3000
 ```
 
 This launches ordinary installed Chrome with a separate D-only profile and download directory, without automation/debugging flags. The owner operates both websites. Set Chrome's save dialog to `D:\ViralFlowAI\workers\flow-browser\workspace\manual-downloads`. In ViralFlow keep Google-only mode and paid features off, select an existing reviewed product/creative project, and obtain its Google brief. Use that brief and cleared reference media in Flow, review settings/credits, generate once, save the MP4 on D, and upload through the existing MP4 import form in the same ViralFlow job. Review the final video and download it from ViralFlow. This path needs no deployed worker-export button and uses no TikTok API.
@@ -54,7 +59,11 @@ For an exported JSON job already in `workspace/queue`, an MP4 can alternatively 
 .\scripts\dev-d.ps1 node workers/flow-browser/worker.mjs --import-only
 ```
 
-Type `recover <jobId>` only after checking the file belongs to that job and account. `inspectMp4` is a bounded container-signature/hash check; actual decoding and quality validation remain in the existing ViralFlow server import. A successful unit test is not evidence of a real Google video.
+Type `recover <jobId>` only after checking the file belongs to that job and account. The worker now probes the actual video stream using the project's bundled FFprobe (or `FFPROBE_BINARY`), verifies a positive duration and 9:16 display dimensions, and records metadata with the checksum. A header-only or audio-only MP4 is rejected. This does not establish product truth, media rights, full decoding or quality; those still require the existing server validation and owner review. Failed files remain on D for inspection and never trigger another Generate automatically.
+
+Before any Generate, the worker visits the authenticated original ViralFlow job and verifies that its existing MP4 import form is available. `--preflight` performs this check alone, without visiting Flow or spending credits. A portal that redirects to login, lacks the worker UI, or already contains an imported master cannot lead to a new Generate. `--import-only` does not require Flow selectors. Ordinary Chrome assisted mode still needs the owner to operate the websites when automated sign-in or the desktop UI tool is unavailable.
+
+The media and browser tests use local synthetic fixtures only. Passing them is not evidence of a real Google video.
 
 The Chrome profile is in `workspace/chrome-profile`. Treat this folder as highly sensitive and protect the VPS/desktop account. Do not put it in Git, backup shares, logs or support tickets. A VPS needs a real, interactive login session initially (e.g. private virtual desktop); a background headless session is not a substitute for sign-in.
 

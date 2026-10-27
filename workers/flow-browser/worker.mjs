@@ -9,6 +9,8 @@ import { resolve, join, dirname } from "node:path";
 import { createInterface } from "node:readline/promises";
 import process from "node:process";
 import { validateJob, inspectMp4, safeJobFilename, assertContained, shouldGenerate, validateResultIds, newResultId } from "./core.mjs";
+import { inspectVideo, probeBinary } from './media.mjs';
+import { importTarget } from './portal.mjs';
 
 const root = resolve(process.env.FLOW_WORKSPACE || join(process.cwd(), "workspace"));
 const queueDir = join(root, "queue");
@@ -127,17 +129,27 @@ async function createOnce(page, selectors, job, baseline) {
   await file.saveAs(path);
   const bytes = await readFile(path);
   const info = inspectMp4(bytes);
-  await mark(job.jobId, "DOWNLOADED", { path, sha256: info.sha256, bytes: info.size });
+  const media = await inspectVideo(path);
+  await mark(job.jobId, "DOWNLOADED", { path, sha256: info.sha256, bytes: info.size, media });
   return path;
+}
+async function preflightImport(context, job) {
+  const page = await context.newPage();
+  try {
+    const target = await importTarget(page, job);
+    if (target.masterUrl) {
+      await mark(job.jobId, 'IMPORTED', { masterUrl: target.masterUrl });
+      return false;
+    }
+    return true;
+  } finally { await page.close(); }
 }
 async function importToViralFlow(context, job, path) {
   const page = await context.newPage();
   try {
-    await page.goto(job.portalUrl + "/video-factory/providers", { waitUntil: "domcontentloaded", timeout: 45_000 });
-    const card = page.locator('article[data-flow-job-id="' + job.jobId + '"]');
-    await card.waitFor({ state: "visible", timeout: 30_000 });
-    if (await card.locator('a[href^="/video-factory/"]').count()) {
-      await mark(job.jobId, "IMPORTED");
+    const { card, masterUrl } = await importTarget(page, job);
+    if (masterUrl) {
+      await mark(job.jobId, "IMPORTED", { masterUrl });
       return;
     }
     // The existing form is an owner attestation; automation cannot attest on their behalf.
@@ -146,7 +158,8 @@ async function importToViralFlow(context, job, path) {
     await card.locator('input[name="attested"]').check();
     await card.getByRole("button", { name: /นำคลิปเข้างานเดิมและตรวจ/ }).click();
     await card.locator('a[href^="/video-factory/"]').waitFor({ state: "visible", timeout: 180_000 });
-    await mark(job.jobId, "IMPORTED");
+    const href = await card.locator('a[href^="/video-factory/"]').first().getAttribute('href');
+    await mark(job.jobId, "IMPORTED", { masterUrl: new URL(href, job.portalUrl).href });
   } finally { await page.close(); }
 }
 async function launchBrowser() {
@@ -168,6 +181,8 @@ async function processJob(context, selectors, path) {
   }
   let downloaded = state.state === "DOWNLOADED" ? assertContained(readyDir, state.path || "") : null;
   if (!downloaded && shouldGenerate(state)) {
+    // Confirm the authenticated original job can accept the output before spending credits.
+    if (!await preflightImport(context, job)) return;
     const page = await context.newPage();
     try {
       const baseline = await prepareFlow(page, selectors, job);
@@ -183,7 +198,9 @@ async function processJob(context, selectors, path) {
   }
   if (!downloaded) throw new Error("OUTPUT_NOT_READY");
   const info = inspectMp4(await readFile(downloaded));
-  if (state.sha256 && state.sha256 !== info.sha256) throw new Error('OUTPUT_HASH_CHANGED_REVIEW_REQUIRED');
+  const downloadedState = await stateOf(job.jobId);
+  if (downloadedState.sha256 && downloadedState.sha256 !== info.sha256) throw new Error('OUTPUT_HASH_CHANGED_REVIEW_REQUIRED');
+  await inspectVideo(downloaded);
   await importToViralFlow(context, job, downloaded);
   console.log("Imported into ViralFlow:", job.jobId);
 }
@@ -199,11 +216,12 @@ async function recoverMp4(files) {
     const prior = await stateOf(job.jobId);
     if (prior.state === 'IMPORTED') throw new Error('ALREADY_IMPORTED');
     const info = inspectMp4(await readFile(source));
+    const media = await inspectVideo(source);
     await ownerApproval(job, 'recover');
     const path = assertContained(readyDir, join(readyDir, safeJobFilename(job.jobId)));
     // Do not overwrite an earlier recovered/downloaded artifact without reconciliation.
     if (source !== path) await copyFile(source, path, 1);
-    await mark(job.jobId, 'DOWNLOADED', { path, sha256: info.sha256, bytes: info.size, recoveredManually: true });
+    await mark(job.jobId, 'DOWNLOADED', { path, sha256: info.sha256, bytes: info.size, media, recoveredManually: true });
     console.log('Recovered for import only:', job.jobId);
 }
 async function main() {
@@ -223,6 +241,10 @@ async function main() {
     if (!files.length) console.log("No jobs. Download a Flow Worker JSON from ViralFlow into workspace/queue.");
     return;
   }
+  if (!files.length && ['--once', '--import-only', '--preflight'].includes(arg)) {
+    console.log('No queued jobs. Export a real Creative Brain job before continuing.');
+    return;
+  }
   const lock = join(root, "worker.lock");
   let handle;
   try { handle = await open(lock, "wx"); }
@@ -230,6 +252,7 @@ async function main() {
   let browser;
   try {
     if (arg === '--recover-mp4') return await recoverMp4(files);
+    if (arg === '--once' || arg === '--import-only') await probeBinary();
     browser = await launchBrowser();
     if (arg === "--login") {
       const flow = await browser.newPage();
@@ -252,6 +275,14 @@ async function main() {
       const page = await browser.newPage();
       await page.goto(FLOW_URL, { waitUntil: "domcontentloaded" });
       await page.pause();
+      return;
+    }
+    if (arg === '--preflight') {
+      for (const file of files) {
+        const job = validateJob(await json(file));
+        const ready = await preflightImport(browser, job);
+        console.log(job.jobId, ready ? 'IMPORT_READY_NO_GENERATION' : 'ALREADY_IMPORTED_NO_GENERATION');
+      }
       return;
     }
     if (!['--once', '--import-only'].includes(arg)) throw new Error("USE_LOGIN_ONCE_INSPECT_DRY_RUN_OR_IMPORT_ONLY");

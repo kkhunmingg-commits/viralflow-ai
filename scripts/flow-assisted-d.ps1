@@ -1,7 +1,10 @@
 param([string]$PortalUrl = 'https://viralflow-ai-blond.vercel.app')
 . (Join-Path $PSScriptRoot 'enter-drive-d.ps1')
 $portal = [uri]$PortalUrl
-if ($portal.Scheme -ne 'https' -or $portal.UserInfo) { throw 'An HTTPS portal URL is required.' }
+$loopbackHttp = $portal.Scheme -eq 'http' -and $portal.Host -in @('localhost','127.0.0.1')
+if (($portal.Scheme -ne 'https' -and -not $loopbackHttp) -or $portal.UserInfo) {
+  throw 'Use an HTTPS portal, or HTTP localhost for local testing.'
+}
 $chrome = Join-Path $env:ProgramFiles 'Google\Chrome\Application\chrome.exe'
 if (-not (Test-Path -LiteralPath $chrome)) { throw 'Install Google Chrome before starting assisted mode.' }
 $manualProfile = Join-Path $runtimeRoot 'manual-chrome'
