@@ -7,7 +7,10 @@ param(
 )
 . (Join-Path $PSScriptRoot 'enter-drive-d.ps1')
 Set-Location -LiteralPath $projectRoot
-if ($Tool -eq 'npm') { $Tool = 'npm.cmd' }
-if ($Tool -eq 'pnpm') { $Tool = 'pnpm.cmd' }
-& $Tool @ToolArguments
+$toolExecutable = switch ($Tool) {
+  'npm' { 'npm.cmd' }
+  'pnpm' { 'pnpm.cmd' }
+  default { $Tool }
+}
+& $toolExecutable @ToolArguments
 exit $LASTEXITCODE

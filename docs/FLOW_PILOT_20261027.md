@@ -1,6 +1,6 @@
 # Flow pilot continuation — 27 October 2026
 
-Workspace `D:\ViralFlowAI`, branch `codex/flow-drive-d-restore-20261026`, continuing Draft PR #10. No merge, production deployment or database migration was performed.
+Workspace `D:\ViralFlowAI`, branch `codex/flow-drive-d-restore-20261026`, continuing Draft PR #10. No merge or production deployment. The owner explicitly approved the single queue migration below, which has now been applied and verified; other changes remain unapproved.
 
 ## Completed
 
@@ -21,7 +21,7 @@ The owner explicitly authorized reading the existing Supabase key and saving it 
 
 Local Next.js served `/login` successfully (HTTP 200). This and the server-key check establish connectivity, not a working owner session or a completed pilot.
 
-## Read-only inspection of the actual database
+## Initial read-only inspection, before queue installation
 
 The verified project returned zero rows for `products`, `creative_projects`, `scripts`, `creative_angles`, `media_assets`, `generation_jobs`, and `master_videos`. There is no existing real product, cleared reference image, selected Creative Brain script or render to resume. The local worker queue also contains no exported job. Do not substitute a fixture or invent product facts/rights.
 
@@ -38,7 +38,7 @@ Data API reads returned `PGRST205` for the provider, rights/evidence and bank ta
 
 The same read-only query counted **zero** users with `raw_app_meta_data.viralflow_role` equal to `admin` or `developer`. The branch's provider page and server actions require that claim. Possession of the server key does not grant an owner browser session that role. No user metadata or privileges were changed, and no session was copied.
 
-The reviewed existing router migration is `supabase/migrations/20261012050849_video_provider_router.sql`: two tables, owner-scoped SELECT RLS, service-role grants, lease-claim RPC and dashboard RPC. Its dashboard depends on the existing budget table. This is a concrete source file to review before any production application; it has **not** been applied. It alone does not supply a real product, approve a user, or make the branch's newer Creative Brain workflow ready.
+The existing router migration is `supabase/migrations/20261012050849_video_provider_router.sql`: two tables, owner-scoped SELECT RLS, service-role grants, lease-claim RPC and dashboard RPC. Its dashboard depends on the existing budget table. The initially reviewed proposal has since been approved and installed as recorded below. It alone does not supply a real product, approve a user, or make the branch's newer Creative Brain workflow ready.
 
 The newer evidence-based Creative Brain path also reads `auto_account_discovery`, `media_asset_rights` and `content_evidence`; it requires a real authorized account with unexpired execution permission and reviewed factual/media evidence. Do not bypass those gates or apply all later migrations blindly. The existing rights migration also installs publishing/revocation triggers, while account-discovery migrations involve other growth/account tables. Those dependencies and production effects must be scoped before requesting a write approval. Content Bank is a separate branch feature; its absence is not proof that the existing Video Factory master download requires it.
 
@@ -54,7 +54,19 @@ A real run for Casio F-91W returned 48 image candidates after filtering and down
 
 This scout is an existing repository research tool, **not yet connected to the Product Radar → reviewed Creative Brain → provider job path**. It establishes a usable candidate-source lead, not completion of system discovery or the requested clip. Do not bypass the missing catalog integration, owner review or account permissions with fabricated production records.
 
-Read-only hosted migration history ends at `20261011175654 customer_content_export`; several hosted historical version numbers differ from the restored local filenames. Do not run an indiscriminate `supabase db push` or replay old migrations. The immediate proposed production change is only the existing `20261012050849_video_provider_router.sql` (two tables and two service-only RPCs with owner SELECT RLS); other absent branch features and role assignment remain separate, unresolved requirements. No production migration has been applied.
+Initial hosted migration history ended at `20261011175654 customer_content_export`; several hosted historical version numbers differ from the restored local filenames. Do not run an indiscriminate `supabase db push` or replay old migrations. Only the queue migration below has now been applied; other absent branch features and role assignment remain separate, unresolved requirements.
+
+## Approved queue migration applied
+
+The owner approved **only** `20261012050849_video_provider_router.sql`. Applied the unchanged source in one transaction on verified project `nbtshqmtspgzrfzkqjxx`, with its version/name/source recorded in the existing `supabase_migrations.schema_migrations` history and a PostgREST schema reload notification. All six `(owner_id,id)` foreign-key targets were confirmed beforehand. Source file SHA-256: `f5826a02c65b87339aee0a07c09445a731ba3ab2c475986068e10072d091752a`.
+
+Post-commit catalog checks confirmed both tables, two owner SELECT policies, RLS on both tables, service-only claim/dashboard execution, no anonymous settings read, and no authenticated checkpoint-column read. Real Data API reads returned both tables with zero rows and no errors; the read-only dashboard RPC returned zero queue totals. No provider settings/job, user role, paid service, scheduler or deployment was enabled. Private apply/verification SQL, JSON and screenshots remain under `.runtime/`.
+
+Also fixed `scripts/dev-d.ps1`: assigning `pnpm.cmd` or `npm.cmd` back into the validated `Tool` parameter caused a PowerShell validation error. Resolve the executable into a separate variable instead; actual pnpm and npm wrapper version commands now pass.
+
+The owner completed Google login from the Local browser, but OAuth redirected that tab to production `/auto`. The signed-in UI and Supabase Users UI identify the same owner. Source code correctly requests a same-origin `/auth/callback`. The project's Auth URL Configuration contains only the production callback, so Local's callback is not allowed and falls back to the production Site URL. Prepared the exact `http://localhost:3000/auth/callback` addition without saving it. The production Site URL must stay as configured.
+
+Prepared a separate, private SQL proposal to grant `viralflow_role=developer` to that exact owner, preserving other app metadata. This role unlocks internal routes and Provider/Operations actions, not just a visual menu. The role and Auth redirect changes have **not** been approved or applied. They require explicit approval because they expand authentication/application access; the prior queue approval does not cover them. A fresh Local OAuth login will also obtain updated claims if the owner grants the role.
 
 ## Validation and actual acceptance
 
@@ -66,4 +78,4 @@ Read-only hosted migration history ends at `20261011175654 customer_content_expo
 - Restored scout safeguards: four Python unit tests passed; real Commons metadata/image download succeeded on D. These tests do not establish product authenticity or complete license compliance.
 - Existing provider SQL proof passed 49 checks in isolated PGlite 0.5.12: owner RLS, private-column access, account leases, budget/idempotency and aggregate behavior. It used synthetic fixtures and made zero paid/TikTok calls; no hosted database was changed.
 
-**Real Google generation, real MP4 download, import into the existing ViralFlow job and final owner download: still not verified.** No Generate or paid API call was made. The existing key is now configured and real database reads work; the remaining blockers are missing real inputs, absent branch schema, and no provider administrator claim. A successful Windows UI runtime does not establish successful control of the authenticated Google Flow page. Any missing migration or role must be reviewed explicitly; do not weaken RLS/admin checks or apply production migrations to make the pilot appear complete.
+**Real Google generation, real MP4 download, import into the existing ViralFlow job and final owner download: still not verified.** No Generate or paid API call was made. The key and approved queue schema now work against the actual database. Remaining blockers include Local OAuth configuration, provider administrator claims, catalog-to-Creative-Brain integration and related evidence/account schema and approvals. A successful Windows UI runtime does not establish successful control of the authenticated Google Flow page. Do not weaken RLS/admin checks or fabricate evidence/account records to make the pilot appear complete.
