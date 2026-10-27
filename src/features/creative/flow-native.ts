@@ -63,6 +63,8 @@ export function flowNativePrompt(input: Pick<DirectorInput, "product" | "facts">
     `SET: ${style.set}; props: ${style.props}. Styled like a premium product advert, uncluttered, product is the hero in the middle third.`,
     `ACTION: ${ACTIONS[action].en}. Hands: ${style.hands}.`,
     `CAMERA: ${camera}. Shallow depth of field, product always in sharp focus.`,
+    // Take 2 of the Casio pilot sat still for 3.5 s before the hand arrived; the hook has to start at once.
+    `TIMING: the hand is already moving in frame within the first half second; the product is lifted and facing the camera by second 3; hold it steady and sharp from second 3 to second 8.`,
     `LIGHT & COLOUR: ${style.lighting}; palette ${style.palette}; mood ${style.mood}.`,
     `PRODUCT FIDELITY: keep the product identical to the reference — same shape, proportions, colours, strap, logo and every printed word; any display shows exactly the same characters as the reference and stays perfectly still.`,
     `AUDIO: ${narrationTh ? `a warm, natural Thai voice says only: "${narrationTh}" — nothing else; ` : ""}soft room ambience and subtle handling sounds, no music.`,

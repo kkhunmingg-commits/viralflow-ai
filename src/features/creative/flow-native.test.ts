@@ -11,7 +11,7 @@ describe("flow-native shot director",()=>{
     const shot=plan.selected[0];
     expect(["LIFT_AND_PRESENT","POINT_TO_DETAIL"]).toContain(shot.action);
     expect(shot.prompt).toContain("Use the attached reference image as the exact product (Casio F-91W)");
-    expect(shot.prompt).toContain("stays perfectly still");expect(shot.prompt).toContain("one continuous take");
+    expect(shot.prompt).toContain("stays perfectly still");expect(shot.prompt).toContain("within the first half second");expect(shot.prompt).toContain("one continuous take");
     expect(shot.negative.join(" ")).toMatch(/testimonials, captions/);expect(shot.negative).toContain("gloves, mittens or covered hands");
     expect(shot.narrationTh).toBe("Casio F-91W น้ำหนัก 21 กรัม");
     expect(shot.fidelityNotes.join(" ")).toContain("ตัวเลข");

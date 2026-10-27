@@ -130,6 +130,7 @@ export function critiqueVideo(s:VideoSignals,ctx:CriticContext):VideoCritique{
   ];
   const rejected=rejectedTags(),bad=(ctx.styleTags??[]).filter(t=>rejected.has(t));
   const taste=c("ownerTaste",bad.length?false:true,bad.length?`เจ้าของเคยปฏิเสธสไตล์นี้: ${bad.map(t=>OWNER_STYLE_VERDICTS.find(v=>v.tag===t)?.reasonTh).join(" / ")}`:"ไม่มีสไตล์ที่เจ้าของเคยปฏิเสธ");
+  const early=s.frameHashes.slice(0,Math.round(2/s.sampleInterval)+1),earlyMotion=early.slice(1).reduce((a,h,i)=>a+hamming(early[i],h),0);
   if(ctx.production==="FLOW_NATIVE_TAKE"){
     // A continuous take is the approved look; meaning and product fidelity need eyes (vision model or owner).
     visual.splice(0,visual.length,
@@ -137,6 +138,8 @@ export function critiqueVideo(s:VideoSignals,ctx:CriticContext):VideoCritique{
       c("naturalMotion",s.meanAdjacentDistance>=1&&s.frozenSeconds<=1,`การเคลื่อนไหวเฉลี่ย ${s.meanAdjacentDistance} bit/เฟรม, freeze ${s.frozenSeconds}s`),
       c("noBurnedInText",copy.length===0,copy.length?"มีข้อความแปะบนภาพ":"ไม่มีการ์ดหรือข้อความแปะ ตามสไตล์ที่เจ้าของอนุมัติ"));
     creative.splice(0,creative.length,
+      // Hook for a single take: something visibly moves in the first two seconds (the approved reference: 14 bits; a take that sat still: 0).
+      c("earlyAction",earlyMotion>=5,`การเคลื่อนไหวรวมช่วง 0–2 วินาที ${earlyMotion} bit (ต้อง ≥ 5)`),
       c("continuousTake",s.sceneCuts.length===0&&s.visualChanges<=1,`ตัดภาพ ${s.sceneCuts.length} ครั้ง`),
       creative.find(x=>x.key==="audioPresence")??c("audioPresence",false,"ไม่มีเสียง"),
       c("notDuplicate",nearest?nearest.d>10:true,nearest?`ใกล้คลิป ${nearest.id}`:"ไม่มีคลิปเก่าให้เทียบ"),

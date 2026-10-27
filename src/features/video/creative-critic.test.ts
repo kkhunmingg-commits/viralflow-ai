@@ -34,7 +34,8 @@ describe("video critic",()=>{
   });
   it("treats an approved-style continuous take as review-ready, not as a failed edit",()=>{
     // Signals measured on the owner's approved reference: one take, no cuts, natural motion, audible track.
-    const take:VideoSignals={...staticClip,loudnessLufs:-15.1,truePeakDb:-2,maxVolumeDb:-2,distinctLooks:2,longestStaticSeconds:4.25,meanAdjacentDistance:2.71,visualChanges:1};
+    const early=["0000000000000000","0000000000000003","0000000000000003","0000000000000003","0000000000000003","000000000000003f","00000000000001ff","0000000000000fff","0000000000000fff"];
+    const take:VideoSignals={...staticClip,frameHashes:[...early,...Array(23).fill("0000000000000fff")],loudnessLufs:-15.1,truePeakDb:-2,maxVolumeDb:-2,distinctLooks:2,longestStaticSeconds:4.25,meanAdjacentDistance:2.71,visualChanges:1};
     const verdict=critiqueVideo(take,{production:"FLOW_NATIVE_TAKE",productPixels:"AI_RENDERED_FROM_REFERENCE",aigcDisclosed:true,styleTags:["HANDS_IN_STYLED_SET"]});
     expect(verdict.technical.status).toBe("TECHNICAL_PASS");
     expect(verdict.creative.status).toBe("CREATIVE_REVIEW");
@@ -42,7 +43,9 @@ describe("video critic",()=>{
     expect(verdict.visual.checks.find(c=>c.key==="productAccuracy")!.status).toBe("UNKNOWN");
     // The rejected Casio take is still rejected under the same rules: silent and a rejected look.
     const casio=critiqueVideo(staticClip,{production:"FLOW_NATIVE_TAKE",productPixels:"AI_RENDERED_FROM_REFERENCE",styleTags:["STATIC_MACRO_PUSH_IN","SILENT_TRACK"]});
-    expect(casio.creative.status).toBe("CREATIVE_FAIL");expect(casio.decision).toBe("REVISE_STORYBOARD_OR_EDIT");
+    expect(casio.creative.status).toBe("CREATIVE_FAIL");
+    // A take that sits still for its first two seconds has no hook, even when it is otherwise fine.
+    expect(critiqueVideo({...take,frameHashes:Array(32).fill("0000000000000fff")},{production:"FLOW_NATIVE_TAKE",productPixels:"AI_RENDERED_FROM_REFERENCE",aigcDisclosed:true}).creative.checks.find(c=>c.key==="earlyAction")!.status).toBe("FAIL");expect(casio.decision).toBe("REVISE_STORYBOARD_OR_EDIT");
   });
   it("renders a storyboard into a multi-shot edit and rejects its pasted-card look by owner taste (synthetic fixture, local only)",async()=>{
     const dir=await mkdtemp(join(tmpdir(),"storyboard-test-"));
