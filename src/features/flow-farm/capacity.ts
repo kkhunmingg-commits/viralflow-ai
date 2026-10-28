@@ -11,7 +11,7 @@ export function flowAccountViews(rows: FlowAccountRow[], today: string): FlowAcc
     .map(row => {
       const clipsToday = row.clips_today_on === today ? row.clips_today : 0;
       const exhaustedToday = row.exhausted_on === today;
-      const loginState = row.login_state ?? "READY", usable = row.active && loginState === "READY" && !exhaustedToday;
+      const loginState = row.login_state ?? "PENDING", usable = row.active && loginState === "READY" && !exhaustedToday;
       return { id: row.id, tiktokAccountId: row.tiktok_account_id, label: row.label, priority: row.priority, active: row.active, clipsPerDayEstimate: row.clips_per_day_estimate,
         exhaustedToday, clipsToday, remainingEstimate: usable ? Math.max(0, row.clips_per_day_estimate - clipsToday) : 0, loginState, loginNote: row.login_note ?? null };
     });

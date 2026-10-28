@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { accountsFor, remainingCapacity, type FlowAccountView } from "@/features/flow-farm/capacity";
 import { bangkokDate, flowClipStatusLabels, MAX_FLOW_ACCOUNTS_PER_TIKTOK, type FlowClipStatus } from "@/features/flow-farm/contracts";
-import { listFlowAccounts, listLibrary, listTodayClips, workerLastSeen } from "@/features/flow-farm/service";
+import { flowLogins, listFlowAccounts, listLibrary, listTodayClips, workerLastSeen } from "@/features/flow-farm/service";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { addFlowAccountAction, discardClipAction, flowAccountAction, markPostedAction, scheduleClipAction, startBatchAction, unscheduleClipAction } from "./flow-actions";
 import "./flow-studio.css";
 
@@ -11,7 +12,8 @@ const bangkokTime = (iso: string) => new Intl.DateTimeFormat("th-TH", { timeZone
 
 /** Reads outside render; a missing table (migration not applied yet) shows a notice instead of an error page. */
 async function loadStudio(client: SupabaseClient, owner: string, accountId: string) {
-  const settled = await Promise.allSettled([listFlowAccounts(client, owner), listTodayClips(client, owner, accountId), listLibrary(client, owner, accountId), workerLastSeen(client, owner)]);
+  const logins = await flowLogins(createAdminClient(), owner).catch(() => ({}));
+  const settled = await Promise.allSettled([listFlowAccounts(client, owner, new Date(), logins), listTodayClips(client, owner, accountId), listLibrary(client, owner, accountId), workerLastSeen(client, owner)]);
   const list = <T,>(result: PromiseSettledResult<T[]>) => result.status === "fulfilled" ? result.value : [];
   return { flowAccounts: accountsFor(list(settled[0]), accountId), today: list(settled[1]), library: list(settled[2]),
     lastSeen: settled[3].status === "fulfilled" ? settled[3].value : null, unavailable: settled.some(result => result.status === "rejected"), now: Date.now() };

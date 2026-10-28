@@ -3,12 +3,12 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getProductRadar } from "@/features/products/services";
 import { bangkokDate, bangkokDayRange, COUNTED_STATUSES, FLOW_CLIP_MAX_BYTES, LIBRARY_STATUSES, MAX_CLIPS_PER_BATCH, MAX_FLOW_ACCOUNTS_PER_TIKTOK,
-  type FlowAccountRow, type FlowClipStatus } from "./contracts";
+  type FlowAccountRow, type FlowClipStatus, type FlowLoginState } from "./contracts";
 import { clipsToAdd, flowAccountViews } from "./capacity";
 import { planBatch, type FarmProduct } from "./planner";
 
 const BUCKET = "video-assets";
-const ACCOUNT_COLUMNS = "id,tiktok_account_id,label,priority,clips_per_day_estimate,active,exhausted_on,clips_today,clips_today_on,last_used_at,created_at,login_state,login_note";
+const ACCOUNT_COLUMNS = "id,tiktok_account_id,label,priority,clips_per_day_estimate,active,exhausted_on,clips_today,clips_today_on,last_used_at,created_at";
 export const LIBRARY_COLUMNS = "id,tiktok_account_id,product_id,kind,title,caption,hashtags,status,error,ready_at,scheduled_at,posted_at,post_url,duration_seconds,width,height,created_at,flow_account_id";
 
 function check<T>(result: { data: T; error: { message: string } | null }, code: string): T {
@@ -27,9 +27,35 @@ export function clipStoragePath(owner: string, clipId: string) {
 
 // ---------------------------------------------------------------- Flow accounts (owner settings)
 
-export async function listFlowAccounts(client: SupabaseClient, owner: string, now = new Date()) {
+export async function listFlowAccounts(client: SupabaseClient, owner: string, now = new Date(), logins: FlowLogins = {}) {
   const rows = check(await client.from("flow_accounts").select(ACCOUNT_COLUMNS).eq("owner_id", owner), "flow_accounts_unavailable") as FlowAccountRow[];
-  return flowAccountViews(rows, bangkokDate(now));
+  // An account the computer has not reported on yet still has to be signed in.
+  return flowAccountViews(rows.map(row => ({ ...row, login_state: logins[row.id]?.state ?? "PENDING", login_note: logins[row.id]?.note ?? null })), bangkokDate(now));
+}
+
+// Sign-in state lives in one small private file per owner in a service-only bucket the app creates itself,
+// so linking accounts needs no schema change.
+const STATE_BUCKET = "flow-farm-state";
+export type FlowLogins = Record<string, { state: FlowLoginState; note: string | null; checkedAt: string }>;
+const loginsPath = (owner: string) => {
+  if (!/^[0-9a-f-]{36}$/i.test(owner)) throw new Error("INVALID_OWNER");
+  return `owner/${owner}/flow-logins.json`;
+};
+export async function flowLogins(admin: SupabaseClient, owner: string): Promise<FlowLogins> {
+  const file = await admin.storage.from(STATE_BUCKET).download(loginsPath(owner));
+  if (file.error || !file.data) return {};
+  try { return JSON.parse(await file.data.text()) as FlowLogins; } catch { return {}; }
+}
+async function saveLogin(admin: SupabaseClient, owner: string, id: string, entry: FlowLogins[string] | null) {
+  const logins = await flowLogins(admin, owner);
+  if (entry) logins[id] = entry; else delete logins[id];
+  const body = JSON.stringify(logins), options = { contentType: "application/json", upsert: true };
+  let saved = await admin.storage.from(STATE_BUCKET).upload(loginsPath(owner), body, options);
+  if (saved.error && /not.?found/i.test(saved.error.message)) {
+    await admin.storage.createBucket(STATE_BUCKET, { public: false, fileSizeLimit: 65_536, allowedMimeTypes: ["application/json"] });
+    saved = await admin.storage.from(STATE_BUCKET).upload(loginsPath(owner), body, options);
+  }
+  if (saved.error) throw new Error("flow_login_not_saved");
 }
 export async function addFlowAccount(admin: SupabaseClient, owner: string, input: { tiktokAccountId: string; label: string; clipsPerDay: number }) {
   const rows = check(await admin.from("flow_accounts").select("priority").eq("owner_id", owner).eq("tiktok_account_id", input.tiktokAccountId), "flow_accounts_unavailable") as Array<{ priority: number }>;
@@ -43,7 +69,7 @@ export async function addFlowAccount(admin: SupabaseClient, owner: string, input
 }
 /** Moves a Google account one place earlier or later in its TikTok account's drain order. */
 export async function moveFlowAccount(admin: SupabaseClient, owner: string, id: string, direction: "UP" | "DOWN") {
-  const all = await listFlowAccounts(admin, owner);
+  const all = await listFlowAccounts(admin, owner, new Date(), await flowLogins(admin, owner));
   const group = all.find(view => view.id === id)?.tiktokAccountId ?? null;
   const views = all.filter(view => view.tiktokAccountId === group);
   const index = views.findIndex(view => view.id === id), swap = direction === "UP" ? index - 1 : index + 1;
@@ -65,11 +91,11 @@ export async function updateFlowAccount(admin: SupabaseClient, owner: string, id
 }
 /** Signed out or switched Google account: the owner's computer opens the sign-in window for it again. */
 export async function requestFlowLogin(admin: SupabaseClient, owner: string, id: string) {
-  check(await admin.from("flow_accounts").update({ login_state: "PENDING", login_note: null, updated_at: new Date().toISOString() })
-    .eq("owner_id", owner).eq("id", id), "flow_account_not_saved");
+  await saveLogin(admin, owner, id, null);
 }
 export async function removeFlowAccount(admin: SupabaseClient, owner: string, id: string) {
   check(await admin.from("flow_accounts").delete().eq("owner_id", owner).eq("id", id), "flow_account_not_removed");
+  await saveLogin(admin, owner, id, null).catch(() => {});
 }
 
 // ---------------------------------------------------------------- One click: find products and queue clips
@@ -141,7 +167,7 @@ export async function startBatch(admin: SupabaseClient, owner: string, accountId
 export async function workerAccounts(admin: SupabaseClient, owner: string, now = new Date()) {
   await admin.from("flow_worker_status").upsert({ owner_id: owner, last_seen_at: now.toISOString() });
   // Each TikTok account's own Google accounts first; shared accounts only pick up what is left.
-  const views = (await listFlowAccounts(admin, owner, now)).filter(view => view.active);
+  const views = (await listFlowAccounts(admin, owner, now, await flowLogins(admin, owner))).filter(view => view.active);
   return [...views.filter(view => view.tiktokAccountId), ...views.filter(view => !view.tiktokAccountId)];
 }
 export async function workerLastSeen(client: SupabaseClient, owner: string) {
@@ -157,16 +183,14 @@ export async function expireStaleGenerating(admin: SupabaseClient, owner: string
 
 /** What the computer found when it opened (or showed) the account's sign-in window. */
 export async function setLoginState(admin: SupabaseClient, owner: string, input: { flowAccountId: string; state: "READY" | "FAILED"; note?: string }) {
-  const now = new Date().toISOString();
-  check(await admin.from("flow_accounts").update({ login_state: input.state, login_note: input.note || null, login_checked_at: now, updated_at: now })
-    .eq("owner_id", owner).eq("id", input.flowAccountId), "flow_account_not_saved");
+  const exists = check(await admin.from("flow_accounts").select("id").eq("owner_id", owner).eq("id", input.flowAccountId).maybeSingle(), "flow_accounts_unavailable");
+  if (!exists) throw new Error("FLOW_ACCOUNT_UNAVAILABLE");
+  await saveLogin(admin, owner, input.flowAccountId, { state: input.state, note: input.note || null, checkedAt: new Date().toISOString() });
 }
 
 export async function claimClip(admin: SupabaseClient, owner: string, flowAccountId: string) {
   await expireStaleGenerating(admin, owner);
-  const login = check(await admin.from("flow_accounts").select("login_state").eq("owner_id", owner).eq("id", flowAccountId).maybeSingle(), "flow_accounts_unavailable") as
-    { login_state: string } | null;
-  if (login?.login_state !== "READY") throw new Error("FLOW_ACCOUNT_UNAVAILABLE");
+  if ((await flowLogins(admin, owner))[flowAccountId]?.state !== "READY") throw new Error("FLOW_ACCOUNT_UNAVAILABLE");
   const result = await admin.rpc("claim_flow_clip", { p_owner: owner, p_flow_account: flowAccountId, p_lease_seconds: 1200 });
   if (result.error) throw new Error(result.error.message.includes("FLOW_ACCOUNT_UNAVAILABLE") ? "FLOW_ACCOUNT_UNAVAILABLE" : "claim_failed");
   const clip = (result.data as Array<{ id: string; title: string; prompt: string; reference_image_path: string | null; kind: string }> | null)?.[0];
