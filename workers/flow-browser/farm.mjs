@@ -12,7 +12,7 @@
  * FLOW_WINDOW (offscreen | headless | visible), FLOW_CHROME_CHANNEL (e.g. chrome), FLOW_MAX_CREDITS_PER_CLIP (10),
  * FLOW_URL (https://flow.google.com/), FLOW_WATCH_SECONDS (60).
  */
-import { mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
@@ -105,14 +105,16 @@ async function pass(settings, dryRun) {
   const driverConfig = { ...settings, selectors: farmSelectors, dryRun, journal, profilesDir: dirs.profiles, readyDir: dirs.ready,
     scratchDir: dirs.scratch, downloadsDir: dirs.downloads };
   // Newly linked Google accounts are signed in first, one at a time; clips only start once that is done.
-  await runLoginPass({ api, signIn: account => signInFlowAccount(account, driverConfig), log: line => console.log(new Date().toLocaleTimeString("th-TH"), line) });
+  const hasProfile = account => access(join(dirs.profiles, account.id, "Default")).then(() => true, () => false);
+  await runLoginPass({ api, signIn: account => signInFlowAccount(account, driverConfig), hasProfile, log: line => console.log(new Date().toLocaleTimeString("th-TH"), line) });
   const summary = await runFarmPass({ api, openAccount: account => openFlowAccount(account, driverConfig), log: line => console.log(new Date().toLocaleTimeString("th-TH"), line) });
   console.log(JSON.stringify(summary));
   return summary;
 }
 
 async function main() {
-  if (process.platform === "win32" && !/^D:\\/i.test(root)) throw new Error("USE_SCRIPTS_FLOW_FARM_D_PS1");
+  // The repo copy keeps everything on drive D; the downloaded installer (FLOW_INSTALLED=1) uses its own folder.
+  if (process.platform === "win32" && process.env.FLOW_INSTALLED !== "1" && !/^D:\\/i.test(root)) throw new Error("USE_SCRIPTS_FLOW_FARM_D_PS1");
   for (const dir of Object.values(dirs)) await mkdir(dir, { recursive: true, mode: 0o700 });
   if (command === "--login") {
     if (!/^[0-9a-f-]{36}$/i.test(argument ?? "")) throw new Error("USAGE: --login <flowAccountId from the library page>");

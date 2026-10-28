@@ -41,21 +41,31 @@ const loginsPath = (owner: string) => {
   if (!/^[0-9a-f-]{36}$/i.test(owner)) throw new Error("INVALID_OWNER");
   return `owner/${owner}/flow-logins.json`;
 };
+export async function readStateFile<T>(admin: SupabaseClient, path: string): Promise<T | null> {
+  const file = await admin.storage.from(STATE_BUCKET).download(path);
+  if (file.error || !file.data) return null;
+  try { return JSON.parse(await file.data.text()) as T; } catch { return null; }
+}
+/** Writes one small JSON file to the private state bucket, creating the bucket the first time. */
+export async function saveStateFile(admin: SupabaseClient, path: string, value: unknown, failure: string) {
+  const body = JSON.stringify(value), options = { contentType: "application/json", upsert: true };
+  let saved = await admin.storage.from(STATE_BUCKET).upload(path, body, options);
+  if (saved.error && /not.?found/i.test(saved.error.message)) {
+    await admin.storage.createBucket(STATE_BUCKET, { public: false, fileSizeLimit: 65_536, allowedMimeTypes: ["application/json"] });
+    saved = await admin.storage.from(STATE_BUCKET).upload(path, body, options);
+  }
+  if (saved.error) throw new Error(failure);
+}
+export async function removeStateFile(admin: SupabaseClient, path: string) {
+  await admin.storage.from(STATE_BUCKET).remove([path]);
+}
 export async function flowLogins(admin: SupabaseClient, owner: string): Promise<FlowLogins> {
-  const file = await admin.storage.from(STATE_BUCKET).download(loginsPath(owner));
-  if (file.error || !file.data) return {};
-  try { return JSON.parse(await file.data.text()) as FlowLogins; } catch { return {}; }
+  return await readStateFile<FlowLogins>(admin, loginsPath(owner)) ?? {};
 }
 async function saveLogin(admin: SupabaseClient, owner: string, id: string, entry: FlowLogins[string] | null) {
   const logins = await flowLogins(admin, owner);
   if (entry) logins[id] = entry; else delete logins[id];
-  const body = JSON.stringify(logins), options = { contentType: "application/json", upsert: true };
-  let saved = await admin.storage.from(STATE_BUCKET).upload(loginsPath(owner), body, options);
-  if (saved.error && /not.?found/i.test(saved.error.message)) {
-    await admin.storage.createBucket(STATE_BUCKET, { public: false, fileSizeLimit: 65_536, allowedMimeTypes: ["application/json"] });
-    saved = await admin.storage.from(STATE_BUCKET).upload(loginsPath(owner), body, options);
-  }
-  if (saved.error) throw new Error("flow_login_not_saved");
+  await saveStateFile(admin, loginsPath(owner), logins, "flow_login_not_saved");
 }
 export async function addFlowAccount(admin: SupabaseClient, owner: string, input: { tiktokAccountId: string; label: string; clipsPerDay: number }) {
   const rows = check(await admin.from("flow_accounts").select("priority").eq("owner_id", owner).eq("tiktok_account_id", input.tiktokAccountId), "flow_accounts_unavailable") as Array<{ priority: number }>;

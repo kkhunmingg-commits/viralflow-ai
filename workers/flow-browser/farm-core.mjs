@@ -143,8 +143,13 @@ export async function runFarmPass(deps, options = {}) {
  * sign-in window when the account is not signed in yet. Returns how many accounts were handled.
  */
 export async function runLoginPass(deps) {
-  const { api, signIn, log = () => {} } = deps;
-  const pending = (await api.accounts()).filter(account => account.active !== false && account.loginState === "PENDING");
+  const { api, signIn, hasProfile, log = () => {} } = deps;
+  // A signed-in account whose profile is not on this computer (new install, another PC) signs in here once too.
+  const pending = [];
+  for (const account of await api.accounts()) {
+    if (account.active === false) continue;
+    if (account.loginState === "PENDING" || (hasProfile && (account.loginState ?? "READY") === "READY" && !await hasProfile(account))) pending.push(account);
+  }
   for (const account of pending) {
     log(`[${account.label}] ตรวจ/เปิดหน้าล็อกอิน Google`);
     let result;

@@ -10,16 +10,16 @@ const KNOWN = new Set(["FLOW_ACCOUNT_UNAVAILABLE", "PRODUCT_IMAGE_UNAVAILABLE", 
   "CHECKSUM_MISMATCH", "NOT_PORTRAIT_9_16", "DUPLICATE_VIDEO"]);
 const reply = (body: unknown, status = 200) => Response.json(body, { status, headers });
 
-/** Endpoints for the owner's local Flow worker (workers/flow-browser/farm.mjs). Token-authenticated, one owner. */
+/** Endpoints for each owner's local Flow worker (workers/flow-browser/farm.mjs). The token decides whose queue it serves. */
 export async function GET(request: Request, context: { params: Promise<{ action: string }> }) {
-  const auth = authorizeFlowWorker(request);
+  const auth = await authorizeFlowWorker(request);
   if (!auth.ok) return reply({ error: "unauthorized" }, auth.status);
   if ((await context.params).action !== "accounts") return reply({ error: "not_found" }, 404);
   return reply({ accounts: await workerAccounts(createAdminClient(), auth.owner) });
 }
 
 export async function POST(request: Request, context: { params: Promise<{ action: string }> }) {
-  const auth = authorizeFlowWorker(request);
+  const auth = await authorizeFlowWorker(request);
   if (!auth.ok) return reply({ error: "unauthorized" }, auth.status);
   const { action } = await context.params;
   let body: unknown = {};

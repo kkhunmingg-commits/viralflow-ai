@@ -2,7 +2,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { accountsFor, remainingCapacity, type FlowAccountView } from "@/features/flow-farm/capacity";
 import { bangkokDate, flowClipStatusLabels, MAX_FLOW_ACCOUNTS_PER_TIKTOK, type FlowClipStatus } from "@/features/flow-farm/contracts";
 import { flowLogins, listFlowAccounts, listLibrary, listTodayClips, workerLastSeen } from "@/features/flow-farm/service";
-import { flowWorkerConfig } from "@/features/flow-farm/worker-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addFlowAccountAction, discardClipAction, flowAccountAction, markPostedAction, scheduleClipAction, startBatchAction, unscheduleClipAction } from "./flow-actions";
 import "./flow-studio.css";
@@ -38,16 +37,28 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
   const waitingLogin = flowAccounts.some(f => f.active && f.loginState === "PENDING");
   const ready = flowAccounts.some(f => f.active && f.loginState === "READY");
   const back = <input type="hidden" name="back" value={account.id} />;
-  // The computer works for exactly one web account; one signed in elsewhere never sees it come online.
-  const worker = flowWorkerConfig(), otherOwner = worker.enabled && worker.owner !== owner;
+  // Each web account downloads its own installer; the file carries a token that serves only this account.
+  const installer = <form method="post" action="/api/flow-installer" className="library-start">
+    <button className={online ? "manual-secondary" : "manual-primary"} type="submit">ดาวน์โหลดตัวติดตั้ง (Windows)</button></form>;
 
   return <>
     {unavailable && <p className="manual-warning">ยังอ่านข้อมูลระบบ Flow ไม่ได้ (ฐานข้อมูลยังไม่ได้เพิ่มตาราง flow_clips) ปุ่มด้านล่างจะใช้ได้หลังอัปเดตฐานข้อมูล</p>}
-    {otherOwner && <p className="manual-warning">คอมพิวเตอร์ที่สร้างคลิปตั้งไว้ให้ทำงานกับบัญชีเว็บอื่น ไม่ใช่บัญชีที่ล็อกอินอยู่นี้ จึงมองไม่เห็นบัญชี Google ที่ผูกไว้ (รหัสบัญชีเว็บนี้: <code>{owner}</code>)</p>}
     <p className={online ? "flow-worker online" : "flow-worker"} role="status"><span aria-hidden="true">●</span>
       {online ? "เครื่องสร้างคลิปออนไลน์ กำลังรอ/ทำงานเบื้องหลัง"
-        : lastSeen ? `เครื่องสร้างคลิปไม่ได้ทำงาน (เห็นล่าสุด ${bangkokTime(lastSeen)}) เปิดโปรแกรมในคอมพิวเตอร์เพื่อให้สร้างคลิปต่อ`
-          : "ยังไม่ได้เปิดโปรแกรมสร้างคลิปในคอมพิวเตอร์ (ดูวิธีเปิดด้านล่าง)"}</p>
+        : lastSeen ? `เครื่องสร้างคลิปไม่ได้ทำงาน (เห็นล่าสุด ${bangkokTime(lastSeen)}) เปิดคอมเครื่องที่ติดตั้งไว้ หรือติดตั้งใหม่ด้านล่าง`
+          : "ยังไม่ได้ติดตั้งเครื่องสร้างคลิปในคอมพิวเตอร์ ติดตั้งครั้งเดียวด้านล่าง"}</p>
+    {online ? <details className="manual-panel"><summary>ติดตั้งในคอมเครื่องอื่น / อัปเดตตัวสร้างคลิป</summary>
+      <p className="manual-muted">ใช้ได้ทีละเครื่องต่อบัญชีเว็บ ดาวน์โหลดใหม่แล้วเครื่องเดิมจะหยุดทำงาน</p>{installer}</details>
+      : <section className="manual-panel" aria-labelledby="install-title">
+        <div className="manual-section-head"><div><p className="manual-eyebrow">ครั้งเดียว · Windows · ต้องมี Google Chrome</p>
+          <h2 id="install-title">ติดตั้งเครื่องสร้างคลิปในคอมพิวเตอร์</h2></div></div>
+        <ol className="manual-muted">
+          <li>กดดาวน์โหลด แล้วดับเบิลคลิกไฟล์ <code>ViralFlow-Setup.cmd</code> (ถ้า Windows ขึ้นหน้าจอเตือนสีน้ำเงิน กด “ข้อมูลเพิ่มเติม” แล้ว “เรียกใช้”)</li>
+          <li>รอ 2-5 นาทีจนขึ้นว่าติดตั้งเสร็จ ไม่ต้องตั้งค่าอะไร โปรแกรมจะทำงานเบื้องหลังและเปิดเองทุกครั้งที่เปิดคอม</li>
+          <li>ผูกบัญชี Google ด้านล่าง Chrome จะเปิดหน้าล็อกอินให้ครั้งเดียว ล็อกอินเสร็จแล้วปิดหน้าต่างนั้น</li>
+        </ol>{installer}
+        <p className="manual-muted">ไฟล์นี้ผูกกับบัญชีเว็บที่ล็อกอินอยู่ ให้เพื่อนล็อกอินเว็บด้วยบัญชีของตัวเองแล้วดาวน์โหลดเอง ถอนการติดตั้งได้ที่ Settings &gt; Apps</p>
+      </section>}
 
     <section className="manual-panel" aria-labelledby="google-title">
       <div className="manual-section-head"><div><p className="manual-eyebrow">ขั้นที่ 1 · ฟรี ไม่มีค่าใช้จ่ายต่อคลิป</p>

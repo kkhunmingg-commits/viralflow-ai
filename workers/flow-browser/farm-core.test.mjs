@@ -64,6 +64,14 @@ test("three accounts with 5 credits each make all 15 clips, draining the first b
   assert.equal(summary.stoppedBy, "QUEUE_EMPTY");
 });
 
+test("an account signed in on another computer signs in again on this one", async () => {
+  const signedIn = [];
+  const api = { accounts: async () => [{ id: "here", label: "here", loginState: "READY" }, { id: "elsewhere", label: "elsewhere", loginState: "READY" },
+    { id: "failed", label: "failed", loginState: "FAILED" }], login: async () => {} };
+  await runLoginPass({ api, hasProfile: async account => account.id === "here", signIn: async account => { signedIn.push(account.id); return { state: "READY" }; } });
+  assert.deepEqual(signedIn, ["elsewhere"]);
+});
+
 test("one account with 5 credits makes 5 clips and skips the rest of the day's queue", async () => {
   const { state, deps } = farm({ accounts: ["a"], queue: titles(15), credits: { a: 5 } });
   const summary = await runFarmPass(deps);
