@@ -32,7 +32,11 @@ function farm({ accounts, queue, credits, broken = {}, failures = {} }) {
       if (notStarted) state.queue.unshift({ id, title: id, prompt: "p" }); else state.failed.push({ id, reason });
     },
     exhausted: async id => { state.exhausted.push(id); },
-    finish: async () => { state.skipped = state.queue.length; state.queue = []; return { skipped: state.skipped }; },
+    // Mirrors skip_unreachable_flow_clips for unlinked accounts: skip only when every account is out of credits.
+    finish: async () => {
+      if (!accounts.every(id => state.exhausted.includes(id))) return { skipped: 0 };
+      state.skipped = state.queue.length; state.queue = []; return { skipped: state.skipped };
+    },
   };
   const openAccount = async account => {
     if (broken[account.id]) throw new Error(broken[account.id]);

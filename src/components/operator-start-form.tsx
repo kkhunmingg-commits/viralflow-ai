@@ -40,7 +40,7 @@ export function OperatorStartForm({ accounts, requestKey, disabled, selectedAcco
     <details className="operator-advanced"><summary>เลือกแนวคลิปเอง (ไม่บังคับ)</summary>
       <label>แนวคลิป<select value={mode} onChange={event => setMode(event.target.value)}><option value="AUTO">ให้ระบบเลือกตามบัญชี (แนะนำ)</option>
         <option value="GROWTH">ปั้นช่อง · คลิปให้คนกดติดตาม</option><option value="AFFILIATE">ขายสินค้า · ต้องมีสิทธิ์ TikTok Shop</option></select></label></details>
-    <div className="operator-form-footer"><p>ระบบคิดและสร้างคลิปให้ คุณตรวจแล้วดาวน์โหลดไปโพสต์เอง</p>
+    <div className="operator-form-footer"><p>สร้างฟรีด้วยบัญชี Google Flow ที่ผูกไว้ คลิปเข้าคลังรอโพสต์</p>
       <Link className="operator-start-button" href={`/post?account=${encodeURIComponent(accountId)}&mode=${mode}`}>▶ สร้างคลิป</Link></div></div>;
 
   return <form action={startOperatorAction} className="operator-form">

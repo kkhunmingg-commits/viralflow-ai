@@ -4,7 +4,10 @@
 
 ## ทำงานอย่างไร
 
-1. หน้า **คลังคลิป** (`/library`) กดปุ่ม **ค้นหาสินค้าและสร้างคลิป** ครั้งเดียว
+0. ระบบหลักคือ **สร้างคลิปฟรี** (`/post`, เมนู “สร้างคลิปฟรี & คลัง”) ไม่เสียเงินต่อคลิป ระบบเดิมที่จ่ายผ่าน API (fal / Wan / Flow API) ถูกพับไว้ล่างสุดเป็น “ระบบสำรอง” เท่านั้น `/library` พาไปหน้าเดียวกัน
+   - แต่ละบัญชี TikTok ผูกบัญชี Google (Flow) ได้สูงสุด 5 บัญชี บัญชี Google ที่ผูกไว้ทำคลิปให้เฉพาะบัญชี TikTok นั้น (บังคับใน `claim_flow_clip`) จะผูกบัญชีเดียวที่เครดิตเยอะก็ได้
+   - หน้าแสดงว่าเครื่องที่รัน worker ออนไลน์อยู่ไหม (worker ส่งสัญญาณทุกครั้งที่เช็กคิว)
+1. เลือกบัญชี TikTok แล้วกดปุ่ม **ค้นหาสินค้าและสร้างคลิป** (หรือ **สร้างคลิปปั้นช่อง**) ครั้งเดียว
    - บัญชีช่วงขายของ (`effective_mode = AFFILIATE`): ระบบเลือกสินค้าคะแนนสูงสุดที่ยังขายอยู่และมีรูปที่ผ่านการตรวจสิทธิ์ (approved, ใช้เชิงพาณิชย์/โปรโมตได้, TikTok) แล้วใช้ Flow-native director วางฉาก+ท่ามือไม่ซ้ำกัน
      แหล่งสินค้าขายดีคือ TikTok Shop/Affiliate API เมื่อได้สิทธิ์ ระหว่างนี้ใช้สินค้าที่นำเข้าเอง (ไม่มี Kalodata)
    - บัญชีอุ่นเครื่องหรือยังไม่มีสินค้าที่มีรูป: คลิปปั้นช่อง (ฉากชีวิตประจำวัน ไม่มีสินค้า ไม่มีคำอ้าง)
@@ -23,10 +26,10 @@
 
 ## ติดตั้งครั้งแรก
 
-1. Apply migration `supabase/migrations/20261028150000_flow_farm_semi_auto.sql` (ตาราง `flow_accounts`, `flow_clips`, ฟังก์ชัน `claim_flow_clip`)
+1. Apply migration `supabase/migrations/20261028150000_flow_farm_semi_auto.sql` (ตาราง `flow_accounts`, `flow_clips`, `flow_worker_status`, ฟังก์ชัน `claim_flow_clip`, `skip_unreachable_flow_clips`)
 2. ตั้ง env ฝั่งเซิร์ฟเวอร์: `FLOW_WORKER_TOKEN` (สุ่มยาว 32+ ตัว) และ `FLOW_WORKER_OWNER_ID` (id ผู้ใช้ของเจ้าของ)
 3. ในเครื่อง: คัดลอก `workers/flow-browser/farm.env.example` เป็น `farm.env` ใส่ URL และ token เดียวกัน
-4. หน้า `/library` → เพิ่มบัญชี Flow ตามลำดับที่อยากให้ใช้ แล้วคัดลอก id ของแต่ละบัญชี
+4. หน้า `/post` → เลือกบัญชี TikTok → ผูกบัญชี Google ตามลำดับที่อยากให้ใช้ (สูงสุด 5) แล้วคัดลอก “รหัสสำหรับล็อกอิน” ของแต่ละบัญชี
 5. ล็อกอินแต่ละบัญชีครั้งเดียว: `.\scripts\flow-farm-d.ps1 -Login <id>` (หน้าต่างโชว์ ล็อกอิน Google ตั้ง Veo 3.1 - Lite, 9:16, x1 แล้วกด Enter)
 6. ตรวจโดยไม่ใช้เครดิต: `.\scripts\flow-farm-d.ps1 -Probe` (ต้องเห็น signedIn, promptBox, generateButton = true และ cost = 10)
    และ `.\scripts\flow-farm-d.ps1 -DryRun` (เตรียมคลิปจริง 1 งานใน Flow แล้วหยุดก่อนกด Generate)
@@ -47,3 +50,4 @@
 - `node --test workers/flow-browser/farm-core.test.mjs` (ลำดับบัญชี, เครดิตหมด, ข้ามคิว, ไม่กดซ้ำ, ไม่เปิดเบราว์เซอร์ถ้าไม่มีงาน)
 - `node --test workers/flow-browser/farm.browser-test.mjs` Chrome จริงกับหน้า Flow จำลอง + พอร์ทัลจำลอง: 2 บัญชี บัญชีละ 2 เครดิต คิว 5 → ได้ 4 คลิปอัปโหลดครบ ข้าม 1, และไม่กด Generate เมื่อราคาเกินเพดาน
 - vitest `src/features/flow-farm`, `tsc --noEmit`
+- `scripts/verify-flow-farm-sql.sql` บน PostgreSQL 16: จำกัด 5 บัญชี, ไม่หยิบคลิปของบัญชี TikTok อื่น, ข้ามเฉพาะคิวที่ไม่มีบัญชีเหลือเครดิต, RLS

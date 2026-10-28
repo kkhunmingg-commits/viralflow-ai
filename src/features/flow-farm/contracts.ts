@@ -16,8 +16,10 @@ export const LIBRARY_STATUSES: FlowClipStatus[] = ["READY", "SCHEDULED"];
 export const MAX_CLIPS_PER_BATCH = 30;
 export const FLOW_CLIP_MAX_BYTES = 50_000_000;
 
+export const MAX_FLOW_ACCOUNTS_PER_TIKTOK = 5;
+
 export interface FlowAccountRow {
-  id: string; label: string; priority: number; clips_per_day_estimate: number; active: boolean;
+  id: string; tiktok_account_id: string | null; label: string; priority: number; clips_per_day_estimate: number; active: boolean;
   exhausted_on: string | null; clips_today: number; clips_today_on: string | null; last_used_at: string | null; created_at: string;
 }
 
@@ -26,6 +28,7 @@ export const startBatchSchema = z.object({
   count: z.coerce.number().int().min(1).max(MAX_CLIPS_PER_BATCH),
 });
 export const flowAccountSchema = z.object({
+  tiktokAccountId: z.uuid(),
   label: z.string().trim().min(1).max(60),
   clipsPerDay: z.coerce.number().int().min(1).max(200).default(5),
 });

@@ -2,9 +2,10 @@
  * Flow farm core: the decisions the local semi-auto worker makes, kept free of the browser so they can be
  * tested with fakes. The browser side (farm-driver.mjs) only reports what Flow showed.
  *
- * Order of work: accounts are drained one at a time in the owner's order. An account is used until Flow says
- * its credits are gone, then the worker moves to the next. When every account is out, today's remaining
- * queue is skipped and whatever was made stays in the library. A clip whose Generate click may have reached
+ * Order of work: Google accounts are drained one at a time in the owner's order, each making only its own
+ * TikTok account's clips (shared accounts make anyone's). An account is used until Flow says its credits are
+ * gone or its TikTok account has nothing queued, then the worker moves on. Clips no account with credits left
+ * may make are skipped for the day and whatever was made stays in the library. A clip whose Generate click may have reached
  * Google is never submitted again.
  */
 
@@ -70,8 +71,9 @@ export async function runFarmPass(deps, options = {}) {
     try {
       while (!accountDone) {
         if (options.maxClips && summary.made >= options.maxClips) { summary.stoppedBy = "MAX_CLIPS"; return summary; }
+        // Nothing left that this Google account may make (its TikTok account is done): try the next account.
         const clip = await api.claim(account.id);
-        if (!clip) { summary.queueEmpty = true; summary.stoppedBy = "QUEUE_EMPTY"; return summary; }
+        if (!clip) break;
         if (!session) {
           try { session = await openAccount(account); }
           catch (error) {
@@ -123,14 +125,14 @@ export async function runFarmPass(deps, options = {}) {
       }
     } finally { await session?.close().catch(() => {}); }
   }
-  // Every account was used up or unusable. Only an all-out-of-credits day skips the rest of the queue;
-  // a signed-out or broken account leaves the queue for the owner to fix.
-  if (accounts.every(account => summary.exhaustedAccounts.includes(account.id))) {
-    const finished = await api.finish();
-    summary.skipped = finished?.skipped ?? 0;
-    summary.stoppedBy = "ALL_CREDITS_USED";
-    log(`เครดิตทุกบัญชีหมด ได้ ${summary.made} คลิปวันนี้ ข้ามที่เหลือ ${summary.skipped} คลิป`);
-  } else summary.stoppedBy = "ACCOUNTS_NEED_ATTENTION";
+  // The server skips only queued clips that no Google account with credits left may make, so what was made
+  // stays and a signed-out or broken account leaves its clips waiting for the owner to fix it.
+  const finished = await api.finish();
+  summary.skipped = finished?.skipped ?? 0;
+  if (accounts.every(account => summary.exhaustedAccounts.includes(account.id))) summary.stoppedBy = "ALL_CREDITS_USED";
+  else if (summary.brokenAccounts.length) summary.stoppedBy = "ACCOUNTS_NEED_ATTENTION";
+  else { summary.queueEmpty = true; summary.stoppedBy = "QUEUE_EMPTY"; }
+  if (summary.skipped) log(`เครดิตหมด ได้ ${summary.made} คลิป ข้ามที่เหลือ ${summary.skipped} คลิป`);
   return summary;
 }
 

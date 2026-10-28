@@ -56,7 +56,7 @@ export function ContentStudio({ accounts, products, configured, initialRuns, ini
     finally { setBusy(false); }
   }
   return <section className="manual-panel content-studio" aria-labelledby="content-title">
-    <div className="manual-section-head"><div><p className="manual-eyebrow">สร้างด้วย Viral Flow AI</p><h2 id="content-title">ให้ระบบคิดและสร้างคลิปให้</h2>
+    <div className="manual-section-head"><div><p className="manual-eyebrow">ระบบสำรอง · เสียเงินต่อคลิป</p><h2 id="content-title">สร้างผ่าน API แบบเสียเงิน</h2>
       <p>เลือกบัญชีและแนวทาง ระบบเตรียมเนื้อหา ภาพ เสียง และวิดีโอแนวตั้งให้ คุณตรวจแล้วดาวน์โหลดไปโพสต์เอง</p></div></div>
     <form action={start} className="content-form">
       <label>บัญชี TikTok<select required name="accountId" defaultValue={initialAccount ?? accounts[0]?.id} disabled={busy}>

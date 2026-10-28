@@ -1,7 +1,7 @@
 import type { FlowAccountRow } from "./contracts";
 
 export interface FlowAccountView {
-  id: string; label: string; priority: number; active: boolean; clipsPerDayEstimate: number;
+  id: string; tiktokAccountId: string | null; label: string; priority: number; active: boolean; clipsPerDayEstimate: number;
   exhaustedToday: boolean; clipsToday: number; remainingEstimate: number;
 }
 
@@ -11,9 +11,14 @@ export function flowAccountViews(rows: FlowAccountRow[], today: string): FlowAcc
     .map(row => {
       const clipsToday = row.clips_today_on === today ? row.clips_today : 0;
       const exhaustedToday = row.exhausted_on === today;
-      return { id: row.id, label: row.label, priority: row.priority, active: row.active, clipsPerDayEstimate: row.clips_per_day_estimate,
+      return { id: row.id, tiktokAccountId: row.tiktok_account_id, label: row.label, priority: row.priority, active: row.active, clipsPerDayEstimate: row.clips_per_day_estimate,
         exhaustedToday, clipsToday, remainingEstimate: !row.active || exhaustedToday ? 0 : Math.max(0, row.clips_per_day_estimate - clipsToday) };
     });
+}
+
+/** Google accounts that can make this TikTok account's clips: its own (in order) first, then shared ones. */
+export function accountsFor(views: FlowAccountView[], tiktokAccountId: string) {
+  return [...views.filter(view => view.tiktokAccountId === tiktokAccountId), ...views.filter(view => view.tiktokAccountId === null)];
 }
 
 /** Roughly how many more clips the active accounts can make today. An estimate: Flow's own credit count decides. */

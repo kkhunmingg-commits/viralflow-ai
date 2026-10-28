@@ -2,13 +2,13 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getProductRadar } from "@/features/products/services";
-import { bangkokDate, bangkokDayRange, COUNTED_STATUSES, FLOW_CLIP_MAX_BYTES, LIBRARY_STATUSES, MAX_CLIPS_PER_BATCH,
+import { bangkokDate, bangkokDayRange, COUNTED_STATUSES, FLOW_CLIP_MAX_BYTES, LIBRARY_STATUSES, MAX_CLIPS_PER_BATCH, MAX_FLOW_ACCOUNTS_PER_TIKTOK,
   type FlowAccountRow, type FlowClipStatus } from "./contracts";
 import { clipsToAdd, flowAccountViews } from "./capacity";
 import { planBatch, type FarmProduct } from "./planner";
 
 const BUCKET = "video-assets";
-const ACCOUNT_COLUMNS = "id,label,priority,clips_per_day_estimate,active,exhausted_on,clips_today,clips_today_on,last_used_at,created_at";
+const ACCOUNT_COLUMNS = "id,tiktok_account_id,label,priority,clips_per_day_estimate,active,exhausted_on,clips_today,clips_today_on,last_used_at,created_at";
 export const LIBRARY_COLUMNS = "id,tiktok_account_id,product_id,kind,title,caption,hashtags,status,error,ready_at,scheduled_at,posted_at,post_url,duration_seconds,width,height,created_at,flow_account_id";
 
 function check<T>(result: { data: T; error: { message: string } | null }, code: string): T {
@@ -26,16 +26,21 @@ export async function listFlowAccounts(client: SupabaseClient, owner: string, no
   const rows = check(await client.from("flow_accounts").select(ACCOUNT_COLUMNS).eq("owner_id", owner), "flow_accounts_unavailable") as FlowAccountRow[];
   return flowAccountViews(rows, bangkokDate(now));
 }
-export async function addFlowAccount(admin: SupabaseClient, owner: string, input: { label: string; clipsPerDay: number }) {
-  const rows = check(await admin.from("flow_accounts").select("priority").eq("owner_id", owner), "flow_accounts_unavailable") as Array<{ priority: number }>;
+export async function addFlowAccount(admin: SupabaseClient, owner: string, input: { tiktokAccountId: string; label: string; clipsPerDay: number }) {
+  const rows = check(await admin.from("flow_accounts").select("priority").eq("owner_id", owner).eq("tiktok_account_id", input.tiktokAccountId), "flow_accounts_unavailable") as Array<{ priority: number }>;
+  if (rows.length >= MAX_FLOW_ACCOUNTS_PER_TIKTOK) throw new Error("FLOW_ACCOUNT_LIMIT_5");
   const priority = Math.min(100, rows.reduce((max, row) => Math.max(max, row.priority), 0) + 1);
-  const result = await admin.from("flow_accounts").insert({ owner_id: owner, label: input.label, clips_per_day_estimate: input.clipsPerDay, priority });
+  const result = await admin.from("flow_accounts").insert({ owner_id: owner, tiktok_account_id: input.tiktokAccountId, label: input.label,
+    clips_per_day_estimate: input.clipsPerDay, priority });
   if (result.error?.code === "23505") throw new Error("FLOW_ACCOUNT_LABEL_TAKEN");
+  if (result.error?.message.includes("FLOW_ACCOUNT_LIMIT_5")) throw new Error("FLOW_ACCOUNT_LIMIT_5");
   check(result, "flow_account_not_saved");
 }
-/** Moves an account one place earlier or later in the drain order. */
+/** Moves a Google account one place earlier or later in its TikTok account's drain order. */
 export async function moveFlowAccount(admin: SupabaseClient, owner: string, id: string, direction: "UP" | "DOWN") {
-  const views = await listFlowAccounts(admin, owner);
+  const all = await listFlowAccounts(admin, owner);
+  const group = all.find(view => view.id === id)?.tiktokAccountId ?? null;
+  const views = all.filter(view => view.tiktokAccountId === group);
   const index = views.findIndex(view => view.id === id), swap = direction === "UP" ? index - 1 : index + 1;
   if (index < 0 || swap < 0 || swap >= views.length) return;
   const order = views.map(view => view.id);
@@ -122,8 +127,16 @@ export async function startBatch(admin: SupabaseClient, owner: string, accountId
 
 // ---------------------------------------------------------------- Local worker (service role, token-authenticated)
 
-export async function workerAccounts(admin: SupabaseClient, owner: string) {
-  return (await listFlowAccounts(admin, owner)).filter(view => view.active);
+/** The worker's poll doubles as its heartbeat, so the page can tell whether the computer is running it. */
+export async function workerAccounts(admin: SupabaseClient, owner: string, now = new Date()) {
+  await admin.from("flow_worker_status").upsert({ owner_id: owner, last_seen_at: now.toISOString() });
+  // Each TikTok account's own Google accounts first; shared accounts only pick up what is left.
+  const views = (await listFlowAccounts(admin, owner, now)).filter(view => view.active);
+  return [...views.filter(view => view.tiktokAccountId), ...views.filter(view => !view.tiktokAccountId)];
+}
+export async function workerLastSeen(client: SupabaseClient, owner: string) {
+  const row = await client.from("flow_worker_status").select("last_seen_at").eq("owner_id", owner).maybeSingle();
+  return (row.data as { last_seen_at: string } | null)?.last_seen_at ?? null;
 }
 
 /** Clips whose worker vanished mid-generation are not retried automatically: Flow may already have spent credits. */
@@ -213,12 +226,11 @@ export async function markExhausted(admin: SupabaseClient, owner: string, flowAc
     .eq("owner_id", owner).eq("id", flowAccountId), "flow_account_not_saved");
 }
 
-/** Every Flow account is out of credits: what was made stays, the rest of today's queue is skipped. */
-export async function finishWithoutCredits(admin: SupabaseClient, owner: string) {
-  const result = await admin.from("flow_clips").update({ status: "SKIPPED_NO_CREDIT", updated_at: new Date().toISOString() }, { count: "exact" })
-    .eq("owner_id", owner).eq("status", "QUEUED");
+/** After a pass: queued clips that no Google account with credits left may make are skipped; what was made stays. */
+export async function finishWithoutCredits(admin: SupabaseClient, owner: string, now = new Date()) {
+  const result = await admin.rpc("skip_unreachable_flow_clips", { p_owner: owner, p_today: bangkokDate(now) });
   if (result.error) throw new Error("flow_clips_unavailable");
-  return { skipped: result.count ?? 0 };
+  return { skipped: Number(result.data ?? 0) };
 }
 
 // ---------------------------------------------------------------- Library (owner)
@@ -229,10 +241,12 @@ export interface LibraryClip {
   post_url: string | null; duration_seconds: number | null; width: number | null; height: number | null; created_at: string; flow_account_id: string | null;
 }
 
-export async function listTodayClips(client: SupabaseClient, owner: string, now = new Date()) {
+export async function listTodayClips(client: SupabaseClient, owner: string, accountId?: string, now = new Date()) {
   const { start, end } = bangkokDayRange(bangkokDate(now));
-  return check(await client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).gte("created_at", start).lt("created_at", end)
-    .order("created_at", { ascending: true }), "flow_clips_unavailable") as LibraryClip[];
+  let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).gte("created_at", start).lt("created_at", end)
+    .order("created_at", { ascending: true });
+  if (accountId) query = query.eq("tiktok_account_id", accountId);
+  return check(await query, "flow_clips_unavailable") as LibraryClip[];
 }
 export async function listLibrary(client: SupabaseClient, owner: string, accountId?: string) {
   let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).in("status", LIBRARY_STATUSES)

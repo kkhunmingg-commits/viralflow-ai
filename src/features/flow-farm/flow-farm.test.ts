@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { clipsToAdd, flowAccountViews, nextFlowAccount, remainingCapacity } from "./capacity";
+import { accountsFor, clipsToAdd, flowAccountViews, nextFlowAccount, remainingCapacity } from "./capacity";
 import { bangkokDate, bangkokDayRange, bangkokLocalToIso } from "./contracts";
 import { planBatch, type FarmProduct } from "./planner";
 
 const row = (id: string, priority: number, extra: Partial<Parameters<typeof flowAccountViews>[0][number]> = {}) => ({
-  id, label: id, priority, clips_per_day_estimate: 5, active: true, exhausted_on: null, clips_today: 0, clips_today_on: null,
+  id, tiktok_account_id: null as string | null, label: id, priority, clips_per_day_estimate: 5, active: true, exhausted_on: null, clips_today: 0, clips_today_on: null,
   last_used_at: null, created_at: `2026-10-0${priority}T00:00:00Z`, ...extra,
 });
 
@@ -14,6 +14,11 @@ describe("Flow account capacity", () => {
     expect(views.map(v => v.id)).toEqual(["a", "b", "c"]);
     expect(remainingCapacity(views)).toBe(2 + 5);
     expect(nextFlowAccount(views)?.id).toBe("a");
+  });
+  it("gives a TikTok account its own Google accounts first, then shared ones, never another account's", () => {
+    const views = flowAccountViews([row("shared", 1), row("mine2", 2, { tiktok_account_id: "t1" }), row("mine1", 1, { tiktok_account_id: "t1" }),
+      row("theirs", 1, { tiktok_account_id: "t2" })], "2026-10-28");
+    expect(accountsFor(views, "t1").map(v => v.id)).toEqual(["mine1", "mine2", "shared"]);
   });
   it("forgets yesterday's usage and yesterday's empty credits", () => {
     const [view] = flowAccountViews([row("a", 1, { clips_today: 5, clips_today_on: "2026-10-27", exhausted_on: "2026-10-27" })], "2026-10-28");

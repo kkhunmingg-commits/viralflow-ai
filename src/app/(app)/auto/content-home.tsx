@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { OperatorStartForm } from "@/components/operator-start-form";
 import { accountPhase } from "@/features/accounts/account-phase";
-import { contentExportConfig } from "@/features/content-export/config";
 import { statusLabels } from "@/features/content-export/contracts";
 import { listContentRuns } from "@/features/content-export/service";
 import { SYSTEM_STATUS } from "@/features/system/status";
@@ -13,26 +12,24 @@ type Account = { id: string; display_name: string; account_status: string; autho
 export async function ContentHome({ client, owner, accounts, accountId, today, dayStart, dayEnd }: {
   client: SupabaseClient; owner: string; accounts: Account[]; accountId?: string; today: string; dayStart: string; dayEnd: string;
 }) {
-  const config = contentExportConfig();
-  const configured = config.enabled && Boolean(config.key) && config.allowedOwners.includes(owner);
   const account = accounts.find(item => item.id === accountId);
   const phase = account ? accountPhase(account) : null;
   const runs = accountId ? await listContentRuns(client, owner, accountId) : [];
   const current = runs.find(run => !["READY", "FAILED", "CANCELLED"].includes(run.status));
+  // Today's figures come from the free Google Flow pipeline (flow_clips); "—" until its table exists.
   const count = async (states: string[]) => {
     if (!accountId) return null;
-    const result = await client.from("content_export_runs").select("id", { count: "exact", head: true })
+    const result = await client.from("flow_clips").select("id", { count: "exact", head: true })
       .eq("owner_id", owner).eq("tiktok_account_id", accountId).in("status", states).gte("created_at", dayStart).lt("created_at", dayEnd);
-    if (result.error) throw new Error("content_summary_unavailable");
-    return result.count ?? 0;
+    return result.error ? null : result.count ?? 0;
   };
-  const values = await Promise.all([count(["REVIEW_REQUIRED", "READY"]), count(["QUEUED", "THINKING", "IMAGING", "VOICING", "GENERATING", "COMPOSING"]), count(["READY"]), count(["FAILED"])]);
+  const values = await Promise.all([count(["READY", "SCHEDULED", "POSTED"]), count(["QUEUED", "GENERATING"]), count(["READY", "SCHEDULED"]), count(["FAILED", "SKIPPED_NO_CREDIT"])]);
   const readyToDownload = values[2] ?? 0;
-  const overall = !account ? "เชื่อมบัญชีก่อนเริ่ม" : !configured ? "กำลังเตรียมระบบสร้างคลิป" : current ? statusLabels[current.status] : "พร้อมสร้างคลิป";
+  const overall = !account ? "เชื่อมบัญชีก่อนเริ่ม" : current ? statusLabels[current.status] : "พร้อมสร้างคลิป";
   const postHref = `/post${accountId ? `?account=${accountId}` : ""}`;
   const steps = [
     { title: "เชื่อมบัญชี TikTok", detail: accounts.length ? `เชื่อมแล้ว ${accounts.length.toLocaleString("th-TH")} บัญชี` : "เริ่มจากตรงนี้", done: accounts.length > 0, href: "/accounts" },
-    { title: "ให้ระบบสร้างคลิป", detail: current ? statusLabels[current.status] : "บท ภาพ และวิดีโอด้วย Google Flow", done: Boolean(current) || readyToDownload > 0, href: postHref },
+    { title: "สร้างคลิปฟรีด้วย Google Flow", detail: current ? statusLabels[current.status] : "ผูกบัญชี Google แล้วกดสร้าง ไม่เสียเงินต่อคลิป", done: Boolean(current) || readyToDownload > 0, href: postHref },
     { title: "ดาวน์โหลดแล้วโพสต์เอง", detail: readyToDownload ? `พร้อมดาวน์โหลด ${readyToDownload.toLocaleString("th-TH")} คลิป` : "เปิดแอป TikTok แล้วกดโพสต์", done: false, href: postHref },
   ];
   const nextStep = steps.findIndex(step => !step.done);
@@ -59,7 +56,6 @@ export async function ContentHome({ client, owner, accounts, accountId, today, d
         })} />
         : <div className="operator-empty"><strong>ยังไม่มีบัญชี TikTok</strong><p>เชื่อมบัญชีแรกเพื่อให้ระบบเริ่มทำคลิป</p><Link href="/accounts">เชื่อม TikTok →</Link></div>}
     </section>
-    {!configured && <section className="operator-action-required" role="status"><div><h2>กำลังเตรียมระบบสร้างคลิป</h2><p>ยังไม่เริ่มรายการที่มีค่าใช้จ่าย</p></div></section>}
 
     <section className="home-two-col">
       <article className="operator-live" aria-label="งานปัจจุบัน" aria-live="polite">
