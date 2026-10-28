@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { accountsFor, remainingCapacity, type FlowAccountView } from "@/features/flow-farm/capacity";
 import { bangkokDate, flowClipStatusLabels, MAX_FLOW_ACCOUNTS_PER_TIKTOK, type FlowClipStatus } from "@/features/flow-farm/contracts";
 import { flowLogins, listFlowAccounts, listLibrary, listTodayClips, workerLastSeen } from "@/features/flow-farm/service";
+import { flowWorkerConfig } from "@/features/flow-farm/worker-auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addFlowAccountAction, discardClipAction, flowAccountAction, markPostedAction, scheduleClipAction, startBatchAction, unscheduleClipAction } from "./flow-actions";
 import "./flow-studio.css";
@@ -37,9 +38,12 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
   const waitingLogin = flowAccounts.some(f => f.active && f.loginState === "PENDING");
   const ready = flowAccounts.some(f => f.active && f.loginState === "READY");
   const back = <input type="hidden" name="back" value={account.id} />;
+  // The computer works for exactly one web account; one signed in elsewhere never sees it come online.
+  const worker = flowWorkerConfig(), otherOwner = worker.enabled && worker.owner !== owner;
 
   return <>
     {unavailable && <p className="manual-warning">ยังอ่านข้อมูลระบบ Flow ไม่ได้ (ฐานข้อมูลยังไม่ได้เพิ่มตาราง flow_clips) ปุ่มด้านล่างจะใช้ได้หลังอัปเดตฐานข้อมูล</p>}
+    {otherOwner && <p className="manual-warning">คอมพิวเตอร์ที่สร้างคลิปตั้งไว้ให้ทำงานกับบัญชีเว็บอื่น ไม่ใช่บัญชีที่ล็อกอินอยู่นี้ จึงมองไม่เห็นบัญชี Google ที่ผูกไว้ (รหัสบัญชีเว็บนี้: <code>{owner}</code>)</p>}
     <p className={online ? "flow-worker online" : "flow-worker"} role="status"><span aria-hidden="true">●</span>
       {online ? "เครื่องสร้างคลิปออนไลน์ กำลังรอ/ทำงานเบื้องหลัง"
         : lastSeen ? `เครื่องสร้างคลิปไม่ได้ทำงาน (เห็นล่าสุด ${bangkokTime(lastSeen)}) เปิดโปรแกรมในคอมพิวเตอร์เพื่อให้สร้างคลิปต่อ`
