@@ -5,6 +5,8 @@
 
 -- Flow accounts in the order they are drained: the first is used until Flow says its credits are gone,
 -- then the next. The browser profile for each lives only on the owner's computer, keyed by this id.
+create schema if not exists private;
+
 create table public.flow_accounts (
  id uuid primary key default gen_random_uuid(),
  owner_id uuid not null references public.profiles(id) on delete cascade,

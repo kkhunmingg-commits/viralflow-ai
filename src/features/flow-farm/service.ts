@@ -15,6 +15,11 @@ function check<T>(result: { data: T; error: { message: string } | null }, code: 
   if (result.error) throw new Error(code);
   return result.data;
 }
+/** Like check, but a table this database does not have yet (rights/evidence ship in a later migration) reads as empty. */
+function optional<T>(result: { data: T[] | null; error: { message: string; code?: string } | null }, code: string): T[] {
+  if (result.error && (result.error.code === "PGRST205" || result.error.code === "42P01")) return [];
+  return check(result, code) ?? [];
+}
 export function clipStoragePath(owner: string, clipId: string) {
   if (!/^[0-9a-f-]{36}$/i.test(owner) || !/^[0-9a-f-]{36}$/i.test(clipId)) throw new Error("INVALID_CLIP_PATH");
   return `owner/${owner}/flow-clips/${clipId}.mp4`;
@@ -74,13 +79,13 @@ export async function findBatchProducts(admin: SupabaseClient, owner: string, li
     .eq("owner_id", owner).in("product_id", ids).in("asset_type", ["PRODUCT_IMAGE", "IMAGE"]).like("mime_type", "image/%"), "product_media_unavailable") as
     Array<{ id: string; product_id: string; storage_path: string; created_at: string }>;
   if (!assets.length) return [];
-  const rights = check(await admin.from("media_asset_rights").select("media_asset_id,platform_scope,expires_at")
+  const rights = optional(await admin.from("media_asset_rights").select("media_asset_id,platform_scope,expires_at")
     .eq("owner_id", owner).in("media_asset_id", assets.map(asset => asset.id)).eq("review_state", "APPROVED").is("revoked_at", null)
     .eq("allows_commercial", true).eq("allows_promotion", true), "media_rights_unavailable") as
     Array<{ media_asset_id: string; platform_scope: string[]; expires_at: string | null }>;
   const cleared = new Set(rights.filter(r => r.platform_scope.includes("TIKTOK") && (!r.expires_at || Date.parse(r.expires_at) > now.getTime()))
     .map(r => r.media_asset_id));
-  const facts = check(await admin.from("content_evidence").select("id,product_id,statement,role")
+  const facts = optional(await admin.from("content_evidence").select("id,product_id,statement,role")
     .eq("owner_id", owner).in("product_id", ids).is("revoked_at", null), "product_facts_unavailable") as
     Array<{ id: string; product_id: string; statement: string; role: "PROBLEM" | "SELLING_POINT" | "OBSERVATION" | null }>;
   const products: FarmProduct[] = [];
