@@ -29,7 +29,11 @@ const [command = "--once", argument] = process.argv.slice(2);
 
 async function loadEnvFile(path) {
   let text;
-  try { text = await readFile(path, "utf8"); } catch { return; }
+  try {
+    // Windows PowerShell may save the file as UTF-16 or with a BOM.
+    const bytes = await readFile(path);
+    text = (bytes[0] === 0xff && bytes[1] === 0xfe ? bytes.toString("utf16le") : bytes.toString("utf8")).replace(/^\uFEFF/, "");
+  } catch { return; }
   for (const line of text.split(/\r?\n/)) {
     const match = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
     if (match && process.env[match[1]] === undefined) process.env[match[1]] = match[2].replace(/^["']|["']$/g, "");

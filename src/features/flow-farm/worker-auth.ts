@@ -3,7 +3,9 @@ import { createHash, timingSafeEqual } from "node:crypto";
 
 /** The local Flow worker signs in with one long secret and acts for exactly one owner. Both must be set. */
 export function flowWorkerConfig() {
-  const token = process.env.FLOW_WORKER_TOKEN ?? "", owner = process.env.FLOW_WORKER_OWNER_ID ?? "";
+  // Trimmed: values piped into `vercel env add` from Windows can carry a BOM or CRLF.
+  const clean = (value: string | undefined) => (value ?? "").replace(/^\uFEFF/, "").trim();
+  const token = clean(process.env.FLOW_WORKER_TOKEN), owner = clean(process.env.FLOW_WORKER_OWNER_ID);
   return { enabled: token.length >= 32 && /^[0-9a-f-]{36}$/i.test(owner), token, owner };
 }
 
