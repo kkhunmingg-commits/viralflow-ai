@@ -53,7 +53,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
         <div className="manual-section-head"><div><p className="manual-eyebrow">ครั้งเดียว · Windows · ต้องมี Google Chrome</p>
           <h2 id="install-title">ติดตั้งเครื่องสร้างคลิปในคอมพิวเตอร์</h2></div></div>
         <ol className="manual-muted">
-          <li>กดดาวน์โหลด แล้วดับเบิลคลิกไฟล์ <code>ViralFlow-Setup.cmd</code> (ถ้า Windows ขึ้นหน้าจอเตือนสีน้ำเงิน กด “ข้อมูลเพิ่มเติม” แล้ว “เรียกใช้”)</li>
+          <li>กดดาวน์โหลด แล้วเปิดไฟล์ <code>ViralFlow-Setup.zip</code> ที่ได้ แล้วดับเบิลคลิก <code>ViralFlow-Setup.cmd</code> ข้างใน (ถ้า Windows ถามหรือขึ้นหน้าจอเตือนสีน้ำเงิน กด “เรียกใช้” หรือ “ข้อมูลเพิ่มเติม” แล้ว “เรียกใช้”)</li>
           <li>รอ 2-5 นาทีจนขึ้นว่าติดตั้งเสร็จ ไม่ต้องตั้งค่าอะไร โปรแกรมจะทำงานเบื้องหลังและเปิดเองทุกครั้งที่เปิดคอม</li>
           <li>ผูกบัญชี Google ด้านล่าง Chrome จะเปิดหน้าล็อกอินให้ครั้งเดียว ล็อกอินเสร็จแล้วปิดหน้าต่างนั้น</li>
         </ol>{installer}

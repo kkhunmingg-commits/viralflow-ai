@@ -20,7 +20,7 @@ $dir = Join-Path $env:LOCALAPPDATA 'ViralFlowClipMaker'
 $app = Join-Path $dir 'app'
 $log = Join-Path $dir 'worker.log'
 # On the owner's own computer, keep using the repo worker's signed-in Google profiles instead of signing in again.
-$repoWorkspace = 'D:ViralFlowAIworkerslow-browserworkspace'
+$repoWorkspace = 'D:\ViralFlowAI\workers\flow-browser\workspace'
 $workspace = if (Test-Path -LiteralPath (Join-Path $repoWorkspace 'profiles')) { $repoWorkspace } else { Join-Path $dir 'workspace' }
 $utf8 = New-Object Text.UTF8Encoding $false
 
@@ -92,9 +92,9 @@ try {
   $vbs = Join-Path $dir 'run-hidden.vbs'
   [IO.File]::WriteAllText($vbs, (@(
     'Set shell = CreateObject("WScript.Shell")',
-    'shell.CurrentDirectory = "' + $app + '"',
+    ('shell.CurrentDirectory = "' + $app + '"'),
     'Do',
-    '  shell.Run "' + $command.Replace('"', '""') + '", 0, True',
+    ('  shell.Run "' + $command.Replace('"', '""') + '", 0, True'),
     '  WScript.Sleep 60000',
     'Loop'
   ) -join "`r`n"), [Text.Encoding]::Unicode)
