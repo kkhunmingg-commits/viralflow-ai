@@ -27,6 +27,8 @@ export function windowArgs(mode) {
   // Off-screen keeps a real, fully rendering window (Google treats it as a normal browser) that never appears.
   const keepRendering = ["--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding", "--disable-background-timer-throttling"];
   if (mode === "offscreen") return ["--window-position=-32000,-32000", "--window-size=1280,900", ...keepRendering];
+  // The profile remembers the off-screen placement, so a window meant to be seen must say where to open.
+  if (mode === "visible") return ["--window-position=80,60", "--window-size=1280,900", ...keepRendering];
   return keepRendering;
 }
 
