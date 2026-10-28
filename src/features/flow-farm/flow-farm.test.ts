@@ -5,7 +5,7 @@ import { planBatch, type FarmProduct } from "./planner";
 
 const row = (id: string, priority: number, extra: Partial<Parameters<typeof flowAccountViews>[0][number]> = {}) => ({
   id, tiktok_account_id: null as string | null, label: id, priority, clips_per_day_estimate: 5, active: true, exhausted_on: null, clips_today: 0, clips_today_on: null,
-  last_used_at: null, created_at: `2026-10-0${priority}T00:00:00Z`, ...extra,
+  last_used_at: null, created_at: `2026-10-0${priority}T00:00:00Z`, login_state: "READY" as const, login_note: null as string | null, ...extra,
 });
 
 describe("Flow account capacity", () => {
@@ -23,6 +23,11 @@ describe("Flow account capacity", () => {
   it("forgets yesterday's usage and yesterday's empty credits", () => {
     const [view] = flowAccountViews([row("a", 1, { clips_today: 5, clips_today_on: "2026-10-27", exhausted_on: "2026-10-27" })], "2026-10-28");
     expect(view).toMatchObject({ clipsToday: 0, exhaustedToday: false, remainingEstimate: 5 });
+  });
+  it("plans only with Google accounts the computer has signed in", () => {
+    const views = flowAccountViews([row("waiting", 1, { login_state: "PENDING" }), row("ok", 2), row("broken", 3, { login_state: "FAILED" })], "2026-10-28");
+    expect(remainingCapacity(views)).toBe(5);
+    expect(nextFlowAccount(views)?.id).toBe("ok");
   });
   it("tops today's clips up to the target and never past the batch limit", () => {
     expect(clipsToAdd(15, 0, 30)).toBe(15);

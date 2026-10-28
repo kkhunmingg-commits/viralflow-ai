@@ -17,8 +17,8 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createInterface } from "node:readline/promises";
 import process from "node:process";
-import { message, runFarmPass } from "./farm-core.mjs";
-import { launchProfile, openFlowAccount } from "./farm-driver.mjs";
+import { message, runFarmPass, runLoginPass } from "./farm-core.mjs";
+import { launchProfile, openFlowAccount, signInFlowAccount } from "./farm-driver.mjs";
 import { probeBinary } from "./media.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
@@ -73,6 +73,7 @@ export function portalApi({ portal, token }, fetchImpl = fetch) {
     claim: async accountId => (await call("claim", { flowAccountId: accountId })).clip,
     fail: (clipId, reason, notStarted) => call("fail", { clipId, reason, notStarted }),
     exhausted: accountId => call("exhausted", { flowAccountId: accountId }),
+    login: (accountId, state, note) => call("login", { flowAccountId: accountId, state, note }),
     finish: () => call("finish", {}),
     async upload(clip, result) {
       const slot = await call("upload-url", { clipId: clip.id });
@@ -104,6 +105,8 @@ async function pass(settings, dryRun) {
   const api = portalApi(settings), farmSelectors = await selectors();
   const driverConfig = { ...settings, selectors: farmSelectors, dryRun, journal, profilesDir: dirs.profiles, readyDir: dirs.ready,
     scratchDir: dirs.scratch, downloadsDir: dirs.downloads };
+  // Newly linked Google accounts are signed in first, one at a time; clips only start once that is done.
+  await runLoginPass({ api, signIn: account => signInFlowAccount(account, driverConfig), log: line => console.log(new Date().toLocaleTimeString("th-TH"), line) });
   const summary = await runFarmPass({ api, openAccount: account => openFlowAccount(account, driverConfig), log: line => console.log(new Date().toLocaleTimeString("th-TH"), line) });
   console.log(JSON.stringify(summary));
   return summary;
@@ -139,7 +142,17 @@ async function main() {
   await probeBinary();
   const lock = join(root, "farm.lock");
   let handle;
-  try { handle = await open(lock, "wx"); } catch { throw new Error("FARM_ALREADY_RUNNING_OR_STALE_LOCK (delete workspace/farm.lock if no worker is running)"); }
+  try { handle = await open(lock, "wx"); }
+  catch {
+    // A lock left by a worker that was killed (restart at logon, crash) must not block the next start.
+    const pid = Number(await readFile(lock, "utf8").catch(() => ""));
+    let alive = false;
+    try { if (pid > 0) { process.kill(pid, 0); alive = true; } } catch { alive = false; }
+    if (alive) throw new Error("FARM_ALREADY_RUNNING");
+    await rm(lock, { force: true });
+    handle = await open(lock, "wx");
+  }
+  await handle.writeFile(String(process.pid));
   const release = async () => { await handle.close().catch(() => {}); await rm(lock, { force: true }); };
   process.once("SIGINT", async () => { await release(); process.exit(130); });
   try {

@@ -1,8 +1,8 @@
-import type { FlowAccountRow } from "./contracts";
+import type { FlowAccountRow, FlowLoginState } from "./contracts";
 
 export interface FlowAccountView {
   id: string; tiktokAccountId: string | null; label: string; priority: number; active: boolean; clipsPerDayEstimate: number;
-  exhaustedToday: boolean; clipsToday: number; remainingEstimate: number;
+  exhaustedToday: boolean; clipsToday: number; remainingEstimate: number; loginState: FlowLoginState; loginNote: string | null;
 }
 
 /** Accounts in drain order (priority, then oldest) with today's usage; counters from earlier days read as zero. */
@@ -11,8 +11,9 @@ export function flowAccountViews(rows: FlowAccountRow[], today: string): FlowAcc
     .map(row => {
       const clipsToday = row.clips_today_on === today ? row.clips_today : 0;
       const exhaustedToday = row.exhausted_on === today;
+      const loginState = row.login_state ?? "READY", usable = row.active && loginState === "READY" && !exhaustedToday;
       return { id: row.id, tiktokAccountId: row.tiktok_account_id, label: row.label, priority: row.priority, active: row.active, clipsPerDayEstimate: row.clips_per_day_estimate,
-        exhaustedToday, clipsToday, remainingEstimate: !row.active || exhaustedToday ? 0 : Math.max(0, row.clips_per_day_estimate - clipsToday) };
+        exhaustedToday, clipsToday, remainingEstimate: usable ? Math.max(0, row.clips_per_day_estimate - clipsToday) : 0, loginState, loginNote: row.login_note ?? null };
     });
 }
 
@@ -28,7 +29,7 @@ export function remainingCapacity(views: FlowAccountView[]) {
 
 /** The account the worker should use next: the first active one Flow has not reported empty today. */
 export function nextFlowAccount(views: FlowAccountView[]) {
-  return views.find(view => view.active && !view.exhaustedToday) ?? null;
+  return views.find(view => view.active && view.loginState === "READY" && !view.exhaustedToday) ?? null;
 }
 
 /** How many new clips one click should add so the day's total reaches the target, never past the batch limit. */

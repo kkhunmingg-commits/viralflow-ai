@@ -8,7 +8,7 @@ import { clipsToAdd, flowAccountViews } from "./capacity";
 import { planBatch, type FarmProduct } from "./planner";
 
 const BUCKET = "video-assets";
-const ACCOUNT_COLUMNS = "id,tiktok_account_id,label,priority,clips_per_day_estimate,active,exhausted_on,clips_today,clips_today_on,last_used_at,created_at";
+const ACCOUNT_COLUMNS = "id,tiktok_account_id,label,priority,clips_per_day_estimate,active,exhausted_on,clips_today,clips_today_on,last_used_at,created_at,login_state,login_note";
 export const LIBRARY_COLUMNS = "id,tiktok_account_id,product_id,kind,title,caption,hashtags,status,error,ready_at,scheduled_at,posted_at,post_url,duration_seconds,width,height,created_at,flow_account_id";
 
 function check<T>(result: { data: T; error: { message: string } | null }, code: string): T {
@@ -62,6 +62,11 @@ export async function updateFlowAccount(admin: SupabaseClient, owner: string, id
   // The owner topped up or switched plans: let the worker try this account again today.
   if (patch.resetCredits) update.exhausted_on = null;
   check(await admin.from("flow_accounts").update(update).eq("owner_id", owner).eq("id", id), "flow_account_not_saved");
+}
+/** Signed out or switched Google account: the owner's computer opens the sign-in window for it again. */
+export async function requestFlowLogin(admin: SupabaseClient, owner: string, id: string) {
+  check(await admin.from("flow_accounts").update({ login_state: "PENDING", login_note: null, updated_at: new Date().toISOString() })
+    .eq("owner_id", owner).eq("id", id), "flow_account_not_saved");
 }
 export async function removeFlowAccount(admin: SupabaseClient, owner: string, id: string) {
   check(await admin.from("flow_accounts").delete().eq("owner_id", owner).eq("id", id), "flow_account_not_removed");
@@ -150,8 +155,18 @@ export async function expireStaleGenerating(admin: SupabaseClient, owner: string
     .eq("owner_id", owner).eq("status", "GENERATING").lt("lease_until", now.toISOString()), "flow_clips_unavailable");
 }
 
+/** What the computer found when it opened (or showed) the account's sign-in window. */
+export async function setLoginState(admin: SupabaseClient, owner: string, input: { flowAccountId: string; state: "READY" | "FAILED"; note?: string }) {
+  const now = new Date().toISOString();
+  check(await admin.from("flow_accounts").update({ login_state: input.state, login_note: input.note || null, login_checked_at: now, updated_at: now })
+    .eq("owner_id", owner).eq("id", input.flowAccountId), "flow_account_not_saved");
+}
+
 export async function claimClip(admin: SupabaseClient, owner: string, flowAccountId: string) {
   await expireStaleGenerating(admin, owner);
+  const login = check(await admin.from("flow_accounts").select("login_state").eq("owner_id", owner).eq("id", flowAccountId).maybeSingle(), "flow_accounts_unavailable") as
+    { login_state: string } | null;
+  if (login?.login_state !== "READY") throw new Error("FLOW_ACCOUNT_UNAVAILABLE");
   const result = await admin.rpc("claim_flow_clip", { p_owner: owner, p_flow_account: flowAccountId, p_lease_seconds: 1200 });
   if (result.error) throw new Error(result.error.message.includes("FLOW_ACCOUNT_UNAVAILABLE") ? "FLOW_ACCOUNT_UNAVAILABLE" : "claim_failed");
   const clip = (result.data as Array<{ id: string; title: string; prompt: string; reference_image_path: string | null; kind: string }> | null)?.[0];

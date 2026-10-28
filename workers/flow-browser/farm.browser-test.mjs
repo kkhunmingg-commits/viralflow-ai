@@ -9,7 +9,7 @@ import { createRequire } from "node:module";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { runFarmPass } from "./farm-core.mjs";
-import { openFlowAccount } from "./farm-driver.mjs";
+import { openFlowAccount, signInFlowAccount } from "./farm-driver.mjs";
 import { portalApi } from "./farm.mjs";
 
 // Local fixtures only: a fake Flow page and a fake ViralFlow portal. Nothing here reaches Google or spends credits.
@@ -99,4 +99,11 @@ test("refuses to click Generate when the model costs more than the free-first ce
     const result = await session.generate({ id: "c", title: "t", prompt: "p", imageUrl: null });
     assert.deepEqual(result, { status: "FAILED", reason: "COST_10_ABOVE_LIMIT_5", started: false });
   } finally { await session.close(); }
+});
+
+test("a newly linked account whose profile is already signed in becomes ready without showing a window", { timeout: 60_000 }, async () => {
+  const config = { flowUrl: `${base}/flow`, windowMode: "headless", channel: "", costPolicy: { maxCredits: 10 },
+    profilesDir: join(dir, "profiles-login"), selectors: {} };
+  const result = await signInFlowAccount({ id: "44444444-4444-4444-8444-444444444444", label: "login" }, config);
+  assert.deepEqual(result, { state: "READY", note: "10 เครดิต/คลิป" });
 });

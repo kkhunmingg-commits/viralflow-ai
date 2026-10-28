@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { bangkokLocalToIso, flowAccountSchema, postedSchema, scheduleSchema, startBatchSchema } from "@/features/flow-farm/contracts";
-import { addFlowAccount, closeClip, moveFlowAccount, removeFlowAccount, scheduleClip, startBatch, updateFlowAccount } from "@/features/flow-farm/service";
+import { addFlowAccount, closeClip, moveFlowAccount, removeFlowAccount, requestFlowLogin, scheduleClip, startBatch, updateFlowAccount } from "@/features/flow-farm/service";
 
 async function owner() {
   const client = await createClient(), { data, error } = await client.auth.getUser();
@@ -52,16 +52,17 @@ export async function addFlowAccountAction(formData: FormData) {
     if (error instanceof Error && error.message === "FLOW_ACCOUNT_LIMIT_5") done(formData, "บัญชี TikTok หนึ่งผูกบัญชี Google ได้สูงสุด 5 บัญชี");
     throw error;
   }
-  done(formData, `ผูกบัญชี Google “${parsed.data.label}” แล้ว ล็อกอินบัญชีนี้ในเครื่องครั้งเดียวตามคำสั่งด้านล่าง`);
+  done(formData, `ผูกบัญชี Google “${parsed.data.label}” แล้ว คอมพิวเตอร์จะเปิดหน้าล็อกอิน Google ของบัญชีนี้ให้ภายใน 1 นาที ล็อกอินให้เสร็จแล้วหน้าต่างจะปิดเอง`);
 }
 
-const accountAction = z.object({ id: z.uuid(), op: z.enum(["UP", "DOWN", "PAUSE", "RESUME", "RESET", "REMOVE"]) });
+const accountAction = z.object({ id: z.uuid(), op: z.enum(["UP", "DOWN", "PAUSE", "RESUME", "RESET", "RELOGIN", "REMOVE"]) });
 export async function flowAccountAction(formData: FormData) {
   const parsed = accountAction.safeParse(Object.fromEntries(formData));
   if (!parsed.success) done(formData, "คำสั่งไม่ถูกต้อง");
   const ownerId = await owner(), admin = createAdminClient(), { id, op } = parsed.data;
   if (op === "UP" || op === "DOWN") await moveFlowAccount(admin, ownerId, id, op);
   else if (op === "REMOVE") await removeFlowAccount(admin, ownerId, id);
+  else if (op === "RELOGIN") { await requestFlowLogin(admin, ownerId, id); done(formData, "เครื่องจะเปิดหน้าล็อกอิน Google ของบัญชีนี้ให้ภายใน 1 นาที"); }
   else await updateFlowAccount(admin, ownerId, id, op === "RESET" ? { resetCredits: true } : { active: op === "RESUME" });
   done(formData, "บันทึกแล้ว");
 }

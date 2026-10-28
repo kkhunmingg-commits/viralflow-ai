@@ -26,14 +26,16 @@
 
 ## ติดตั้งครั้งแรก
 
-1. Apply migration `supabase/migrations/20261028150000_flow_farm_semi_auto.sql` (ตาราง `flow_accounts`, `flow_clips`, `flow_worker_status`, ฟังก์ชัน `claim_flow_clip`, `skip_unreachable_flow_clips`)
+1. Apply migrations `20261028150000_flow_farm_semi_auto.sql` และ `20261028190000_flow_account_login.sql` (ตาราง `flow_accounts`, `flow_clips`, `flow_worker_status`, ฟังก์ชัน `claim_flow_clip`, `skip_unreachable_flow_clips`)
 2. ตั้ง env ฝั่งเซิร์ฟเวอร์: `FLOW_WORKER_TOKEN` (สุ่มยาว 32+ ตัว) และ `FLOW_WORKER_OWNER_ID` (id ผู้ใช้ของเจ้าของ)
 3. ในเครื่อง: คัดลอก `workers/flow-browser/farm.env.example` เป็น `farm.env` ใส่ URL และ token เดียวกัน
-4. หน้า `/post` → เลือกบัญชี TikTok → ผูกบัญชี Google ตามลำดับที่อยากให้ใช้ (สูงสุด 5) แล้วคัดลอก “รหัสสำหรับล็อกอิน” ของแต่ละบัญชี
-5. ล็อกอินแต่ละบัญชีครั้งเดียว: `.\scripts\flow-farm-d.ps1 -Login <id>` (หน้าต่างโชว์ ล็อกอิน Google ตั้ง Veo 3.1 - Lite, 9:16, x1 แล้วกด Enter)
-6. ตรวจโดยไม่ใช้เครดิต: `.\scripts\flow-farm-d.ps1 -Probe` (ต้องเห็น signedIn, promptBox, generateButton = true และ cost = 10)
-   และ `.\scripts\flow-farm-d.ps1 -DryRun` (เตรียมคลิปจริง 1 งานใน Flow แล้วหยุดก่อนกด Generate)
-7. ใช้งานจริง: `.\scripts\flow-farm-d.ps1` ค้างไว้ แล้วกดปุ่มในหน้าคลัง
+4. ในเครื่อง ครั้งเดียว: `.\scripts\flow-farm-autostart.ps1` ตั้งให้ worker เปิดเองแบบซ่อนทุกครั้งที่เข้า Windows (ลบด้วย `-Remove`)
+5. หน้า `/post` → เลือกบัญชี TikTok → ผูกบัญชี Google ทีละบัญชี (สูงสุด 5) บัญชีใหม่ขึ้น “รอล็อกอิน”
+   worker ตรวจโปรไฟล์ของบัญชีนั้นแบบซ่อนก่อน ถ้ายังไม่ได้ล็อกอินจะเปิดหน้าต่าง Google ให้ล็อกอิน (หน้าต่างเดียวที่โผล่) พอ Flow โหลดหน้าต่างปิดเอง
+   แล้วบัญชีขึ้น “ล็อกอินแล้ว · 10 เครดิต/คลิป” (ถ้าโมเดลแพงกว่า 10 จะเตือนให้ตั้ง Veo 3.1 - Lite x1) ทำทีละบัญชี ไม่ซ้อนกัน
+   ปุ่มสร้างคลิปกดได้เมื่อไม่มีบัญชีที่รอล็อกอิน และใช้เฉพาะบัญชีที่ล็อกอินแล้ว
+6. ตรวจโดยไม่ใช้เครดิต (ถ้าต้องการ): `.\scripts\flow-farm-d.ps1 -Probe` และ `-DryRun`
+7. ใช้งานจริง: กดปุ่มสร้างคลิปในหน้า `/post` worker ทำเบื้องหลังทั้งหมด
 
 ถ้าหน้า Flow เปลี่ยน ให้ใส่ selector ใหม่ใน `workers/flow-browser/selectors.json` ใต้ key `"farm"` (`prompt`, `generate`, `settingsChip`, `imageInput`, `newProject`)
 

@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { accountsFor, remainingCapacity } from "@/features/flow-farm/capacity";
+import { accountsFor, remainingCapacity, type FlowAccountView } from "@/features/flow-farm/capacity";
 import { bangkokDate, flowClipStatusLabels, MAX_FLOW_ACCOUNTS_PER_TIKTOK, type FlowClipStatus } from "@/features/flow-farm/contracts";
 import { listFlowAccounts, listLibrary, listTodayClips, workerLastSeen } from "@/features/flow-farm/service";
 import { addFlowAccountAction, discardClipAction, flowAccountAction, markPostedAction, scheduleClipAction, startBatchAction, unscheduleClipAction } from "./flow-actions";
@@ -18,6 +18,12 @@ async function loadStudio(client: SupabaseClient, owner: string, accountId: stri
 }
 
 /** Main path: free clips from the Google Flow accounts linked to this TikTok account, made on the owner's computer. */
+function loginLabel(f: FlowAccountView) {
+  if (f.loginState === "PENDING") return "⏳ รอล็อกอิน: คอมพิวเตอร์จะเปิดหน้าล็อกอิน Google ให้ (ต้องเปิดคอมไว้) · ";
+  if (f.loginState === "FAILED") return `⚠ ล็อกอินไม่สำเร็จ${f.loginNote ? ` (${f.loginNote})` : ""} กด “ล็อกอินใหม่” · `;
+  return `✓ ล็อกอินแล้ว${f.loginNote ? ` · ${f.loginNote}` : ""} · `;
+}
+
 export async function FlowStudio({ client, owner, account }: { client: SupabaseClient; owner: string; account: StudioAccount }) {
   const { flowAccounts, today, library, lastSeen, unavailable, now } = await loadStudio(client, owner, account.id);
   const own = flowAccounts.filter(f => f.tiktokAccountId === account.id), shared = flowAccounts.filter(f => f.tiktokAccountId === null);
@@ -26,6 +32,8 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
   const defaultCount = Math.min(30, Math.max(1, account.daily_post_target ?? 5));
   const online = lastSeen !== null && now - Date.parse(lastSeen) < 3 * 60_000;
   const selling = account.effective_mode === "AFFILIATE";
+  const waitingLogin = flowAccounts.some(f => f.active && f.loginState === "PENDING");
+  const ready = flowAccounts.some(f => f.active && f.loginState === "READY");
   const back = <input type="hidden" name="back" value={account.id} />;
 
   return <>
@@ -42,12 +50,13 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
         ถ้ามีบัญชีที่เครดิตเหลือเยอะ ผูกบัญชีเดียวก็พอ ระบบจะใช้บัญชีนั้นไปเรื่อย ๆ จนเครดิตหมด</p>
       {own.length ? <ol className="library-flow-list">{own.map((f, index) => <li key={f.id} className={f.active ? undefined : "paused"}>
         <div><strong>{index + 1}. {f.label}</strong><small>
-          {!f.active ? "พักไว้" : f.exhaustedToday ? `เครดิตหมดวันนี้ · ทำไป ${f.clipsToday} คลิป · พรุ่งนี้ใช้ต่อได้` : `วันนี้ทำไป ${f.clipsToday} คลิป · คาดว่าได้ ~${f.clipsPerDayEstimate} คลิป/วัน`}</small>
-          <code>รหัสสำหรับล็อกอิน: {f.id}</code></div>
+          {loginLabel(f)}{!f.active ? "พักไว้" : f.loginState !== "READY" ? "" : f.exhaustedToday ? `เครดิตหมดวันนี้ · ทำไป ${f.clipsToday} คลิป · พรุ่งนี้ใช้ต่อได้` : `วันนี้ทำไป ${f.clipsToday} คลิป · คาดว่าได้ ~${f.clipsPerDayEstimate} คลิป/วัน`}</small>
+          </div>
         <form action={flowAccountAction} className="library-inline"><input type="hidden" name="id" value={f.id} />{back}
           <button className="library-link" name="op" value="UP" type="submit" disabled={index === 0} aria-label="ใช้ก่อน">↑</button>
           <button className="library-link" name="op" value="DOWN" type="submit" disabled={index === own.length - 1} aria-label="ใช้ทีหลัง">↓</button>
           {f.exhaustedToday && <button className="library-link" name="op" value="RESET" type="submit">เติมเครดิตแล้ว</button>}
+          {f.loginState !== "PENDING" && <button className="library-link" name="op" value="RELOGIN" type="submit">ล็อกอินใหม่</button>}
           <button className="library-link" name="op" value={f.active ? "PAUSE" : "RESUME"} type="submit">{f.active ? "พัก" : "ใช้งาน"}</button>
           <button className="library-link danger" name="op" value="REMOVE" type="submit">เลิกผูก</button></form>
       </li>)}</ol> : <p className="manual-warning">ยังไม่ได้ผูกบัญชี Google ผูกอย่างน้อย 1 บัญชีก่อนสร้างคลิป</p>}
@@ -57,13 +66,8 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
         <label className="manual-filter">อีเมล Google (หรือชื่อเรียก)<input name="label" required maxLength={60} placeholder="name@gmail.com" /></label>
         <label className="manual-filter">คลิปฟรีต่อวันโดยประมาณ<input name="clipsPerDay" type="number" min={1} max={200} defaultValue={5} /></label>
         <button className="manual-secondary" type="submit">+ ผูกบัญชี Google</button></form>}
-      <details className="library-today"><summary>วิธีเปิดโปรแกรมสร้างคลิปในคอมพิวเตอร์</summary>
-        <ol className="flow-howto">
-          <li>ใน <code>D:\ViralFlowAI</code> ใส่ค่าใน <code>workers\flow-browser\farm.env</code> (ที่อยู่เว็บและรหัส worker)</li>
-          <li>ล็อกอินแต่ละบัญชี Google ครั้งเดียว: <code>.\scripts\flow-farm-d.ps1 -Login &lt;รหัสสำหรับล็อกอิน&gt;</code> ตั้งโมเดล Veo 3.1 - Lite, 9:16, x1</li>
-          <li>ตรวจโดยไม่ใช้เครดิต: <code>.\scripts\flow-farm-d.ps1 -Probe</code></li>
-          <li>เปิดทิ้งไว้: <code>.\scripts\flow-farm-d.ps1</code> โปรแกรมจะทำงานเบื้องหลัง ไม่เปิดหน้า Flow ให้เห็น และไม่กดสร้างถ้าคลิปใช้เกิน 10 เครดิต</li>
-        </ol></details>
+      <p className="manual-muted">กดผูกแล้ว คอมพิวเตอร์จะเปิดหน้าล็อกอิน Google ของบัญชีนั้นให้เองทีละบัญชี ล็อกอินเสร็จหน้าต่างปิดเอง
+        หลังจากนั้นการสร้างคลิปทำงานเบื้องหลังทั้งหมด ไม่มีหน้าต่างโผล่ และไม่กดสร้างถ้าคลิปใช้เกิน 10 เครดิต</p>
     </section>
 
     <section className="manual-panel" aria-labelledby="make-title">
@@ -72,8 +76,10 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
       <form action={startBatchAction} className="library-start">
         <input type="hidden" name="accountId" value={account.id} />{back}
         <label className="manual-filter">จำนวนคลิปวันนี้<input name="count" type="number" min={1} max={30} defaultValue={defaultCount} /></label>
-        <button className="manual-primary" type="submit" disabled={!flowAccounts.some(f => f.active)}>{selling ? "ค้นหาสินค้าและสร้างคลิป" : "สร้างคลิปปั้นช่อง"}</button>
+        <button className="manual-primary" type="submit" disabled={!ready || waitingLogin}>{selling ? "ค้นหาสินค้าและสร้างคลิป" : "สร้างคลิปปั้นช่อง"}</button>
       </form>
+      {waitingLogin ? <p className="manual-warning">รอล็อกอินบัญชี Google ให้ครบก่อน แล้วค่อยกดสร้างคลิป</p>
+        : !ready && <p className="manual-warning">ยังไม่มีบัญชี Google ที่ล็อกอินแล้ว ผูกบัญชีในขั้นที่ 1 ก่อน</p>}
       <p className="manual-muted">{selling
         ? "ระบบเลือกสินค้าขายดีที่มีรูปผ่านการตรวจสิทธิ์ (จาก TikTok Shop API เมื่อได้สิทธิ์ ระหว่างนี้จากสินค้าที่นำเข้า) แล้วทำคลิปโฆษณาไม่ซ้ำฉาก"
         : "บัญชีช่วงอุ่นเครื่อง: ระบบทำคลิปปั้นช่องที่ไม่มีสินค้า เพื่อให้คนกดติดตาม"} ถ้าเครดิตทุกบัญชี Google หมด ระบบจะหยุดที่คลิปที่ทำได้แล้วรอโพสต์ คลิปที่เหลือข้ามไปวันถัดไป</p>

@@ -62,7 +62,8 @@ export async function runFarmPass(deps, options = {}) {
   const { api, openAccount, log = () => {} } = deps;
   const maxConsecutiveFailures = options.maxConsecutiveFailures ?? 3;
   const summary = { made: 0, failed: 0, exhaustedAccounts: [], brokenAccounts: [], queueEmpty: false, skipped: 0, stoppedBy: null };
-  const accounts = (await api.accounts()).filter(account => account.active !== false);
+  // Only accounts the computer has seen signed in make clips; PENDING ones are signed in first by runLoginPass.
+  const accounts = (await api.accounts()).filter(account => account.active !== false && (account.loginState ?? "READY") === "READY");
   if (!accounts.length) { summary.stoppedBy = "NO_FLOW_ACCOUNTS"; return summary; }
   for (const account of accounts) {
     if (account.exhaustedToday) { summary.exhaustedAccounts.push(account.id); continue; }
@@ -134,6 +135,25 @@ export async function runFarmPass(deps, options = {}) {
   else { summary.queueEmpty = true; summary.stoppedBy = "QUEUE_EMPTY"; }
   if (summary.skipped) log(`เครดิตหมด ได้ ${summary.made} คลิป ข้ามที่เหลือ ${summary.skipped} คลิป`);
   return summary;
+}
+
+/**
+ * Signs in Google accounts the owner just linked, one at a time, before any clip is made.
+ * deps.signIn(account) → { state: "READY" | "FAILED", note? }: checks the saved profile out of sight and only shows a
+ * sign-in window when the account is not signed in yet. Returns how many accounts were handled.
+ */
+export async function runLoginPass(deps) {
+  const { api, signIn, log = () => {} } = deps;
+  const pending = (await api.accounts()).filter(account => account.active !== false && account.loginState === "PENDING");
+  for (const account of pending) {
+    log(`[${account.label}] ตรวจ/เปิดหน้าล็อกอิน Google`);
+    let result;
+    try { result = await signIn(account); }
+    catch (error) { result = { state: "FAILED", note: message(error).slice(0, 200) }; }
+    await api.login(account.id, result.state, result.note);
+    log(`[${account.label}] ${result.state === "READY" ? "ล็อกอินแล้ว พร้อมสร้างคลิป" : `ล็อกอินไม่สำเร็จ: ${result.note ?? ""}`}`);
+  }
+  return pending.length;
 }
 
 export function message(error) { return error instanceof Error ? error.message : String(error); }

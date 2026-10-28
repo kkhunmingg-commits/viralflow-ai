@@ -21,7 +21,11 @@ export const MAX_FLOW_ACCOUNTS_PER_TIKTOK = 5;
 export interface FlowAccountRow {
   id: string; tiktok_account_id: string | null; label: string; priority: number; clips_per_day_estimate: number; active: boolean;
   exhausted_on: string | null; clips_today: number; clips_today_on: string | null; last_used_at: string | null; created_at: string;
+  login_state: FlowLoginState; login_note: string | null;
 }
+/** PENDING: the owner's computer will open a Google sign-in window for it. Only READY accounts make clips. */
+export const FLOW_LOGIN_STATES = ["PENDING", "READY", "FAILED"] as const;
+export type FlowLoginState = (typeof FLOW_LOGIN_STATES)[number];
 
 export const startBatchSchema = z.object({
   accountId: z.union([z.uuid(), z.literal("ALL")]),
@@ -52,6 +56,7 @@ export const failSchema = z.object({
   notStarted: z.boolean().default(false),
 });
 export const exhaustedSchema = z.object({ flowAccountId: z.uuid() });
+export const loginStateSchema = z.object({ flowAccountId: z.uuid(), state: z.enum(["READY", "FAILED"]), note: z.string().trim().max(200).optional() });
 
 /** Bangkok calendar day, the day credits and daily targets are counted in. */
 export function bangkokDate(at: Date | string = new Date()) {

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { appeared, costDecision, NO_CREDIT_PATTERNS, newVideoSources, parseCreditCost, runFarmPass } from "./farm-core.mjs";
+import { appeared, costDecision, NO_CREDIT_PATTERNS, newVideoSources, parseCreditCost, runFarmPass, runLoginPass } from "./farm-core.mjs";
 
 test("reads Flow's credit cost in Thai and English", () => {
   assert.equal(parseCreditCost("x1 x2\nการสร้างจะใช้ 10 เครดิต"), 10);
@@ -99,4 +99,27 @@ test("an idle queue never opens a browser", async () => {
   const { state, deps } = farm({ accounts: ["a"], queue: [], credits: { a: 5 } });
   assert.equal((await runFarmPass(deps)).stoppedBy, "QUEUE_EMPTY");
   assert.deepEqual(state.opened, []);
+});
+
+test("signs newly linked Google accounts in one at a time and only then lets them make clips", async () => {
+  const calls = [];
+  const accounts = [{ id: "a", label: "a", loginState: "READY" }, { id: "b", label: "b", loginState: "PENDING" },
+    { id: "c", label: "c", loginState: "PENDING" }, { id: "d", label: "d", loginState: "PENDING", active: false }];
+  const api = { accounts: async () => accounts, login: async (id, state, note) => { calls.push(["login", id, state, note]); } };
+  let open = 0;
+  const handled = await runLoginPass({ api, signIn: async account => {
+    assert.equal(open++, 0, "one sign-in window at a time");
+    calls.push(["signIn", account.id]);
+    open--;
+    if (account.id === "c") throw new Error("ไม่ได้ล็อกอินภายใน 15 นาที");
+    return { state: "READY", note: "10 เครดิต/คลิป" };
+  } });
+  assert.equal(handled, 2);
+  assert.deepEqual(calls, [["signIn", "b"], ["login", "b", "READY", "10 เครดิต/คลิป"], ["signIn", "c"], ["login", "c", "FAILED", "ไม่ได้ล็อกอินภายใน 15 นาที"]]);
+
+  const claimed = [];
+  const summary = await runFarmPass({ api: { accounts: async () => accounts, claim: async id => { claimed.push(id); return null; }, finish: async () => ({ skipped: 0 }) },
+    openAccount: async () => { throw new Error("not reached"); } });
+  assert.deepEqual(claimed, ["a"]);
+  assert.equal(summary.stoppedBy, "QUEUE_EMPTY");
 });

@@ -132,6 +132,53 @@ async function saveVideo(page, src, path) {
  * One Flow account's session. generate(clip) never clicks Generate twice for a clip; once clicked, any
  * later problem is reported as started:true so the clip is not retried automatically.
  */
+/** True once Flow itself has loaded for a signed-in user (its prompt box or its "new project" button is showing). */
+async function flowReady(page, selectors, flowUrl) {
+  if (signedOut(page.url()) || !isFlowLocation(page.url()) && !page.url().startsWith(flowUrl)) return false;
+  if (await firstVisible(page, selectors.prompt)) return true;
+  const create = selectors.newProject ? page.locator(selectors.newProject) : page.getByRole("button", { name: NEW_PROJECT_NAME });
+  return (await create.count().catch(() => 0)) > 0;
+}
+
+/**
+ * Signs one Google account in for the farm. The saved profile is checked out of sight first; only an account that is
+ * not signed in gets a visible window, which closes by itself as soon as Flow loads. Never clicks Generate.
+ */
+export async function signInFlowAccount(account, config, { timeoutMs = 15 * 60_000, pollMs = 2_000 } = {}) {
+  const selectors = { ...DEFAULT_FARM_SELECTORS, ...(config.selectors ?? {}) };
+  const profile = join(config.profilesDir, account.id);
+  const costNote = async page => {
+    try {
+      await openComposer(page, { flowUrl: config.flowUrl, selectors });
+      const cost = await readCost(page, selectors);
+      const decision = costDecision(cost, config.costPolicy);
+      return decision.ok ? (cost == null ? undefined : `${cost} เครดิต/คลิป`) : `ตั้งโมเดลใน Flow เป็น Veo 3.1 - Lite x1 (ตอนนี้ ${cost ?? "?"} เครดิต/คลิป)`;
+    } catch { return undefined; }
+  };
+  const quiet = await launchProfile(profile, { mode: config.windowMode === "visible" || config.windowMode === "headless" ? config.windowMode : "offscreen", channel: config.channel });
+  try {
+    const page = quiet.pages()[0] ?? await quiet.newPage();
+    await page.goto(config.flowUrl, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
+    await page.waitForTimeout(3_000);
+    if (await flowReady(page, selectors, config.flowUrl)) return { state: "READY", note: await costNote(page) };
+  } finally { await quiet.close().catch(() => {}); }
+
+  const shown = await launchProfile(profile, { mode: "visible", channel: config.channel });
+  try {
+    const page = shown.pages()[0] ?? await shown.newPage();
+    await page.goto(config.flowUrl, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
+    await page.bringToFront().catch(() => {});
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (!shown.pages().length) return { state: "FAILED", note: "ปิดหน้าต่างก่อนล็อกอินเสร็จ" };
+      const current = shown.pages().at(-1);
+      if (await flowReady(current, selectors, config.flowUrl).catch(() => false)) return { state: "READY", note: await costNote(current) };
+      await new Promise(done => setTimeout(done, pollMs));
+    }
+    return { state: "FAILED", note: "ไม่ได้ล็อกอินภายใน 15 นาที" };
+  } finally { await shown.close().catch(() => {}); }
+}
+
 export async function openFlowAccount(account, config) {
   const context = await launchProfile(join(config.profilesDir, account.id), { mode: config.windowMode, channel: config.channel, downloadsPath: config.downloadsDir });
   const page = context.pages()[0] ?? await context.newPage();
