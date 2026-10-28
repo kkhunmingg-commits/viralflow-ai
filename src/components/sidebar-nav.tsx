@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { primaryNavigation } from "@/lib/navigation";
+import { navigationGroups } from "@/lib/navigation";
 
 function NavGroup({
   items,
@@ -15,6 +15,7 @@ function NavGroup({
 
   return (
     <nav aria-label={label}>
+      <p className="nav-label">{label}</p>
       {items.map((item) => {
         const active =
           pathname === item.href ||
@@ -38,6 +39,5 @@ function NavGroup({
 }
 
 export function SidebarNav() {
-  return <NavGroup items={primaryNavigation} label="เมนูหลัก" />;
+  return <>{navigationGroups.map((group) => <NavGroup key={group.label} items={group.items} label={group.label} />)}</>;
 }
-

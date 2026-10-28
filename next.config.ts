@@ -18,10 +18,14 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // Owner browser sessions, signed queue URLs and local caches are never server artifacts.
+  outputFileTracingExcludes: {
+    "/*": ["./.runtime/**/*", "./workers/flow-browser/workspace/**/*", "./workers/flow-browser/selectors.json", "./.git/**/*", "./.env", "./.env.*"],
+  },
   outputFileTracingIncludes: {
     "/video-factory/providers": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
     "/api/post/create": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
-    "/api/post/create/product": ["./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
+    "/api/post/create/product": ["./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
     // Real-media composer: Thai caption font plus the binaries it shells out to.
     "/creative-studio/[id]": ["./assets/fonts/**", "./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
     "/video-factory/[id]": ["./assets/fonts/**", "./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],

@@ -4,9 +4,12 @@
   "type": "module",
   "engines": { "node": ">=20" },
   "scripts": {
-    "test": "node --test core.test.mjs",
+    "test": "node --test core.test.mjs media.test.mjs farm-core.test.mjs",
+    "test:browser": "node --test portal.browser-test.mjs farm.browser-test.mjs",
+    "farm": "node farm.mjs --watch",
     "login": "node worker.mjs --login",
     "pilot": "node worker.mjs --once",
+    "import-only": "node worker.mjs --import-only",
     "dry-run": "node worker.mjs --dry-run"
   },
   "dependencies": {

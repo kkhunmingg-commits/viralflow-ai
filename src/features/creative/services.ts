@@ -16,6 +16,9 @@ import {discoverTrendCandidates,googleSearchDiscoverySource,tikTokTrendDiscovery
 import {createCreativeAgent} from "./agent";
 import {configuredLocalLLM} from "./local-agent";
 import {planSelfLearningCreative,sealCreativeAttribution} from "./self-learning";
+import {assertProviderAdministrator} from "../video-provider/access";
+import {canExecuteOfflineProduct} from "./offline-policy";
+import {captionWithAttribution} from "../products/public-attribution";
 const publicTrendSource=googleSearchDiscoverySource();
 
 async function one(client:SupabaseClient,table:string,owner:string,id:string){
@@ -112,7 +115,7 @@ function configuredCreativeAgent(){
 function evidenceRubricCreative(context:Awaited<ReturnType<typeof loadCreativeContext>>["context"],
   resources:Awaited<ReturnType<typeof readCreativeIntelligenceResources>>["resources"],discovery:{intelligence:CreativeStrategyInput["trends"]}){
   const plan=planCreativeStrategy({now:resources.now,account:{id:context.account.id,mode:context.account.mode,affiliateEligible:resources.affiliateEligible},
-    product:context.account.mode==="AFFILIATE"?{id:context.product.id,title:context.product.title,mechanism:resources.mechanism??"UNKNOWN"}:undefined,
+    product:context.account.mode==="AFFILIATE"||context.assignment.purpose==="OWNER_OFFLINE_PRODUCT"?{id:context.product.id,title:context.product.title,mechanism:resources.mechanism??"UNKNOWN"}:undefined,
     facts:resources.facts,assets:resources.assets,costs:resources.costs,trends:discovery.intelligence,history:resources.storyHistory});
   return {plan,arms:[] as Array<{conceptId:string;arm:Parameters<typeof sealCreativeAttribution>[0]["arm"]}>,output:null,decision:null,
     usage:{inputTokens:0,outputTokens:0},promptVersion:EVIDENCE_RUBRIC_MODEL};
@@ -140,7 +143,12 @@ export async function generateEvidenceStrategyProject(client:SupabaseClient,owne
   const {context,project}=await loadCreativeContext(client,owner,projectId);
   if(project.status==="GENERATING"||options.forAutoWorker&&project.status==="FAILED")throw new Error("CREATIVE_GENERATION_REVIEW_REQUIRED");
   const now=new Date(),{resources}=await readCreativeIntelligenceResources(client,owner,context,{now});
-  if(!resources.realAccount||!resources.optedIn)throw new Error("CREATIVE_ACCOUNT_AUTOMATION_NOT_AUTHORIZED");
+  if(context.assignment.purpose==="OWNER_OFFLINE_PRODUCT"){
+    const {data}=await client.auth.getUser();
+    if(!canExecuteOfflineProduct({owner,sessionOwner:data.user?.id,role:data.user?.app_metadata?.viralflow_role,realAccount:resources.realAccount,mode:context.account.mode,forAutoWorker:options.forAutoWorker}))throw new Error("OFFLINE_OWNER_SESSION_REQUIRED");
+    assertProviderAdministrator(data.user);
+    if(provider)throw new Error("OFFLINE_PRODUCT_REQUIRES_EVIDENCE_RUBRIC");
+  }else if(!resources.realAccount||!resources.optedIn)throw new Error("CREATIVE_ACCOUNT_AUTOMATION_NOT_AUTHORIZED");
   const generatingStatus=nextProjectStatus(project.status,"GENERATE"),generationId=randomUUID();
   // Claim before text spending: two workers/UI clicks cannot both generate the same item.
   const claim=await client.from("creative_projects").update({status:generatingStatus}).eq("owner_id",owner).eq("id",projectId).eq("status",project.status).select("id").maybeSingle();
@@ -154,7 +162,7 @@ export async function generateEvidenceStrategyProject(client:SupabaseClient,owne
   const angleIds=plan.concepts.map(()=>randomUUID()),createdAt=new Date().toISOString();
   const scripts=plan.concepts.map((s,index)=>({id:randomUUID(),owner_id:owner,creative_project_id:projectId,creative_angle_id:angleIds[index],duration_seconds:8,
     hook_text:s.concept.hook,voice_script:s.concept.voiceScript,overlay_text_json:s.concept.overlayText,scene_plan_json:s.concept.scenePlan,cta_text:s.concept.cta,
-    caption:s.concept.caption,hashtags_json:s.concept.hashtags,language:"th",status:s.status==="REJECTED"?"REJECTED":"DRAFT",version:CREATIVE_STRATEGY_VERSION,created_at:createdAt,updated_at:createdAt}));
+    caption:captionWithAttribution(s.concept.caption,context.product.attribution),hashtags_json:s.concept.hashtags,language:"th",status:s.status==="REJECTED"?"REJECTED":"DRAFT",version:CREATIVE_STRATEGY_VERSION,created_at:createdAt,updated_at:createdAt}));
   const angles=plan.concepts.map((s,index)=>({id:angleIds[index],owner_id:owner,creative_project_id:projectId,angle_type:s.concept.angleType,title:s.concept.title,
     hook:s.concept.hook,core_message:s.concept.coreMessage,cta_strategy:s.concept.cta,visual_strategy:s.concept.visualStrategy,score:s.score,confidence:s.confidence??0,
     policy_status:s.status==="REJECTED"?"REJECT":"REVIEW",is_selected:false,created_at:createdAt,

@@ -27,7 +27,7 @@ export function planExistingCreativeContext(context: CreativeContext, resources:
   const strategy = planCreativeStrategy({now: resources.now,
     account: {id: context.account.id,mode: context.account.mode,affiliateEligible: resources.affiliateEligible},
     // Growth is not forced through a dummy product or a commerce CTA.
-    product: context.account.mode === "AFFILIATE" ? {id: context.product.id,title: context.product.title,mechanism: resources.mechanism ?? "UNKNOWN"} : undefined,
+    product: context.account.mode === "AFFILIATE" || context.assignment.purpose === "OWNER_OFFLINE_PRODUCT" ? {id: context.product.id,title: context.product.title,mechanism: resources.mechanism ?? "UNKNOWN"} : undefined,
     facts: resources.facts,assets: resources.assets,trends: trend,costs: resources.costs,history: resources.storyHistory,
     learning: {accountId: context.account.id,source: resources.realAccount ? "REAL" : "MOCK",evidenceIds: learning.evidenceIds,
       preferredHook: learning.preferredHook,preferredAngle: learning.preferredAngle,confidence: learning.confidence}});

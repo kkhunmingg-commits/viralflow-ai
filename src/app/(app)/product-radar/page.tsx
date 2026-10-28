@@ -36,6 +36,7 @@ export default async function ProductRadarPage({searchParams}:{searchParams:Prom
  const visibleItems=filter.sort==="opportunity"?filteredItems.toSorted((a,b)=>(recommended.get(b.product.id)?.final_viral_opportunity_score??-1)-(recommended.get(a.product.id)?.final_viral_opportunity_score??-1)||a.product.id.localeCompare(b.product.id)):filteredItems;
  return <>
   <PageHeading eyebrow="CURRENT OPPORTUNITY" title="Product Radar" description="ค้นหาสินค้าที่กำลังเร่งตัว พร้อมเหตุผลและความมั่นใจของทุกคะแนน" action={process.env.NODE_ENV==="development"&&serverEnv.allowDevMockSeed?<ProductSeedForm/>:undefined}/>
+  <p><Link className="primary-action" href="/product-radar/discover">ค้นสินค้าจริงจากแหล่งสาธารณะ</Link></p>
   <section className="panel radar-section"><form className="radar-filters">
    <label>บัญชีที่แนะนำ<select name="account" defaultValue={filter.account??""}><option value="">ALL</option>{recommendations.input.accounts.map(a=><option key={a.id} value={a.id}>{a.display_name}</option>)}</select></label>
    <label>โหมดบัญชี<select name="mode" defaultValue={filter.mode??""}><option value="">ALL</option><option value="GROWTH">Growth accounts</option><option value="AFFILIATE">Affiliate accounts</option></select></label>
@@ -52,14 +53,14 @@ export default async function ProductRadarPage({searchParams}:{searchParams:Prom
   <section className="panel"><div className="panel-heading"><div><p className="eyebrow">OPPORTUNITY RADAR</p><h2>{items.length} / {total} สินค้า</h2></div><span className="phase-chip">product-momentum-v1</span></div>
    <p className="muted radar-note">คะแนนประเมินความสดใหม่ขณะเปิดหน้า · คอมมิชชันคิดทั้งเปอร์เซ็นต์และจำนวนเงินจริง · ข้อมูลจำลองระบุแหล่งที่มาในรายละเอียด</p>
    {items.length?<div className="radar-table-wrap"><table className="radar-table"><thead><tr><th>สินค้า</th><th>Category signal</th><th>ราคา / ลด</th><th>คอมมิชชัน</th><th>Recommended Account</th><th>Account Fit</th><th>Final Viral Opportunity</th><th>ยอดสะสม</th><th>Velocity / h</th><th>Acceleration</th><th>Confidence</th><th>Momentum</th><th>Opportunity</th><th>แนวโน้ม</th></tr></thead><tbody>
-   {visibleItems.map(({product:p,score:s})=>{const category=categorySignals.get(p.category_key),fit=recommended.get(p.id);return <tr key={p.id}>
+   {visibleItems.map(({product:p,score:s})=>{const category=categorySignals.get(p.category_key),fit=recommended.get(p.id),unknown=p.provider_metadata.metricsAvailability==="UNKNOWN";return <tr key={p.id}>
     <td><Link className="radar-product" href={`/product-radar/${p.id}`}><ProductImage url={p.image_url} title={p.title}/><span><strong>{p.title}</strong><small>{p.category_key} · {p.external_provider}</small></span></Link></td>
-    <td>{category?<><CategoryStateBadge state={category.state}/><small>Momentum {number(category.momentum)}</small></>:"—"}</td><td>{money(p.current_price)}<small>{p.original_price&&p.original_price>p.current_price?`ลด ${number((1-p.current_price/p.original_price)*100)}%`:"ไม่มีส่วนลด"}</small></td>
-    <td>{money(p.commission_amount)}<small>{number(p.commission_rate*100)}%</small></td>
+    <td>{category?<><CategoryStateBadge state={category.state}/><small>Momentum {number(category.momentum)}</small></>:"—"}</td><td>{unknown?"ยังไม่ทราบราคาขาย":money(p.current_price)}{!unknown&&<small>{p.original_price&&p.original_price>p.current_price?`ลด ${number((1-p.current_price/p.original_price)*100)}%`:"ไม่มีส่วนลด"}</small>}</td>
+    <td>{unknown?"ยังไม่ทราบ":<>{money(p.commission_amount)}<small>{number(p.commission_rate*100)}%</small></>}</td>
     <td>{fit?recommendations.input.accounts.find(a=>a.id===fit.accountId)?.display_name:"—"}</td>
     <td>{fit?number(fit.account_product_fit_score):"—"}</td>
     <td>{fit?number(fit.final_viral_opportunity_score):"—"}</td>
-    <td>{number(p.units_sold)}</td><td>{s?number(s.sales_velocity):"—"}</td><td>{s?number(s.sales_acceleration):"—"}</td>
+    <td>{unknown?"ยังไม่ทราบ":number(p.units_sold)}</td><td>{s?number(s.sales_velocity):"—"}</td><td>{s?number(s.sales_acceleration):"—"}</td>
     <td>{s?`${number(s.data_confidence*100)}%`:"—"}</td><td>{s?number(s.product_momentum_score):"—"}</td>
     <td className="opportunity-cell">{s?number(s.viral_opportunity_base_score):"—"}</td><td><TrendBadge trend={s?.explanation_json.trend??"LOW_DATA"}/></td>
    </tr>})}</tbody></table></div>:<div className="large-empty"><span className="empty-orbit">PR</span><h2>{total?"ไม่พบสินค้าตามตัวกรอง":"ยังไม่มีสินค้าใน Radar"}</h2><p>{total?"ปรับตัวกรองเพื่อค้นหาโอกาสเพิ่มเติม":"นำเข้าชุดข้อมูลจำลองจากเครื่อง development เพื่อเริ่มสำรวจคะแนนและประวัติ"}</p></div>}

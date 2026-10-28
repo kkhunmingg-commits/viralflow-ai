@@ -1,3 +1,4 @@
+import { CADENCE_POLICY } from "./cadence-policy";
 import type { PlannedWork, SchedulerAccount } from "./contracts";
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
@@ -29,8 +30,15 @@ const hash = (value: string) => [...value].reduce((h, c) => (Math.imul(h, 31) + 
 function random(seed: string) { let state=hash(seed);return()=>{state+=0x6d2b79f5;let t=state;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;}; }
 
 export class MultiAccountPublishingScheduler {
-  plan(accounts: SchedulerAccount[], now: Date, preproduceMinutes = 180): PlannedWork[] {
+  /** `peers` carries other accounts' already planned clip times and the owner's account count, so accounts take turns. */
+  plan(accounts: SchedulerAccount[], now: Date, preproduceMinutes = 180, peers: { occupied?: number[]; accountCount?: number } = {}): PlannedWork[] {
     const result: PlannedWork[] = [];
+    // Interleave accounts: with N active accounts posting hourly, keep about 60/N minutes between any two accounts' clips.
+    // Without peer information each account plans independently, so replanning one never moves another's slots.
+    const count = Math.max(1, peers.accountCount ?? 1);
+    const crossGapMs = count > 1 ? Math.floor(CADENCE_POLICY.minimumGapMinutes / count) * 60000 : 0;
+    const taken: number[] = [...peers.occupied ?? []];
+    const clear = (t: number) => crossGapMs <= 0 || taken.every(o => Math.abs(o - t) >= crossGapMs);
     for (const account of accounts) {
       const c = account.config; if (!c.enabled || c.paused || !account.connected || account.hidden) continue;
       const day = localDay(now, c.timezone), bounds = dayBounds(day, c.timezone);
@@ -42,7 +50,7 @@ export class MultiAccountPublishingScheduler {
       const target = account.recommendation.generation, jitter=random(`${account.scheduleSeed}:${day}`);
       // Jitter may vary a slot, but cannot bunch adjacent slots at a stratum boundary.
       // This is a cadence-derived spacing rule, not a fixed daily clip quota.
-      const gapMinutes = Math.max(c.minimumGapMinutes, Math.floor(eligible.length / Math.max(1, target * 2)));
+      const gapMinutes = Math.max(c.minimumGapMinutes, CADENCE_POLICY.minimumGapMinutes, Math.floor(eligible.length / Math.max(1, target * 2)));
       let last=-Infinity;
       for (let ordinal = 0; ordinal < target; ordinal++) {
         const start = Math.floor(ordinal * eligible.length / target), end = Math.floor((ordinal + 1) * eligible.length / target);
@@ -50,9 +58,10 @@ export class MultiAccountPublishingScheduler {
         const audience = candidates.filter(t => { const p = parts(new Date(t), c.timezone); return c.audienceMinutes.includes(Number(p.hour) * 60 + Number(p.minute)); });
         const spaced = candidates.filter(t=>t-last>=gapMinutes*60000);
         const preferred = audience.filter(t=>t-last>=gapMinutes*60000);
-        const times = preferred.length ? preferred : spaced;
+        const pool = preferred.length ? preferred : spaced, interleaved = pool.filter(clear);
+        const times = interleaved.length ? interleaved : pool;
         if (!times.length) continue;
-        const due = times[Math.floor(jitter()*times.length)];last=due;
+        const due = times[Math.floor(jitter()*times.length)];last=due;taken.push(due);
         result.push({ ownerId: account.ownerId, accountId: account.id, day, ordinal: ordinal + 1, kind: "GENERATE",
           dueAt: new Date(due).toISOString(), availableAt: new Date(due - preproduceMinutes * 60000).toISOString(), priority: c.priority });
       }

@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { saveContentProduct } from "@/features/content-export/product-input";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 export async function POST(request: Request) {
   if (request.headers.get("origin") !== new URL(request.url).origin) return Response.json({}, { status: 403 });
   if (Number(request.headers.get("content-length") ?? 0) > 1_000_000) return Response.json({ message: "ภาพต้องมีขนาดไม่เกิน 750 KB" }, { status: 413 });

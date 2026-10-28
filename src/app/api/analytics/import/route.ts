@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { decodeReportFile, importOwnerReport, previewOwnerReport, type ReportKind } from "@/features/analytics/report-import";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 const MESSAGES: Record<string, string> = {
   REPORT_ACCOUNT_IS_MOCK: "บัญชีทดลองนำเข้าผลจริงไม่ได้",
   REPORT_ACCOUNT_NOT_FOUND: "ไม่พบบัญชี TikTok นี้ในระบบของคุณ",

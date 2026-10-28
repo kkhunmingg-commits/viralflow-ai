@@ -131,19 +131,23 @@ export async function listRightsWorkspace(client:SupabaseClient,owner:string,at=
     client.from("content_evidence").select("id,product_id,statement,source,source_reference,role,captured_at,revoked_at").eq("owner_id",owner)
       .is("revoked_at",null).order("created_at",{ascending:false}).limit(200),
   ]);
-  failed(assets.error,"media_assets_unavailable");failed(rights.error,"media_rights_unavailable");failed(evidence.error,"evidence_unavailable");
+  // The rights/evidence ledger arrives with migration 20261018120000; until then the page lists media with no records.
+  const missing=(e:{code?:string}|null)=>Boolean(e&&["42P01","PGRST205"].includes(e.code??""));
+  const ledgerInstalled=!missing(rights.error)&&!missing(evidence.error);
+  failed(assets.error,"media_assets_unavailable");
+  if(ledgerInstalled){failed(rights.error,"media_rights_unavailable");failed(evidence.error,"evidence_unavailable");}
   const productIds=[...new Set((assets.data??[]).map(a=>a.product_id).filter(Boolean))].map(String);
   const products=productIds.length?await client.from("products").select("id,title").eq("owner_id",owner).in("id",productIds):{data:[],error:null};
   failed(products.error,"products_unavailable");
   const titles=new Map((products.data??[]).map(p=>[String(p.id),String(p.title)]));
-  const current=currentRightsByAsset((rights.data??[]) as unknown as MediaRightsRecord[]);
+  const current=currentRightsByAsset((ledgerInstalled?rights.data??[]:[]) as unknown as MediaRightsRecord[]);
   const items=(assets.data??[]).filter(a=>ownsVideoStoragePath(owner,String(a.storage_path))).map(a=>{
     const record=current.get(String(a.id)) as (MediaRightsRecord&{rightsholder:string;license_type:string;proof_sha256:string|null})|undefined;
     // Account scope is checked per account at publish time; here only account-independent limits are shown.
     const blockers=mediaRightsViolations(record&&{...record,account_scope:null},{at,accountId:""});
     return {...a,productTitle:titles.get(String(a.product_id))??"",rights:record??null,blockers};
   });
-  return {items,evidence:evidence.data??[]};
+  return {items,evidence:ledgerInstalled?evidence.data??[]:[],ledgerInstalled};
 }
 
 const VOICE_TYPES:Record<string,string>={"audio/mpeg":"mp3","audio/mp4":"m4a","audio/x-m4a":"m4a","audio/wav":"wav","audio/x-wav":"wav","audio/webm":"webm","audio/ogg":"ogg"};

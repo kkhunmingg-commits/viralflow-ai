@@ -4,7 +4,7 @@ import { MultiAccountPublishingScheduler, localDay, dayBounds, capacityEstimate 
 import { restrictProviderSettings } from "./provider-policy";
 import { providerSettingsSchema } from "@/features/video-provider/contracts";
 
-export const accounts = (n: number): SchedulerAccount[] => Array.from({ length:n },(_,i) => ({ id:`account-${i}`,ownerId:"owner",config:accountAutomationSchema.parse({enabled:true}),connected:true,hidden:false,ready:0,produced:0,published:0,publishCap:2,recommendation:{generation:i+2,publishing:2,reason:"FIXTURE_OBSERVATIONS",confidence:1},scheduleSeed:`fixture-seed-${i}` }));
+export const accounts = (n: number): SchedulerAccount[] => Array.from({ length:n },(_,i) => ({ id:`account-${i}`,ownerId:"owner",config:accountAutomationSchema.parse({enabled:true}),connected:true,hidden:false,ready:0,produced:0,published:0,publishCap:2,recommendation:{generation:(i%10)+2,publishing:2,reason:"FIXTURE_OBSERVATIONS",confidence:1},scheduleSeed:`fixture-seed-${i}` }));
 const now = new Date("2026-10-12T05:00:00Z");
 describe("dynamic per-account scheduler",() => {
   it("prevents jitter from bunching low-cadence slots even with the old one-minute floor",()=>{
@@ -45,8 +45,8 @@ describe("dynamic per-account scheduler",() => {
     expect(spring.end-spring.start).toBe(23*3600000);expect(fall.end-fall.start).toBe(25*3600000);
   });
   it("supports counts beyond examples and persists random timing via a day seed",()=>{
-    const rows=accounts(73),scheduler=new MultiAccountPublishingScheduler();rows[0].recommendation.generation=211;
-    const plan=scheduler.plan(rows,now);expect(plan.filter(p=>p.accountId===rows[0].id)).toHaveLength(211);expect(new Set(plan.map(p=>p.accountId)).size).toBe(73);
+    const rows=accounts(73),scheduler=new MultiAccountPublishingScheduler();rows[0].recommendation.generation=211; // A runaway request is held to one clip an hour (24 a day).
+    const plan=scheduler.plan(rows,now);expect(plan.filter(p=>p.accountId===rows[0].id)).toHaveLength(24);expect(new Set(plan.map(p=>p.accountId)).size).toBe(73);
     const changed=scheduler.plan([{...rows[0],scheduleSeed:"different-random-day-seed"}],now);expect(changed).not.toEqual(plan.filter(p=>p.accountId===rows[0].id));
     const c=accountAutomationSchema.parse({minimum:15,maximum:20});expect(c).not.toHaveProperty("minimum");expect(c).not.toHaveProperty("maximum");
   });
@@ -60,5 +60,21 @@ describe("dynamic per-account scheduler",() => {
     expect(restrictProviderSettings(owner,automatic,true).mode).toBe("AUTO");
     expect(restrictProviderSettings({...owner,paidFallback:true},automatic,true).mode).toBe("FAL_ONLY");
     expect(restrictProviderSettings({...owner,paidFallback:true},automatic,false).mode).toBe("AUTO");
+  });
+});
+describe("multi-account interleaving", () => {
+  it("keeps clips at least an hour apart per account and staggers ten accounts", () => {
+    const scheduler = new MultiAccountPublishingScheduler(), rows = accounts(10).map(a => ({ ...a, recommendation: { ...a.recommendation, generation: 15 } }));
+    const occupied: number[] = [], plan = [];
+    for (const row of rows) { const slots = scheduler.plan([row], now, 180, { occupied, accountCount: rows.length }); occupied.push(...slots.map(s => Date.parse(s.dueAt))); plan.push(...slots); }
+    expect(plan).toHaveLength(150);
+    for (const row of rows) {
+      const times = plan.filter(p => p.accountId === row.id).map(p => Date.parse(p.dueAt)).sort((a, b) => a - b);
+      for (let i = 1; i < times.length; i++) expect(times[i] - times[i - 1]).toBeGreaterThanOrEqual(60 * 60000);
+    }
+    const all = plan.map(p => Date.parse(p.dueAt)).sort((a, b) => a - b);
+    const tooClose = all.filter((t, i) => i > 0 && t - all[i - 1] < 6 * 60000).length;
+    // Interleaving is a preference; a crowded stratum may fall back to the account-only spacing.
+    expect(tooClose).toBeLessThanOrEqual(3);
   });
 });

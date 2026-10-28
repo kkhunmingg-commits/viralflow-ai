@@ -23,8 +23,9 @@ function AccountSettings({ account, onSaved }: { account: AccountView; onSaved: 
   return <details className="ma-settings"><summary>ตั้งค่าบัญชี</summary><form onSubmit={submit}>
     <label><input type="checkbox" checked={form.enabled} onChange={e => field("enabled",e.target.checked)} /> เปิดทำงาน</label>
     <label><input type="checkbox" checked={form.paused} onChange={e => field("paused",e.target.checked)} /> พักบัญชี</label>
-    <p>จำนวนคลิปปรับตามผลลัพธ์ งบ และความพร้อม ไม่มีโควตาคลิปตายตัว</p>
-    <label>เว้นระยะอย่างน้อย (นาที)<input type="number" min="1" step="1" value={form.minimumGapMinutes} onChange={e => field("minimumGapMinutes",Number(e.target.value))} /></label>
+    <p>ช่วงปั้นช่อง (ต่ำกว่า 1,000 ผู้ติดตาม) ลง 3-5 คลิปต่อวัน ช่วงขายของจะค่อยๆ เพิ่มจาก 5 คลิปจนถึงเป้า และไม่เกินประมาณ 15 คลิปต่อวันตามแนวทาง TikTok ห่างกันอย่างน้อย 1 ชั่วโมง ถ้าบัญชีมีสัญญาณเสี่ยงระบบจะลดเอง</p>
+    <label>เป้าคลิปขายของ / วัน (ว่าง = 15)<input type="number" min="0" max="50" step="1" value={form.dailyTarget ?? ""} onChange={e => field("dailyTarget",e.target.value === "" ? null : Number(e.target.value))} /></label>
+    <label>เว้นระยะอย่างน้อย (นาที, ขั้นต่ำจริง 60)<input type="number" min="1" step="1" value={form.minimumGapMinutes} onChange={e => field("minimumGapMinutes",Number(e.target.value))} /></label>
     <label>หมวดสินค้า<input value={form.categories.join(", ")} onChange={e => field("categories",e.target.value.split(",").map(s => s.trim()).filter(Boolean))} placeholder="แยกด้วยเครื่องหมาย ," /></label>
     <label>เขตเวลา<input value={form.timezone} onChange={e => field("timezone",e.target.value)} /></label>
     <label><input type="checkbox" checked={form.spreadFullDay} onChange={e => field("spreadFullDay",e.target.checked)} /> กระจายตลอด 24 ชั่วโมง</label>

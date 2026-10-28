@@ -1,4 +1,5 @@
 import {describe,expect,it,vi} from "vitest";
+import {join} from "node:path";
 import {resolveNarration} from "./narration";
 import {VOXCPM2_LICENSE,type ThaiVoiceProvider} from "./thai-voice";
 
@@ -14,7 +15,7 @@ describe("automatic narration choice",()=>{
   });
   it("falls back to licensed TTS with its licence attached",async()=>{
     const result=await resolveNarration({...base,tts:tts(async i=>({path:i.outputPath,durationSeconds:4.2})),allowCaptionOnly:false});
-    expect(result.voicePath).toBe("/work/narration.wav");
+    expect(result.voicePath).toBe(join(base.workDir,"narration.wav"));
     expect(result.source).toMatchObject({kind:"SYSTEM_TTS",provider:"fake-tts",durationSeconds:4.2,license:{commercialUse:true}});
   });
   it("goes caption-only only where the format allows it, keeping the TTS failure reason",async()=>{

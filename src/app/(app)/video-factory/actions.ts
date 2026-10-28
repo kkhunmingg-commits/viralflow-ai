@@ -31,3 +31,8 @@ export async function setVideoStatusAction(formData:FormData){
   await setVideoStatus(client,owner,kind,id,status);revalidatePath(`/video-factory/${masterId}`);
   revalidatePath("/compliance");
 }
+export async function critiqueMasterAction(formData:FormData){
+  const masterId=uuid.parse(formData.get("masterId")),{client,owner}=await auth();
+  const {critiqueStoredMaster}=await import("@/features/video/critic-service");
+  await critiqueStoredMaster(client,owner,masterId);revalidatePath(`/video-factory/${masterId}`);
+}

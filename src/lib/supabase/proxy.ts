@@ -12,8 +12,9 @@ const diagnosticPages = [
 ];
 
 export async function updateSession(request: NextRequest) {
-  // Skip cookie auth for this exact route; the handler checks a server-only bearer secret.
-  if (["/api/operations/recovery", "/api/multi-account/tick"].includes(request.nextUrl.pathname)) return NextResponse.next({ request });
+  // Skip cookie auth for these routes; the handler checks a server-only bearer secret.
+  if (["/api/operations/recovery", "/api/multi-account/tick"].includes(request.nextUrl.pathname)
+    || request.nextUrl.pathname.startsWith("/api/flow-worker/")) return NextResponse.next({ request });
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

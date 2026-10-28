@@ -4,14 +4,15 @@ import {PageHeading} from "@/components/page-heading";
 import {createClient} from "@/lib/supabase/server";
 import {listRightsWorkspace} from "@/features/video/media-rights-service";
 import {addContentEvidenceAction,recordMediaRightsAction,reviewMediaRightsAction,revokeContentEvidenceAction,revokeMediaRightsAction} from "./actions";
-const ORIGINS={OWNER_CREATED:"ฉันถ่าย/ทำเอง",COMMISSIONED:"จ้างคนถ่ายและได้สิทธิ์",MERCHANT_LICENSED:"ร้านค้า/แบรนด์อนุญาต",LICENSED_STOCK:"สต็อกที่ซื้อสิทธิ์",ORIGINAL_GRAPHIC:"กราฟิกที่ทำเอง"};
+const ORIGINS={OWNER_CREATED:"ฉันถ่าย/ทำเอง",COMMISSIONED:"จ้างคนถ่ายและได้สิทธิ์",MERCHANT_LICENSED:"ร้านค้า/แบรนด์อนุญาต",LICENSED_STOCK:"ภาพสต็อก/สัญญาอนุญาต",ORIGINAL_GRAPHIC:"กราฟิกที่ทำเอง"};
 const ROLES={REAL_FOOTAGE:"คลิปสินค้าจริง",REAL_IMAGE:"ภาพสินค้าจริง",COMPARISON_FOOTAGE:"คลิปเปรียบเทียบ",ORIGINAL_GRAPHIC:"กราฟิก",LICENSED_STOCK:"สต็อก",MUSIC:"เพลง",VOICE:"เสียงพากย์"};
 const BLOCKERS:Record<string,string>={NO_RIGHTS_RECORD:"ยังไม่บันทึกสิทธิ์",NOT_APPROVED:"รอตรวจ",REVOKED:"ถอนสิทธิ์แล้ว",EXPIRED:"หมดอายุ",COMMERCIAL_NOT_ALLOWED:"ห้ามใช้เชิงพาณิชย์",EDIT_NOT_ALLOWED:"ห้ามตัดต่อ",PLATFORM_OUT_OF_SCOPE:"ไม่ครอบคลุม TikTok"};
 export default async function MediaRightsPage(){
   const client=await createClient(),{data}=await client.auth.getUser();if(!data.user)redirect("/login");
-  const {items,evidence}=await listRightsWorkspace(client,data.user.id),products=[...new Map(items.filter(i=>i.product_id).map(i=>[String(i.product_id),i.productTitle])).entries()];
+  const {items,evidence,ledgerInstalled}=await listRightsWorkspace(client,data.user.id),products=[...new Map(items.filter(i=>i.product_id).map(i=>[String(i.product_id),i.productTitle])).entries()];
   return <><PageHeading eyebrow="RIGHTS & EVIDENCE" title="สิทธิ์สื่อและหลักฐาน" description="AI ใช้ได้เฉพาะสื่อที่บันทึกสิทธิ์และตรวจแล้ว และอ้างได้เฉพาะข้อเท็จจริงที่มีแหล่งที่มา การอัปโหลดไฟล์อย่างเดียวไม่ถือว่ามีสิทธิ์"/>
     <Link className="secondary-action" href="/video-factory">← Video Factory</Link>
+    {!ledgerInstalled&&<p className="manual-muted">ฐานข้อมูลยังไม่มีตารางสิทธิ์สื่อ/หลักฐาน (migration 20261018120000) จึงยังบันทึกสิทธิ์ไม่ได้ ให้รัน migration นี้ใน Supabase ก่อน</p>}
     {items.length?<section className="video-factory-grid">{items.map(item=>{const r=item.rights,cleared=!item.blockers.length;return <article className="panel" key={item.id}>
       <div className="panel-heading"><div><span className="phase-chip">{item.asset_type}</span><h2>{item.productTitle||"ไม่ระบุสินค้า"}</h2></div><span className={`status-badge ${cleared?"ready":"blocked"}`}>{cleared?"ใช้ได้":item.blockers.map(b=>BLOCKERS[b]??b).join(" · ")}</span></div>
       <p className="manual-muted">{String(item.storage_path).split("/").pop()}</p>

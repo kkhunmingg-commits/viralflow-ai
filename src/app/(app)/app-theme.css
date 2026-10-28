@@ -195,3 +195,10 @@
   .account-detail-page .page-heading .secondary-action { width: 100%; text-align: center; }
   .app-frame .account-detail-page .panel > .detail-summary-grid > article { padding: 14px; }
 }
+
+/* Grouped sidebar: Thai labels read better without wide tracking; glyph icons need a larger size. */
+.app-frame .sidebar nav + nav { margin-top: 18px; }
+.app-frame .nav-label { color: #6f7f96; font: 700 11px var(--font-manrope), sans-serif; letter-spacing: 0; }
+.app-frame .nav-icon { font-size: 13px; font-weight: 700; }
+.app-frame .nav-link { font-size: 14px; }
+@media (max-width: 580px) { .app-frame .sidebar nav + nav { margin-top: 0; } }

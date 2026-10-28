@@ -5,9 +5,9 @@ export const PROMPT_VERSION="creative-brain-v1";
 export const CREATIVE_SCORE_VERSION="creative-concept-v1";
 export type RiskStatus="SAFE"|"REVIEW"|"REJECT";
 export interface CreativeContext {
-  assignment:{id:string;score:number;reason:string};
+  assignment:{id:string;score:number;reason:string;purpose?:"OWNER_OFFLINE_PRODUCT"};
   account:{id:string;name:string;mode:EffectiveMode;followers:number;preferredCategories:string[]};
-  product:{id:string;title:string;category:string;price:number;originalPrice:number|null;commissionRate:number;commissionAmount:number;rating:number|null;reviewCount:number;momentum:number;creativePotential:number};
+  product:{id:string;title:string;category:string;price:number;originalPrice:number|null;commissionRate:number;commissionAmount:number;rating:number|null;reviewCount:number;momentum:number;creativePotential:number;attribution?:string};
   category:{momentum:number;commercialOpportunity:number;state:string;saturation:number};
   affinity:{score:number;confidence:number};
   signals:{accountProductFit:number;finalViralOpportunity:number;productConfidence:number;categoryConfidence:number};

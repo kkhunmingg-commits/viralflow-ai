@@ -4,6 +4,18 @@ import { basename, resolve, sep } from "node:path";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_VIDEO_BYTES = 50_000_000;
 
+// The legacy Labs entry point now redirects to the dedicated official Flow domain.
+// This validates location only; visible login/selector checks are still required.
+export function isFlowLocation(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== 'https:' || url.username || url.password || url.port) return false;
+    if (url.hostname === 'flow.google.com') return true;
+    return url.hostname === 'labs.google' &&
+      (url.pathname === '/fx/tools/flow' || url.pathname.startsWith('/fx/tools/flow/'));
+  } catch { return false; }
+}
+
 export function validateJob(input) {
   if (!input || typeof input !== "object" || !UUID.test(String(input.jobId ?? ""))) {
     throw new Error("INVALID_JOB_ID");
@@ -55,6 +67,23 @@ export function safeJobFilename(jobId) {
 export function shouldGenerate(record) {
   // Never regenerate after a possibly accepted paid/credit-consuming UI click.
   return !record || record.state === "NEW";
+}
+
+// Stable DOM identity is required: result order/count can change while Flow renders.
+export function validateResultIds(ids) {
+  if (ids.some(id => typeof id !== 'string' || !id.trim()) || new Set(ids).size !== ids.length) {
+    throw new Error('CALIBRATE_UNIQUE_RESULT_IDS');
+  }
+  return ids;
+}
+
+export function newResultId(before, current) {
+  validateResultIds(before);
+  validateResultIds(current);
+  const previous = new Set(before);
+  const added = current.filter(id => !previous.has(id));
+  if (added.length > 1) throw new Error('AMBIGUOUS_NEW_RESULTS_REVIEW_REQUIRED');
+  return added[0] ?? null;
 }
 
 export const STATES = Object.freeze(["NEW", "GENERATING", "DOWNLOADED", "IMPORTED", "NEEDS_REVIEW"]);

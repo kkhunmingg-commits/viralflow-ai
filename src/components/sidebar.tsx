@@ -8,7 +8,6 @@ export function Sidebar() {
         <span className="brand-mark">V</span>
         <span>ViralFlow AI</span>
       </Link>
-      <p className="nav-label">เมนูหลัก</p>
       <SidebarNav />
     </aside>
   );

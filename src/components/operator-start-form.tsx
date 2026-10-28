@@ -15,6 +15,8 @@ interface AccountOption {
   target: number;
   hardLimit: number;
   budget: number;
+  /** Plain-language phase from accountPhase(); shown instead of asking the owner to pick a mode. */
+  phase?: { label: string; plan: string; clipsPerDay: string };
 }
 
 function StartButton({ disabled }: { disabled: boolean }) {
@@ -34,9 +36,11 @@ export function OperatorStartForm({ accounts, requestKey, disabled, selectedAcco
   if (exportOnly) return <div className="operator-form">
     <div className="operator-fields"><label>บัญชี TikTok<select value={accountId} onChange={event => { setAccountId(event.target.value); router.replace(`/auto?account=${encodeURIComponent(event.target.value)}`, { scroll: false }); }}>
       {accounts.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label>โหมด<select value={mode} onChange={event => setMode(event.target.value)}><option value="AUTO">AUTO · เลือกตามบัญชี</option>
-        <option value="GROWTH">GROWTH · ปั้นบัญชี</option><option value="AFFILIATE">AFFILIATE · คอนเทนต์สินค้า</option></select></label></div>
-    <div className="operator-form-footer"><p>ระบบคิดและสร้างคลิปให้ คุณตรวจแล้วดาวน์โหลดไปโพสต์เอง</p>
+      {account?.phase && <div className="operator-phase-note" aria-live="polite"><strong>{account.phase.label} · {account.phase.clipsPerDay}</strong><span>{account.phase.plan}</span></div>}</div>
+    <details className="operator-advanced"><summary>เลือกแนวคลิปเอง (ไม่บังคับ)</summary>
+      <label>แนวคลิป<select value={mode} onChange={event => setMode(event.target.value)}><option value="AUTO">ให้ระบบเลือกตามบัญชี (แนะนำ)</option>
+        <option value="GROWTH">ปั้นช่อง · คลิปให้คนกดติดตาม</option><option value="AFFILIATE">ขายสินค้า · ต้องมีสิทธิ์ TikTok Shop</option></select></label></details>
+    <div className="operator-form-footer"><p>สร้างฟรีด้วยบัญชี Google Flow ที่ผูกไว้ คลิปเข้าคลังรอโพสต์</p>
       <Link className="operator-start-button" href={`/post?account=${encodeURIComponent(accountId)}&mode=${mode}`}>▶ สร้างคลิป</Link></div></div>;
 
   return <form action={startOperatorAction} className="operator-form">
