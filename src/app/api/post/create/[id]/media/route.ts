@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { contentMedia } from "@/features/content-export/service";
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   const auth = await (await createClient()).auth.getUser();
   if (auth.error || !auth.data.user) return new Response(null, { status: 401 });

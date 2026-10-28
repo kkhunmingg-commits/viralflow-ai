@@ -8,7 +8,7 @@ import { inboxContext } from "@/features/tiktok/inbox-service";
 import { assertInboxMedia, INBOX_MAX_BYTES, inboxPublicReceipt, refreshInboxReceipt, sendInboxVideo } from "@/features/tiktok/inbox-flow";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 const uuid = z.string().uuid();
 const headers = { "Cache-Control": "no-store" };
 const failure = (status = 400) => NextResponse.json({ error: "ไม่สามารถส่งวิดีโอได้ กรุณาตรวจบัญชีและลองตรวจสถานะอีกครั้ง" }, { status, headers });

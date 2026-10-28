@@ -7,7 +7,7 @@ import { serverEnv } from "@/lib/server-env";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 export const authorizedRecoveryToken = authorizedSchedulerToken;
 
