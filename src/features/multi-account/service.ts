@@ -13,6 +13,8 @@ import { MultiAccountPublishingScheduler, localDay } from "./scheduler";
 import { restrictProviderSettings } from "./provider-policy";
 import { runWorkerPool, retryAt, type WorkerPorts, type WorkerStore, type WorkOutcome } from "./worker";
 import { analyzeFrequency, type FrequencyEvidence } from "./adaptive";
+import type { CadencePhase, CadenceRisk } from "./cadence-policy";
+import { getAccountEffectiveMode } from "@/features/accounts/account-performance";
 import { resourceAdmission } from "./resources";
 import { activeGrowthPilot, tickGrowthPilot } from "@/features/growth-manager/service";
 import { syncAutoDiscovery, accountAutoPermission } from "@/features/growth-manager/discovery-service";
@@ -53,17 +55,24 @@ async function recommendAccount(admin:SupabaseClient,owner:string,account:string
   const [evidence,ownerConfig]=await Promise.all([admin.rpc("multi_account_frequency_evidence",{p_owner:owner,p_account:account}),providerSettings(admin,owner)]);check(evidence.error);
   const settings=ownerConfig.settings,paidPermitted=(settings.mode==="GEMINI_ONLY"?settings.paidMode:settings.mode==="FAL_ONLY"||settings.paidFallback)&&settings.mode!=="GOOGLE_ONLY"&&config.providerPreference!=="GOOGLE_ONLY";
   const providerAutomated=paidPermitted&&(settings.mode==="GEMINI_ONLY"?Boolean(serverEnv.geminiKey)&&process.env.GEMINI_OMNI_API_ENABLED==="true":Boolean(serverEnv.falKey));
-  return analyzeFrequency(config,{...(evidence.data as FrequencyEvidence),paidPermitted,providerAutomated,accountHealthy:healthy});
+  return analyzeFrequency(config,{...(evidence.data as FrequencyEvidence),...await accountCadence(admin,owner,account),paidPermitted,providerAutomated,accountHealthy:healthy});
+}
+/** Growth below 1,000 verified followers or without verified Shop permissions; Affiliate otherwise. */
+async function accountCadence(admin:SupabaseClient,owner:string,account:string):Promise<{phase:CadencePhase;risk:CadenceRisk}>{
+  const row=await admin.from("tiktok_accounts").select("mode,follower_count,shop_creator_eligible,ecommerce_permission,cart_enabled,account_status").eq("owner_id",owner).eq("id",account).maybeSingle();check(row.error);
+  if(!row.data)return{phase:"GROWTH",risk:"NONE"};
+  return{phase:getAccountEffectiveMode(row.data as Parameters<typeof getAccountEffectiveMode>[0]),risk:row.data.account_status==="active"?"NONE":"WARNING"};
 }
 export async function dashboard(admin: SupabaseClient, owner: string) {
   const result = await admin.rpc("multi_account_overview", { p_owner: owner });
   if (result.error && ["42883", "PGRST202"].includes(result.error.code)) return { installed: false, accounts: [] as AccountView[], calendar: [] as Row[], health: null as string | null };
   check(result.error);
   const [inputs,ownerConfig]=await Promise.all([admin.rpc("multi_account_advice_inputs",{p_owner:owner}),providerSettings(admin,owner)]);check(inputs.error);
+  const cadence=new Map(await Promise.all((result.data as AccountView[]).map(async a=>[a.id,await accountCadence(admin,owner,a.id)] as const)));
   const accounts = (result.data as AccountView[]).map(a => {const config=accountAutomationSchema.parse(a.config??{}),settings=ownerConfig.settings;
     const paidPermitted=(settings.mode==="GEMINI_ONLY"?settings.paidMode:settings.mode==="FAL_ONLY"||settings.paidFallback)&&settings.mode!=="GOOGLE_ONLY"&&config.providerPreference!=="GOOGLE_ONLY";
     const providerAutomated=paidPermitted&&(settings.mode==="GEMINI_ONLY"?Boolean(serverEnv.geminiKey)&&process.env.GEMINI_OMNI_API_ENABLED==="true":Boolean(serverEnv.falKey));
-    return {...a,config,recommendation:analyzeFrequency(config,{...inputs.data[a.id] as FrequencyEvidence,paidPermitted,providerAutomated,accountHealthy:a.connected&&a.tokenReady})};});
+    return {...a,config,recommendation:analyzeFrequency(config,{...inputs.data[a.id] as FrequencyEvidence,...cadence.get(a.id),paidPermitted,providerAutomated,accountHealthy:a.connected&&a.tokenReady})};});
   const days = [...new Set(accounts.flatMap(a => [localDay(new Date(), a.config.timezone), localDay(new Date(Date.now() + 86400000), a.config.timezone)]))];
   const calendar = days.length ? await allRows((from, to) => admin.from("multi_account_work").select("id,tiktok_account_id,local_day,kind,due_at,state,reason")
     .eq("owner_id", owner).in("local_day", days).order("due_at").order("id").range(from, to)) : [];
@@ -220,7 +229,10 @@ export async function tickMultiAccount(admin: SupabaseClient) {
     const item: SchedulerAccount = { ownerId: String(row.owner_id), id: String(row.tiktok_account_id), config, connected: healthy, hidden: Boolean(account.data.hidden_at), ready: 0, produced: 0, published: 0, publishCap: null,recommendation,scheduleSeed:String(seed.data) };
     const today = new Date(), tomorrow = new Date(today.getTime() + 86400000);
     const nextSeed=await admin.rpc("multi_account_day_seed",{p_owner:row.owner_id,p_account:row.tiktok_account_id,p_day:localDay(tomorrow,config.timezone)});check(nextSeed.error);
-    const plans: (PlannedWork & { queueId?: string; providerJobId?:string })[] = [...scheduler.plan([item], today), ...scheduler.plan([{...item,scheduleSeed:String(nextSeed.data)}], tomorrow)];
+    // Other accounts of this owner already hold these clip times; this account takes the gaps between them.
+    const peerWork=await admin.from("multi_account_work").select("due_at").eq("owner_id",row.owner_id).neq("tiktok_account_id",row.tiktok_account_id).eq("kind","GENERATE").neq("state","CANCELLED").in("local_day",[localDay(today,config.timezone),localDay(tomorrow,config.timezone)]).limit(5000);check(peerWork.error);
+    const peers={occupied:(peerWork.data??[]).map(w=>Date.parse(String(w.due_at))).filter(Number.isFinite),accountCount:rows.filter(r=>r.owner_id===row.owner_id&&accountAutomationSchema.safeParse(r.config).data?.enabled).length};
+    const plans: (PlannedWork & { queueId?: string; providerJobId?:string })[] = [...scheduler.plan([item], today, 180, peers), ...scheduler.plan([{...item,scheduleSeed:String(nextSeed.data)}], tomorrow, 180, peers)];
     const pendingProviders=await allRows((from,to)=>admin.from("video_provider_jobs").select("id,created_at").eq("owner_id",row.owner_id).eq("tiktok_account_id",row.tiktok_account_id).in("state",["PROCESSING","RECONCILIATION_REQUIRED"]).in("submission_state",["SUBMITTING","ACCEPTED"]).order("created_at").order("id").range(from,to));
     for (const job of pendingProviders) plans.push({ownerId:item.ownerId,accountId:item.id,day:localDay(new Date(String(job.created_at)),config.timezone),ordinal:1,kind:"RECONCILE",dueAt:String(job.created_at),availableAt:new Date().toISOString(),priority:config.priority,providerJobId:String(job.id)});
     const queues = await allRows((from, to) => admin.from("publishing_queue").select("id,status,provider_publish_id,external_state,scheduled_for,created_at,consent_id")

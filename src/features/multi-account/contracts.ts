@@ -12,7 +12,10 @@ export const accountAutomationSchema = z.object({
   categories: z.array(z.string().min(1).max(80)).max(100).default([]),
   priority: z.coerce.number().int().min(0).max(100).default(50),
   dailyBudgetUsd: z.coerce.number().finite().min(0).default(0),
-  minimumGapMinutes: z.coerce.number().finite().min(1).default(1),
+  // One clip per account per hour by default; the cadence policy never plans closer than 60 minutes.
+  minimumGapMinutes: z.coerce.number().finite().min(1).default(60),
+  // Owner's desired Affiliate clips per day (e.g. 15). Null = policy default; tempered by cadence-policy.ts.
+  dailyTarget: z.coerce.number().int().min(0).max(50).nullable().default(null),
   providerPreference: z.enum(["AUTO", "GOOGLE_ONLY", "FAL_ONLY"]).default("AUTO"),
 }).refine(v => v.spreadFullDay || v.windows.length > 0, "ช่วงเวลาไม่ถูกต้อง");
 export type AccountAutomation = z.infer<typeof accountAutomationSchema>;
@@ -44,6 +47,9 @@ export const reasonLabels: Record<string, string> = {
   RECONCILE: "กำลังตรวจผลรายการเดิม", RETRY: "รอลองใหม่", ACCOUNT_PAUSED: "พักบัญชีแล้ว",
   RECOVERY_REQUIRED: "ต้องตรวจรายการก่อนดำเนินการต่อ", FAILED: "ทำต่อไม่ได้",
   RATE_LIMIT: "รอรอบการส่งถัดไป", POSTING_WINDOW: "รอช่วงเวลาเผยแพร่ของบัญชี", FREQUENCY_DATA_REQUIRED: "เตรียมเนื้อหาและเก็บผลลัพธ์ก่อนเปิดอัตโนมัติ",
+  CADENCE_GROWTH: "ปั้นช่อง 3-5 คลิปต่อวัน เพิ่มเมื่อบัญชีปกติต่อเนื่อง", CADENCE_GROWTH_FLOOR_RISK: "บัญชีมีสัญญาณเสี่ยง ลดเหลือขั้นต่ำ",
+  CADENCE_AFFILIATE_RAMP: "ค่อยๆ เพิ่มจำนวนคลิปขายของจนถึงเป้า", CADENCE_AFFILIATE_TARGET: "ลงตามเป้าที่ตั้งไว้",
+  CADENCE_AFFILIATE_FLOOR_RISK: "บัญชีมีสัญญาณเสี่ยง ลดเหลือขั้นต่ำ", CADENCE_PAUSED_RISK: "บัญชีถูกจำกัด หยุดลงคลิปชั่วคราว",
   CAPACITY_SHORTAGE: "กำลังผลิตหรืองบยังไม่พอ", PLATFORM_CAP_UNKNOWN: "ยังไม่ทราบจำนวนโพสต์ที่อนุญาต",
   OBSERVED_PERFORMANCE: "ประเมินจากผลลัพธ์ของบัญชี", ACCOUNT_HEALTH: "บัญชียังไม่พร้อม",
   REPLANNED:"ปรับแผนตามข้อมูลล่าสุด",EXPIRED_PLAN:"พ้นช่วงเวลาของแผนเดิม",
