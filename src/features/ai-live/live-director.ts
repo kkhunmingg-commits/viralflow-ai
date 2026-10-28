@@ -123,7 +123,7 @@ export function hostReply(comment: { user: string; text: string }, product: Live
  * app to start a LIVE, read LIVE comments, or pin a Shop product in a LIVE.
  */
 export const LIVE_TIKTOK_BOUNDARY = {
-  streamWithoutObs: "The worker can push video straight to TikTok over RTMP with FFmpeg when the owner pastes the server URL and stream key that TikTok LIVE Producer issues to eligible accounts. No OBS needed, but TikTok decides who gets a stream key.",
+  streamDirect: "Direct to TikTok with no OBS and no stream key: waits for TikTok to approve LIVE API access for this app. Until then nothing is broadcast.",
   readComments: "No official LIVE comment API for third-party apps. Comments must come from an authorized source (or the owner) before the host can reply.",
   pinProduct: "No public API to pin a Shop product in LIVE. The run-of-show gives pin times; pinning is done in TikTok LIVE Producer / the app.",
 } as const;

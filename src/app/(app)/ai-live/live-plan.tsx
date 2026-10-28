@@ -18,7 +18,7 @@ export function LivePlan({ lineup, candidates, blockStart }: { lineup: LiveLineu
       </>}
     <h3>สิ่งที่ TikTok ยังไม่เปิดให้แอปทำเอง</h3>
     <ul className="muted">
-      <li>ไลฟ์ตรงไม่ผ่าน OBS: ทำได้ด้วยการส่งภาพจากเครื่องไลฟ์เข้า TikTok ผ่าน Server URL + Stream key ที่ TikTok LIVE Producer ให้ (TikTok เป็นผู้กำหนดว่าบัญชีไหนได้ Stream key)</li>
+      <li>ไลฟ์ตรงเข้า TikTok: ไม่ใช้ OBS และไม่ใช้ Stream key ระบบรอ TikTok อนุมัติสิทธิ์ LIVE API ให้แอปก่อน เมื่ออนุมัติแล้วจะต่อจากเครื่องไลฟ์เข้า TikTok โดยตรง</li>
       <li>อ่านคอมเมนต์ในไลฟ์: ไม่มี API ทางการสำหรับแอปภายนอก ต้องมีแหล่งคอมเมนต์ที่ได้รับอนุญาตก่อน ระบบตอบแชทจึงพร้อมใช้เมื่อมีคอมเมนต์เข้ามา</li>
       <li>ปักตะกร้าอัตโนมัติ: ไม่มี API สาธารณะ ระบบให้ลำดับและเวลาปักด้านบน ปักใน LIVE Producer หรือแอป TikTok</li>
     </ul>
