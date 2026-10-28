@@ -390,11 +390,10 @@ export class TikTokTokenService {
   }
 
   async revokeAndDisconnect(ownerId: string, accountId: string) {
-    const row = await this.credential(ownerId, accountId);
     try {
-      await this.provider.revokeAuthorization(this.decrypt(row, "access"));
+      await this.provider.revokeAuthorization(this.decrypt(await this.credential(ownerId, accountId), "access"));
     } catch {
-      // Local credential removal is mandatory even when TikTok is unavailable.
+      // Local credential removal is mandatory even when TikTok is unavailable or the stored token is already gone.
     }
     const now = new Date().toISOString();
     await this.admin.from("tiktok_oauth_credentials").delete().eq("owner_id", ownerId).eq("tiktok_account_id", accountId);
