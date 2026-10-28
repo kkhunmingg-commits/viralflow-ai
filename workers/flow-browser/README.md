@@ -1,5 +1,9 @@
 # ViralFlow Flow-to-Library — Browser Pilot
 
+> **Semi-auto farm (new):** `farm.mjs` makes the library's queued clips in Google Flow in the background across
+> several Flow accounts, draining each account's credits before the next. Setup and limits:
+> [`docs/SEMI_AUTO_FLOW_FARM.md`](../../docs/SEMI_AUTO_FLOW_FARM.md). The single-job pilot below is unchanged.
+
 **Status: CODE PROTOTYPE; NOT real-Google verified, NOT deployed, NOT production approved.**
 This optional worker does not touch TikTok, Gmail API, Flow private endpoints, or any paid video API. It operates the owner's authorized Chrome page only. Do not use it to evade Google usage limits, bypass CAPTCHA, distribute shared cookies or automate accounts without permission.
 

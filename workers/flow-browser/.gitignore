@@ -3,3 +3,4 @@ workspace/
 selectors.json
 .env
 *.log
+farm.env

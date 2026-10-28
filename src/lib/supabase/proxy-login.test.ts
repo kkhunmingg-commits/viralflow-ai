@@ -15,6 +15,11 @@ describe("login session routing", () => {
     expect(getClaims).not.toHaveBeenCalled();
     expect((await updateSession(new NextRequest("https://viralflow.example/api/multi-account/other"))).headers.get("location")).toContain("/login");
   });
+  it("lets the local Flow worker reach its token-checked endpoints without a browser session",async()=>{
+    getClaims.mockResolvedValue({data:{claims:null}});
+    expect((await updateSession(new NextRequest("https://viralflow.example/api/flow-worker/claim"))).headers.get("location")).toBeNull();
+    expect((await updateSession(new NextRequest("https://viralflow.example/api/library/x/video"))).headers.get("location")).toContain("/login");
+  });
 
   it("takes an existing session directly to /auto", async () => {
     getClaims.mockResolvedValueOnce({ data: { claims: { sub: "owner" } } });

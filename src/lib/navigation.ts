@@ -6,6 +6,7 @@ export const navigationGroups = [
     label: "งานประจำวัน",
     items: [
       { href: "/auto", label: "หน้าหลัก", short: "⌂" },
+      { href: "/library", label: "คลังคลิป", short: "▣" },
       { href: "/post", label: "สร้างคลิป & ดาวน์โหลด", short: "▶" },
       { href: "/ai-live", label: "AI LIVE", short: "●" },
     ],
