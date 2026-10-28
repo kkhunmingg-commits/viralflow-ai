@@ -26,7 +26,7 @@ export default async function ManualPostPage({ searchParams }: { searchParams: P
   try { clips = await listManualClips(client, data.user.id, accountId); } catch { unavailable = true; }
   return <div className="manual-page">
     <header className="manual-hero"><div><p className="manual-eyebrow">Viral Flow AI</p><h1>โพสต์เอง ไม่ต้องรอ</h1>
-      <p>เตรียมวิดีโอและคำบรรยาย แล้วนำไปโพสต์ใน TikTok ด้วยตัวเอง</p></div><Link className="manual-back" href="/auto">← กลับ Home</Link></header>
+      <p>เตรียมวิดีโอและคำบรรยาย แล้วนำไปโพสต์ใน TikTok ด้วยตัวเอง</p></div><Link className="manual-back" href="/auto">← กลับหน้าหลัก</Link></header>
     <ol className="manual-steps" aria-label="วิธีโพสต์เอง"><li><span>1</span>เลือกคลิป</li><li><span>2</span>ตรวจและดาวน์โหลด</li><li><span>3</span>เปิด TikTok แล้วโพสต์</li></ol>
     <ContentStudio accounts={accounts} products={productsResult.data ?? []} configured={config.enabled && Boolean(config.key) && config.allowedOwners.includes(data.user.id)} initialRuns={initialRuns} initialAccount={accountId} initialMode={mode} />
     <details className="manual-panel"><summary>ใช้ MP4 ที่มีอยู่แล้ว</summary><LocalPreparation accounts={accounts.map(account => ({ name: account.username ? account.display_name + " · @" + account.username.replace(/^@/, "") : account.display_name }))} /></details>

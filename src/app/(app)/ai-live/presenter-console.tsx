@@ -217,7 +217,7 @@ export function LivePresenterConsole({ accounts, products }: { accounts: Choice[
 
   return <div className="ai-live-page">
     <header className="ai-live-hero">
-      <div><p className="eyebrow">VIRALFLOW AI</p><h1>AI LIVE</h1><p>เลือกพรีเซนเตอร์และดูภาพตัวอย่างสด</p></div>
+      <div><p className="eyebrow">ซ้อมก่อนไลฟ์จริง</p><h2>พรีเซนเตอร์ AI</h2><p>เลือกพรีเซนเตอร์และดูภาพตัวอย่างสด</p></div>
       <span className={`ai-live-state ${health?.ready ? "ready" : "blocked"}`}>{health === null ? "กำลังตรวจ" : health.ready ? "พร้อมแสดงตัวอย่าง" : "AI LIVE กำลังเตรียมพร้อม"}</span>
     </header>
 

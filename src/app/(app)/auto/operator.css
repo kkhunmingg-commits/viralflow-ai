@@ -652,3 +652,41 @@
   .operator-page .operator-activity-item { grid-template-columns: 8px minmax(0, 1fr); }
   .operator-page .operator-activity-item time { grid-column: 2; }
 }
+
+/* Home: three-step path, account phase, and system status. */
+.home-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0 0 18px; padding: 0; list-style: none; }
+.home-steps a { display: flex; align-items: center; gap: 12px; height: 100%; padding: 14px 16px; border: 1px solid var(--op-line); border-radius: 14px; color: var(--op-text); background: var(--op-surface); }
+.home-steps a:hover { border-color: #5b5494; }
+.home-steps strong { display: block; font-size: 14px; }
+.home-steps small { display: block; margin-top: 2px; color: var(--op-muted); font-size: 12px; }
+.home-step-number { display: grid; flex: 0 0 30px; width: 30px; height: 30px; place-items: center; border: 1px solid var(--op-line); border-radius: 999px; color: var(--op-muted); font-weight: 800; }
+.home-steps li.done .home-step-number { color: #0d1018; border-color: var(--op-teal); background: var(--op-teal); }
+.home-steps li.next a { border-color: var(--op-violet); box-shadow: 0 0 0 3px rgba(136, 120, 255, .15); }
+.home-steps li.next .home-step-number { color: #fff; border-color: var(--op-violet); background: var(--op-violet); }
+.operator-phase-note { display: grid; gap: 4px; align-self: end; padding: 10px 12px; border-radius: 12px; background: var(--op-surface-high); font-size: 13px; }
+.operator-phase-note span { color: var(--op-muted); line-height: 1.5; }
+.operator-advanced { margin-top: 12px; color: var(--op-muted); font-size: 13px; }
+.operator-advanced summary { cursor: pointer; }
+.operator-advanced label { display: grid; gap: 6px; max-width: 360px; margin-top: 10px; }
+.home-two-col { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; margin: 18px 0; }
+.home-two-col > .operator-live { margin: 0; }
+.home-phase { display: grid; align-content: start; gap: 12px; }
+.home-phase-account { margin: 0; font-weight: 700; }
+.home-phase-chip { padding: 4px 10px; border-radius: 999px; font-size: 12px; color: #c9d4e4; background: #2a3242; }
+.home-phase-chip.selling { color: #93eadc; background: #17332f; }
+.home-phase-chip.warmup { color: #c5bbff; background: #2a2650; }
+.home-phase-chip.waiting_shop { color: #ffd59a; background: #3a2e17; }
+.home-phase-facts { display: grid; gap: 8px; margin: 0; }
+.home-phase-facts div { display: grid; gap: 2px; }
+.home-phase-facts dt { color: var(--op-muted); font-size: 12px; }
+.home-phase-facts dd { margin: 0; font-size: 13px; line-height: 1.5; }
+.operator-page .home-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.home-status-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.home-status { display: grid; align-content: start; gap: 6px; padding: 14px; border: 1px solid var(--op-line); border-radius: 14px; background: var(--op-surface); font-size: 13px; }
+.home-status p { margin: 0; color: var(--op-muted); line-height: 1.5; }
+.home-status-title { color: var(--op-muted); font-size: 12px; }
+.home-status-ready strong span { color: var(--op-teal); }
+.home-status-manual strong span { color: #7fb2ff; }
+.home-status-waiting strong span { color: #ffc46b; }
+@media (max-width: 1000px) { .home-status-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .home-two-col { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .home-steps, .home-status-grid { grid-template-columns: 1fr; } .operator-page .home-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
