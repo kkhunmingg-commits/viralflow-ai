@@ -15,10 +15,9 @@
 import { mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createInterface } from "node:readline/promises";
 import process from "node:process";
 import { message, runFarmPass, runLoginPass } from "./farm-core.mjs";
-import { launchProfile, openFlowAccount, signInFlowAccount } from "./farm-driver.mjs";
+import { openFlowAccount, openPlainChrome, signInFlowAccount } from "./farm-driver.mjs";
 import { probeBinary } from "./media.mjs";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
@@ -118,14 +117,8 @@ async function main() {
   if (command === "--login") {
     if (!/^[0-9a-f-]{36}$/i.test(argument ?? "")) throw new Error("USAGE: --login <flowAccountId from the library page>");
     const settings = { flowUrl: process.env.FLOW_URL || "https://flow.google.com/", channel: process.env.FLOW_CHROME_CHANNEL || (process.platform === "win32" ? "chrome" : "") };
-    const context = await launchProfile(join(dirs.profiles, argument), { mode: "visible", channel: settings.channel });
-    const page = context.pages()[0] ?? await context.newPage();
-    await page.goto(settings.flowUrl, { waitUntil: "domcontentloaded" });
-    console.log("ล็อกอิน Google ของบัญชี Flow นี้ในหน้าต่างที่เปิดขึ้น ตั้งค่าโมเดล Veo 3.1 - Lite, 9:16, x1 แล้วกด Enter ที่นี่");
-    const input = createInterface({ input: process.stdin, output: process.stdout });
-    await input.question("กด Enter เมื่อล็อกอินเสร็จ: ");
-    input.close();
-    await context.close();
+    console.log("ล็อกอิน Google ของบัญชี Flow นี้ในหน้าต่าง Chrome ที่เปิดขึ้น ตั้งค่าโมเดล Veo 3.1 - Lite, 9:16, x1 แล้วปิดหน้าต่าง");
+    await openPlainChrome(join(dirs.profiles, argument), settings);
     return;
   }
   const settings = config();

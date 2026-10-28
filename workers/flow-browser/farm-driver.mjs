@@ -6,8 +6,9 @@
  * Selectors default to Flow's current UI (Thai or English) and can be overridden in selectors.json under
  * "farm" after checking with `farm.mjs --probe <accountId>`, which never clicks Generate.
  */
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { appeared, costDecision, FAILED_PATTERNS, newVideoSources, NO_CREDIT_PATTERNS, parseCreditCost, SIGN_IN_HOSTS } from "./farm-core.mjs";
 import { inspectMp4, isFlowLocation } from "./core.mjs";
@@ -144,7 +145,7 @@ async function flowReady(page, selectors, flowUrl) {
 
 /**
  * Signs one Google account in for the farm. The saved profile is checked out of sight first; only an account that is
- * not signed in gets a visible window, which closes by itself as soon as Flow loads. Never clicks Generate.
+ * not signed in gets an ordinary Chrome window to sign in, then is checked again once that window is closed. Never clicks Generate.
  */
 export async function signInFlowAccount(account, config, { timeoutMs = 15 * 60_000, pollMs = 2_000 } = {}) {
   const selectors = { ...DEFAULT_FARM_SELECTORS, ...(config.selectors ?? {}) };
@@ -165,20 +166,44 @@ export async function signInFlowAccount(account, config, { timeoutMs = 15 * 60_0
     if (await flowReady(page, selectors, config.flowUrl)) return { state: "READY", note: await costNote(page) };
   } finally { await quiet.close().catch(() => {}); }
 
-  const shown = await launchProfile(profile, { mode: "visible", channel: config.channel });
+  // Google refuses to sign in inside a browser driven by automation, so the window is plain Chrome on the same
+  // profile. Once the person closes it, the profile is checked quietly again.
+  const closed = await openPlainChrome(profile, config, timeoutMs);
+  if (!closed) return { state: "FAILED", note: "ไม่ได้ล็อกอินภายใน 15 นาที" };
+  const again = await launchProfile(profile, { mode: config.windowMode === "headless" ? "headless" : "offscreen", channel: config.channel });
   try {
-    const page = shown.pages()[0] ?? await shown.newPage();
+    const page = again.pages()[0] ?? await again.newPage();
     await page.goto(config.flowUrl, { waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
-    await page.bringToFront().catch(() => {});
-    const deadline = Date.now() + timeoutMs;
-    while (Date.now() < deadline) {
-      if (!shown.pages().length) return { state: "FAILED", note: "ปิดหน้าต่างก่อนล็อกอินเสร็จ" };
-      const current = shown.pages().at(-1);
-      if (await flowReady(current, selectors, config.flowUrl).catch(() => false)) return { state: "READY", note: await costNote(current) };
-      await new Promise(done => setTimeout(done, pollMs));
+    await page.waitForTimeout(3_000);
+    if (await flowReady(page, selectors, config.flowUrl)) return { state: "READY", note: await costNote(page) };
+    return { state: "FAILED", note: "ยังไม่ได้ล็อกอิน Google กด “ล็อกอินใหม่” แล้วล็อกอินให้จบก่อนปิดหน้าต่าง" };
+  } finally { await again.close().catch(() => {}); }
+}
+
+/** The Chrome the farm drives (FLOW_CHROME_PATH, installed Chrome for the "chrome" channel, or Playwright's Chromium). */
+export async function chromePath(channel, env = process.env) {
+  if (env.FLOW_CHROME_PATH) return env.FLOW_CHROME_PATH;
+  if (channel === "chrome" && process.platform === "win32") {
+    const roots = [env.PROGRAMFILES, env["PROGRAMFILES(X86)"], env.LOCALAPPDATA].filter(Boolean);
+    for (const base of roots) {
+      const candidate = join(base, "Google", "Chrome", "Application", "chrome.exe");
+      if (await access(candidate).then(() => true, () => false)) return candidate;
     }
-    return { state: "FAILED", note: "ไม่ได้ล็อกอินภายใน 15 นาที" };
-  } finally { await shown.close().catch(() => {}); }
+  }
+  const { chromium } = await import("playwright");
+  return chromium.executablePath();
+}
+
+/** Opens the profile in ordinary Chrome on screen; resolves true when the person closes it, false on timeout. */
+export async function openPlainChrome(profileDir, config, timeoutMs = 15 * 60_000) {
+  await mkdir(profileDir, { recursive: true, mode: 0o700 });
+  const child = spawn(await chromePath(config.channel), [`--user-data-dir=${profileDir}`, "--no-first-run", "--no-default-browser-check",
+    "--new-window", "--window-position=80,60", "--window-size=1280,900", config.flowUrl], { stdio: "ignore" });
+  return new Promise(done => {
+    const timer = setTimeout(() => { child.kill(); done(false); }, timeoutMs);
+    child.once("exit", () => { clearTimeout(timer); done(true); });
+    child.once("error", () => { clearTimeout(timer); done(false); });
+  });
 }
 
 export async function openFlowAccount(account, config) {
