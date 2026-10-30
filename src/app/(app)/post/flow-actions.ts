@@ -26,18 +26,21 @@ export async function startBatchAction(formData: FormData) {
   const parsed = startBatchSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) done(formData, "เลือกบัญชีและจำนวนคลิป 1–30");
   const ownerId = await owner();
-  let added = 0, products = 0, affiliate = false;
+  let added = 0, products = 0, affiliate = false, noProducts = false;
   try {
     const results = await startBatch(createAdminClient(), ownerId, parsed.data.accountId, parsed.data.count);
     added = results.reduce((sum, r) => sum + r.added, 0);
     products = Math.max(0, ...results.map(r => r.products));
     affiliate = results.some(r => r.mode === "AFFILIATE");
+    noProducts = results.some(r => r.selling && r.added > 0 && r.products === 0);
   } catch (error) {
     if (error instanceof Error && error.message === "account_not_found") done(formData, "ไม่พบบัญชี TikTok นี้");
     throw error;
   }
   if (!added) done(formData, "วันนี้มีคลิปครบตามจำนวนแล้ว");
-  done(formData, `เข้าคิวแล้ว ${added} คลิป${affiliate ? ` จากสินค้า ${products} ตัว` : " (คลิปปั้นช่อง)"} เครื่องที่เปิด Flow worker จะเริ่มสร้างเอง`);
+  // A selling account with no product photo approved for promotion silently got warm-up clips before; say why.
+  const missing = noProducts ? " · บัญชีขายของยังไม่มีสินค้าที่รูปผ่านการอนุมัติสิทธิ์ จึงทำคลิปปั้นช่องแทน: เพิ่มสินค้าแล้วอนุมัติรูปที่หน้า วิดีโอ › สิทธิ์สื่อ (/video-factory/rights)" : "";
+  done(formData, `เข้าคิวแล้ว ${added} คลิป${affiliate ? ` จากสินค้า ${products} ตัว` : " (คลิปปั้นช่อง)"} เครื่องที่เปิด Flow worker จะเริ่มสร้างเอง${missing}`);
 }
 
 export async function addFlowAccountAction(formData: FormData) {

@@ -140,7 +140,8 @@ export async function findBatchProducts(admin: SupabaseClient, owner: string, li
   return products;
 }
 
-export interface BatchResult { accountId: string; added: number; mode: "GROWTH" | "AFFILIATE"; products: number }
+/** `selling` is the account's own mode; `mode` is what was queued (a selling account with no usable product gets warm-up clips). */
+export interface BatchResult { accountId: string; added: number; mode: "GROWTH" | "AFFILIATE"; selling: boolean; products: number }
 
 /** The one-click start: for each chosen TikTok account, tops today's clips up to `count` with new plans. */
 export async function startBatch(admin: SupabaseClient, owner: string, accountId: string | "ALL", count: number, now = new Date()): Promise<BatchResult[]> {
@@ -166,7 +167,7 @@ export async function startBatch(admin: SupabaseClient, owner: string, accountId
         prompt: clip.prompt, caption: clip.caption, hashtags: clip.hashtags, reference_image_path: clip.referenceImagePath,
       }))), "flow_clips_not_queued");
     }
-    results.push({ accountId: account.id, added: planned.length, mode: planned[0]?.kind ?? mode, products: mode === "AFFILIATE" ? products?.length ?? 0 : 0 });
+    results.push({ accountId: account.id, added: planned.length, mode: planned[0]?.kind ?? mode, selling: mode === "AFFILIATE", products: mode === "AFFILIATE" ? products?.length ?? 0 : 0 });
   }
   return results;
 }
