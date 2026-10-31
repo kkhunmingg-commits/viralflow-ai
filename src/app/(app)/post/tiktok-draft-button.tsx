@@ -16,11 +16,20 @@ const errors: Record<string, string> = {
 };
 const settled = (status: string) => ["SEND_TO_USER_INBOX", "PUBLISH_COMPLETE", "FAILED"].includes(status);
 
-/** One click: the server sends the library MP4 into the TikTok inbox as a draft. Nothing is published. */
-export function TikTokDraftButton({ clipId, accountId, initial }: { clipId: string; accountId: string; initial: DraftReceipt | null }) {
+/** Puts the caption on the clipboard; false when the browser refuses (no permission, insecure page). */
+async function copyText(text: string) {
+  try { await navigator.clipboard.writeText(text); return true; } catch { return false; }
+}
+
+/**
+ * One click: the server sends the library MP4 into the TikTok inbox as a draft. Nothing is published. TikTok's inbox
+ * upload takes no caption, so the same click copies the caption and hashtags for the owner to paste in the app.
+ */
+export function TikTokDraftButton({ clipId, accountId, initial, caption }: { clipId: string; accountId: string; initial: DraftReceipt | null; caption: string }) {
   const [receipt, setReceipt] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [copied, setCopied] = useState<boolean | null>(null);
 
   const check = useCallback(async (current: DraftReceipt, signal?: AbortSignal) => {
     const response = await fetch(`/api/tiktok/inbox-upload?account=${encodeURIComponent(accountId)}&receipt=${encodeURIComponent(current.receipt)}`, { cache: "no-store", signal });
@@ -46,6 +55,8 @@ export function TikTokDraftButton({ clipId, accountId, initial }: { clipId: stri
   async function send() {
     if (busy) return;
     setBusy(true); setMessage("");
+    // Copy before the request: browsers only allow clipboard writes close to the click.
+    if (caption) setCopied(await copyText(caption));
     try {
       const response = await fetch(`/api/library/${clipId}/tiktok-draft`, { method: "POST" });
       const body = await response.json().catch(() => ({}));
@@ -65,6 +76,8 @@ export function TikTokDraftButton({ clipId, accountId, initial }: { clipId: stri
   return <div className="library-draft">
     {canSend && <button className="manual-primary" type="button" disabled={busy} onClick={send}>{busy ? "กำลังส่ง…" : "ส่งเข้า TikTok (แบบร่าง)"}</button>}
     {receipt && !settled(receipt.status) && <button className="library-link" type="button" disabled={busy} onClick={refresh}>ตรวจสถานะ</button>}
+    {caption && <button className="library-link" type="button" onClick={async () => setCopied(await copyText(caption))}>คัดลอกคำบรรยาย + แฮชแท็ก</button>}
     <small role="status" aria-live="polite">{message || (receipt ? labels[receipt.status] ?? "กำลังตรวจสถานะ" : "ส่งเข้าแบบร่างใน TikTok ยังไม่โพสต์ คุณเปิดแอปแล้วกดโพสต์เอง")}</small>
+    {copied !== null && <small role="status">{copied ? "✓ คัดลอกคำบรรยายและแฮชแท็กแล้ว วางในช่องคำบรรยายของแอป TikTok ได้เลย" : "คัดลอกอัตโนมัติไม่ได้ กดค้างในกล่องคำบรรยายด้านบนแล้วคัดลอกเอง"}</small>}
   </div>;
 }

@@ -135,7 +135,8 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
               {clip.status === "SCHEDULED" && clip.scheduled_at && <p className={due ? "library-due" : "library-scheduled"}>{due ? "ถึงเวลาโพสต์แล้ว · " : "ตั้งเวลาไว้ · "}{bangkokTime(clip.scheduled_at)}</p>}
               <textarea className="library-caption" readOnly rows={3} defaultValue={[clip.caption, clip.hashtags.join(" ")].filter(Boolean).join("\n")} aria-label="คำบรรยายสำหรับคัดลอก" />
               <div className="library-actions">
-                {draftScope ? <TikTokDraftButton clipId={clip.id} accountId={account.id} initial={(clip.video_sha256 && drafts.get(clip.video_sha256)) || null} />
+                {draftScope ? <TikTokDraftButton clipId={clip.id} accountId={account.id} initial={(clip.video_sha256 && drafts.get(clip.video_sha256)) || null}
+                  caption={[clip.caption, clip.hashtags.join(" ")].filter(Boolean).join("\n")} />
                   : <a className="manual-primary" href="/auth/tiktok/start?inbox=1&new_account=1">อนุญาตส่งเข้า TikTok (ครั้งเดียว)</a>}
                 <a className="manual-secondary" href={`/api/library/${clip.id}/video?download=1`}>ดาวน์โหลด MP4</a>
                 <form action={markPostedAction} className="library-inline"><input type="hidden" name="id" value={clip.id} />{back}
@@ -152,7 +153,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
             </div>
           </article>;
         })}</div>}
-      <p className="manual-muted">โพสต์ใน TikTok แล้วเปิดป้าย “เนื้อหาที่สร้างด้วย AI” ทุกครั้ง กด “ส่งเข้า TikTok (แบบร่าง)” แล้วคลิปจะไปรอในการแจ้งเตือน (Inbox) ของแอป TikTok ใส่คำบรรยายที่คัดลอกจากคลังแล้วกดโพสต์ เสร็จแล้วกลับมากด “โพสต์แล้ว” ระบบลบไฟล์ออกจากคลังทันที การตั้งเวลาตอนนี้เป็นการเตือนในคลัง เมื่อ TikTok อนุมัติ API โพสต์อัตโนมัติ คลิปที่ตั้งเวลาไว้จะโพสต์เองแล้วลบไฟล์</p>
+      <p className="manual-muted">โพสต์ใน TikTok แล้วเปิดป้าย “เนื้อหาที่สร้างด้วย AI” ทุกครั้ง กด “ส่งเข้า TikTok (แบบร่าง)” แล้วคลิปจะไปรอในการแจ้งเตือน (Inbox) ของแอป TikTok ระบบคัดลอกคำบรรยายและแฮชแท็กให้ในปุ่มเดียวกัน (TikTok ไม่รับคำบรรยายผ่านการส่งแบบร่าง) วางในช่องคำบรรยายแล้วกดโพสต์ เสร็จแล้วกลับมากด “โพสต์แล้ว” ระบบลบไฟล์ออกจากคลังทันที การตั้งเวลาตอนนี้เป็นการเตือนในคลัง เมื่อ TikTok อนุมัติ API โพสต์อัตโนมัติ คลิปที่ตั้งเวลาไว้จะโพสต์เองแล้วลบไฟล์</p>
     </section>
   </>;
 }
