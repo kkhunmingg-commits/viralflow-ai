@@ -51,6 +51,17 @@ async function videoSources(page) {
     [video.currentSrc, video.getAttribute("src"), ...[...video.querySelectorAll("source")].map(s => s.getAttribute("src"))])
     .filter(Boolean).map(src => new URL(src, location.href).href)).catch(() => []);
 }
+/** Flow shows a finished clip as a poster image served from /asb/; its <video> only appears while the pointer is on it. */
+export async function resultPosters(page) {
+  return page.evaluate(() => [...document.querySelectorAll("img")].map(img => img.src).filter(src => /^https:\/\/[^/]*flow\.google\.com\/asb\//.test(src))).catch(() => []);
+}
+export async function revealVideos(page, posters) {
+  for (const src of posters) {
+    await page.locator(`img[src="${src.replace(/"/g, '\\"')}"]`).first().hover({ timeout: 5_000 }).catch(() => {});
+    await page.waitForTimeout(1_500);
+  }
+  return videoSources(page);
+}
 function signedOut(url) {
   try { return SIGN_IN_HOSTS.includes(new URL(url).hostname); } catch { return true; }
 }
@@ -257,14 +268,16 @@ export async function openFlowAccount(account, config) {
       }
       if (config.dryRun) return { status: "DRY_RUN", detail: `ล็อกอินแล้ว เจอช่อง prompt และปุ่ม Generate ค่าเครดิต ${cost ?? "ไม่ทราบ"}` };
 
-      const beforeText = await bodyText(page), beforeVideos = await videoSources(page);
+      const beforeText = await bodyText(page), beforePosters = new Set(await resultPosters(page));
+      const beforeVideos = await revealVideos(page, beforePosters);
       await config.journal?.(clip.id, { state: "GENERATING", account: account.id, cost, clickedAt: new Date().toISOString() });
       await button.click({ timeout: 15_000 });
       const deadline = Date.now() + config.maxWaitMs;
       while (Date.now() < deadline) {
         await page.waitForTimeout(config.pollMs);
         const text = await bodyText(page);
-        const added = newVideoSources(beforeVideos, await videoSources(page));
+        const posters = (await resultPosters(page)).filter(src => !beforePosters.has(src));
+        const added = newVideoSources(beforeVideos, posters.length ? await revealVideos(page, posters) : await videoSources(page));
         if (added.length) {
           const path = join(config.readyDir, `${clip.id}.mp4`);
           try {
