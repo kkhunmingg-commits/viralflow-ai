@@ -99,3 +99,37 @@ export async function discardClipAction(formData: FormData) {
   await closeClip(createAdminClient(), await owner(), id.data, { posted: false });
   done(formData, "ทิ้งคลิปและลบไฟล์แล้ว");
 }
+
+/** Pulls the latest views/likes/comments/shares from TikTok for this account's posted clips. */
+export async function syncClipStatsAction(formData: FormData) {
+  const id = z.uuid().safeParse(formData.get("accountId"));
+  if (!id.success) done(formData, "คำสั่งไม่ถูกต้อง");
+  const ownerId = await owner();
+  const { syncFromTikTok } = await import("@/features/flow-farm/learning-store");
+  let result: Awaited<ReturnType<typeof syncFromTikTok>>;
+  try { result = await syncFromTikTok(createAdminClient(), ownerId, id.data); }
+  catch { done(formData, "ไม่พบบัญชี TikTok นี้"); }
+  if (result.status === "SCOPE_REQUIRED") done(formData, "ยังไม่ได้อนุญาตให้ระบบอ่านยอดวิว กด “อนุญาตให้อ่านยอดวิว” ก่อน");
+  if (result.status === "UNAVAILABLE") done(formData, "บัญชีนี้ยังดึงยอดวิวจาก TikTok ไม่ได้ (ต้องเชื่อมบัญชีจริงก่อน) กรอกยอดเองด้านล่างได้");
+  if (result.status === "FAILED") done(formData, result.reason === "STATS_SCOPE_REQUIRED" ? "TikTok ยังไม่ให้สิทธิ์อ่านยอดวิว กดอนุญาตใหม่อีกครั้ง"
+    : result.reason === "TIKTOK_REAUTH_REQUIRED" ? "ต้องเชื่อมบัญชี TikTok ใหม่ก่อนดึงยอดวิว" : "TikTok ไม่ตอบตอนนี้ ลองใหม่อีกครั้งในอีกสักครู่");
+  done(formData, `อัปเดตยอดแล้ว จับคู่คลิปกับโพสต์ใน TikTok ได้ ${result.matched} คลิป ระบบจะใช้ผลนี้วางแผนคลิปรอบถัดไป`);
+}
+
+const statsNumber = z.preprocess(v => v === "" || v === null ? undefined : v, z.coerce.number().int().min(0).max(10_000_000_000).optional());
+const statsSchema = z.object({ id: z.uuid(), views: statsNumber, likes: statsNumber, comments: statsNumber, shares: statsNumber, follows: statsNumber });
+
+/** Numbers typed in from TikTok Studio, including the new followers a post brought (TikTok gives that per post only there). */
+export async function saveClipStatsAction(formData: FormData) {
+  const parsed = statsSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success || parsed.data.views === undefined) done(formData, "ใส่ยอดวิวเป็นตัวเลข (ช่องอื่นเว้นว่างได้)");
+  const ownerId = await owner(), v = parsed.data;
+  const { saveManualStats } = await import("@/features/flow-farm/learning-store");
+  try {
+    await saveManualStats(createAdminClient(), ownerId, v.id, { views: v.views!, likes: v.likes ?? 0, comments: v.comments ?? 0, shares: v.shares ?? 0, follows: v.follows ?? null });
+  } catch (error) {
+    if (error instanceof Error && error.message === "CLIP_NOT_FOUND") done(formData, "ไม่พบคลิปนี้");
+    throw error;
+  }
+  done(formData, "บันทึกผลแล้ว ระบบจะเรียนรู้จากคลิปนี้ในรอบถัดไป");
+}

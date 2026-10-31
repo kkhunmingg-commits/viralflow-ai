@@ -28,3 +28,13 @@
 .flow-backup>summary{cursor:pointer;display:flex;flex-direction:column;gap:4px;min-height:44px;justify-content:center}.flow-backup>summary small{color:#93a3bd;font-weight:400}
 .flow-backup[open]>summary{margin-bottom:20px}
 .library-draft{display:flex;flex-direction:column;gap:6px}.library-draft .manual-primary{min-height:44px}.library-draft small{color:#a5eed9;line-height:1.5}
+/* Step 4: clip learning */
+.learning-tables{display:grid;gap:16px;margin-top:12px}
+.learning-table{width:100%;border-collapse:collapse;font-size:.92rem;display:block;overflow-x:auto}
+.learning-table caption{text-align:left;font-weight:700;color:#ecf1fa;padding:4px 0 8px}
+.learning-table th,.learning-table td{padding:8px 10px;border-bottom:1px solid #2a3547;text-align:left;white-space:nowrap}
+.learning-table th{color:#93a3bd;font-weight:600}.learning-table small{color:#93a3bd}
+.learning-posted{display:grid;gap:14px;padding-left:22px}
+.learning-posted li>div{display:flex;flex-direction:column;gap:2px;margin-bottom:6px}.learning-posted small{color:#93a3bd}
+.learning-form label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:#93a3bd;flex:1 1 90px;min-width:80px}
+.learning-form label input{width:100%}

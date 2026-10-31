@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { addFlowAccountAction, discardClipAction, flowAccountAction, markPostedAction, scheduleClipAction, startBatchAction, unscheduleClipAction } from "./flow-actions";
 import { TikTokDraftButton, type DraftReceipt } from "./tiktok-draft-button";
 import { TikTokPrivatePostButton } from "./tiktok-private-post-button";
+import { LearningPanel } from "./learning-panel";
 import "./flow-studio.css";
 
 export interface StudioAccount { id: string; display_name: string; daily_post_target: number | null; effective_mode: string | null }
@@ -31,7 +32,8 @@ async function loadDrafts(client: SupabaseClient, owner: string, accountId: stri
   ]);
   const drafts = new Map<string, DraftReceipt>((sent.data ?? []).map(row => [row.media_sha256 as string, { receipt: row.id as string, status: row.status as string }]));
   const a = account.data, live = !!a && !a.is_mock && a.authorization_status === "authorized";
-  return { drafts, draftScope: live && (a.granted_scopes ?? []).includes("video.upload"), publishScope: live && (a.granted_scopes ?? []).includes("video.publish") };
+  return { drafts, draftScope: live && (a.granted_scopes ?? []).includes("video.upload"), publishScope: live && (a.granted_scopes ?? []).includes("video.publish"),
+    scopes: live ? (a.granted_scopes ?? []) as string[] : [] };
 }
 
 /** Main path: free clips from the Google Flow accounts linked to this TikTok account, made on the owner's computer. */
@@ -42,7 +44,7 @@ function loginLabel(f: FlowAccountView) {
 }
 
 export async function FlowStudio({ client, owner, account }: { client: SupabaseClient; owner: string; account: StudioAccount }) {
-  const { flowAccounts, today, library, lastSeen, unavailable, now, drafts, draftScope, publishScope } = await loadStudio(client, owner, account.id);
+  const { flowAccounts, today, library, lastSeen, unavailable, now, drafts, draftScope, publishScope, scopes } = await loadStudio(client, owner, account.id);
   const own = flowAccounts.filter(f => f.tiktokAccountId === account.id), shared = flowAccounts.filter(f => f.tiktokAccountId === null);
   const capacity = remainingCapacity(flowAccounts);
   const counts = today.reduce((map, clip) => map.set(clip.status, (map.get(clip.status) ?? 0) + 1), new Map<FlowClipStatus, number>());
@@ -157,5 +159,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
         })}</div>}
       <p className="manual-muted">โพสต์ใน TikTok แล้วเปิดป้าย “เนื้อหาที่สร้างด้วย AI” ทุกครั้ง กด “ส่งเข้า TikTok (แบบร่าง)” แล้วคลิปจะไปรอในการแจ้งเตือน (Inbox) ของแอป TikTok ระบบคัดลอกคำบรรยายและแฮชแท็กให้ในปุ่มเดียวกัน (TikTok ไม่รับคำบรรยายผ่านการส่งแบบร่าง) วางในช่องคำบรรยายแล้วกดโพสต์ หรือกด “โพสต์แบบส่วนตัว (มีคำบรรยาย)” คลิปจะขึ้นโปรไฟล์เป็น “เฉพาะฉัน” พร้อมคำบรรยาย แฮชแท็ก และป้าย AI แล้วเปลี่ยนเป็น “ทุกคน” ในแอป (คลิปขายของต้องส่งแบบร่าง) เสร็จแล้วกลับมากด “โพสต์แล้ว” ระบบลบไฟล์ออกจากคลังทันที การตั้งเวลาตอนนี้เป็นการเตือนในคลัง เมื่อ TikTok อนุมัติ API โพสต์อัตโนมัติ คลิปที่ตั้งเวลาไว้จะโพสต์เองแล้วลบไฟล์</p>
     </section>
+
+    <LearningPanel owner={owner} accountId={account.id} scopes={scopes} />
   </>;
 }
