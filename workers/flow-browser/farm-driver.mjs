@@ -97,6 +97,19 @@ export async function readCost(page, selectors) {
   return cost;
 }
 
+/** A new Flow project starts at x2 outputs (double the credits); picks x1 in the settings panel. Never clicks Generate. */
+export async function chooseSingleOutput(page, selectors) {
+  const chip = await firstVisible(page, selectors.settingsChip);
+  if (!chip || !/\bx[2-4]\b/.test(await chip.innerText().catch(() => ""))) return;
+  await chip.click({ timeout: 10_000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  const one = page.getByRole("radio", { name: /^x1$/ }).first();
+  if (await one.count() && await one.getAttribute("aria-checked") !== "true") await one.click({ timeout: 10_000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  await page.keyboard.press("Escape").catch(() => {});
+  await page.waitForTimeout(300);
+}
+
 async function attachReference(page, selectors, imageUrl, scratchDir, clipId) {
   if (!imageUrl) return;
   const response = await page.request.get(imageUrl, { timeout: 20_000, maxRedirects: 0 });
@@ -153,6 +166,7 @@ export async function signInFlowAccount(account, config, { timeoutMs = 15 * 60_0
   const costNote = async page => {
     try {
       await openComposer(page, { flowUrl: config.flowUrl, selectors });
+      await chooseSingleOutput(page, selectors);
       const cost = await readCost(page, selectors);
       const decision = costDecision(cost, config.costPolicy);
       return decision.ok ? (cost == null ? undefined : `${cost} เครดิต/คลิป`) : `ตั้งโมเดลใน Flow เป็น Veo 3.1 - Lite x1 (ตอนนี้ ${cost ?? "?"} เครดิต/คลิป)`;
@@ -230,6 +244,7 @@ export async function openFlowAccount(account, config) {
       try { await attachReference(page, selectors, clip.imageUrl, config.scratchDir, clip.id); }
       catch (error) { return fail(error.message); }
       // Cost depends on the saved model/outputs, not the prompt: check it before typing anything.
+      await chooseSingleOutput(page, selectors);
       const cost = await readCost(page, selectors);
       const decision = costDecision(cost, config.costPolicy);
       if (!decision.ok) return fail(decision.reason);
