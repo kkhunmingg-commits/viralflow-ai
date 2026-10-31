@@ -1,9 +1,9 @@
-import "server-only";
+﻿import "server-only";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { crc32 } from "node:zlib";
 
-export const INSTALLER_VERSION = "1.0.0";
+export const INSTALLER_VERSION = "1.0.1";
 /** The worker files the installed copy runs; farm.mjs imports only these. */
 export const INSTALLED_WORKER_FILES = ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs"] as const;
 const MARKER = "#PS1START#";

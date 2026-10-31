@@ -28,8 +28,18 @@ $utf8 = New-Object Text.UTF8Encoding $false
 function Stop-Worker {
   Get-CimInstance Win32_Process | Where-Object {
     ($_.Name -eq 'wscript.exe' -and $_.CommandLine -like '*ViralFlowClipMaker*') -or
+    ($_.Name -eq 'cmd.exe' -and $_.CommandLine -like '*ViralFlowClipMaker*farm.mjs*') -or
     ($_.Name -eq 'node.exe' -and ($_.CommandLine -like '*ViralFlowClipMaker*' -or $_.CommandLine -like '*flow-browser*farm.mjs*'))
   } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+}
+
+# The running worker keeps worker.log open for writing, so read it with sharing allowed.
+function Read-Log {
+  if (-not (Test-Path -LiteralPath $log)) { return '' }
+  try {
+    $stream = New-Object IO.FileStream($log, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]'ReadWrite, Delete')
+    try { return (New-Object IO.StreamReader($stream, $utf8)).ReadToEnd() } finally { $stream.Dispose() }
+  } catch { return '' }
 }
 
 try {
@@ -125,7 +135,13 @@ Start-Process cmd.exe -ArgumentList ('/c timeout /t 2 /nobreak >nul & rmdir /s /
   Set-ItemProperty -Path $entry -Name NoModify -Value 1 -Type DWord
   Set-ItemProperty -Path $entry -Name NoRepair -Value 1 -Type DWord
 
-  Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue
+  # Clear the last run's log so an old message is not taken for this one; retry while a stopped worker lets go of it.
+  Stop-Worker
+  foreach ($i in 1..10) {
+    Remove-Item -LiteralPath $log -Force -ErrorAction SilentlyContinue
+    if (-not (Test-Path -LiteralPath $log)) { break }
+    Start-Sleep -Milliseconds 500
+  }
   Start-Process wscript.exe -ArgumentList ('"' + $vbs + '"')
 
   # Wait for the worker's first check with the website: a summary line means the token works.
@@ -133,7 +149,7 @@ Start-Process cmd.exe -ArgumentList ('/c timeout /t 2 /nobreak >nul & rmdir /s /
   $deadline = (Get-Date).AddSeconds(90); $text = ''
   while ((Get-Date) -lt $deadline) {
     Start-Sleep -Seconds 3
-    if (Test-Path -LiteralPath $log) { $text = [IO.File]::ReadAllText($log, $utf8) }
+    $text = Read-Log
     if ($text -match '"made"|ล็อกอิน|PORTAL_|INVALID_|SET_FLOW|FFPROBE|Error') { break }
   }
   if ($text -match 'PORTAL_ACCOUNTS_401') { throw 'TOKEN_REJECTED: ดาวน์โหลดไฟล์ติดตั้งใหม่จากหน้าเว็บ (ไฟล์เก่าใช้ไม่ได้เมื่อดาวน์โหลดไฟล์ใหม่)' }
