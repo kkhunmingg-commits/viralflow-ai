@@ -9,6 +9,7 @@
 import { categoryPlaybook, type CategoryFamily } from "./category-insight";
 import type { DirectorInput } from "./ad-director";
 import { OWNER_STYLE_VERDICTS, rejectedTags } from "./owner-taste";
+import { trendNarration, type TrendFormat } from "./trend-playbook";
 
 export const FLOW_NATIVE_VERSION = "flow-native-director-v1";
 export interface SetStyle { id: string; nameTh: string; set: string; props: string; lighting: string; palette: string; hands: string; mood: string }
@@ -31,10 +32,35 @@ const SETS: Partial<Record<CategoryFamily, SetStyle[]>> & { GENERAL: SetStyle[] 
     { id: "concrete-street", nameTh: "สตรีทคอนกรีตยามเย็น", set: "a matte concrete ledge by a city window at golden hour", props: "a folded denim jacket, a paper coffee cup, a pair of sunglasses", lighting: "low golden-hour sun with long soft shadows", palette: "warm amber, concrete grey and indigo denim", hands: "natural hands with a rolled-up denim sleeve", mood: "casual, retro, confident" },
     { id: "studio-paper", nameTh: "สตูดิโอกระดาษสีพาสเทล", set: "a seamless pale-blue paper sweep on a small tabletop", props: "two stacked pastel acrylic blocks and a soft shadow pattern from a plant", lighting: "large soft key light from above-left, clean highlights", palette: "pale blue, white and a hint of navy", hands: "clean natural hands, no jewellery", mood: "minimal, crisp, modern" },
   ],
-  BEAUTY: [{ id: "vanity-tulips", nameTh: "โต๊ะเครื่องแป้งกับดอกทิวลิป", set: "a warm white vanity table", props: "a mushroom table lamp glowing softly, pink tulips in a glass vase, folded white towel", lighting: "soft window daylight plus the warm lamp glow", palette: "blush pink, cream and warm white", hands: "manicured natural hands with nude nails", mood: "soft, clean, self-care" }],
-  HOME_KITCHEN: [{ id: "bright-kitchen", nameTh: "ครัวสว่างโทนไม้", set: "a tidy kitchen counter of light wood and white tiles", props: "a bowl of lemons, a linen towel, a small potted herb", lighting: "bright natural daylight", palette: "white, light wood and fresh green", hands: "natural hands, sleeves rolled up", mood: "fresh, organised" }],
-  GADGET: [{ id: "dark-desk-neon", nameTh: "โต๊ะเทคแสงนีออน", set: "a dark walnut desk", props: "a felt desk mat, a mechanical keyboard edge out of focus", lighting: "soft key light with a cyan rim light", palette: "charcoal, walnut and cyan accents", hands: "natural hands, dark sleeve", mood: "sleek, techy" }],
-  GENERAL: [{ id: "neutral-table", nameTh: "โต๊ะมินิมอลโทนอุ่น", set: "a minimal table near a bright window", props: "a small vase with greenery and a folded linen cloth", lighting: "soft natural daylight", palette: "warm neutrals", hands: "clean natural hands", mood: "simple, inviting" }],
+  BEAUTY: [
+    { id: "vanity-tulips", nameTh: "โต๊ะเครื่องแป้งกับดอกทิวลิป", set: "a warm white vanity table", props: "a mushroom table lamp glowing softly, pink tulips in a glass vase, folded white towel", lighting: "soft window daylight plus the warm lamp glow", palette: "blush pink, cream and warm white", hands: "manicured natural hands with nude nails", mood: "soft, clean, self-care" },
+    { id: "bathroom-water", nameTh: "อ่างล้างหน้าหินขาวกับหยดน้ำ", set: "a white stone bathroom basin ledge with a few clear water droplets", props: "a rolled white towel, a small glass dish, a sprig of greenery", lighting: "bright, fresh morning light from a frosted window", palette: "white, pale aqua and silver", hands: "clean natural hands with short nails, a few water droplets on the skin", mood: "fresh, clean, morning routine" },
+    { id: "pastel-podium", nameTh: "แท่นพาสเทลแบบโฆษณาบิวตี้", set: "pastel acrylic podiums on a soft lilac backdrop", props: "a gentle ripple of water in a shallow clear tray, a single silk ribbon", lighting: "diffused high-key beauty light with a soft glow", palette: "lilac, peach and white", hands: "manicured natural hands with soft pink nails", mood: "dreamy, premium, viral beauty ad" },
+  ],
+  HOME_KITCHEN: [
+    { id: "bright-kitchen", nameTh: "ครัวสว่างโทนไม้", set: "a tidy kitchen counter of light wood and white tiles", props: "a bowl of lemons, a linen towel, a small potted herb", lighting: "bright natural daylight", palette: "white, light wood and fresh green", hands: "natural hands, sleeves rolled up", mood: "fresh, organised" },
+    { id: "condo-corner", nameTh: "มุมคอนโดมินิมอล", set: "a compact condo living corner with a low white shelf and a rattan basket", props: "a folded throw blanket, a small plant, a scented candle", lighting: "soft afternoon window light with gentle shadows", palette: "beige, rattan brown and soft green", hands: "relaxed natural hands, oversized cotton sleeve", mood: "cozy, organised, condo life" },
+    { id: "laundry-sunny", nameTh: "มุมซักผ้าแดดส่อง", set: "a sunny laundry shelf with neatly folded towels", props: "a woven basket, a glass jar of clothes pegs", lighting: "warm direct sun with crisp soft-edged shadows", palette: "white, sky blue and warm wood", hands: "natural hands, sleeves rolled up", mood: "clean, satisfying, tidy" },
+  ],
+  GADGET: [
+    { id: "dark-desk-neon", nameTh: "โต๊ะเทคแสงนีออน", set: "a dark walnut desk", props: "a felt desk mat, a mechanical keyboard edge out of focus", lighting: "soft key light with a cyan rim light", palette: "charcoal, walnut and cyan accents", hands: "natural hands, dark sleeve", mood: "sleek, techy" },
+    { id: "cafe-work", nameTh: "โต๊ะคาเฟ่ทำงาน", set: "a marble cafe table by a big window", props: "an iced latte, an open notebook, a pen", lighting: "bright soft daylight with a warm cafe glow behind", palette: "white marble, coffee brown and soft grey", hands: "natural hands, white shirt cuff", mood: "productive, work-from-cafe" },
+  ],
+  FASHION: [
+    { id: "mirror-room", nameTh: "มุมกระจกห้องแต่งตัว", set: "a bedroom dressing corner beside a tall arched mirror", props: "a clothes rail out of focus, a small tray of accessories", lighting: "soft window light with a warm lamp glow", palette: "cream, caramel and black", hands: "natural hands with a simple ring", mood: "get-ready-with-me, stylish" },
+    { id: "street-concrete", nameTh: "สตรีทคอนกรีต", set: "a matte concrete bench on a quiet city street", props: "a paper coffee cup, sunglasses", lighting: "golden-hour sun with long soft shadows", palette: "concrete grey, amber and denim blue", hands: "natural hands, denim sleeve", mood: "street, confident" },
+  ],
+  FOOD_SNACK: [
+    { id: "snack-table", nameTh: "โต๊ะของว่างอบอุ่น", set: "a rustic wooden table with a linen napkin", props: "a ceramic plate, a glass of iced tea with condensation", lighting: "warm side light with soft backlight glow", palette: "warm brown, cream and amber", hands: "clean natural hands", mood: "cozy, tempting" },
+    { id: "picnic-blanket", nameTh: "ปิกนิกกลางแดด", set: "a checked picnic blanket on fresh grass", props: "a wicker basket, a bottle of water", lighting: "bright dappled sunlight through leaves", palette: "red check, fresh green and white", hands: "natural hands", mood: "weekend, fun" },
+  ],
+  PET: [{ id: "pet-living", nameTh: "พื้นห้องนั่งเล่นบ้านมีน้อง", set: "a cozy living-room rug by a sofa", props: "a soft pet bed and a small toy ball out of focus", lighting: "warm soft daylight", palette: "cream, terracotta and sage", hands: "natural hands", mood: "warm, playful" }],
+  BABY_TOY: [{ id: "playmat", nameTh: "เพลย์แมตพาสเทล", set: "a soft pastel play mat on a light floor", props: "stacked wooden blocks and a small plush toy out of focus", lighting: "soft even daylight", palette: "butter yellow, mint and white", hands: "gentle natural hands", mood: "bright, safe, cheerful" }],
+  HEALTH_SUPPLEMENT: [{ id: "clean-counter", nameTh: "เคาน์เตอร์ขาวสะอาด", set: "a clean white counter with a mint-green backdrop", props: "a glass of water and a small folded towel", lighting: "clean, soft even light", palette: "white, mint and charcoal", hands: "clean natural hands", mood: "trustworthy, calm" }],
+  GENERAL: [
+    { id: "neutral-table", nameTh: "โต๊ะมินิมอลโทนอุ่น", set: "a minimal table near a bright window", props: "a small vase with greenery and a folded linen cloth", lighting: "soft natural daylight", palette: "warm neutrals", hands: "clean natural hands", mood: "simple, inviting" },
+    { id: "color-backdrop", nameTh: "ฉากสีสดแบบโฆษณา TikTok", set: "a bold single-colour paper backdrop with a matching tabletop", props: "one geometric block in a contrasting colour", lighting: "bright soft key light with a crisp shadow", palette: "one bold colour that complements the product, plus white", hands: "clean natural hands", mood: "bold, eye-catching, scroll-stopping" },
+  ],
 };
 const ACTIONS: Record<HandAction, { en: string; th: string; risk: "LOW" | "MEDIUM" | "HIGH" }> = {
   LIFT_AND_PRESENT: { en: "a hand slowly lifts the product from the surface and presents it toward the camera, holding it steady so it is fully visible", th: "หยิบขึ้นมาโชว์ตรงหน้ากล้อง", risk: "LOW" },
@@ -54,20 +80,22 @@ function fidelity(family: CategoryFamily, action: HandAction) {
   return { risk, notes };
 }
 
-export function flowNativePrompt(input: Pick<DirectorInput, "product" | "facts">, style: SetStyle, action: HandAction, camera: string, narrationTh: string | null) {
+export function flowNativePrompt(input: Pick<DirectorInput, "product" | "facts">, style: SetStyle, action: HandAction, camera: string, narrationTh: string | null,
+  trend?: { format: TrendFormat; setTouch?: string }) {
   const negative = ["any change to the product's shape, colours, strap, logo, model name or printed text versus the reference image",
     "changing, animating or flickering digits or screen content", "extra buttons, extra text, extra logos or a different product",
     "gloves, mittens or covered hands", "faces, testimonials, captions, subtitles, watermarks or on-screen text", "the product being used to perform a feature it is not shown performing in the reference", "cuts or scene changes"];
   const prompt = [
     `Use the attached reference image as the exact product (${input.product.title}). Photoreal vertical 9:16 video, 8 seconds, one continuous take.`,
-    `SET: ${style.set}; props: ${style.props}. Styled like a premium product advert, uncluttered, product is the hero in the middle third.`,
+    `SET: ${style.set}; props: ${style.props}${trend?.setTouch ? `; ${trend.setTouch}` : ""}. Styled like a premium product advert, uncluttered, product is the hero in the middle third.`,
+    ...(trend ? [`HOOK (first second, ${trend.format.format.toLowerCase().replaceAll("_", " ")} style that stops the scroll on TikTok): ${trend.format.opening}.`] : []),
     `ACTION: ${ACTIONS[action].en}. Hands: ${style.hands}.`,
-    `CAMERA: ${camera}. Shallow depth of field, product always in sharp focus.`,
+    `CAMERA: ${trend ? trend.format.camera : camera}. Shallow depth of field, product always in sharp focus.`,
     // Take 2 of the Casio pilot sat still for 3.5 s before the hand arrived; the hook has to start at once.
     `TIMING: the hand is already moving in frame within the first half second; the product is lifted and facing the camera by second 3; hold it steady and sharp from second 3 to second 8.`,
     `LIGHT & COLOUR: ${style.lighting}; palette ${style.palette}; mood ${style.mood}.`,
     `PRODUCT FIDELITY: keep the product identical to the reference — same shape, proportions, colours, strap, logo and every printed word; any display shows exactly the same characters as the reference and stays perfectly still.`,
-    `AUDIO: ${narrationTh ? `a warm, natural Thai voice says only: "${narrationTh}" — nothing else; ` : ""}soft room ambience and subtle handling sounds, no music.`,
+    `AUDIO: ${narrationTh ? `a warm, natural Thai voice says only: "${narrationTh}" — nothing else; ` : ""}soft room ambience and subtle handling sounds${trend ? `; ${trend.format.audio}` : ""}, no music.`,
     `AVOID: ${negative.join("; ")}.`,
   ].join("\n");
   return { prompt, negative };
@@ -75,7 +103,9 @@ export function flowNativePrompt(input: Pick<DirectorInput, "product" | "facts">
 
 /** Ranks set × action × camera options for this product and returns the best ones for the requested length. */
 export function planFlowNative(input: Pick<DirectorInput, "product" | "facts" | "assets"> & { history?: { styleIds?: string[]; actions?: HandAction[] } },
-  options: { durationSeconds?: 8 | 16 | 24; creditsPerGeneration?: number | null; model?: string } = {}): FlowNativePlan {
+  options: { durationSeconds?: 8 | 16 | 24; creditsPerGeneration?: number | null; model?: string;
+    /** A trend format for the take (hook beat, camera, spoken hook) and an optional seasonal set touch. */
+    trend?: { format: TrendFormat; setTouch?: string; variant?: number } } = {}): FlowNativePlan {
   const reference = input.assets.find(a => a.rightsCleared && a.kind === "REAL_IMAGE");
   if (!reference) throw new Error("FLOW_NATIVE_REQUIRES_CLEARED_PRODUCT_IMAGE");
   const family = categoryPlaybook(input.product.categoryKey, input.product.title).family;
@@ -83,7 +113,8 @@ export function planFlowNative(input: Pick<DirectorInput, "product" | "facts" | 
   const actions = (Object.keys(ACTIONS) as HandAction[]).filter(a => a !== "WRIST_GLANCE" || family === "WATCH_ACCESSORY");
   // Narration only repeats verified facts, kept short enough to be said inside one take.
   const fact = input.facts.find(f => /[0-9]/.test(f.text)) ?? input.facts[0];
-  const narrationTh = fact ? `${input.product.title} ${fact.text}`.slice(0, 60) : null;
+  const narrationTh = options.trend ? trendNarration({ title: input.product.title, categoryKey: input.product.categoryKey, facts: input.facts }, options.trend.format, options.trend.variant)
+    : fact ? `${input.product.title} ${fact.text}`.slice(0, 60) : null;
   const shots: ShotOption[] = [];
   sets.forEach((style, si) => actions.forEach((action, ai) => {
     const camera = CAMERAS[(si + ai) % CAMERAS.length], f = fidelity(family, action), reasons: string[] = [];
@@ -93,7 +124,7 @@ export function planFlowNative(input: Pick<DirectorInput, "product" | "facts" | 
     if (recentSets.has(style.id)) { score -= 12; reasons.push("ฉากซ้ำกับคลิปล่าสุด"); }
     if (recentActions.has(action)) { score -= 6; reasons.push("ท่าซ้ำกับคลิปล่าสุด"); }
     score -= si * 2;
-    const { prompt, negative } = flowNativePrompt(input, style, action, camera, narrationTh);
+    const { prompt, negative } = flowNativePrompt(input, style, action, camera, narrationTh, options.trend);
     shots.push({ id: `${style.id}:${action}`, family, style, action, camera, audio: narrationTh ? "Thai VO + ambience" : "ambience", narrationTh,
       fidelityRisk: f.risk, fidelityNotes: f.notes, score, reasons, prompt, negative });
   }));

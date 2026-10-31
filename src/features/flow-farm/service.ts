@@ -171,7 +171,7 @@ export async function startBatch(admin: SupabaseClient, owner: string, accountId
     const add = clipsToAdd(count, existing.count ?? 0, MAX_CLIPS_PER_BATCH);
     const mode = account.effective_mode === "AFFILIATE" ? "AFFILIATE" : "GROWTH";
     if (mode === "AFFILIATE" && products === null) products = await findBatchProducts(admin, owner);
-    const planned = add ? planBatch({ mode, count: add, products: products ?? [], offset: (existing.count ?? 0) + Number(today.slice(-2)) + position * 3 }) : [];
+    const planned = add ? planBatch({ mode, count: add, products: products ?? [], offset: (existing.count ?? 0) + Number(today.slice(-2)) + position * 3, now }) : [];
     if (planned.length) {
       const batchId = crypto.randomUUID();
       check(await admin.from("flow_clips").insert(planned.map(clip => ({
