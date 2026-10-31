@@ -1,6 +1,8 @@
 import { buildChunkSource, TikTokStatusRequestError, type TikTokPublishingProvider } from "@/features/publishing/provider";
 
 export const INBOX_MAX_BYTES = 4_000_000;
+// Library clips go server to TikTok, so the browser body limit behind INBOX_MAX_BYTES does not apply.
+export const LIBRARY_INBOX_MAX_BYTES = 50_000_000;
 export type InboxStatus = "RESERVED" | "INITIALIZED" | "UPLOADED" | "SEND_TO_USER_INBOX" | "PUBLISH_COMPLETE" | "FAILED" | "RECONCILIATION_REQUIRED";
 export interface InboxReceipt {
   id: string;
@@ -25,8 +27,8 @@ export function assertInboxAccess(input: {
   if (!input.productionApproved && !sandboxAllowed) throw new Error("inbox_not_available");
 }
 
-export function assertInboxMedia(bytes: Uint8Array, type: string) {
-  if (bytes.length < 1000 || bytes.length > INBOX_MAX_BYTES || type !== "video/mp4"
+export function assertInboxMedia(bytes: Uint8Array, type: string, maxBytes = INBOX_MAX_BYTES) {
+  if (bytes.length < 1000 || bytes.length > maxBytes || type !== "video/mp4"
     || String.fromCharCode(...bytes.slice(4, 8)) !== "ftyp") throw new Error("invalid_mp4");
 }
 
@@ -66,6 +68,11 @@ export async function refreshInboxReceipt(store: InboxStore, provider: TikTokPub
     status, uploaded_bytes: result.uploadedBytes, fail_reason: result.failReason?.slice(0, 200) ?? null,
     error_code: result.providerError?.code ?? null, log_id: result.providerError?.logId ?? null,
   });
+}
+
+/** A receipt TikTok rejected, or one whose init never returned a publish_id, may be sent again. */
+export function inboxRetryable(receipt: Pick<InboxReceipt, "status" | "provider_publish_id">) {
+  return receipt.status === "FAILED" || (receipt.status === "RECONCILIATION_REQUIRED" && !receipt.provider_publish_id);
 }
 
 export function inboxPublicReceipt(receipt: InboxReceipt) {

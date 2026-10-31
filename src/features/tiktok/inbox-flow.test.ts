@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { officialTikTokRequestedScopes } from "./oauth-scopes";
-import { assertInboxAccess, assertInboxMedia, inboxPublicReceipt, refreshInboxReceipt, sendInboxVideo, type InboxReceipt, type InboxStore } from "./inbox-flow";
+import { assertInboxAccess, assertInboxMedia, inboxPublicReceipt, inboxRetryable, LIBRARY_INBOX_MAX_BYTES, refreshInboxReceipt, sendInboxVideo, type InboxReceipt, type InboxStore } from "./inbox-flow";
 import type { TikTokPublishingProvider } from "@/features/publishing/provider";
 
 function fixture() {
@@ -123,5 +123,21 @@ describe("opt-in TikTok Inbox flow", () => {
     expect(f.provider.fetchPublishStatus).toHaveBeenCalledTimes(2);
     expect(f.provider.uploadDraft).toHaveBeenCalledTimes(1);
     expect(f.provider.uploadBinary).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("library clips sent as TikTok drafts", () => {
+  it("accepts library clips above the browser limit but still checks the MP4 header", () => {
+    const big = new Uint8Array(5_000_000); big.set([0, 0, 0, 24, 102, 116, 121, 112]);
+    expect(() => assertInboxMedia(big, "video/mp4")).toThrow("invalid_mp4");
+    expect(() => assertInboxMedia(big, "video/mp4", LIBRARY_INBOX_MAX_BYTES)).not.toThrow();
+    expect(() => assertInboxMedia(new Uint8Array(5_000_000), "video/mp4", LIBRARY_INBOX_MAX_BYTES)).toThrow("invalid_mp4");
+  });
+  it("allows a resend only when TikTok rejected it or never returned a publish id", () => {
+    expect(inboxRetryable({ status: "FAILED", provider_publish_id: "v1" })).toBe(true);
+    expect(inboxRetryable({ status: "RECONCILIATION_REQUIRED", provider_publish_id: null })).toBe(true);
+    expect(inboxRetryable({ status: "RECONCILIATION_REQUIRED", provider_publish_id: "v1" })).toBe(false);
+    expect(inboxRetryable({ status: "SEND_TO_USER_INBOX", provider_publish_id: "v1" })).toBe(false);
+    expect(inboxRetryable({ status: "UPLOADED", provider_publish_id: "v1" })).toBe(false);
   });
 });

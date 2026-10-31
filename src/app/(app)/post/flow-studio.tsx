@@ -4,6 +4,7 @@ import { bangkokDate, flowClipStatusLabels, MAX_FLOW_ACCOUNTS_PER_TIKTOK, type F
 import { flowLogins, listFlowAccounts, listLibrary, listTodayClips, workerLastSeen } from "@/features/flow-farm/service";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addFlowAccountAction, discardClipAction, flowAccountAction, markPostedAction, scheduleClipAction, startBatchAction, unscheduleClipAction } from "./flow-actions";
+import { TikTokDraftButton, type DraftReceipt } from "./tiktok-draft-button";
 import "./flow-studio.css";
 
 export interface StudioAccount { id: string; display_name: string; daily_post_target: number | null; effective_mode: string | null }
@@ -16,7 +17,20 @@ async function loadStudio(client: SupabaseClient, owner: string, accountId: stri
   const settled = await Promise.allSettled([listFlowAccounts(client, owner, new Date(), logins), listTodayClips(client, owner, accountId), listLibrary(client, owner, accountId), workerLastSeen(client, owner)]);
   const list = <T,>(result: PromiseSettledResult<T[]>) => result.status === "fulfilled" ? result.value : [];
   return { flowAccounts: accountsFor(list(settled[0]), accountId), today: list(settled[1]), library: list(settled[2]),
-    lastSeen: settled[3].status === "fulfilled" ? settled[3].value : null, unavailable: settled.some(result => result.status === "rejected"), now: Date.now() };
+    lastSeen: settled[3].status === "fulfilled" ? settled[3].value : null, unavailable: settled.some(result => result.status === "rejected"), now: Date.now(),
+    ...await loadDrafts(client, owner, accountId, list(settled[2]).map(clip => clip.video_sha256).filter((hash): hash is string => !!hash)) };
+}
+
+/** Whether this TikTok account may receive drafts, and what was already sent, keyed by the clip's MP4 hash. */
+async function loadDrafts(client: SupabaseClient, owner: string, accountId: string, hashes: string[]) {
+  const [account, sent] = await Promise.all([
+    client.from("tiktok_accounts").select("is_mock,authorization_status,granted_scopes").eq("owner_id", owner).eq("id", accountId).maybeSingle(),
+    hashes.length ? client.from("tiktok_inbox_uploads").select("id,status,media_sha256").eq("owner_id", owner).eq("tiktok_account_id", accountId).in("media_sha256", hashes)
+      : Promise.resolve({ data: [] }),
+  ]);
+  const drafts = new Map<string, DraftReceipt>((sent.data ?? []).map(row => [row.media_sha256 as string, { receipt: row.id as string, status: row.status as string }]));
+  const a = account.data;
+  return { drafts, draftScope: !!a && !a.is_mock && a.authorization_status === "authorized" && (a.granted_scopes ?? []).includes("video.upload") };
 }
 
 /** Main path: free clips from the Google Flow accounts linked to this TikTok account, made on the owner's computer. */
@@ -27,7 +41,7 @@ function loginLabel(f: FlowAccountView) {
 }
 
 export async function FlowStudio({ client, owner, account }: { client: SupabaseClient; owner: string; account: StudioAccount }) {
-  const { flowAccounts, today, library, lastSeen, unavailable, now } = await loadStudio(client, owner, account.id);
+  const { flowAccounts, today, library, lastSeen, unavailable, now, drafts, draftScope } = await loadStudio(client, owner, account.id);
   const own = flowAccounts.filter(f => f.tiktokAccountId === account.id), shared = flowAccounts.filter(f => f.tiktokAccountId === null);
   const capacity = remainingCapacity(flowAccounts);
   const counts = today.reduce((map, clip) => map.set(clip.status, (map.get(clip.status) ?? 0) + 1), new Map<FlowClipStatus, number>());
@@ -121,7 +135,9 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
               {clip.status === "SCHEDULED" && clip.scheduled_at && <p className={due ? "library-due" : "library-scheduled"}>{due ? "ถึงเวลาโพสต์แล้ว · " : "ตั้งเวลาไว้ · "}{bangkokTime(clip.scheduled_at)}</p>}
               <textarea className="library-caption" readOnly rows={3} defaultValue={[clip.caption, clip.hashtags.join(" ")].filter(Boolean).join("\n")} aria-label="คำบรรยายสำหรับคัดลอก" />
               <div className="library-actions">
-                <a className="manual-primary" href={`/api/library/${clip.id}/video?download=1`}>ดาวน์โหลด MP4</a>
+                {draftScope ? <TikTokDraftButton clipId={clip.id} accountId={account.id} initial={(clip.video_sha256 && drafts.get(clip.video_sha256)) || null} />
+                  : <a className="manual-primary" href="/auth/tiktok/start?inbox=1&new_account=1">อนุญาตส่งเข้า TikTok (ครั้งเดียว)</a>}
+                <a className="manual-secondary" href={`/api/library/${clip.id}/video?download=1`}>ดาวน์โหลด MP4</a>
                 <form action={markPostedAction} className="library-inline"><input type="hidden" name="id" value={clip.id} />{back}
                   <input name="url" type="url" placeholder="ลิงก์โพสต์ TikTok (ไม่บังคับ)" aria-label="ลิงก์โพสต์ TikTok" />
                   <button className="manual-secondary" type="submit">โพสต์แล้ว · ลบไฟล์</button></form>
@@ -136,7 +152,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
             </div>
           </article>;
         })}</div>}
-      <p className="manual-muted">โพสต์ใน TikTok แล้วเปิดป้าย “เนื้อหาที่สร้างด้วย AI” ทุกครั้ง กด “โพสต์แล้ว” ระบบลบไฟล์ออกจากคลังทันที การตั้งเวลาตอนนี้เป็นการเตือนในคลัง เมื่อ TikTok อนุมัติ API โพสต์อัตโนมัติ คลิปที่ตั้งเวลาไว้จะโพสต์เองแล้วลบไฟล์</p>
+      <p className="manual-muted">โพสต์ใน TikTok แล้วเปิดป้าย “เนื้อหาที่สร้างด้วย AI” ทุกครั้ง กด “ส่งเข้า TikTok (แบบร่าง)” แล้วคลิปจะไปรอในการแจ้งเตือน (Inbox) ของแอป TikTok ใส่คำบรรยายที่คัดลอกจากคลังแล้วกดโพสต์ เสร็จแล้วกลับมากด “โพสต์แล้ว” ระบบลบไฟล์ออกจากคลังทันที การตั้งเวลาตอนนี้เป็นการเตือนในคลัง เมื่อ TikTok อนุมัติ API โพสต์อัตโนมัติ คลิปที่ตั้งเวลาไว้จะโพสต์เองแล้วลบไฟล์</p>
     </section>
   </>;
 }

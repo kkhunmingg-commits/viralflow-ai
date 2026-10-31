@@ -4,7 +4,7 @@ import { serverEnv } from "@/lib/server-env";
 import { OfficialTikTokPublishingProvider, TikTokStatusRequestError } from "@/features/publishing/provider";
 import { TikTokTokenService } from "./services";
 import { sandboxPrivatePostAccountId } from "./sandbox-private-post";
-import { assertInboxAccess, type InboxReceipt, type InboxStore } from "./inbox-flow";
+import { assertInboxAccess, inboxRetryable, type InboxReceipt, type InboxStore } from "./inbox-flow";
 
 export async function inboxContext(ownerId: string, accountId: string, key?: string) {
   const admin = createAdminClient();
@@ -68,4 +68,12 @@ export async function inboxContext(ownerId: string, accountId: string, key?: str
       return data as InboxReceipt;
     },
   };
+}
+
+/** Clears a retryable receipt for this media so the same clip can be sent again; anything else stays put. */
+export async function releaseRetryableInboxReceipt(ownerId: string, accountId: string, hash: string) {
+  const admin = createAdminClient();
+  const { data } = await admin.from("tiktok_inbox_uploads").select("id,status,provider_publish_id")
+    .eq("owner_id", ownerId).eq("tiktok_account_id", accountId).eq("media_sha256", hash).maybeSingle();
+  if (data && inboxRetryable(data)) await admin.from("tiktok_inbox_uploads").delete().eq("owner_id", ownerId).eq("id", data.id).eq("status", data.status);
 }

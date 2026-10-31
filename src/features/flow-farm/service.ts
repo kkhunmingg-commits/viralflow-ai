@@ -9,7 +9,7 @@ import { planBatch, type FarmProduct } from "./planner";
 
 const BUCKET = "video-assets";
 const ACCOUNT_COLUMNS = "id,tiktok_account_id,label,priority,clips_per_day_estimate,active,exhausted_on,clips_today,clips_today_on,last_used_at,created_at";
-export const LIBRARY_COLUMNS = "id,tiktok_account_id,product_id,kind,title,caption,hashtags,status,error,ready_at,scheduled_at,posted_at,post_url,duration_seconds,width,height,created_at,flow_account_id";
+export const LIBRARY_COLUMNS = "id,tiktok_account_id,video_sha256,product_id,kind,title,caption,hashtags,status,error,ready_at,scheduled_at,posted_at,post_url,duration_seconds,width,height,created_at,flow_account_id";
 
 function check<T>(result: { data: T; error: { message: string } | null }, code: string): T {
   if (result.error) throw new Error(code);
@@ -306,6 +306,7 @@ export interface LibraryClip {
   id: string; tiktok_account_id: string; product_id: string | null; kind: "GROWTH" | "AFFILIATE"; title: string; caption: string;
   hashtags: string[]; status: FlowClipStatus; error: string | null; ready_at: string | null; scheduled_at: string | null; posted_at: string | null;
   post_url: string | null; duration_seconds: number | null; width: number | null; height: number | null; created_at: string; flow_account_id: string | null;
+  video_sha256: string | null;
 }
 
 export async function listTodayClips(client: SupabaseClient, owner: string, accountId?: string, now = new Date()) {
@@ -334,6 +335,16 @@ export async function clipSignedUrl(admin: SupabaseClient, owner: string, id: st
   const signed = await admin.storage.from(BUCKET).createSignedUrl(clip.storage_path, 600, download ? { download: `viralflow-${id.slice(0, 8)}.mp4` } : undefined);
   if (signed.error || !signed.data) throw new Error("VIDEO_UNAVAILABLE");
   return signed.data.signedUrl;
+}
+
+/** The library MP4 itself, for sending to TikTok from the server (never through the browser). */
+export async function clipVideo(admin: SupabaseClient, owner: string, id: string) {
+  const clip = check(await admin.from("flow_clips").select("id,status,storage_path,tiktok_account_id").eq("owner_id", owner).eq("id", id).maybeSingle(), "flow_clips_unavailable") as
+    { id: string; status: FlowClipStatus; storage_path: string | null; tiktok_account_id: string } | null;
+  if (!clip || !LIBRARY_STATUSES.includes(clip.status) || !clip.storage_path) throw new Error("CLIP_NOT_IN_LIBRARY");
+  const file = await admin.storage.from(BUCKET).download(clip.storage_path);
+  if (file.error || !file.data) throw new Error("VIDEO_UNAVAILABLE");
+  return { tiktokAccountId: clip.tiktok_account_id, bytes: new Uint8Array(await file.data.arrayBuffer()) };
 }
 
 export async function scheduleClip(admin: SupabaseClient, owner: string, id: string, at: string | null) {
