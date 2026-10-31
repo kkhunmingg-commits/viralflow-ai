@@ -32,6 +32,6 @@ describe("trend playbook", () => {
     expect(new Set(clips.map(c => c.title.split(" · ")[1])).size).toBe(3);
     expect(clips.every(c => c.prompt.includes("HOOK (first second"))).toBe(true);
     const warm = planBatch({ mode: "GROWTH", count: 5, products: [], now: new Date("2026-11-20T05:00:00Z") });
-    expect(warm[0].title).toBe("ลมหนาวยามเช้า"); expect(warm.some(c => c.hashtags.includes("#ฝนตก"))).toBe(false);
+    expect(warm[0].title).toBe("แมวขายโกโก้ร้อนหน้าหนาว"); expect(warm[0].prompt).toMatch(/0–1 s HOOK[\s\S]*3–5 s TWIST[\s\S]*6–8 s PAYOFF/); expect(warm[0].caption).toContain("ติดตามไว้"); expect(warm.some(c => c.hashtags.includes("#ฝนตก"))).toBe(false);
   });
 });
