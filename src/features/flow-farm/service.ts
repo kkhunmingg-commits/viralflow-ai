@@ -363,3 +363,24 @@ export async function closeClip(admin: SupabaseClient, owner: string, id: string
     storage_path: null, file_deleted_at: now.toISOString(), updated_at: now.toISOString(),
   }).eq("owner_id", owner).eq("id", id).in("status", LIBRARY_STATUSES), "flow_clip_not_saved");
 }
+
+/**
+ * Marks a library clip as being posted to TikTok so a double click cannot post it twice; a mark older than ten minutes
+ * (the request died) can be taken again. Returns what the post needs, or throws when the clip is busy or gone.
+ */
+export async function claimPrivatePost(admin: SupabaseClient, owner: string, id: string, marker: string, now = new Date()) {
+  const stale = new Date(now.getTime() - 10 * 60_000).toISOString();
+  const rows = check(await admin.from("flow_clips").update({ error: marker, updated_at: now.toISOString() })
+    .eq("owner_id", owner).eq("id", id).in("status", LIBRARY_STATUSES).not("storage_path", "is", null)
+    .or(`error.is.null,error.neq.${marker},updated_at.lt.${stale}`)
+    .select("id,kind,caption,hashtags,tiktok_account_id"), "flow_clip_not_saved") as
+    Array<{ id: string; kind: "GROWTH" | "AFFILIATE"; caption: string; hashtags: string[]; tiktok_account_id: string }> | null;
+  if (!rows?.length) throw new Error("CLIP_BUSY_OR_GONE");
+  return rows[0];
+}
+
+/** Sets or clears the clip's post note (null when the post never reached TikTok, so it can simply be tried again). */
+export async function notePrivatePost(admin: SupabaseClient, owner: string, id: string, note: string | null) {
+  check(await admin.from("flow_clips").update({ error: note, updated_at: new Date().toISOString() })
+    .eq("owner_id", owner).eq("id", id).in("status", LIBRARY_STATUSES), "flow_clip_not_saved");
+}
