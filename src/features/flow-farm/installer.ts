@@ -1,4 +1,4 @@
-﻿import "server-only";
+import "server-only";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { crc32 } from "node:zlib";
