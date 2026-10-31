@@ -73,9 +73,21 @@ export async function addFlowAccount(admin: SupabaseClient, owner: string, input
   const priority = Math.min(100, rows.reduce((max, row) => Math.max(max, row.priority), 0) + 1);
   const result = await admin.from("flow_accounts").insert({ owner_id: owner, tiktok_account_id: input.tiktokAccountId, label: input.label,
     clips_per_day_estimate: input.clipsPerDay, priority });
-  if (result.error?.code === "23505") throw new Error("FLOW_ACCOUNT_LABEL_TAKEN");
+  if (result.error?.code === "23505") {
+    // A label is unique per owner: the same Google account linked under another TikTok account moves here, keeping
+    // its signed-in browser profile (keyed by id), instead of failing while this TikTok account shows none.
+    const existing = check(await admin.from("flow_accounts").select("id,tiktok_account_id").eq("owner_id", owner).eq("label", input.label).maybeSingle(),
+      "flow_accounts_unavailable") as { id: string; tiktok_account_id: string | null } | null;
+    if (!existing || existing.tiktok_account_id === input.tiktokAccountId) throw new Error("FLOW_ACCOUNT_LABEL_TAKEN");
+    const moved = await admin.from("flow_accounts").update({ tiktok_account_id: input.tiktokAccountId, priority, active: true,
+      clips_per_day_estimate: input.clipsPerDay, updated_at: new Date().toISOString() }).eq("owner_id", owner).eq("id", existing.id);
+    if (moved.error?.message.includes("FLOW_ACCOUNT_LIMIT_5")) throw new Error("FLOW_ACCOUNT_LIMIT_5");
+    check(moved, "flow_account_not_saved");
+    return { moved: true };
+  }
   if (result.error?.message.includes("FLOW_ACCOUNT_LIMIT_5")) throw new Error("FLOW_ACCOUNT_LIMIT_5");
   check(result, "flow_account_not_saved");
+  return { moved: false };
 }
 /** Moves a Google account one place earlier or later in its TikTok account's drain order. */
 export async function moveFlowAccount(admin: SupabaseClient, owner: string, id: string, direction: "UP" | "DOWN") {

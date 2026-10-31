@@ -49,12 +49,14 @@ export async function addFlowAccountAction(formData: FormData) {
   const ownerId = await owner();
   const owned = await (await createClient()).from("tiktok_accounts").select("id").eq("owner_id", ownerId).eq("id", parsed.data.tiktokAccountId).maybeSingle();
   if (!owned.data) done(formData, "ไม่พบบัญชี TikTok นี้");
-  try { await addFlowAccount(createAdminClient(), ownerId, parsed.data); }
+  let moved = false;
+  try { ({ moved } = await addFlowAccount(createAdminClient(), ownerId, parsed.data)); }
   catch (error) {
     if (error instanceof Error && error.message === "FLOW_ACCOUNT_LABEL_TAKEN") done(formData, "มีบัญชี Google ชื่อนี้แล้ว");
     if (error instanceof Error && error.message === "FLOW_ACCOUNT_LIMIT_5") done(formData, "บัญชี TikTok หนึ่งผูกบัญชี Google ได้สูงสุด 5 บัญชี");
     throw error;
   }
+  if (moved) done(formData, `ย้ายบัญชี Google “${parsed.data.label}” มาไว้ที่บัญชี TikTok นี้แล้ว (ก่อนหน้านี้ผูกไว้กับบัญชี TikTok อื่น) ใช้การล็อกอินเดิมในคอมได้เลย`);
   done(formData, `ผูกบัญชี Google “${parsed.data.label}” แล้ว คอมพิวเตอร์จะเปิดหน้าล็อกอิน Google ของบัญชีนี้ให้ภายใน 1 นาที ล็อกอินให้เสร็จแล้วหน้าต่างจะปิดเอง`);
 }
 
