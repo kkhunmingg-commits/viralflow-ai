@@ -113,7 +113,8 @@ export async function syncClipStatsAction(formData: FormData) {
   if (result.status === "UNAVAILABLE") done(formData, "บัญชีนี้ยังดึงยอดวิวจาก TikTok ไม่ได้ (ต้องเชื่อมบัญชีจริงก่อน) กรอกยอดเองด้านล่างได้");
   if (result.status === "FAILED") done(formData, result.reason === "STATS_SCOPE_REQUIRED" ? "TikTok ยังไม่ให้สิทธิ์อ่านยอดวิว กดอนุญาตใหม่อีกครั้ง"
     : result.reason === "TIKTOK_REAUTH_REQUIRED" ? "ต้องเชื่อมบัญชี TikTok ใหม่ก่อนดึงยอดวิว" : "TikTok ไม่ตอบตอนนี้ ลองใหม่อีกครั้งในอีกสักครู่");
-  done(formData, `อัปเดตยอดแล้ว จับคู่คลิปกับโพสต์ใน TikTok ได้ ${result.matched} คลิป ระบบจะใช้ผลนี้วางแผนคลิปรอบถัดไป`);
+  if (!result.videos) done(formData, "เชื่อมต่อสำเร็จ แต่ TikTok ยังไม่ส่งวิดีโอมาเลย (TikTok ส่งเฉพาะโพสต์ที่เป็นสาธารณะ คลิปที่ยังตั้งเป็น “เฉพาะฉัน” จะยังไม่ถูกนับ) เปลี่ยนโพสต์เป็นสาธารณะแล้วระบบจะดึงเองในรอบถัดไป");
+  done(formData, `อัปเดตยอดแล้ว พบวิดีโอสาธารณะในโปรไฟล์ ${result.videos} คลิป จับคู่กับคลิปในคลังได้ ${result.matched} คลิป${result.matched ? " ระบบจะใช้ผลนี้วางแผนคลิปรอบถัดไป" : " (คำบรรยายในโพสต์ไม่ตรงกับคลิปในคลัง ใส่ลิงก์โพสต์ตอนกด “โพสต์แล้ว” จะจับคู่ได้แน่นอน)"}`);
 }
 
 const statsNumber = z.preprocess(v => v === "" || v === null ? undefined : v, z.coerce.number().int().min(0).max(10_000_000_000).optional());

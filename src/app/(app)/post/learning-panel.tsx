@@ -42,11 +42,12 @@ export async function LearningPanel({ owner, accountId, scopes }: { owner: strin
       {canSync ? <form action={syncClipStatsAction}><input type="hidden" name="accountId" value={accountId} />{back}
         <button className="manual-primary" type="submit">ดึงยอดวิวล่าสุดจาก TikTok</button></form>
         : <a className="manual-primary" href="/auth/tiktok/start?inbox=1&stats=1&new_account=1">อนุญาตให้ระบบอ่านยอดวิว (ครั้งเดียว)</a>}
-      <p className="manual-muted">{view?.syncedAt ? `ดึงยอดล่าสุด ${bangkokTime(view.syncedAt)} · ` : ""}
+      <p className="manual-muted">{view?.syncedAt ? `ดึงยอดล่าสุด ${bangkokTime(view.syncedAt)}${view.lastVideos !== null ? ` (พบวิดีโอสาธารณะ ${view.lastVideos} · จับคู่กับคลังได้ ${view.lastMatched ?? 0})` : ""} · ` : ""}
         {canSync ? "ระบบดึงยอดวิว ไลก์ คอมเมนต์ แชร์ และยอดผู้ติดตามเองทุกชั่วโมง ไม่ต้องกรอกอะไร ผู้ติดตามต่อคลิปเป็นค่าประมาณจากยอดผู้ติดตามที่เพิ่มขึ้นหลังคลิปนั้นโพสต์"
           : "กดอนุญาตครั้งเดียว แล้วระบบจะดึงทุกอย่างเองทุกชั่วโมง"}
         {followerGain !== null ? ` · ผู้ติดตามเพิ่ม ${n(followerGain)} คนตั้งแต่เริ่มวัด` : ""}</p>
     </div>
+    {view?.syncedAt && view.lastVideos === 0 && <p className="manual-warning">TikTok ส่งเฉพาะโพสต์ที่เป็นสาธารณะ คลิปที่ยังตั้งเป็น “เฉพาะฉัน” จะยังไม่ถูกนับ เปลี่ยนเป็นสาธารณะในแอป TikTok แล้วระบบจะดึงเองภายในชั่วโมง</p>}
     {view?.lastError && <p className="manual-warning">ดึงยอดครั้งล่าสุดไม่สำเร็จ ({view.lastError}) กดดึงใหม่ หรือกรอกยอดเองด้านล่าง</p>}
     {!view && <p className="manual-warning">ยังอ่านผลคลิปไม่ได้ตอนนี้ ลองรีเฟรชหน้าอีกครั้ง</p>}
 

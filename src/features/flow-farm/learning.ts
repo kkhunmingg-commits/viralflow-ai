@@ -195,13 +195,17 @@ export function matchVideos(videos: TikTokVideo[], clips: LearningClip[]): Map<s
     const id = videoIdFromUrl(clip.postUrl), video = id ? byId.get(id) : undefined;
     if (video) { matched.set(clip.id, video); usedVideos.add(video.id); }
   }
-  const candidates = clips.filter(c => !matched.has(c.id)).map(c => ({ clip: c, key: normalizeText(firstLine(c.caption)),
-    madeAt: Date.parse(c.readyAt ?? c.createdAt) }));
+  // The full first line ("แมวทำงาน EP.5 · …") or, if the owner trimmed the episode tag, just the spoken line after " · ".
+  const candidates = clips.filter(c => !matched.has(c.id)).map(c => {
+    const line = firstLine(c.caption);
+    return { clip: c, keys: [...new Set([line, line.split(" · ").at(-1) ?? ""].map(normalizeText))].filter(k => k.length >= 6),
+      madeAt: Date.parse(c.readyAt ?? c.createdAt) };
+  });
   for (const video of videos.toSorted((a, b) => a.createTime - b.createTime)) {
     if (usedVideos.has(video.id)) continue;
     const text = normalizeText(video.description), at = video.createTime * 1000;
     if (!text) continue;
-    const best = candidates.filter(c => c.key.length >= 6 && !matched.has(c.clip.id) && text.includes(c.key) && c.madeAt <= at + 3_600_000)
+    const best = candidates.filter(c => !matched.has(c.clip.id) && c.keys.some(k => text.includes(k)) && c.madeAt <= at + 3_600_000)
       .toSorted((a, b) => (at - a.madeAt) - (at - b.madeAt))[0];
     if (best) { matched.set(best.clip.id, video); usedVideos.add(video.id); }
   }

@@ -13,7 +13,7 @@ import { readStateFile, saveStateFile } from "./service";
  */
 interface StatsFile {
   version: 1; clips: StatsByClip;
-  accounts: Record<string, { syncedAt: string | null; followers?: Array<{ at: string; count: number }>; lastError?: string | null }>;
+  accounts: Record<string, { syncedAt: string | null; followers?: Array<{ at: string; count: number }>; lastError?: string | null; videos?: number; matched?: number }>;
 }
 const statsPath = (owner: string) => {
   if (!/^[0-9a-f-]{36}$/i.test(owner)) throw new Error("INVALID_OWNER");
@@ -43,14 +43,14 @@ export async function learningClips(client: SupabaseClient, owner: string, accou
 
 export interface LearningView {
   report: LearningReport; clips: LearningClip[]; stats: StatsByClip; syncedAt: string | null; lastError: string | null;
-  followers: Array<{ at: string; count: number }>;
+  followers: Array<{ at: string; count: number }>; lastVideos: number | null; lastMatched: number | null;
 }
 export async function loadLearning(admin: SupabaseClient, owner: string, accountId: string): Promise<LearningView> {
   const [clips, file] = await Promise.all([learningClips(admin, owner, accountId), readStats(admin, owner)]);
   const account = file.accounts[accountId];
   const report = analyzeLearning(clips, file.clips, seriesOfTitle, account?.followers ?? []);
   return { report, clips, stats: report.stats, syncedAt: account?.syncedAt ?? null,
-    lastError: account?.lastError ?? null, followers: account?.followers ?? [] };
+    lastError: account?.lastError ?? null, followers: account?.followers ?? [], lastVideos: account?.videos ?? null, lastMatched: account?.matched ?? null };
 }
 
 /** Numbers the owner typed in from TikTok Studio (the only place that shows new followers per post). */
@@ -120,7 +120,7 @@ export async function syncFromTikTok(admin: SupabaseClient, owner: string, accou
       const followers = count((info?.user as Record<string, unknown> | undefined)?.follower_count);
       if (info?.user) record({ followers: [...(file.accounts[accountId]?.followers ?? []), { at: now.toISOString(), count: followers }].slice(-300) });
     }
-    record({ syncedAt: now.toISOString(), lastError: null });
+    record({ syncedAt: now.toISOString(), lastError: null, videos: videos.length, matched: matched.size });
     await writeStats(admin, owner, file);
     return { status: "SYNCED" as const, matched: matched.size, videos: videos.length };
   } catch (error) {
