@@ -48,7 +48,8 @@ export interface LearningView {
 export async function loadLearning(admin: SupabaseClient, owner: string, accountId: string): Promise<LearningView> {
   const [clips, file] = await Promise.all([learningClips(admin, owner, accountId), readStats(admin, owner)]);
   const account = file.accounts[accountId];
-  return { report: analyzeLearning(clips, file.clips, seriesOfTitle), clips, stats: file.clips, syncedAt: account?.syncedAt ?? null,
+  const report = analyzeLearning(clips, file.clips, seriesOfTitle, account?.followers ?? []);
+  return { report, clips, stats: report.stats, syncedAt: account?.syncedAt ?? null,
     lastError: account?.lastError ?? null, followers: account?.followers ?? [] };
 }
 
@@ -58,7 +59,7 @@ export async function saveManualStats(admin: SupabaseClient, owner: string, clip
   const clip = await admin.from("flow_clips").select("id").eq("owner_id", owner).eq("id", clipId).maybeSingle();
   if (clip.error || !clip.data) throw new Error("CLIP_NOT_FOUND");
   const file = await readStats(admin, owner), prior = file.clips[clipId];
-  file.clips[clipId] = { ...values, source: "MANUAL", at: now.toISOString(), videoId: prior?.videoId ?? null } satisfies ClipStats;
+  file.clips[clipId] = { ...values, source: "MANUAL", at: now.toISOString(), videoId: prior?.videoId ?? null, postedAt: prior?.postedAt ?? null } satisfies ClipStats;
   await writeStats(admin, owner, file);
 }
 
@@ -117,7 +118,7 @@ export async function syncFromTikTok(admin: SupabaseClient, owner: string, accou
     if ((account.data.granted_scopes as string[]).includes("user.info.stats")) {
       const info = await tiktokJson(`${API}/user/info/?fields=follower_count`, token).catch(() => null);
       const followers = count((info?.user as Record<string, unknown> | undefined)?.follower_count);
-      if (info?.user) record({ followers: [...(file.accounts[accountId]?.followers ?? []), { at: now.toISOString(), count: followers }].slice(-60) });
+      if (info?.user) record({ followers: [...(file.accounts[accountId]?.followers ?? []), { at: now.toISOString(), count: followers }].slice(-300) });
     }
     record({ syncedAt: now.toISOString(), lastError: null });
     await writeStats(admin, owner, file);
@@ -138,4 +139,25 @@ export async function guideForBatch(admin: SupabaseClient, owner: string, accoun
     if (synced?.status === "SYNCED") view = await loadLearning(admin, owner, accountId);
   }
   return view.report.guide;
+}
+
+/**
+ * Keeps every account that allowed stats fresh without anyone pressing a button: called after the Flow worker's
+ * minute-by-minute poll and after /post renders. Each account syncs at most once an hour, which also records the
+ * hourly follower snapshots the per-clip follower estimate is built from.
+ */
+const lastCheck = new Map<string, number>();
+export async function syncStaleAccounts(admin: SupabaseClient, owner: string, now = new Date(), maxAgeMs = 3_600_000) {
+  const seen = lastCheck.get(owner);
+  if (seen && now.getTime() - seen < 10 * 60_000) return;
+  lastCheck.set(owner, now.getTime());
+  const accounts = await admin.from("tiktok_accounts").select("id,granted_scopes").eq("owner_id", owner).is("hidden_at", null)
+    .eq("authorization_status", "authorized").eq("is_mock", false);
+  const file = await readStats(admin, owner);
+  for (const account of (accounts.data ?? []) as Array<{ id: string; granted_scopes: unknown }>) {
+    if (!statsScopeGranted(account.granted_scopes)) continue;
+    const synced = file.accounts[account.id]?.syncedAt;
+    if (synced && now.getTime() - Date.parse(synced) < maxAgeMs) continue;
+    await syncFromTikTok(admin, owner, account.id, now).catch(() => null);
+  }
 }

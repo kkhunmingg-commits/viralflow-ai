@@ -17,6 +17,34 @@ export interface LearningClip {
 export interface ClipStats {
   views: number; likes: number; comments: number; shares: number; follows: number | null;
   source: "TIKTOK_API" | "MANUAL"; at: string; videoId?: string | null;
+  /** When the video went up on TikTok (from the API), used to credit follower growth to the clips live at the time. */
+  postedAt?: string | null;
+  /** True when `follows` was estimated from account follower growth rather than typed in. */
+  followsEstimated?: boolean;
+}
+export interface FollowerSnapshot { at: string; count: number }
+
+/**
+ * TikTok gives per-post new followers only in Studio, so they are estimated automatically: each rise in the account's
+ * follower count between two snapshots is shared among the clips that were fresh then (posted up to 48 hours before
+ * the later snapshot), in proportion to their views. Numbers the owner typed in always win.
+ */
+export function estimateFollows(stats: StatsByClip, snapshots: FollowerSnapshot[]): StatsByClip {
+  const points = snapshots.filter(s => Number.isFinite(Date.parse(s.at)) && finite(s.count)).toSorted((a, b) => a.at.localeCompare(b.at));
+  const credit = new Map<string, number>();
+  const live = Object.entries(stats).filter(([, s]) => s.follows === null || s.followsEstimated)
+    .map(([id, s]) => ({ id, views: s.views, posted: Date.parse(s.postedAt ?? "") })).filter(c => Number.isFinite(c.posted) && c.views > 0);
+  for (let i = 1; i < points.length; i++) {
+    const gain = points[i].count - points[i - 1].count;
+    if (gain <= 0) continue;
+    const start = Date.parse(points[i - 1].at), end = Date.parse(points[i].at);
+    const fresh = live.filter(c => c.posted <= end && c.posted >= end - 48 * 3_600_000 && c.posted >= start - 48 * 3_600_000);
+    const views = fresh.reduce((sum, c) => sum + c.views, 0);
+    for (const c of fresh) credit.set(c.id, (credit.get(c.id) ?? 0) + gain * c.views / views);
+  }
+  const next = { ...stats };
+  for (const c of live) next[c.id] = { ...stats[c.id], follows: Math.round(credit.get(c.id) ?? 0), followsEstimated: true };
+  return next;
 }
 export type StatsByClip = Record<string, ClipStats>;
 
@@ -108,11 +136,13 @@ export interface PlanGuide {
   strictSeries: string[];
 }
 export interface LearningReport {
-  sampleSize: number; withFollows: number; series: GroupResult[]; ctas: GroupResult[];
+  sampleSize: number; withFollows: number; series: GroupResult[]; ctas: GroupResult[]; stats: StatsByClip;
   top: ClipScore[]; guide: PlanGuide; status: "NO_DATA" | "LEARNING" | "CONFIDENT";
 }
 
-export function analyzeLearning(clips: LearningClip[], stats: StatsByClip, seriesOf: SeriesLookup): LearningReport {
+export function analyzeLearning(clips: LearningClip[], rawStats: StatsByClip, seriesOf: SeriesLookup, followers: FollowerSnapshot[] = []): LearningReport {
+  // Follower estimates need at least two snapshots; until then follows stay unknown, never zero.
+  const stats = followers.length >= 2 ? estimateFollows(rawStats, followers) : rawStats;
   const growth = clips.filter(c => c.kind === "GROWTH");
   const scores = scoreClips(growth, stats, seriesOf);
   const made = growth.filter(c => ["READY", "SCHEDULED", "POSTED", "DISCARDED"].includes(c.status));
@@ -132,7 +162,7 @@ export function analyzeLearning(clips: LearningClip[], stats: StatsByClip, serie
   const recentTitles = [...new Set(growth.toSorted((a, b) => b.createdAt.localeCompare(a.createdAt)).map(c => c.title))].slice(0, 12);
   const strictSeries = seriesResults.filter(r => r.discarded >= 2 && r.discarded / Math.max(1, r.discarded + r.posted) >= 0.3).map(r => r.key);
   return {
-    sampleSize: scores.length, withFollows: scores.filter(s => s.followsPer1k !== null).length,
+    stats, sampleSize: scores.length, withFollows: scores.filter(s => s.followsPer1k !== null).length,
     series: seriesResults, ctas, top: scores.toSorted((a, b) => b.score - a.score).slice(0, 5),
     guide: { seriesWeights: Object.fromEntries(seriesResults.map(r => [r.key, r.weight])),
       ctaWeights: Object.fromEntries(ctas.map(r => [r.key, r.weight])), episodes, recentTitles, strictSeries },
@@ -184,7 +214,8 @@ export function mergeApiStats(stored: StatsByClip, matched: Map<string, TikTokVi
   for (const [clipId, v] of matched) {
     const prior = stored[clipId];
     next[clipId] = { views: v.views, likes: v.likes, comments: v.comments, shares: v.shares,
-      follows: prior?.follows ?? null, source: "TIKTOK_API", at, videoId: v.id };
+      follows: prior?.followsEstimated ? null : prior?.follows ?? null, source: "TIKTOK_API", at, videoId: v.id,
+      postedAt: v.createTime ? new Date(v.createTime * 1000).toISOString() : prior?.postedAt ?? null };
   }
   return next;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { analyzeLearning, ctaOf, matchVideos, mergeApiStats, videoIdFromUrl, type LearningClip, type StatsByClip } from "./learning";
+import { analyzeLearning, ctaOf, estimateFollows, matchVideos, mergeApiStats, videoIdFromUrl, type LearningClip, type StatsByClip } from "./learning";
 import { planBatch, seriesOfTitle } from "./planner";
 
 const clip = (id: string, title: string, extra: Partial<LearningClip> = {}): LearningClip => ({
@@ -58,6 +58,26 @@ describe("clip learning", () => {
     expect(videoIdFromUrl("https://vt.tiktok.com/ZS123/")).toBeNull();
     const merged = mergeApiStats({ y: stat(1, 7) }, matched, "2026-10-31T00:00:00Z");
     expect(merged.y).toMatchObject({ views: 500, follows: 7, source: "TIKTOK_API" });
+  });
+});
+
+describe("automatic follower estimate", () => {
+  const api = (views: number, postedAt: string, follows: number | null = null): StatsByClip[string] =>
+    ({ views, likes: 0, comments: 0, shares: 0, follows, source: "TIKTOK_API", at: "2026-10-31T00:00:00Z", postedAt });
+  it("shares each follower rise among the clips fresh at the time, by views, and keeps typed numbers", () => {
+    const stats: StatsByClip = { a: api(9000, "2026-10-30T01:00:00Z"), b: api(1000, "2026-10-30T02:00:00Z"),
+      old: api(50000, "2026-10-20T00:00:00Z"), typed: api(500, "2026-10-30T01:30:00Z", 3) };
+    const out = estimateFollows(stats, [{ at: "2026-10-30T00:00:00Z", count: 100 }, { at: "2026-10-30T12:00:00Z", count: 200 },
+      { at: "2026-10-30T13:00:00Z", count: 190 }]);
+    expect(out.a).toMatchObject({ follows: 90, followsEstimated: true });
+    expect(out.b.follows).toBe(10);
+    expect(out.old.follows).toBe(0);
+    expect(out.typed).toMatchObject({ follows: 3 });
+    expect(out.typed.followsEstimated).toBeUndefined();
+  });
+  it("needs two snapshots before it counts follows at all", () => {
+    const report = analyzeLearning([clip("a", "แมวบาริสต้า")], { a: api(100, "2026-10-30T01:00:00Z") }, seriesOfTitle, [{ at: "2026-10-30T00:00:00Z", count: 5 }]);
+    expect(report.withFollows).toBe(0);
   });
 });
 

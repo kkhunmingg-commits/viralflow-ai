@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authorizeFlowWorker } from "@/features/flow-farm/worker-auth";
 import { claimSchema, clipRefSchema, completeSchema, exhaustedSchema, failSchema, loginStateSchema } from "@/features/flow-farm/contracts";
@@ -15,7 +16,10 @@ export async function GET(request: Request, context: { params: Promise<{ action:
   const auth = await authorizeFlowWorker(request);
   if (!auth.ok) return reply({ error: "unauthorized" }, auth.status);
   if ((await context.params).action !== "accounts") return reply({ error: "not_found" }, 404);
-  return reply({ accounts: await workerAccounts(createAdminClient(), auth.owner) });
+  const admin = createAdminClient();
+  // The worker polls every minute, which makes it a free clock for pulling clip stats from TikTok (hourly per account).
+  after(() => import("@/features/flow-farm/learning-store").then(m => m.syncStaleAccounts(admin, auth.owner)).catch(() => {}));
+  return reply({ accounts: await workerAccounts(admin, auth.owner) });
 }
 
 export async function POST(request: Request, context: { params: Promise<{ action: string }> }) {

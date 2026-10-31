@@ -1,5 +1,6 @@
 import { CTA_VARIANTS, type GroupResult } from "@/features/flow-farm/learning";
-import { loadLearning, statsScopeGranted, type LearningView } from "@/features/flow-farm/learning-store";
+import { after } from "next/server";
+import { loadLearning, statsScopeGranted, syncStaleAccounts, type LearningView } from "@/features/flow-farm/learning-store";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { saveClipStatsAction, syncClipStatsAction } from "./flow-actions";
 
@@ -17,7 +18,10 @@ function verdict(group: GroupResult) {
 /** Step 4: what the posted clips taught, and where the owner adds numbers TikTok's API does not give (new followers). */
 export async function LearningPanel({ owner, accountId, scopes }: { owner: string; accountId: string; scopes: unknown }) {
   let view: LearningView | null = null;
-  try { view = await loadLearning(createAdminClient(), owner, accountId); } catch { view = null; }
+  const admin = createAdminClient();
+  try { view = await loadLearning(admin, owner, accountId); } catch { view = null; }
+  // Fresh numbers for the next visit, without making this one wait.
+  after(() => syncStaleAccounts(admin, owner).catch(() => {}));
   const back = <input type="hidden" name="back" value={accountId} />;
   const canSync = statsScopeGranted(scopes);
   const posted = (view?.clips ?? []).filter(c => c.status === "POSTED" && c.kind === "GROWTH")
@@ -39,7 +43,8 @@ export async function LearningPanel({ owner, accountId, scopes }: { owner: strin
         <button className="manual-primary" type="submit">ดึงยอดวิวล่าสุดจาก TikTok</button></form>
         : <a className="manual-primary" href="/auth/tiktok/start?inbox=1&stats=1&new_account=1">อนุญาตให้ระบบอ่านยอดวิว (ครั้งเดียว)</a>}
       <p className="manual-muted">{view?.syncedAt ? `ดึงยอดล่าสุด ${bangkokTime(view.syncedAt)} · ` : ""}
-        {canSync ? "ระบบดึงเองทุกครั้งที่กดสร้างคลิป (ถ้าเกิน 3 ชั่วโมง)" : "ถ้ายังไม่อนุญาต กรอกยอดเองจาก TikTok Studio ด้านล่างได้"}
+        {canSync ? "ระบบดึงยอดวิว ไลก์ คอมเมนต์ แชร์ และยอดผู้ติดตามเองทุกชั่วโมง ไม่ต้องกรอกอะไร ผู้ติดตามต่อคลิปเป็นค่าประมาณจากยอดผู้ติดตามที่เพิ่มขึ้นหลังคลิปนั้นโพสต์"
+          : "กดอนุญาตครั้งเดียว แล้วระบบจะดึงทุกอย่างเองทุกชั่วโมง"}
         {followerGain !== null ? ` · ผู้ติดตามเพิ่ม ${n(followerGain)} คนตั้งแต่เริ่มวัด` : ""}</p>
     </div>
     {view?.lastError && <p className="manual-warning">ดึงยอดครั้งล่าสุดไม่สำเร็จ ({view.lastError}) กดดึงใหม่ หรือกรอกยอดเองด้านล่าง</p>}
@@ -58,21 +63,20 @@ export async function LearningPanel({ owner, accountId, scopes }: { owner: strin
       <p className="manual-muted">คะแนน 1.00 = คลิปปกติของช่องนี้ · ผู้ติดตามใหม่มีน้ำหนักมากที่สุด รองลงมาคือแชร์ คอมเมนต์ ไลก์ และวิว · ซีรีส์ที่มีผลน้อยกว่า 3 คลิปยังไม่ตัดสิน</p>
     </div>}
 
-    <details className="library-today" open={posted.length > 0 && (report?.withFollows ?? 0) === 0}>
-      <summary>กรอกผลคลิปที่โพสต์แล้ว ({posted.length})</summary>
-      <p className="manual-muted">เปิด TikTok Studio → เนื้อหา → เลือกโพสต์ → ดูข้อมูลวิเคราะห์ แล้วกรอก “ผู้ติดตามใหม่” (ระบบดึงตัวเลขนี้จาก TikTok เองไม่ได้)
-        ยิ่งกรอกมาก ระบบยิ่งรู้ว่าคลิปแบบไหนทำให้คนกดติดตาม</p>
+    <details className="library-today">
+      <summary>ผลคลิปที่โพสต์แล้ว ({posted.length}) · แก้เองได้ถ้าต้องการ</summary>
+      <p className="manual-muted">ไม่จำเป็นต้องกรอก ระบบดึงเอง ช่องนี้ไว้ใช้เมื่อยังไม่ได้กดอนุญาต หรืออยากใส่ “ผู้ติดตามใหม่” ตัวจริงจาก TikTok Studio แทนค่าประมาณ</p>
       {posted.length === 0 ? <p className="manual-muted">ยังไม่มีคลิปที่บันทึกว่าโพสต์แล้ว (กด “โพสต์แล้ว · ลบไฟล์” ในคลัง หรือโพสต์แบบส่วนตัวจากคลัง)</p>
         : <ol className="learning-posted">{posted.map(clip => {
           const s = view?.stats[clip.id];
           return <li key={clip.id}><div><strong>{clip.title}</strong>
-            <small>{clip.postedAt ? bangkokTime(clip.postedAt) : ""}{s ? ` · ${s.source === "TIKTOK_API" ? "จาก TikTok" : "กรอกเอง"} ${bangkokTime(s.at)}` : " · ยังไม่มีผล"}</small></div>
+            <small>{clip.postedAt ? bangkokTime(clip.postedAt) : ""}{s ? ` · ${s.source === "TIKTOK_API" ? "จาก TikTok" : "กรอกเอง"} ${bangkokTime(s.at)} · วิว ${n(s.views)} · ผู้ติดตาม ${s.follows === null ? "–" : `${s.followsEstimated ? "~" : ""}${n(s.follows)}`}` : " · ยังไม่มีผล"}</small></div>
             <form action={saveClipStatsAction} className="library-inline learning-form"><input type="hidden" name="id" value={clip.id} />{back}
               <label>วิว<input name="views" type="number" min={0} required defaultValue={s?.views ?? ""} /></label>
               <label>ไลก์<input name="likes" type="number" min={0} defaultValue={s?.likes ?? ""} /></label>
               <label>คอมเมนต์<input name="comments" type="number" min={0} defaultValue={s?.comments ?? ""} /></label>
               <label>แชร์<input name="shares" type="number" min={0} defaultValue={s?.shares ?? ""} /></label>
-              <label>ผู้ติดตามใหม่<input name="follows" type="number" min={0} defaultValue={s?.follows ?? ""} /></label>
+              <label>ผู้ติดตามใหม่<input name="follows" type="number" min={0} defaultValue={s && !s.followsEstimated ? s.follows ?? "" : ""} /></label>
               <button className="manual-secondary" type="submit">บันทึก</button></form></li>;
         })}</ol>}
     </details>
