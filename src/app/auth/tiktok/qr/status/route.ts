@@ -1,0 +1,95 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+import { serverEnv } from "@/lib/server-env";
+import { TikTokQrAuthorization, TIKTOK_QR_COOKIE, openQrSession, parseQrConfirmation } from "@/features/tiktok/qr-authorization";
+import { TikTokOAuthService } from "@/features/tiktok/services";
+import { TikTokProviderApiError } from "@/features/tiktok/provider";
+
+const publicQrErrors = new Set([
+  "tiktok_account_already_added",
+  "oauth_state_invalid_or_replayed",
+  "oauth_identity_mismatch",
+  "tiktok_account_lookup_failed",
+  "tiktok_account_save_failed",
+  "tiktok_integration_update_failed",
+  "invalid_grant",
+  "invalid_request",
+  "invalid_client",
+]);
+const preExchangeQrErrors = new Set([
+  "qr_owner_mismatch",
+  "qr_session_expired",
+  "qr_confirmation_invalid",
+  "qr_redirect_mismatch",
+  "qr_state_mismatch",
+  "qr_code_missing",
+]);
+
+export async function POST(request: NextRequest) {
+  if (request.headers.get("origin") !== request.nextUrl.origin) {
+    return NextResponse.json({ error: "invalid_origin" }, { status: 403 });
+  }
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (serverEnv.tiktokProvider !== "official" || !serverEnv.tiktokClientKey || !serverEnv.tiktokClientSecret || !serverEnv.tiktokRedirectUri) {
+    return NextResponse.json({ error: "tiktok_setup_required" }, { status: 503 });
+  }
+  const secret = serverEnv.tiktokTokenEncryptionKey ?? serverEnv.supabaseSecretKey;
+  if (!secret) return NextResponse.json({ error: "tiktok_setup_required" }, { status: 503 });
+  const payload: unknown = await request.json().catch(() => null);
+  const sessionId = payload && typeof payload === "object" && "sessionId" in payload ? payload.sessionId : null;
+  if (typeof sessionId !== "string" || !/^[A-Za-z0-9_-]{32}$/.test(sessionId)) {
+    return NextResponse.json({ error: "qr_session_invalid" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+  }
+  const cookie = request.cookies.get(`${TIKTOK_QR_COOKIE}_${sessionId}`)?.value;
+  if (!cookie) return NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } });
+
+  let phase: "session" | "provider_status" | "confirmation" | "callback" = "session";
+  try {
+    const session = openQrSession(cookie, secret);
+    if (session.ownerId !== data.user.id) throw new Error("qr_owner_mismatch");
+    phase = "provider_status";
+    const status = await new TikTokQrAuthorization({
+      clientKey: serverEnv.tiktokClientKey,
+      clientSecret: serverEnv.tiktokClientSecret,
+    }).check(session.token);
+    if (status.status === "expired" || status.status === "utilised") {
+      // A previous QR poll may finish after this tab has received a newer QR.
+      // Clearing the cookie here would invalidate an in-flight consent.
+      return NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } });
+    }
+    if (status.status !== "confirmed") {
+      return NextResponse.json({ status: status.status }, { headers: { "Cache-Control": "no-store" } });
+    }
+    phase = "confirmation";
+    const code = parseQrConfirmation(status, session, serverEnv.tiktokRedirectUri);
+    phase = "callback";
+    const result = await new TikTokOAuthService().completeCallback({
+      ownerId: data.user.id, code, state: session.state, requireNewAccount: true, flow: "qr",
+    });
+    return NextResponse.json({
+      status: "connected",
+      accountPath: `/accounts/${result.accountId}?connected=${result.connectionStatus}`,
+    }, { headers: { "Cache-Control": "no-store" } });
+  } catch (caught) {
+    if (caught instanceof TikTokProviderApiError) {
+      console.error("TikTok QR OAuth provider error", {
+        stage: caught.stage,
+        code: caught.message,
+        reason: caught.reason,
+        logId: caught.logId,
+      });
+    }
+    if (caught instanceof Error && ["qr_session_expired", "tiktok_qr_token_expire", "tiktok_qr_token_expired"].includes(caught.message)) {
+      return NextResponse.json({ status: "expired" }, { headers: { "Cache-Control": "no-store" } });
+    }
+    if (phase !== "callback") {
+      const code = caught instanceof Error && preExchangeQrErrors.has(caught.message) ? caught.message : "unknown";
+      console.error("TikTok QR failed before token exchange", { phase, code });
+    }
+    const error = caught instanceof Error && publicQrErrors.has(caught.message)
+      ? caught.message : "qr_authorization_failed";
+    return NextResponse.json({ error }, { status: 400, headers: { "Cache-Control": "no-store" } });
+  }
+}

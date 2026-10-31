@@ -1,0 +1,6 @@
+allowBuilds:
+  esbuild: true
+  ffmpeg-static: true
+  unrs-resolver: false
+minimumReleaseAgeExclude:
+  - zod@4.6.5

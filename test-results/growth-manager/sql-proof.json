@@ -1,0 +1,14 @@
+{
+  "isolatedPostgres": "PASS",
+  "checks": 90,
+  "discovered": 51,
+  "enrolled": 1,
+  "leaseRecovery": "PASS",
+  "duplicatePrevention": "PASS",
+  "rls": "service-only/owner-bound/cross-owner/anon PASS",
+  "paidCalls": 0,
+  "tiktokPostingCalls": 0,
+  "productionDatabaseChanged": false,
+  "manualOutcome": "owner report retained; not verified API analytics",
+  "safeMode": true
+}

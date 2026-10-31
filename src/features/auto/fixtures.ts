@@ -1,0 +1,7 @@
+import {planAccount} from "./engine";import {summarizeSchedule} from "./scheduler";import type {AccountContext} from "./types";
+const base:AccountContext={id:"a",requestedMode:"AUTO",commerceReady:false,providerAvailable:true,analyticsFresh:true,accountHealthy:true,consent:true,publishRemaining:3,desiredCandidates:6,desiredPosts:3,priority:50,nextGrowthAction:"SCALE_HOOK",affiliateDecision:"SCALE"};
+export const autoFixtures:AccountContext[]=[
+ {...base,id:"growth",requestedMode:"GROWTH"},{...base,id:"affiliate",commerceReady:true},{...base,id:"auto-growth"},{...base,id:"commerce-blocked",requestedMode:"AFFILIATE",commerceReady:false},{...base,id:"provider-off",providerAvailable:false},{...base,id:"publish-limited",publishRemaining:0},{...base,id:"approval",consent:false},{...base,id:"data",analyticsFresh:false},{...base,id:"blocked",accountHealthy:false},{...base,id:"auto-affiliate",commerceReady:true},
+];
+export function simulateTenAccountDay(){const accounts=autoFixtures.map(planAccount);return{accounts,summary:summarizeSchedule(accounts)}}
+export function simulateThreeAccountPilot(){const accounts=[0,1,2].map(i=>planAccount({...base,id:`pilot-${i+1}`,requestedMode:i===0?"GROWTH":i===1?"AFFILIATE":"AUTO",commerceReady:i>0,desiredCandidates:20,desiredPosts:5,publishRemaining:5}));return{accounts,summary:summarizeSchedule(accounts),masters:3,variations:57,totalCandidates:60,externalCalls:0,costUsd:0}}

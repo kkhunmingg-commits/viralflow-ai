@@ -1,0 +1,6 @@
+node_modules/
+workspace/
+selectors.json
+.env
+*.log
+farm.env

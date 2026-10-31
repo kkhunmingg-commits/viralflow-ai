@@ -1,0 +1,38 @@
+import type { FlowAccountRow, FlowLoginState } from "./contracts";
+
+export interface FlowAccountView {
+  id: string; tiktokAccountId: string | null; label: string; priority: number; active: boolean; clipsPerDayEstimate: number;
+  exhaustedToday: boolean; clipsToday: number; remainingEstimate: number; loginState: FlowLoginState; loginNote: string | null;
+}
+
+/** Accounts in drain order (priority, then oldest) with today's usage; counters from earlier days read as zero. */
+export function flowAccountViews(rows: FlowAccountRow[], today: string): FlowAccountView[] {
+  return rows.toSorted((a, b) => a.priority - b.priority || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id))
+    .map(row => {
+      const clipsToday = row.clips_today_on === today ? row.clips_today : 0;
+      const exhaustedToday = row.exhausted_on === today;
+      const loginState = row.login_state ?? "PENDING", usable = row.active && loginState === "READY" && !exhaustedToday;
+      return { id: row.id, tiktokAccountId: row.tiktok_account_id, label: row.label, priority: row.priority, active: row.active, clipsPerDayEstimate: row.clips_per_day_estimate,
+        exhaustedToday, clipsToday, remainingEstimate: usable ? Math.max(0, row.clips_per_day_estimate - clipsToday) : 0, loginState, loginNote: row.login_note ?? null };
+    });
+}
+
+/** Google accounts that can make this TikTok account's clips: its own (in order) first, then shared ones. */
+export function accountsFor(views: FlowAccountView[], tiktokAccountId: string) {
+  return [...views.filter(view => view.tiktokAccountId === tiktokAccountId), ...views.filter(view => view.tiktokAccountId === null)];
+}
+
+/** Roughly how many more clips the active accounts can make today. An estimate: Flow's own credit count decides. */
+export function remainingCapacity(views: FlowAccountView[]) {
+  return views.reduce((sum, view) => sum + view.remainingEstimate, 0);
+}
+
+/** The account the worker should use next: the first active one Flow has not reported empty today. */
+export function nextFlowAccount(views: FlowAccountView[]) {
+  return views.find(view => view.active && view.loginState === "READY" && !view.exhaustedToday) ?? null;
+}
+
+/** How many new clips one click should add so the day's total reaches the target, never past the batch limit. */
+export function clipsToAdd(target: number, alreadyToday: number, maxPerBatch: number) {
+  return Math.max(0, Math.min(maxPerBatch, Math.floor(target) - Math.max(0, alreadyToday)));
+}
