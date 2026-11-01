@@ -177,7 +177,6 @@ export async function signInFlowAccount(account, config, { timeoutMs = 15 * 60_0
   const costNote = async page => {
     try {
       await openComposer(page, { flowUrl: config.flowUrl, selectors });
-      await step("CHECKING_COST");
       await chooseSingleOutput(page, selectors);
       const cost = await readCost(page, selectors);
       const decision = costDecision(cost, config.costPolicy);
