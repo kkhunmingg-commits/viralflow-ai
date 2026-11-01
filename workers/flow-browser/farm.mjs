@@ -76,6 +76,7 @@ export function portalApi({ portal, token }, fetchImpl = fetch) {
     exhausted: accountId => call("exhausted", { flowAccountId: accountId }),
     login: (accountId, state, note) => call("login", { flowAccountId: accountId, state, note }),
     finish: () => call("finish", {}),
+    reopen: clipId => call("reopen", { clipId }),
     /** Live step for the web page. Never stops the work: an older server without the endpoint just ignores it. */
     progress: (clipId, stage, detail) => call("progress", { ...(clipId ? { clipId } : {}), stage, ...(detail ? { detail: String(detail).slice(0, 120) } : {}) }).catch(() => {}),
     async upload(clip, result) {
@@ -148,7 +149,10 @@ async function main() {
     const path = join(dirs.ready, `${clipId}.mp4`), bytes = await readFile(resolve(file));
     await writeFile(path, bytes);
     const media = await inspectVideo(path), sha256 = createHash("sha256").update(bytes).digest("hex");
-    await portalApi(settings).upload({ id: clipId }, { path, sha256, media });
+    const api = portalApi(settings);
+    // A clip the worker already gave up on (timed out) is reopened first; one still generating needs nothing.
+    await api.reopen(clipId).catch(error => { if (!/CLIP_NOT_RECOVERABLE/.test(error.message)) throw error; });
+    await api.upload({ id: clipId }, { path, sha256, media });
     console.log(`เข้าคลังแล้ว: ${clipId}`);
     return;
   }

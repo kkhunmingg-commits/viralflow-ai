@@ -291,6 +291,12 @@ async function countFlowUse(admin: SupabaseClient, owner: string, flowAccountId:
     .eq("owner_id", owner).eq("id", flowAccountId), "flow_account_not_saved");
 }
 
+/** A clip the worker gave up on although Flow made it: back to GENERATING briefly so its MP4 can be uploaded by hand (--recover). */
+export async function reopenMissedClip(admin: SupabaseClient, owner: string, clipId: string, now = new Date()) {
+  const rows = check(await admin.from("flow_clips").update({ status: "GENERATING", error: null, lease_until: new Date(now.getTime() + 15 * 60_000).toISOString(), updated_at: now.toISOString() })
+    .eq("owner_id", owner).eq("id", clipId).eq("status", "FAILED").or("error.like.NEW_VIDEO_TIMEOUT%,error.like.WORKER_LOST%,error.like.UPLOAD_FAILED%").select("id"), "flow_clip_not_saved") as unknown[] | null;
+  if (!rows?.length) throw new Error("CLIP_NOT_RECOVERABLE");
+}
 export async function failClip(admin: SupabaseClient, owner: string, input: { clipId: string; reason: string; notStarted: boolean }) {
   const now = new Date().toISOString();
   const patch = input.notStarted

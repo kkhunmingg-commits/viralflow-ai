@@ -2,13 +2,13 @@ import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authorizeFlowWorker } from "@/features/flow-farm/worker-auth";
 import { claimSchema, clipRefSchema, completeSchema, exhaustedSchema, failSchema, loginStateSchema, progressSchema } from "@/features/flow-farm/contracts";
-import { claimClip, clipUploadUrl, completeClip, failClip, finishWithoutCredits, markExhausted, reportProgress, setLoginState, workerAccounts } from "@/features/flow-farm/service";
+import { claimClip, clipUploadUrl, completeClip, failClip, finishWithoutCredits, markExhausted, reopenMissedClip, reportProgress, setLoginState, workerAccounts } from "@/features/flow-farm/service";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const headers = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
 const KNOWN = new Set(["FLOW_ACCOUNT_UNAVAILABLE", "PRODUCT_IMAGE_UNAVAILABLE", "CLIP_NOT_GENERATING", "UPLOADED_VIDEO_MISSING", "INVALID_MP4",
-  "CHECKSUM_MISMATCH", "NOT_PORTRAIT_9_16", "DUPLICATE_VIDEO"]);
+  "CHECKSUM_MISMATCH", "NOT_PORTRAIT_9_16", "DUPLICATE_VIDEO", "CLIP_NOT_RECOVERABLE"]);
 const reply = (body: unknown, status = 200) => Response.json(body, { status, headers });
 
 /** Endpoints for each owner's local Flow worker (workers/flow-browser/farm.mjs). The token decides whose queue it serves. */
@@ -37,6 +37,7 @@ export async function POST(request: Request, context: { params: Promise<{ action
       case "fail": await failClip(admin, owner, failSchema.parse(body)); return reply({ ok: true });
       case "exhausted": await markExhausted(admin, owner, exhaustedSchema.parse(body).flowAccountId); return reply({ ok: true });
       case "login": await setLoginState(admin, owner, loginStateSchema.parse(body)); return reply({ ok: true });
+      case "reopen": await reopenMissedClip(admin, owner, clipRefSchema.parse(body).clipId); return reply({ ok: true });
       case "progress": await reportProgress(admin, owner, progressSchema.parse(body)); return reply({ ok: true });
       case "finish": return reply(await finishWithoutCredits(admin, owner));
       default: return reply({ error: "not_found" }, 404);
