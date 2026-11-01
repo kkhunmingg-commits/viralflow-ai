@@ -37,3 +37,14 @@ export function privatePostSettings(caption: string, creator: { privacyLevelOpti
   return { caption, privacyLevel: "SELF_ONLY", disableComment: creator.commentDisabled, disableDuet: creator.duetDisabled,
     disableStitch: creator.stitchDisabled, isAigc: true, commercialContent: {} };
 }
+
+/** TikTok's refusal when an unaudited app Direct Posts to a public account, even as "only me". */
+export const UNAUDITED_PUBLIC_ACCOUNT = "unaudited_client_can_only_post_to_private_accounts";
+
+/**
+ * Until TikTok audits the app, Direct Post only works on a private TikTok account. A public account is the one whose
+ * creator info offers PUBLIC_TO_EVERYONE, so this is caught before anything is sent instead of failing at TikTok.
+ */
+export function assertPostableAccount(creator: { privacyLevelOptions: string[] }, audited: boolean) {
+  if (!audited && creator.privacyLevelOptions.includes("PUBLIC_TO_EVERYONE")) throw new Error(UNAUDITED_PUBLIC_ACCOUNT);
+}

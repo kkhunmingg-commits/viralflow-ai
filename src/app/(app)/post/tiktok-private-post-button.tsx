@@ -10,6 +10,7 @@ const errors: Record<string, string> = {
   video_too_long: "คลิปยาวเกินที่บัญชีนี้โพสต์ได้", affiliate_use_draft: "คลิปขายของต้องส่งแบบร่าง เพื่อเปิดป้ายเนื้อหาแบรนด์ในแอป",
   spam_risk_too_many_posts: "วันนี้โพสต์ผ่านแอปครบโควตาของ TikTok แล้ว ลองพรุ่งนี้",
   spam_risk_user_banned_from_posting: "TikTok ระงับการโพสต์ของบัญชีนี้ชั่วคราว",
+  unaudited_client_can_only_post_to_private_accounts: "บัญชี TikTok นี้เป็นสาธารณะ ซึ่ง TikTok ยังไม่ให้แอปเราโพสต์ตรงได้ (ต้องเป็นบัญชีส่วนตัวจนกว่าแอปผ่านการตรวจ)",
   post_uncertain: "ไม่แน่ใจว่า TikTok ได้คลิปแล้วหรือยัง เปิดโปรไฟล์ในแอปดูก่อน ถ้าไม่มีค่อยกดใหม่",
 };
 const labels: Record<string, string> = {
@@ -19,7 +20,7 @@ const labels: Record<string, string> = {
 };
 
 /** One click: the clip is posted to the owner's TikTok profile as "only me" with its caption; they make it public in the app. */
-export function TikTokPrivatePostButton({ clipId }: { clipId: string }) {
+export function TikTokPrivatePostButton({ clipId, caption }: { clipId: string; caption: string }) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [post, setPost] = useState<{ publishId: string; account: string } | null>(null);
@@ -47,14 +48,26 @@ export function TikTokPrivatePostButton({ clipId }: { clipId: string }) {
   async function send() {
     if (busy || post) return;
     setBusy(true); setMessage("");
+    // Copy now, while the click still allows clipboard writes, in case the post has to fall back to a draft.
+    const copied = caption ? await navigator.clipboard.writeText(caption).then(() => true, () => false) : false;
     try {
       const response = await fetch(`/api/library/${clipId}/tiktok-private-post`, { method: "POST" });
       const body = await response.json().catch(() => ({}));
+      if (!response.ok && body.error === "unaudited_client_can_only_post_to_private_accounts") { await sendDraft(copied); return; }
       if (!response.ok) { setMessage(errors[body.error] ?? "โพสต์ไม่สำเร็จ ลองอีกครั้ง"); return; }
       setPost({ publishId: body.publishId, account: body.account });
       setMessage("ส่งแล้ว TikTok กำลังเตรียมโพสต์…");
     } catch { setMessage("โพสต์ไม่สำเร็จ ลองอีกครั้ง"); }
     finally { setBusy(false); }
+  }
+
+  /** TikTok refuses direct posts to a public account until the app is audited, so the same click delivers a draft instead. */
+  async function sendDraft(copied: boolean) {
+    const response = await fetch(`/api/library/${clipId}/tiktok-draft`, { method: "POST" }).catch(() => null);
+    const body = response ? await response.json().catch(() => ({})) : {};
+    const reason = errors.unaudited_client_can_only_post_to_private_accounts;
+    if (!response?.ok) { setMessage(`${reason} และส่งเป็นแบบร่างแทนไม่สำเร็จ (${body.error ?? "ลองอีกครั้ง"})`); return; }
+    setMessage(`${reason} จึงส่งเข้าแบบร่างใน TikTok แทนแล้ว เปิดแอป TikTok ดูการแจ้งเตือน (Inbox)${copied ? " วางคำบรรยายที่คัดลอกไว้แล้ว" : " คัดลอกคำบรรยายจากกล่องด้านบน"} แล้วกดโพสต์`);
   }
 
   return <div className="library-draft">

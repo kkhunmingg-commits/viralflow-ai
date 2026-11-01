@@ -133,7 +133,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
               {clip.status === "SCHEDULED" && clip.scheduled_at && <p className={due ? "library-due" : "library-scheduled"}>{due ? "ถึงเวลาโพสต์แล้ว · " : "ตั้งเวลาไว้ · "}{bangkokTime(clip.scheduled_at)}</p>}
               <textarea className="library-caption" readOnly rows={3} defaultValue={[clip.caption, clip.hashtags.join(" ")].filter(Boolean).join("\n")} aria-label="คำบรรยายสำหรับคัดลอก" />
               <div className="library-actions">
-                {publishScope && clip.kind === "GROWTH" && <TikTokPrivatePostButton clipId={clip.id} />}
+                {publishScope && clip.kind === "GROWTH" && <TikTokPrivatePostButton clipId={clip.id} caption={[clip.caption, clip.hashtags.join(" ")].filter(Boolean).join("\n")} />}
                 {draftScope ? <TikTokDraftButton clipId={clip.id} accountId={account.id} initial={(clip.video_sha256 && drafts.get(clip.video_sha256)) || null}
                   caption={[clip.caption, clip.hashtags.join(" ")].filter(Boolean).join("\n")} />
                   : <a className="manual-primary" href="/auth/tiktok/start?inbox=1&new_account=1">อนุญาตส่งเข้า TikTok (ครั้งเดียว)</a>}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertPrivatePostAccess, PRIVATE_POST_CAPTION_MAX, privatePostCaption, privatePostSettings } from "./private-post";
+import { assertPostableAccount, assertPrivatePostAccess, PRIVATE_POST_CAPTION_MAX, privatePostCaption, privatePostSettings, UNAUDITED_PUBLIC_ACCOUNT } from "./private-post";
 
 const access = { ownerId: "o", accountOwner: "o", authorized: true, mock: false, scopes: ["user.info.basic", "video.publish"], official: true,
   productionApproved: false, sandboxEnabled: true, accountIdentity: "open-1", sandboxIdentity: "open-1" };
@@ -31,4 +31,14 @@ describe("privatePostSettings", () => {
     expect(privatePostSettings("hi", creator)).toEqual({ caption: "hi", privacyLevel: "SELF_ONLY", disableComment: false, disableDuet: true, disableStitch: false, isAigc: true, commercialContent: {} }));
   it("refuses when the creator cannot post privately", () =>
     expect(() => privatePostSettings("hi", { ...creator, privacyLevelOptions: ["PUBLIC_TO_EVERYONE"] })).toThrow("self_only_not_available"));
+});
+
+// 1 Nov: every private post failed at TikTok with unaudited_client_can_only_post_to_private_accounts because the
+// account is public. This is caught before sending, and the button falls back to a draft.
+describe("assertPostableAccount", () => {
+  it("refuses a public account while the app is unaudited", () =>
+    expect(() => assertPostableAccount(creator, false)).toThrow(UNAUDITED_PUBLIC_ACCOUNT));
+  it("allows a private account (no PUBLIC_TO_EVERYONE option) while unaudited", () =>
+    expect(() => assertPostableAccount({ privacyLevelOptions: ["FOLLOWER_OF_CREATOR", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"] }, false)).not.toThrow());
+  it("allows a public account once audited", () => expect(() => assertPostableAccount(creator, true)).not.toThrow());
 });

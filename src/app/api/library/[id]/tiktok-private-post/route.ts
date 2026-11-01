@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { buildChunkSource, OfficialTikTokPublishingProvider } from "@/features/publishing/provider";
 import { createTikTokProvider, TikTokTokenService } from "@/features/tiktok/services";
 import { sandboxPrivatePostAccountId } from "@/features/tiktok/sandbox-private-post";
-import { assertPrivatePostAccess, PRIVATE_POST_UNCERTAIN, PRIVATE_POSTING, privatePostCaption, privatePostSettings } from "@/features/tiktok/private-post";
+import { assertPostableAccount, assertPrivatePostAccess, PRIVATE_POST_UNCERTAIN, UNAUDITED_PUBLIC_ACCOUNT, PRIVATE_POSTING, privatePostCaption, privatePostSettings } from "@/features/tiktok/private-post";
 import { assertInboxMedia, LIBRARY_INBOX_MAX_BYTES } from "@/features/tiktok/inbox-flow";
 import { claimPrivatePost, clipVideo, closeClip, notePrivatePost } from "@/features/flow-farm/service";
 import { serverEnv } from "@/lib/server-env";
@@ -16,7 +16,7 @@ export const maxDuration = 300;
 const headers = { "Cache-Control": "no-store" };
 // Only reasons the owner can act on are passed through; everything else stays generic.
 const reasons = new Set(["publish_reconnect_required", "publish_not_available", "account_unavailable", "CLIP_NOT_IN_LIBRARY", "CLIP_BUSY_OR_GONE",
-  "invalid_mp4", "self_only_not_available", "video_too_long", "affiliate_use_draft", "spam_risk_too_many_posts", "spam_risk_user_banned_from_posting"]);
+  UNAUDITED_PUBLIC_ACCOUNT, "invalid_mp4", "self_only_not_available", "video_too_long", "affiliate_use_draft", "spam_risk_too_many_posts", "spam_risk_user_banned_from_posting"]);
 const uuid = z.uuid();
 
 async function owner() {
@@ -64,6 +64,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const video = await clipVideo(admin, ownerId, id);
     assertInboxMedia(video.bytes, "video/mp4", LIBRARY_INBOX_MAX_BYTES);
     const creator = await createTikTokProvider().queryCreatorInfo(token);
+    assertPostableAccount(creator, serverEnv.tiktokDirectPostAuditStatus === "AUDITED");
     const duration = await clipDuration(admin, ownerId, id);
     if (duration !== null && duration > creator.maxVideoPostDurationSec) throw new Error("video_too_long");
     const settings = privatePostSettings(privatePostCaption(clip.caption, clip.hashtags ?? []), creator);
