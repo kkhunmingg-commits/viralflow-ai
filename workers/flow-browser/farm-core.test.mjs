@@ -131,3 +131,21 @@ test("signs newly linked Google accounts in one at a time and only then lets the
   assert.deepEqual(claimed, ["a"]);
   assert.equal(summary.stoppedBy, "QUEUE_EMPTY");
 });
+
+test("a clip Flow never showed holds the account instead of spending credits on the next clip, and each step is reported", async () => {
+  const steps = [], logins = [];
+  const queue = [{ id: "c0", title: "one", prompt: "p" }, { id: "c1", title: "two", prompt: "p" }];
+  const api = {
+    accounts: async () => [{ id: "a", label: "a", loginState: "READY" }],
+    claim: async () => queue.shift() ?? null,
+    fail: async () => {}, finish: async () => ({ skipped: 0 }),
+    login: async (id, state) => { logins.push([id, state]); },
+    progress: async (clipId, stage) => { steps.push([clipId, stage]); },
+  };
+  const summary = await runFarmPass({ api, openAccount: async () => ({
+    generate: async () => ({ status: "FAILED", reason: "NEW_VIDEO_TIMEOUT_CHECK_FLOW", started: true }), close: async () => {} }) });
+  assert.equal(queue.length, 1, "the second clip is not sent to Flow");
+  assert.deepEqual(logins, [["a", "FAILED"]]);
+  assert.equal(summary.stoppedBy, "ACCOUNTS_NEED_ATTENTION");
+  assert.deepEqual(steps, [["c0", "OPENING_FLOW"], ["c0", "FAILED"], [null, "IDLE"]]);
+});

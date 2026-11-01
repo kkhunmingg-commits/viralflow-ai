@@ -1,7 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { accountsFor, remainingCapacity, type FlowAccountView } from "@/features/flow-farm/capacity";
-import { bangkokDate, flowClipStatusLabels, MAX_FLOW_ACCOUNTS_PER_TIKTOK, type FlowClipStatus } from "@/features/flow-farm/contracts";
-import { flowLogins, listFlowAccounts, listLibrary, listTodayClips, workerLastSeen } from "@/features/flow-farm/service";
+import { bangkokDate, MAX_FLOW_ACCOUNTS_PER_TIKTOK } from "@/features/flow-farm/contracts";
+import { flowLogins, listFlowAccounts, listLibrary, liveClipProgress, workerLastSeen } from "@/features/flow-farm/service";
+import { LiveClipProgressPanel } from "./live-clip-progress";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addFlowAccountAction, discardClipAction, flowAccountAction, markPostedAction, scheduleClipAction, startBatchAction, unscheduleClipAction } from "./flow-actions";
 import { TikTokDraftButton, type DraftReceipt } from "./tiktok-draft-button";
@@ -16,9 +17,9 @@ const bangkokTime = (iso: string) => new Intl.DateTimeFormat("th-TH", { timeZone
 /** Reads outside render; a missing table (migration not applied yet) shows a notice instead of an error page. */
 async function loadStudio(client: SupabaseClient, owner: string, accountId: string) {
   const logins = await flowLogins(createAdminClient(), owner).catch(() => ({}));
-  const settled = await Promise.allSettled([listFlowAccounts(client, owner, new Date(), logins), listTodayClips(client, owner, accountId), listLibrary(client, owner, accountId), workerLastSeen(client, owner)]);
+  const settled = await Promise.allSettled([listFlowAccounts(client, owner, new Date(), logins), liveClipProgress(client, owner, accountId), listLibrary(client, owner, accountId), workerLastSeen(client, owner)]);
   const list = <T,>(result: PromiseSettledResult<T[]>) => result.status === "fulfilled" ? result.value : [];
-  return { flowAccounts: accountsFor(list(settled[0]), accountId), today: list(settled[1]), library: list(settled[2]),
+  return { flowAccounts: accountsFor(list(settled[0]), accountId), live: settled[1].status === "fulfilled" ? settled[1].value : null, library: list(settled[2]),
     lastSeen: settled[3].status === "fulfilled" ? settled[3].value : null, unavailable: settled.some(result => result.status === "rejected"), now: Date.now(),
     ...await loadDrafts(client, owner, accountId, list(settled[2]).map(clip => clip.video_sha256).filter((hash): hash is string => !!hash)) };
 }
@@ -44,10 +45,9 @@ function loginLabel(f: FlowAccountView) {
 }
 
 export async function FlowStudio({ client, owner, account }: { client: SupabaseClient; owner: string; account: StudioAccount }) {
-  const { flowAccounts, today, library, lastSeen, unavailable, now, drafts, draftScope, publishScope, scopes } = await loadStudio(client, owner, account.id);
+  const { flowAccounts, live, library, lastSeen, unavailable, now, drafts, draftScope, publishScope, scopes } = await loadStudio(client, owner, account.id);
   const own = flowAccounts.filter(f => f.tiktokAccountId === account.id), shared = flowAccounts.filter(f => f.tiktokAccountId === null);
   const capacity = remainingCapacity(flowAccounts);
-  const counts = today.reduce((map, clip) => map.set(clip.status, (map.get(clip.status) ?? 0) + 1), new Map<FlowClipStatus, number>());
   const defaultCount = Math.min(30, Math.max(1, account.daily_post_target ?? 5));
   const online = lastSeen !== null && now - Date.parse(lastSeen) < 3 * 60_000;
   const selling = account.effective_mode === "AFFILIATE";
@@ -117,12 +117,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
       <p className="manual-muted">{selling
         ? "ระบบเลือกสินค้าขายดีที่มีรูปผ่านการตรวจสิทธิ์ (จาก TikTok Shop API เมื่อได้สิทธิ์ ระหว่างนี้จากสินค้าที่นำเข้า) แล้วทำคลิปโฆษณาไม่ซ้ำฉาก"
         : "บัญชีช่วงอุ่นเครื่อง: ระบบทำคลิปปั้นช่องที่ไม่มีสินค้า เพื่อให้คนกดติดตาม"} ถ้าเครดิตทุกบัญชี Google หมด ระบบจะหยุดที่คลิปที่ทำได้แล้วรอโพสต์ คลิปที่เหลือข้ามไปวันถัดไป</p>
-      {today.length > 0 && <>
-        <ul className="library-counts">{(["QUEUED", "GENERATING", "READY", "SCHEDULED", "POSTED", "FAILED", "SKIPPED_NO_CREDIT"] as FlowClipStatus[])
-          .filter(s => counts.get(s)).map(s => <li key={s} className={`library-chip library-${s.toLowerCase()}`}>{flowClipStatusLabels[s]} <strong>{counts.get(s)}</strong></li>)}</ul>
-        <details className="library-today"><summary>รายการวันนี้ ({today.length})</summary><ol>{today.map(clip => <li key={clip.id}>
-          <span>{clip.title}</span><small>{flowClipStatusLabels[clip.status]}{clip.error ? ` (${clip.error})` : ""}</small></li>)}</ol></details>
-      </>}
+      {live && <LiveClipProgressPanel key={account.id} accountId={account.id} initial={live} />}
     </section>
 
     <section className="manual-panel" aria-labelledby="library-title">

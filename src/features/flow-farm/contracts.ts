@@ -73,3 +73,46 @@ export function bangkokLocalToIso(local: string) {
   if (!Number.isFinite(at.getTime())) throw new Error("INVALID_TIME");
   return at.toISOString();
 }
+
+/** What the owner's computer is doing right now, reported step by step so the page can show live progress. */
+export const FLOW_PROGRESS_STAGES = ["IDLE", "SIGNING_IN", "OPENING_FLOW", "ATTACHING_IMAGE", "CHECKING_COST", "TYPING_PROMPT", "WAITING_FLOW",
+  "DOWNLOADING", "UPLOADING", "DONE", "FAILED"] as const;
+export type FlowProgressStage = (typeof FLOW_PROGRESS_STAGES)[number];
+export const flowProgressLabels: Record<FlowProgressStage, string> = {
+  IDLE: "รอคิว", SIGNING_IN: "กำลังตรวจล็อกอิน Google", OPENING_FLOW: "กำลังเปิด Google Flow", ATTACHING_IMAGE: "กำลังใส่รูปสินค้า",
+  CHECKING_COST: "กำลังตรวจเครดิตที่ใช้", TYPING_PROMPT: "กำลังใส่คำสั่ง (prompt)", WAITING_FLOW: "Flow กำลังสร้างวิดีโอ",
+  DOWNLOADING: "กำลังดาวน์โหลดวิดีโอจาก Flow", UPLOADING: "กำลังส่งเข้าคลัง", DONE: "เสร็จ เข้าคลังแล้ว", FAILED: "ไม่สำเร็จ",
+};
+export const progressSchema = z.object({
+  clipId: z.uuid().optional(), stage: z.enum(FLOW_PROGRESS_STAGES), detail: z.string().trim().max(120).optional(),
+});
+export interface FlowProgress { clipId: string | null; stage: FlowProgressStage; detail: string | null; at: string }
+
+/** flow_worker_status.note holds the latest progress as compact JSON (≤300 chars); anything else reads as no progress. */
+export function encodeProgress(input: { clipId?: string; stage: FlowProgressStage; detail?: string }, at = new Date()) {
+  return JSON.stringify({ c: input.clipId ?? null, s: input.stage, d: input.detail?.slice(0, 120) || null, t: at.toISOString() });
+}
+export function decodeProgress(note: string | null | undefined): FlowProgress | null {
+  if (!note) return null;
+  try {
+    const value = JSON.parse(note) as { c?: unknown; s?: unknown; d?: unknown; t?: unknown };
+    if (!FLOW_PROGRESS_STAGES.includes(value.s as FlowProgressStage) || typeof value.t !== "string") return null;
+    return { clipId: typeof value.c === "string" ? value.c : null, stage: value.s as FlowProgressStage, detail: typeof value.d === "string" ? value.d : null, at: value.t };
+  } catch { return null; }
+}
+
+/** Plain-Thai reason for a clip that did not make it, from the worker's code. */
+export function flowErrorLabel(error: string | null | undefined) {
+  if (!error) return null;
+  const known: Array<[RegExp, string]> = [
+    [/^NO_CREDIT/, "เครดิต Flow หมด"], [/LOGIN/, "บัญชี Google หลุดล็อกอิน กด “ล็อกอินใหม่”"],
+    [/^COST_UNREADABLE/, "อ่านค่าเครดิตใน Flow ไม่ได้ (หน้า Flow อาจเปลี่ยน)"], [/^COST_(\d+)_ABOVE/, "คลิปนี้ใช้เครดิตเกินที่ตั้งไว้ (ตรวจว่าเลือก Veo 3.1 Lite และ x1)"],
+    [/PROMPT_BOX/, "หาช่องพิมพ์คำสั่งใน Flow ไม่เจอ (หน้า Flow อาจเปลี่ยน)"], [/GENERATE_BUTTON/, "หาปุ่มสร้างใน Flow ไม่เจอหรือกดไม่ได้"],
+    [/^NEW_VIDEO_TIMEOUT/, "รอวิดีโอนานเกินกำหนด ตรวจในคลัง Flow ว่าสร้างเสร็จหรือไม่"], [/^FLOW_REPORTED_FAILURE/, "Flow แจ้งว่าสร้างไม่สำเร็จ (อาจติดนโยบายเนื้อหา)"],
+    [/^WORKER_LOST/, "เครื่องสร้างคลิปหยุดกลางคัน ตรวจในคลัง Flow ว่ามีวิดีโอหรือไม่"], [/^BROWSER_UNAVAILABLE/, "เปิด Chrome ไม่ได้"],
+    [/^UPLOAD_FAILED/, "ส่งไฟล์เข้าคลังไม่สำเร็จ (ไฟล์ยังอยู่ในเครื่อง)"], [/PRODUCT_IMAGE/, "รูปสินค้าใช้ไม่ได้"],
+    [/NOT_PORTRAIT/, "วิดีโอไม่ใช่แนวตั้ง 9:16"], [/DUPLICATE_VIDEO/, "วิดีโอซ้ำกับที่มีในคลัง"], [/INVALID_MP4|CHECKSUM/, "ไฟล์วิดีโอเสีย"],
+    [/REFERENCE|IMAGE_UPLOAD|ATTACH/, "ใส่รูปสินค้าใน Flow ไม่สำเร็จ"],
+  ];
+  return known.find(([pattern]) => pattern.test(error))?.[1] ?? error;
+}

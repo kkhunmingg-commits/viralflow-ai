@@ -1,8 +1,8 @@
 import { after } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authorizeFlowWorker } from "@/features/flow-farm/worker-auth";
-import { claimSchema, clipRefSchema, completeSchema, exhaustedSchema, failSchema, loginStateSchema } from "@/features/flow-farm/contracts";
-import { claimClip, clipUploadUrl, completeClip, failClip, finishWithoutCredits, markExhausted, setLoginState, workerAccounts } from "@/features/flow-farm/service";
+import { claimSchema, clipRefSchema, completeSchema, exhaustedSchema, failSchema, loginStateSchema, progressSchema } from "@/features/flow-farm/contracts";
+import { claimClip, clipUploadUrl, completeClip, failClip, finishWithoutCredits, markExhausted, reportProgress, setLoginState, workerAccounts } from "@/features/flow-farm/service";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -37,6 +37,7 @@ export async function POST(request: Request, context: { params: Promise<{ action
       case "fail": await failClip(admin, owner, failSchema.parse(body)); return reply({ ok: true });
       case "exhausted": await markExhausted(admin, owner, exhaustedSchema.parse(body).flowAccountId); return reply({ ok: true });
       case "login": await setLoginState(admin, owner, loginStateSchema.parse(body)); return reply({ ok: true });
+      case "progress": await reportProgress(admin, owner, progressSchema.parse(body)); return reply({ ok: true });
       case "finish": return reply(await finishWithoutCredits(admin, owner));
       default: return reply({ error: "not_found" }, 404);
     }

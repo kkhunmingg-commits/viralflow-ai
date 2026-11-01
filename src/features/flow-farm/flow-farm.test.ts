@@ -63,3 +63,15 @@ describe("one-click batch plan", () => {
     expect(clips[0].prompt).toMatch(/AVOID: on-screen text/);
   });
 });
+
+describe("live clip progress", () => {
+  it("round-trips the worker's step through the 300-character status note", async () => {
+    const { decodeProgress, encodeProgress, flowErrorLabel } = await import("./contracts");
+    const note = encodeProgress({ clipId: "14823f0a-0000-4000-8000-000000000000", stage: "WAITING_FLOW", detail: "x".repeat(200) }, new Date("2026-11-01T03:05:00Z"));
+    expect(note.length).toBeLessThanOrEqual(300);
+    expect(decodeProgress(note)).toMatchObject({ clipId: "14823f0a-0000-4000-8000-000000000000", stage: "WAITING_FLOW", at: "2026-11-01T03:05:00.000Z" });
+    expect(decodeProgress("old free-text note")).toBeNull();
+    expect(flowErrorLabel("NEW_VIDEO_TIMEOUT_CHECK_FLOW")).toContain("คลัง Flow");
+    expect(flowErrorLabel("SOMETHING_NEW")).toBe("SOMETHING_NEW");
+  });
+});

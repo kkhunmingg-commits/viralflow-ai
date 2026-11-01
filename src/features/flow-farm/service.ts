@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getProductRadar } from "@/features/products/services";
 import { bangkokDate, bangkokDayRange, COUNTED_STATUSES, FLOW_CLIP_MAX_BYTES, LIBRARY_STATUSES, MAX_CLIPS_PER_BATCH, MAX_FLOW_ACCOUNTS_PER_TIKTOK,
-  type FlowAccountRow, type FlowClipStatus, type FlowLoginState } from "./contracts";
+  decodeProgress, encodeProgress, type FlowAccountRow, type FlowClipStatus, type FlowLoginState, type FlowProgress, type FlowProgressStage } from "./contracts";
 import { clipsToAdd, flowAccountViews } from "./capacity";
 import { planBatch, type FarmProduct } from "./planner";
 
@@ -195,6 +195,15 @@ export async function workerAccounts(admin: SupabaseClient, owner: string, now =
   const views = (await listFlowAccounts(admin, owner, now, await flowLogins(admin, owner))).filter(view => view.active);
   return [...views.filter(view => view.tiktokAccountId), ...views.filter(view => !view.tiktokAccountId)];
 }
+/** The computer reports each step of the clip it is making; one row per owner, so it is also the heartbeat. */
+export async function reportProgress(admin: SupabaseClient, owner: string, input: { clipId?: string; stage: FlowProgressStage; detail?: string }, now = new Date()) {
+  check(await admin.from("flow_worker_status").upsert({ owner_id: owner, last_seen_at: now.toISOString(), note: encodeProgress(input, now) }), "flow_progress_not_saved");
+}
+export async function workerStatus(client: SupabaseClient, owner: string) {
+  const row = await client.from("flow_worker_status").select("last_seen_at,note").eq("owner_id", owner).maybeSingle();
+  const data = row.data as { last_seen_at: string; note: string | null } | null;
+  return { lastSeen: data?.last_seen_at ?? null, progress: decodeProgress(data?.note) };
+}
 export async function workerLastSeen(client: SupabaseClient, owner: string) {
   const row = await client.from("flow_worker_status").select("last_seen_at").eq("owner_id", owner).maybeSingle();
   return (row.data as { last_seen_at: string } | null)?.last_seen_at ?? null;
@@ -317,6 +326,21 @@ export async function listTodayClips(client: SupabaseClient, owner: string, acco
     .order("created_at", { ascending: true });
   if (accountId) query = query.eq("tiktok_account_id", accountId);
   return check(await query, "flow_clips_unavailable") as LibraryClip[];
+}
+export interface LiveClip { id: string; title: string; status: FlowClipStatus; error: string | null; created_at: string; updated_at: string; ready_at: string | null }
+export interface LiveClipProgress { clips: LiveClip[]; lastSeen: string | null; progress: FlowProgress | null; now: string }
+/** Today's clips plus recent unfinished ones (a batch queued last night is still running), oldest first. */
+export async function liveClipProgress(client: SupabaseClient, owner: string, accountId: string, now = new Date()): Promise<LiveClipProgress> {
+  const { start } = bangkokDayRange(bangkokDate(now));
+  const columns = "id,title,status,error,created_at,updated_at,ready_at";
+  const [today, open, worker] = await Promise.all([
+    client.from("flow_clips").select(columns).eq("owner_id", owner).eq("tiktok_account_id", accountId).gte("created_at", start).order("created_at", { ascending: true }).limit(60),
+    client.from("flow_clips").select(columns).eq("owner_id", owner).eq("tiktok_account_id", accountId).in("status", ["QUEUED", "GENERATING"]).lt("created_at", start)
+      .order("created_at", { ascending: true }).limit(30),
+    workerStatus(client, owner),
+  ]);
+  const clips = [...(check(open, "flow_clips_unavailable") ?? []), ...(check(today, "flow_clips_unavailable") ?? [])] as LiveClip[];
+  return { clips, lastSeen: worker.lastSeen, progress: worker.progress, now: now.toISOString() };
 }
 export async function listLibrary(client: SupabaseClient, owner: string, accountId?: string) {
   let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).in("status", LIBRARY_STATUSES)

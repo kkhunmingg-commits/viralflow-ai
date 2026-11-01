@@ -6,6 +6,7 @@
  *   node farm.mjs --probe <flowAccountId>   check sign-in, prompt box, Generate button and credit cost; never generates
  *   node farm.mjs --dry-run                 claim one clip, prepare it in Flow, stop before Generate (clip goes back)
  *   node farm.mjs --once                    make clips until the queue is empty or every account is out of credits
+ *   node farm.mjs --recover <clipId> <mp4>  put a clip Flow made (but the worker missed) into the library
  *   node farm.mjs --watch                   keep doing --once whenever the library page queues new clips
  *
  * Settings come from the environment (or workers/flow-browser/farm.env): FLOW_PORTAL_URL, FLOW_WORKER_TOKEN,
@@ -18,12 +19,13 @@ import { fileURLToPath } from "node:url";
 import process from "node:process";
 import { message, runFarmPass, runLoginPass } from "./farm-core.mjs";
 import { openFlowAccount, openPlainChrome, signInFlowAccount } from "./farm-driver.mjs";
-import { probeBinary } from "./media.mjs";
+import { inspectVideo, probeBinary } from "./media.mjs";
+import { createHash } from "node:crypto";
 
 const here = fileURLToPath(new URL(".", import.meta.url));
 await loadEnvFile(join(here, "farm.env"));
 const root = resolve(process.env.FLOW_WORKSPACE || join(here, "workspace"));
-const dirs = { profiles: join(root, "profiles"), ready: join(root, "ready"), journal: join(root, "farm-journal"), scratch: join(root, "tmp"), downloads: join(root, "downloads") };
+const dirs = { profiles: join(root, "profiles"), ready: join(root, "ready"), journal: join(root, "farm-journal"), scratch: join(root, "tmp"), downloads: join(root, "downloads"), debug: join(root, "debug") };
 const [command = "--once", argument] = process.argv.slice(2);
 
 async function loadEnvFile(path) {
@@ -74,6 +76,8 @@ export function portalApi({ portal, token }, fetchImpl = fetch) {
     exhausted: accountId => call("exhausted", { flowAccountId: accountId }),
     login: (accountId, state, note) => call("login", { flowAccountId: accountId, state, note }),
     finish: () => call("finish", {}),
+    /** Live step for the web page. Never stops the work: an older server without the endpoint just ignores it. */
+    progress: (clipId, stage, detail) => call("progress", { ...(clipId ? { clipId } : {}), stage, ...(detail ? { detail: String(detail).slice(0, 120) } : {}) }).catch(() => {}),
     async upload(clip, result) {
       const slot = await call("upload-url", { clipId: clip.id });
       const bytes = await readFile(result.path);
@@ -100,14 +104,16 @@ async function selectors() {
   catch { return {}; }
 }
 
+const stamp = line => console.log(new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }), line);
+
 async function pass(settings, dryRun) {
   const api = portalApi(settings), farmSelectors = await selectors();
   const driverConfig = { ...settings, selectors: farmSelectors, dryRun, journal, profilesDir: dirs.profiles, readyDir: dirs.ready,
-    scratchDir: dirs.scratch, downloadsDir: dirs.downloads };
+    scratchDir: dirs.scratch, downloadsDir: dirs.downloads, debugDir: dirs.debug, progress: api.progress };
   // Newly linked Google accounts are signed in first, one at a time; clips only start once that is done.
   const hasProfile = account => access(join(dirs.profiles, account.id, "Default")).then(() => true, () => false);
-  await runLoginPass({ api, signIn: account => signInFlowAccount(account, driverConfig), hasProfile, log: line => console.log(new Date().toLocaleTimeString("th-TH"), line) });
-  const summary = await runFarmPass({ api, openAccount: account => openFlowAccount(account, driverConfig), log: line => console.log(new Date().toLocaleTimeString("th-TH"), line) });
+  await runLoginPass({ api, signIn: account => signInFlowAccount(account, driverConfig), hasProfile, log: stamp });
+  const summary = await runFarmPass({ api, openAccount: account => openFlowAccount(account, driverConfig), log: stamp });
   console.log(JSON.stringify(summary));
   return summary;
 }
@@ -135,6 +141,17 @@ async function main() {
     return;
   }
   await probeBinary();
+  if (command === "--recover") {
+    // A clip Flow made but the worker never saw: put the MP4 (downloaded from the Flow project) into the library.
+    const [clipId, file] = process.argv.slice(3);
+    if (!/^[0-9a-f-]{36}$/i.test(clipId ?? "") || !file) throw new Error("USAGE: --recover <clipId> <path-to-mp4>");
+    const path = join(dirs.ready, `${clipId}.mp4`), bytes = await readFile(resolve(file));
+    await writeFile(path, bytes);
+    const media = await inspectVideo(path), sha256 = createHash("sha256").update(bytes).digest("hex");
+    await portalApi(settings).upload({ id: clipId }, { path, sha256, media });
+    console.log(`เข้าคลังแล้ว: ${clipId}`);
+    return;
+  }
   const lock = join(root, "farm.lock");
   let handle;
   try { handle = await open(lock, "wx"); }

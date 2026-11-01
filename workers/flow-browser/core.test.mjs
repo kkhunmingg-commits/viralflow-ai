@@ -54,3 +54,9 @@ test('stops on ambiguous or uncalibrated result identity', () => {
   assert.throws(() => newResultId([], [null]), /CALIBRATE_UNIQUE_RESULT_IDS/);
   assert.throws(() => newResultId(['same', 'same'], ['same']), /CALIBRATE_UNIQUE_RESULT_IDS/);
 });
+
+test("reads Flow's progress percent only when it is new since the click", async () => {
+  const { generationPercent } = await import("./farm-driver.mjs");
+  assert.equal(generationPercent("x1 100%", "x1 100% 42%"), 42);
+  assert.equal(generationPercent("", "วิดีโอ · 720p"), null);
+});

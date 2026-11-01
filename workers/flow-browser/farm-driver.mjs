@@ -177,6 +177,7 @@ export async function signInFlowAccount(account, config, { timeoutMs = 15 * 60_0
   const costNote = async page => {
     try {
       await openComposer(page, { flowUrl: config.flowUrl, selectors });
+      await step("CHECKING_COST");
       await chooseSingleOutput(page, selectors);
       const cost = await readCost(page, selectors);
       const decision = costDecision(cost, config.costPolicy);
@@ -248,17 +249,21 @@ export async function openFlowAccount(account, config) {
       return report;
     },
     async generate(clip) {
+      const step = (stage, detail) => config.progress?.(clip.id, stage, detail);
       let prompt;
       try { prompt = await openComposer(page, { flowUrl: config.flowUrl, selectors }); }
       catch (error) { return fail(error.message); }
       if (appeared("", await bodyText(page), NO_CREDIT_PATTERNS)) return { status: "NO_CREDIT" };
+      if (clip.imageUrl) await step("ATTACHING_IMAGE");
       try { await attachReference(page, selectors, clip.imageUrl, config.scratchDir, clip.id); }
       catch (error) { return fail(error.message); }
       // Cost depends on the saved model/outputs, not the prompt: check it before typing anything.
+      await step("CHECKING_COST");
       await chooseSingleOutput(page, selectors);
       const cost = await readCost(page, selectors);
       const decision = costDecision(cost, config.costPolicy);
       if (!decision.ok) return fail(decision.reason);
+      await step("TYPING_PROMPT", cost != null ? `${cost} เครดิต` : undefined);
       await prompt.click();
       await prompt.fill(clip.prompt);
       const button = await generateButton(page, selectors);
@@ -272,14 +277,28 @@ export async function openFlowAccount(account, config) {
       const beforeVideos = await revealVideos(page, beforePosters);
       await config.journal?.(clip.id, { state: "GENERATING", account: account.id, cost, clickedAt: new Date().toISOString() });
       await button.click({ timeout: 15_000 });
-      const deadline = Date.now() + config.maxWaitMs;
+      const clickedAt = Date.now(), deadline = clickedAt + config.maxWaitMs;
+      let lastReport = 0, lastReload = clickedAt;
+      await step("WAITING_FLOW", "ส่งงานให้ Google แล้ว");
       while (Date.now() < deadline) {
         await page.waitForTimeout(config.pollMs);
+        // Flow finishes the clip but the open page often never shows it (seen 1 Nov): reload the project now and then.
+        if (Date.now() - clickedAt >= 75_000 && Date.now() - lastReload >= 60_000) {
+          lastReload = Date.now();
+          await page.reload({ waitUntil: "domcontentloaded", timeout: 60_000 }).catch(() => {});
+          await page.waitForTimeout(4_000);
+        }
         const text = await bodyText(page);
+        if (Date.now() - lastReport >= 15_000) {
+          lastReport = Date.now();
+          const percent = generationPercent(beforeText, text);
+          await step("WAITING_FLOW", `${Math.round((Date.now() - clickedAt) / 60_000 * 10) / 10} นาที${percent != null ? ` · Flow ${percent}%` : ""}`);
+        }
         const posters = (await resultPosters(page)).filter(src => !beforePosters.has(src));
         const added = newVideoSources(beforeVideos, posters.length ? await revealVideos(page, posters) : await videoSources(page));
         if (added.length) {
           const path = join(config.readyDir, `${clip.id}.mp4`);
+          await step("DOWNLOADING");
           try {
             const bytes = await saveVideo(page, added[0], path);
             const media = await inspectVideo(path);
@@ -290,11 +309,39 @@ export async function openFlowAccount(account, config) {
         }
         // Refused for credits right after the click: Flow did not take the job.
         if (appeared(beforeText, text, NO_CREDIT_PATTERNS)) return { status: "NO_CREDIT" };
-        if (appeared(beforeText, text, FAILED_PATTERNS)) return fail("FLOW_REPORTED_FAILURE", true);
+        if (appeared(beforeText, text, FAILED_PATTERNS)) {
+          await saveDebug(page, config.debugDir, clip.id, "failed");
+          return fail("FLOW_REPORTED_FAILURE", true);
+        }
       }
+      // Keep what Flow showed, so the next fix is based on the real page rather than a guess.
+      await saveDebug(page, config.debugDir, clip.id, "timeout");
       return fail("NEW_VIDEO_TIMEOUT_CHECK_FLOW", true);
     },
   };
+}
+
+/** The highest new "NN%" Flow shows on the page since the click (its progress on a tile), or null. */
+export function generationPercent(before, after) {
+  const seen = new Set(String(before).match(/\b\d{1,3}\s?%/g) ?? []);
+  const values = (String(after).match(/\b\d{1,3}\s?%/g) ?? []).filter(v => !seen.has(v)).map(v => Number.parseInt(v, 10)).filter(n => n >= 0 && n <= 100);
+  return values.length ? Math.max(...values) : null;
+}
+
+/** Screenshot, page text and media list of the Flow page, for a clip that did not come back. Best effort. */
+async function saveDebug(page, dir, clipId, label) {
+  if (!dir) return;
+  try {
+    await mkdir(dir, { recursive: true });
+    const base = join(dir, `${clipId}-${label}`);
+    await page.screenshot({ path: `${base}.png`, fullPage: false }).catch(() => {});
+    const media = await page.evaluate(() => ({
+      url: location.href,
+      images: [...document.querySelectorAll("img")].map(img => ({ src: img.src.slice(0, 200), w: img.naturalWidth, h: img.naturalHeight })).slice(-60),
+      videos: [...document.querySelectorAll("video")].map(v => ({ src: v.currentSrc || v.getAttribute("src"), poster: v.poster })),
+    })).catch(() => ({}));
+    await writeFile(`${base}.json`, JSON.stringify({ ...media, text: (await bodyText(page)).slice(-20_000) }, null, 2));
+  } catch { /* diagnostics must never break the run */ }
 }
 
 export async function readVideoFile(path) { return readFile(path); }

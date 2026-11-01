@@ -60,6 +60,7 @@ export function newVideoSources(before, after) {
  */
 export async function runFarmPass(deps, options = {}) {
   const { api, openAccount, log = () => {} } = deps;
+  const progress = (clipId, stage, detail) => api.progress?.(clipId, stage, detail)?.catch?.(() => {});
   const maxConsecutiveFailures = options.maxConsecutiveFailures ?? 3;
   const summary = { made: 0, failed: 0, exhaustedAccounts: [], brokenAccounts: [], queueEmpty: false, skipped: 0, stoppedBy: null };
   // Only accounts the computer has seen signed in make clips; PENDING ones are signed in first by runLoginPass.
@@ -75,6 +76,7 @@ export async function runFarmPass(deps, options = {}) {
         // Nothing left that this Google account may make (its TikTok account is done): try the next account.
         const clip = await api.claim(account.id);
         if (!clip) break;
+        await progress(clip.id, "OPENING_FLOW", account.label);
         if (!session) {
           try { session = await openAccount(account); }
           catch (error) {
@@ -90,7 +92,9 @@ export async function runFarmPass(deps, options = {}) {
         catch (error) { result = { status: "FAILED", reason: message(error), started: Boolean(error?.started) }; }
         if (result.status === "OK") {
           try {
+            await progress(clip.id, "UPLOADING");
             await api.upload(clip, result);
+            await progress(clip.id, "DONE");
             summary.made++; failures = 0;
             log(`[${account.label}] เสร็จ เข้าคลังแล้ว (${summary.made})`);
           } catch (error) {
@@ -112,10 +116,17 @@ export async function runFarmPass(deps, options = {}) {
           return summary;
         } else {
           summary.failed++; failures++;
+          await progress(clip.id, "FAILED", result.reason);
           await api.fail(clip.id, String(result.reason ?? "FAILED").slice(0, 300), !result.started);
           log(`[${account.label}] ไม่สำเร็จ: ${result.reason}${result.started ? " (ไม่สร้างซ้ำอัตโนมัติ)" : ""}`);
           if (!result.started && /^COST_|LOGIN|PROMPT_BOX|GENERATE_BUTTON/.test(String(result.reason))) {
             // A setup problem on this account (wrong model, signed out, page changed): try the next account.
+            summary.brokenAccounts.push({ id: account.id, reason: result.reason });
+            accountDone = true;
+          } else if (/^NEW_VIDEO_TIMEOUT/.test(String(result.reason))) {
+            // Flow may have made it anyway: hold this account (until the owner presses "ล็อกอินใหม่") instead of
+            // spending credits on the next clip with a page that is not showing results.
+            await api.login(account.id, "FAILED", "รอวิดีโอนานเกิน ตรวจคลิปในคลัง Flow แล้วกด ล็อกอินใหม่").catch(() => {});
             summary.brokenAccounts.push({ id: account.id, reason: result.reason });
             accountDone = true;
           } else if (failures >= maxConsecutiveFailures) {
@@ -128,6 +139,7 @@ export async function runFarmPass(deps, options = {}) {
   }
   // The server skips only queued clips that no Google account with credits left may make, so what was made
   // stays and a signed-out or broken account leaves its clips waiting for the owner to fix it.
+  await progress(null, "IDLE", `ทำได้ ${summary.made} คลิป`);
   const finished = await api.finish();
   summary.skipped = finished?.skipped ?? 0;
   if (accounts.every(account => summary.exhaustedAccounts.includes(account.id))) summary.stoppedBy = "ALL_CREDITS_USED";
