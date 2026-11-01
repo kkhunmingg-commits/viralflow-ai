@@ -15,7 +15,7 @@ export function LiveClipProgressPanel({ accountId, initial }: { accountId: strin
   const [offsetMs, setOffsetMs] = useState(0);
   const [tick, setTick] = useState(() => Date.now());
   const [stale, setStale] = useState(false);
-  const finished = useRef(new Set(initial.clips.filter(c => !ACTIVE.includes(c.status)).map(c => c.id)));
+  const seen = useRef(new Map(initial.clips.map(c => [c.id, c.status])));
 
   const busy = data.clips.some(c => ACTIVE.includes(c.status));
   useEffect(() => {
@@ -29,8 +29,10 @@ export function LiveClipProgressPanel({ accountId, initial }: { accountId: strin
           if (cancelled) return;
           setData(next); setStale(false); setOffsetMs(Date.parse(next.now) - Date.now());
           // A clip just reached the library: re-render the server parts (library grid, counts, capacity).
-          const done = next.clips.filter(c => !ACTIVE.includes(c.status) && !finished.current.has(c.id));
-          if (done.length) { done.forEach(c => finished.current.add(c.id)); router.refresh(); }
+          // Any change into or out of a finished state (also a missed clip recovered into the library) refreshes it.
+          const changed = next.clips.filter(c => seen.current.get(c.id) !== c.status && (!ACTIVE.includes(c.status) || !ACTIVE.includes(seen.current.get(c.id) ?? "QUEUED")));
+          next.clips.forEach(c => seen.current.set(c.id, c.status));
+          if (changed.length) router.refresh();
         } catch { if (!cancelled) setStale(true); }
       }
       if (!cancelled) timer = setTimeout(poll, busy ? 4000 : 20000);
