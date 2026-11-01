@@ -1,0 +1,81 @@
+/* Mobile-first shell: compact header, bottom tab bar, tighter spacing on every app page. */
+.topbar-brand, .mobile-tabbar { display: none; }
+.avatar-link { display: inline-flex; }
+
+.clip-phone-actions { display: flex; flex-direction: column; gap: 6px; }
+.clip-phone-buttons { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.clip-phone-buttons button { gap: 6px; width: 100%; }
+.clip-phone-actions small { color: #a5eed9; line-height: 1.5; }
+.library-phone-tip { margin: 14px 0 0; padding: 10px 14px; border-radius: 12px; color: #cfd8ea; background: #1e2540; font-size: 13px; line-height: 1.6; }
+.library-more > summary { cursor: pointer; display: flex; align-items: center; min-height: 40px; color: #c5b9ff; font-weight: 700; font-size: 14px; }
+.library-more[open] { display: flex; flex-direction: column; gap: 10px; }
+
+@media (max-width: 820px) {
+  .app-frame { display: block; min-height: 100svh; }
+  .app-frame .sidebar { display: none; }
+  .app-frame .topbar {
+    position: sticky; top: 0; z-index: 40; gap: 8px; min-height: 52px;
+    padding: env(safe-area-inset-top) 12px 0; backdrop-filter: blur(14px);
+  }
+  .app-frame .topbar-title, .app-frame .user-copy { display: none; }
+  .app-frame .topbar { justify-content: space-between; }
+  .app-frame .topbar-brand { margin-right: auto; display: inline-flex; align-items: center; gap: 8px; color: #f3f5fb; font: 800 16px var(--font-manrope), sans-serif; }
+  .app-frame .topbar-brand .brand-mark { width: 30px; height: 30px; border-radius: 9px; box-shadow: none; font-size: 14px; }
+  .app-frame .user-menu { gap: 6px; }
+  .app-frame .avatar { width: 30px; height: 30px; }
+  .app-frame .text-button { padding: 6px 4px; font-size: 11px; }
+  .app-frame .page-content { padding: 12px 12px calc(80px + env(safe-area-inset-bottom)); }
+
+  .mobile-tabbar {
+    position: fixed; inset: auto 0 0; z-index: 40; display: grid; grid-template-columns: repeat(5, 1fr);
+    padding: 4px 4px env(safe-area-inset-bottom); border-top: 1px solid #252c3a; background: rgba(13, 16, 24, .96); backdrop-filter: blur(14px);
+  }
+  .mobile-tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 54px; border-radius: 12px; color: #8f9cb2; font-size: 11px; font-weight: 700; }
+  .mobile-tab span { font-size: 18px; line-height: 1; }
+  .mobile-tab.active { color: #e4e0ff; background: rgba(113, 100, 245, .18); }
+
+  /* Shared page pieces */
+  .app-frame .page-heading { gap: 10px; margin-bottom: 14px; }
+  .app-frame .page-heading h1 { font-size: 24px; letter-spacing: -.02em; }
+  .app-frame .page-heading > div > p:last-child { font-size: 13px; }
+  .app-frame .panel, .app-frame .stat-card, .app-frame .account-card { padding: 14px; border-radius: 14px; }
+  .app-frame .stats-grid, .app-frame .dashboard-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .app-frame .stat-card { min-height: 0; }
+  .app-frame .stat-card strong { font-size: 22px; }
+  .app-frame .stat-card small { font-size: 11px; }
+  .app-frame .accounts-identity { flex: 1 1 140px; }
+  .app-frame .primary-action, .app-frame .secondary-action { min-height: 44px; }
+  .app-frame .page-content table { display: block; max-width: 100%; overflow-x: auto; }
+  .app-frame :is(input:not([type="checkbox"]):not([type="radio"]), select, textarea) { font-size: 16px; } /* no iOS zoom on focus */
+
+  /* Clip page (/post) */
+  /* On the phone the job is posting: the clip library comes right after the account picker; PC setup follows. */
+  .app-frame .manual-page { display: flex; flex-direction: column; padding: 0 0 12px; }
+  .app-frame .manual-page > .manual-hero { order: -4; }
+  .app-frame .manual-page > .library-message { order: -3; }
+  .app-frame .manual-page > .flow-account-picker { order: -2; }
+  .app-frame .manual-page > .library-section { order: -1; }
+  .app-frame .manual-steps { display: none; }
+  .app-frame .manual-hero { gap: 6px; }
+  .app-frame .manual-hero h1 { margin: 2px 0 6px; font-size: 24px; }
+  .app-frame .manual-hero p:not(.manual-eyebrow) { display: none; }
+  .app-frame .manual-back { display: none; }
+  .app-frame .manual-steps { gap: 6px 12px; margin: 0; padding: 10px 0; font-size: 12px; }
+  .app-frame .manual-steps span { width: 22px; height: 22px; font-size: 12px; }
+  .app-frame .manual-panel { margin-bottom: 12px; padding: 14px 12px; border-radius: 16px; }
+  .app-frame .manual-section-head { gap: 8px; }
+  .app-frame .manual-section-head h2 { font-size: 18px; }
+  .app-frame .manual-muted, .app-frame .manual-warning { font-size: 13px; line-height: 1.55; }
+  .app-frame .manual-primary, .app-frame .manual-secondary { min-height: 46px; padding: 10px 14px; }
+  .app-frame .flow-worker { margin-bottom: 12px; padding: 10px 12px; font-size: 13px; }
+  .app-frame .flow-account-picker { margin-bottom: 12px; }
+  .app-frame .flow-account-picker { flex-wrap: nowrap; gap: 8px; }
+  .app-frame .flow-account-picker .manual-filter { flex: 1 1 auto; }
+  .app-frame .flow-account-picker .manual-secondary { flex: none; padding-inline: 12px; }
+  .app-frame .library-grid { gap: 14px; margin-top: 14px; }
+  .app-frame .library-clip { border-radius: 16px; }
+  .app-frame .library-clip video { max-height: 58svh; }
+  .app-frame .library-clip-body { padding: 12px; gap: 8px; }
+  .app-frame .library-flow-list li { padding: 10px 12px; }
+  .app-frame .library-start { gap: 10px; margin: 12px 0 8px; }
+}

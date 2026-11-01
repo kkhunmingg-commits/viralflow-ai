@@ -45,6 +45,10 @@ const nextConfig: NextConfig = {
         { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
         { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
       ],
+    }, {
+      // The browser must always re-check the service worker so fixes reach installed phones.
+      source: "/sw.js",
+      headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Content-Type", value: "application/javascript; charset=utf-8" }],
     }];
   },
   // TypeScript is a separate required quality gate (`pnpm typecheck`). This

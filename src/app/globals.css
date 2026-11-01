@@ -425,3 +425,15 @@ a { color: inherit; text-decoration: none; }
   .advanced-nav > summary::before { content: "•••"; color: #bcb4ff; font-size: 15px; letter-spacing: 2px; }
   .advanced-nav > summary span { display: none; }
 }
+
+/* Install-as-app button and help sheet (shared by the app and the login page). */
+.install-app-button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid #5b5494; border-radius: 999px; color: #e4e0ff; background: #2a2748; font: 700 12px var(--font-thai), var(--font-manrope), sans-serif; white-space: nowrap; cursor: pointer; }
+.install-app-button.wide { width: 100%; justify-content: center; min-height: 46px; margin-top: 14px; font-size: 14px; }
+.install-sheet-backdrop { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-end; justify-content: center; background: rgba(4, 6, 12, .66); }
+.install-sheet { width: min(100%, 460px); max-height: 85svh; overflow: auto; padding: 22px 20px calc(20px + env(safe-area-inset-bottom)); border-radius: 20px 20px 0 0; color: #f0f3fa; background: #1b202b; box-shadow: 0 -12px 40px rgba(0,0,0,.4); }
+.install-sheet h2 { margin: 0 0 12px; font-size: 18px; }
+.install-sheet ol { display: grid; gap: 10px; margin: 0 0 14px; padding-left: 22px; line-height: 1.6; }
+.install-sheet p { margin: 0 0 16px; color: #9faec6; font-size: 13px; line-height: 1.6; }
+.install-sheet .manual-primary { width: 100%; min-height: 48px; border: 0; border-radius: 12px; color: #fff; background: linear-gradient(110deg,#8165ed,#567de7); font: inherit; font-weight: 750; }
+.install-glyph { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: #8db4ff; background: #263049; font-size: 13px; }
+@media (min-width: 821px) { .install-sheet-backdrop { align-items: center; } .install-sheet { border-radius: 20px; } }

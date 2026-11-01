@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { LoginForm } from "./login-form";
 import { loginErrorMessage } from "./auth-flow";
+import { InstallAppButton } from "@/components/pwa/install-app-button";
 import "./login.css";
 
 export const metadata: Metadata = { title: { absolute: "Viral Flow AI — Login" } };
@@ -30,6 +31,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             <p className="auth-card-subtitle">เข้าสู่ระบบเพื่อเปิด Control Center ของคุณ</p>
             <LoginForm initialError={loginErrorMessage(error)} />
             <p className="auth-privacy">เซสชันของคุณจัดการโดย Supabase Auth อย่างปลอดภัย</p>
+            <InstallAppButton className="install-app-button wide" />
           </div>
           <nav className="auth-panel-foot" aria-label="เว็บไซต์และนโยบาย"><Link href="/">Viral Flow AI</Link> <span>·</span> <Link href="/privacy">Privacy Policy</Link> <span>·</span> <Link href="/terms">Terms of Service</Link> <span>·</span> <Link href="/support">Contact</Link></nav>
         </section>

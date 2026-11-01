@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/sidebar";
 import { Topbar } from "@/components/topbar";
+import { MobileNav } from "@/components/mobile-nav";
 import { createClient } from "@/lib/supabase/server";
 import "./app-theme.css";
+import "./mobile.css";
 
 export default async function AppLayout({
   children,
@@ -47,6 +49,7 @@ export default async function AppLayout({
         />
         <main className="page-content">{children}</main>
       </div>
+      <MobileNav />
     </div>
   );
 }

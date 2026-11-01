@@ -2,7 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { env } from "@/lib/env";
 
-const publicPaths = new Set(["/", "/login", "/terms", "/privacy", "/review-guide", "/product-guide", "/support", "/tiktokjKFfcToXhtvp5qMnaP1tS1Uaj2Ydn9Aj.txt"]);
+const publicPaths = new Set(["/", "/login", "/terms", "/privacy", "/review-guide", "/product-guide", "/support", "/tiktokjKFfcToXhtvp5qMnaP1tS1Uaj2Ydn9Aj.txt", "/manifest.webmanifest", "/sw.js", "/offline.html"]);
 // A hidden menu is not access control. These internal pages need a trusted
 // server-managed role in app_metadata, never user_metadata.
 const diagnosticPages = [
@@ -15,6 +15,8 @@ export async function updateSession(request: NextRequest) {
   // Skip cookie auth for these routes; the handler checks a server-only bearer secret.
   if (["/api/operations/recovery", "/api/multi-account/tick"].includes(request.nextUrl.pathname)
     || request.nextUrl.pathname.startsWith("/api/flow-worker/")) return NextResponse.next({ request });
+  // Install files must load signed out and fast (the phone fetches them before login).
+  if (["/manifest.webmanifest", "/sw.js", "/offline.html"].includes(request.nextUrl.pathname)) return NextResponse.next({ request });
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(

@@ -76,7 +76,6 @@ export function TikTokDraftButton({ clipId, accountId, initial, caption }: { cli
   return <div className="library-draft">
     {canSend && <button className="manual-primary" type="button" disabled={busy} onClick={send}>{busy ? "กำลังส่ง…" : "ส่งเข้า TikTok (แบบร่าง)"}</button>}
     {receipt && !settled(receipt.status) && <button className="library-link" type="button" disabled={busy} onClick={refresh}>ตรวจสถานะ</button>}
-    {caption && <button className="library-link" type="button" onClick={async () => setCopied(await copyText(caption))}>คัดลอกคำบรรยาย + แฮชแท็ก</button>}
     <small role="status" aria-live="polite">{message || (receipt ? labels[receipt.status] ?? "กำลังตรวจสถานะ" : "ส่งเข้าแบบร่างใน TikTok ยังไม่โพสต์ คุณเปิดแอปแล้วกดโพสต์เอง")}</small>
     {copied !== null && <small role="status">{copied ? "✓ คัดลอกคำบรรยายและแฮชแท็กแล้ว วางในช่องคำบรรยายของแอป TikTok ได้เลย" : "คัดลอกอัตโนมัติไม่ได้ กดค้างในกล่องคำบรรยายด้านบนแล้วคัดลอกเอง"}</small>}
   </div>;
