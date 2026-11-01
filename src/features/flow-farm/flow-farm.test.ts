@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { accountsFor, clipsToAdd, flowAccountViews, nextFlowAccount, remainingCapacity } from "./capacity";
-import { bangkokDate, bangkokDayRange, bangkokLocalToIso } from "./contracts";
+import { bangkokDate, bangkokDayRange, bangkokLocalToIso, draftDelivered } from "./contracts";
 import { planBatch, type FarmProduct } from "./planner";
 
 const row = (id: string, priority: number, extra: Partial<Parameters<typeof flowAccountViews>[0][number]> = {}) => ({
@@ -73,5 +73,14 @@ describe("live clip progress", () => {
     expect(decodeProgress("old free-text note")).toBeNull();
     expect(flowErrorLabel("NEW_VIDEO_TIMEOUT_CHECK_FLOW")).toContain("คลัง Flow");
     expect(flowErrorLabel("SOMETHING_NEW")).toBe("SOMETHING_NEW");
+  });
+});
+
+// A clip leaves the library only once TikTok confirms the draft reached the owner's app.
+describe("draftDelivered", () => {
+  it("is true only for TikTok-confirmed delivery", () => {
+    expect(draftDelivered("SEND_TO_USER_INBOX")).toBe(true);
+    expect(draftDelivered("PUBLISH_COMPLETE")).toBe(true);
+    for (const status of ["RESERVED", "INITIALIZED", "UPLOADED", "FAILED", "RECONCILIATION_REQUIRED"]) expect(draftDelivered(status)).toBe(false);
   });
 });

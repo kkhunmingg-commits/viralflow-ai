@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { serverEnv } from "@/lib/server-env";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { inboxContext } from "@/features/tiktok/inbox-service";
+import { closeDeliveredDraftClips, draftDelivered } from "@/features/flow-farm/service";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { assertInboxMedia, INBOX_MAX_BYTES, inboxPublicReceipt, refreshInboxReceipt, sendInboxVideo } from "@/features/tiktok/inbox-flow";
 
 export const runtime = "nodejs";
@@ -59,8 +61,12 @@ export async function GET(request: Request) {
     if (error || !data.user) return failure(401);
     await enforceOwnerMutationRateLimit("tiktok-inbox-status", data.user.id);
     const params = new URL(request.url).searchParams;
-    const context = await inboxContext(data.user.id, uuid.parse(params.get("account")));
-    const receipt = await context.receipt(uuid.parse(params.get("receipt")));
-    return NextResponse.json(inboxPublicReceipt(await refreshInboxReceipt(context.store, context.provider, context.token, receipt)), { headers });
+    const accountId = uuid.parse(params.get("account"));
+    const context = await inboxContext(data.user.id, accountId);
+    const receipt = await refreshInboxReceipt(context.store, context.provider, context.token, await context.receipt(uuid.parse(params.get("receipt"))));
+    // Only after TikTok confirms the draft is in the owner's app is the library copy deleted.
+    const removed = draftDelivered(receipt.status)
+      ? (await closeDeliveredDraftClips(createAdminClient(), data.user.id, accountId, [receipt.media_sha256]).catch(() => [])).length > 0 : false;
+    return NextResponse.json({ ...inboxPublicReceipt(receipt), removed }, { headers });
   } catch { return failure(); }
 }

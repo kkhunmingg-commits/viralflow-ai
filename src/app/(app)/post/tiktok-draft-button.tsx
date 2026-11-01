@@ -1,10 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export interface DraftReceipt { receipt: string; status: string }
 const labels: Record<string, string> = {
   RESERVED: "กำลังเตรียมส่ง…", INITIALIZED: "กำลังส่งวิดีโอเข้า TikTok…", UPLOADED: "ส่งแล้ว TikTok กำลังเตรียมวิดีโอ…",
-  SEND_TO_USER_INBOX: "✓ อยู่ในแบบร่าง TikTok แล้ว เปิดแอป TikTok ดูการแจ้งเตือน (Inbox) แล้วกดโพสต์",
+  SEND_TO_USER_INBOX: "✓ อยู่ในแบบร่าง TikTok แล้ว ลบคลิปออกจากคลังให้แล้ว เปิดแอป TikTok ดูการแจ้งเตือน (Inbox) แล้วกดโพสต์",
   PUBLISH_COMPLETE: "✓ โพสต์ผ่าน TikTok แล้ว", FAILED: "TikTok รับวิดีโอนี้ไม่ได้ กดส่งใหม่ได้",
   RECONCILIATION_REQUIRED: "ยังยืนยันการส่งไม่ได้ กดตรวจสถานะ",
 };
@@ -30,14 +31,17 @@ export function TikTokDraftButton({ clipId, accountId, initial, caption }: { cli
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [copied, setCopied] = useState<boolean | null>(null);
+  const router = useRouter();
 
   const check = useCallback(async (current: DraftReceipt, signal?: AbortSignal) => {
     const response = await fetch(`/api/tiktok/inbox-upload?account=${encodeURIComponent(accountId)}&receipt=${encodeURIComponent(current.receipt)}`, { cache: "no-store", signal });
     if (!response.ok) throw new Error("status_unavailable");
-    const next: DraftReceipt = await response.json();
+    const { removed, ...next }: DraftReceipt & { removed?: boolean } = await response.json();
     setReceipt(next);
+    // TikTok confirmed the draft and the server deleted the library copy: let the owner read the result, then drop the card.
+    if (removed) setTimeout(() => router.refresh(), 6000);
     return next;
-  }, [accountId]);
+  }, [accountId, router]);
 
   const currentId = receipt?.receipt, done = receipt ? settled(receipt.status) : true;
   useEffect(() => {

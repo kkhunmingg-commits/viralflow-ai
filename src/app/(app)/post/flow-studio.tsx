@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { accountsFor, remainingCapacity, type FlowAccountView } from "@/features/flow-farm/capacity";
 import { bangkokDate, MAX_FLOW_ACCOUNTS_PER_TIKTOK } from "@/features/flow-farm/contracts";
-import { flowLogins, listFlowAccounts, listLibrary, liveClipProgress, workerLastSeen } from "@/features/flow-farm/service";
+import { closeDeliveredDraftClips, draftDelivered, flowLogins, listFlowAccounts, listLibrary, liveClipProgress, workerLastSeen } from "@/features/flow-farm/service";
 import { LiveClipProgressPanel } from "./live-clip-progress";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addFlowAccountAction, discardClipAction, flowAccountAction, markPostedAction, scheduleClipAction, startBatchAction, unscheduleClipAction } from "./flow-actions";
@@ -25,6 +25,14 @@ async function loadStudio(client: SupabaseClient, owner: string, accountId: stri
     ...await loadDrafts(client, owner, accountId, list(settled[2]).map(clip => clip.video_sha256).filter((hash): hash is string => !!hash)) };
 }
 
+/** Clips whose draft TikTok already confirmed (e.g. the page was closed before) leave the library on the next load. */
+async function dropDeliveredDrafts(owner: string, accountId: string, studio: Awaited<ReturnType<typeof loadStudio>>) {
+  const delivered = [...studio.drafts].filter(([, draft]) => draftDelivered(draft.status)).map(([hash]) => hash);
+  if (!delivered.length) return studio;
+  const removed = new Set(await closeDeliveredDraftClips(createAdminClient(), owner, accountId, delivered).catch(() => []));
+  return { ...studio, library: studio.library.filter(clip => !removed.has(clip.id)) };
+}
+
 /** Whether this TikTok account may receive drafts, and what was already sent, keyed by the clip's MP4 hash. */
 async function loadDrafts(client: SupabaseClient, owner: string, accountId: string, hashes: string[]) {
   const [account, sent] = await Promise.all([
@@ -46,7 +54,7 @@ function loginLabel(f: FlowAccountView) {
 }
 
 export async function FlowStudio({ client, owner, account }: { client: SupabaseClient; owner: string; account: StudioAccount }) {
-  const { flowAccounts, live, library, lastSeen, unavailable, now, drafts, draftScope, publishScope, scopes } = await loadStudio(client, owner, account.id);
+  const { flowAccounts, live, library, lastSeen, unavailable, now, drafts, draftScope, publishScope, scopes } = await dropDeliveredDrafts(owner, account.id, await loadStudio(client, owner, account.id));
   const own = flowAccounts.filter(f => f.tiktokAccountId === account.id), shared = flowAccounts.filter(f => f.tiktokAccountId === null);
   const capacity = remainingCapacity(flowAccounts);
   const defaultCount = Math.min(30, Math.max(1, account.daily_post_target ?? 5));

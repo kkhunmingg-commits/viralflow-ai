@@ -5,6 +5,7 @@ import { getProductRadar } from "@/features/products/services";
 import { bangkokDate, bangkokDayRange, COUNTED_STATUSES, FLOW_CLIP_MAX_BYTES, LIBRARY_STATUSES, MAX_CLIPS_PER_BATCH, MAX_FLOW_ACCOUNTS_PER_TIKTOK,
   decodeProgress, encodeProgress, type FlowAccountRow, type FlowClipStatus, type FlowLoginState, type FlowProgress, type FlowProgressStage } from "./contracts";
 import { clipsToAdd, flowAccountViews } from "./capacity";
+export { draftDelivered } from "./contracts";
 import { planBatch, type FarmProduct } from "./planner";
 import { productsForNiche, type NicheKey } from "./niches";
 
@@ -403,6 +404,22 @@ export async function closeClip(admin: SupabaseClient, owner: string, id: string
     status: outcome.posted ? "POSTED" : "DISCARDED", posted_at: outcome.posted ? now.toISOString() : null, post_url: outcome.posted ? outcome.url : null,
     storage_path: null, file_deleted_at: now.toISOString(), updated_at: now.toISOString(),
   }).eq("owner_id", owner).eq("id", id).in("status", LIBRARY_STATUSES), "flow_clip_not_saved");
+}
+
+/**
+ * Once TikTok confirms a draft reached the owner's app, the library copy is no longer needed: the clip is closed as
+ * posted and its MP4 deleted. Matched by the MP4 hash the draft was sent with. Returns the ids removed.
+ */
+export async function closeDeliveredDraftClips(admin: SupabaseClient, owner: string, accountId: string, hashes: string[]) {
+  if (!hashes.length) return [];
+  const clips = check(await admin.from("flow_clips").select("id").eq("owner_id", owner).eq("tiktok_account_id", accountId)
+    .in("video_sha256", hashes).in("status", LIBRARY_STATUSES).not("storage_path", "is", null), "flow_clips_unavailable") as Array<{ id: string }> | null;
+  const removed: string[] = [];
+  for (const clip of clips ?? []) {
+    try { await closeClip(admin, owner, clip.id, { posted: true, url: null }); removed.push(clip.id); }
+    catch { /* Left in the library; the next status check or page load tries again. */ }
+  }
+  return removed;
 }
 
 /**

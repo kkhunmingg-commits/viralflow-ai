@@ -116,3 +116,8 @@ export function flowErrorLabel(error: string | null | undefined) {
   ];
   return known.find(([pattern]) => pattern.test(error))?.[1] ?? error;
 }
+
+/** Inbox statuses meaning TikTok confirmed the draft reached the owner's TikTok app. */
+export const DRAFT_DELIVERED_STATUSES = ["SEND_TO_USER_INBOX", "PUBLISH_COMPLETE"];
+/** True only when TikTok confirmed delivery; uploading, processing, failed or uncertain sends keep the clip. */
+export const draftDelivered = (status: string) => DRAFT_DELIVERED_STATUSES.includes(status);
