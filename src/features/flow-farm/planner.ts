@@ -4,6 +4,7 @@ import { categoryPlaybook } from "@/features/creative/category-insight";
 import { shoppingMoment, trendCaption, trendFormatsFor } from "@/features/creative/trend-playbook";
 import type { FlowClipKind } from "./contracts";
 import { CTA_VARIANTS, type CtaId, type PlanGuide } from "./learning";
+import { NICHE_KEYS, NICHES, nicheOfSeries, type NicheKey } from "./niches";
 
 /** A product the one-click search found: best-selling (by stored score) with a cleared photograph. */
 export interface FarmProduct {
@@ -17,7 +18,11 @@ export interface PlannedClip {
 /** A warm-up clip: one 8-second take built to stop the scroll and earn a follow. No product, no claim.
  * `hook` is the first frame, already mid-action; `twist` lands near second 4; `payoff` is the last frame, framed
  * to loop back into the first. Each belongs to a `series`, because people follow a channel for the next episode. */
-interface GrowthConcept { series: string; title: string; hashtags: readonly string[]; line: string; hook: string; twist: string; payoff: string; follow: string }
+interface GrowthConcept {
+  series: string; title: string; hashtags: readonly string[]; line: string; hook: string; twist: string; payoff: string; follow: string;
+  /** "เห็นเลขไหม": digits are meant to appear as natural shapes (smoke, water, wax), so the no-text rule is worded around them. */
+  numerals?: boolean;
+}
 
 /** The owner found calm, slow scenes (a tidy desk) boring and not follow-worthy. These are the faceless AI formats
  * that pull follows on Thai TikTok now: miniature cooking, animals doing human jobs, impossible satisfying cuts,
@@ -144,6 +149,283 @@ const GROWTH_CONCEPTS: readonly GrowthConcept[] = [
     twist: "inside, a tiny tropical island floats in clear coconut water with a miniature longtail boat circling it",
     payoff: "the camera rises to show the open coconut on the sunny table, the tiny boat still drifting inside",
     follow: "ติดตามไว้ ตอนหน้าจะพาไปโลกจิ๋วในอะไรดี" },
+  // Third wave: more niches (หมวด) so the channel can find what its audience likes: comedy, mystery, lucky numbers, dogs.
+  { series: "หมาดราม่า", title: "หมาดราม่า: โดนแย่งที่นอน", hashtags: ["#หมา", "#หมาดราม่า", "#dogsoftiktok"],
+    line: "ที่นอนของหนู แมวมาแย่งไปแล้ว ไม่ยอมนะ",
+    hook: "a fluffy golden puppy stands frozen in a doorway staring at its round dog bed, where a smug cat is already curled up",
+    twist: "the puppy flops onto the floor beside the bed and lets out a long dramatic sigh, ears drooping",
+    payoff: "the cat slowly scoots over and the puppy squeezes in next to it, both settling with a contented blink",
+    follow: "ติดตามไว้ พรุ่งนี้หมาดราม่าเรื่องอะไรอีก ทายกันมา" },
+  { series: "หมาดราม่า", title: "หมาดราม่า: ไม่อยากอาบน้ำ", hashtags: ["#หมา", "#หมาดราม่า", "#dogsoftiktok"],
+    line: "ได้ยินคำว่าอาบน้ำ หมาหายตัวทันที",
+    hook: "a corgi is already sneaking backwards out of a bathroom on tiptoe as bath water runs behind it",
+    twist: "it hides behind a curtain but its round fluffy bottom and wagging stump of a tail stick out",
+    payoff: "the corgi peeks out, sees the camera and freezes with wide guilty eyes, in the opening framing",
+    follow: "ติดตามไว้ พรุ่งนี้หมาดราม่าเรื่องอะไรอีก ทายกันมา" },
+  { series: "หมาดราม่า", title: "หมาดราม่า: ขอขนมแบบมืออาชีพ", hashtags: ["#หมา", "#หมาขี้อ้อน", "#dogsoftiktok"],
+    line: "สายตาแบบนี้ ใครจะใจแข็งไม่ให้ขนม",
+    hook: "a small brown dog sits perfectly straight beside a kitchen counter, already staring up with huge glossy pleading eyes",
+    twist: "it lifts one paw and slowly tilts its head, then the other paw, like it is practising a routine",
+    payoff: "a treat drops into frame and the dog catches it mid-air, then wiggles its whole body with joy",
+    follow: "ติดตามไว้ พรุ่งนี้หมาดราม่าเรื่องอะไรอีก ทายกันมา" },
+  { series: "ผลไม้ปากแจ๋ว", title: "ผลไม้ปากแจ๋ว: ทุเรียนโดนแซว", hashtags: ["#ตลก", "#ผลไม้ปากแจ๋ว", "#ฮาๆ"],
+    line: "ทุเรียนบอกว่า หอมนะ แต่ไม่มีใครกล้ายืนใกล้",
+    hook: "photoreal fruits with small expressive cartoon eyes and mouths sit on a market table; a durian puffs out its spiky chest proudly",
+    twist: "a mango, a banana and a mangosteen slowly lean away from the durian, fanning the air with leaves",
+    payoff: "the durian looks around at the empty space and pouts, its spikes drooping, in the opening framing",
+    follow: "ติดตามไว้ พรุ่งนี้ผลไม้ตัวไหนโดนแซวต่อ" },
+  { series: "ผลไม้ปากแจ๋ว", title: "ผลไม้ปากแจ๋ว: มะนาวขี้งอน", hashtags: ["#ตลก", "#ผลไม้ปากแจ๋ว", "#ฮาๆ"],
+    line: "มะนาวงอน เพราะไม่มีใครชวนไปใส่ส้มตำ",
+    hook: "photoreal fruits with small cartoon eyes and mouths; a lime sits alone at the edge of a cutting board with a sulky face",
+    twist: "a chilli and a tomato roll over and nudge it toward a clay mortar of som tam",
+    payoff: "the lime hops into the mortar with a big grin and a tiny splash, the others cheering",
+    follow: "ติดตามไว้ พรุ่งนี้ผลไม้ตัวไหนโดนแซวต่อ" },
+  { series: "ผลไม้ปากแจ๋ว", title: "ผลไม้ปากแจ๋ว: แตงโมแข่งกลิ้ง", hashtags: ["#ตลก", "#ผลไม้ปากแจ๋ว", "#ฮาๆ"],
+    line: "แข่งกลิ้งรอบนี้ แตงโมมั่นใจมาก",
+    hook: "photoreal fruits with cartoon eyes line up at a chalk start line on a wooden table; a big watermelon grins confidently",
+    twist: "the oranges race off but the watermelon only rocks in place, straining, its face going red",
+    payoff: "a tiny grape gives it a push and the watermelon rolls slowly past the finish line, beaming",
+    follow: "ติดตามไว้ พรุ่งนี้ผลไม้ตัวไหนโดนแซวต่อ" },
+  { series: "ครัวป่วน", title: "ครัวป่วน: กาต้มน้ำขี้ตกใจ", hashtags: ["#ตลก", "#ครัวป่วน", "#ฮาๆ"],
+    line: "กาต้มน้ำตัวนี้ ตกใจง่ายมาก",
+    hook: "a shiny kitchen kettle with small cartoon eyes sits on a stove, already trembling as bubbles start inside",
+    twist: "it whistles loudly, jumps in surprise at its own sound and its lid pops up like a hat",
+    payoff: "the lid lands back on, the kettle looks around embarrassed and lets out a small puff of steam",
+    follow: "ติดตามไว้ พรุ่งนี้ของในครัวชิ้นไหนป่วนต่อ" },
+  { series: "ครัวป่วน", title: "ครัวป่วน: ทัพพีแอบชิม", hashtags: ["#ตลก", "#ครัวป่วน", "#ฮาๆ"],
+    line: "ทัพพีบอกว่า ชิมนิดเดียว จริง ๆ นะ",
+    hook: "a wooden ladle with tiny cartoon eyes is already sneaking toward a pot of tom yum when the kitchen light is off",
+    twist: "it dips in for a sip and its eyes go wide from the spice, little steam puffs shooting out",
+    payoff: "it tiptoes back to the utensil jar and stands perfectly still beside the spoons, pretending nothing happened",
+    follow: "ติดตามไว้ พรุ่งนี้ของในครัวชิ้นไหนป่วนต่อ" },
+  { series: "ครัวป่วน", title: "ครัวป่วน: ไข่ไม่ยอมลงกระทะ", hashtags: ["#ตลก", "#ครัวป่วน", "#ฮาๆ"],
+    line: "ไข่ฟองนี้ ไม่ยอมลงกระทะเด็ดขาด",
+    hook: "an egg with tiny cartoon eyes clings to the rim of a hot frying pan, oil already sizzling below",
+    twist: "a spatula gently nudges it and the egg rolls away across the counter at full speed",
+    payoff: "the egg hides inside an egg carton and peeks out, while the pan sits waiting, in the opening framing",
+    follow: "ติดตามไว้ พรุ่งนี้ของในครัวชิ้นไหนป่วนต่อ" },
+  { series: "ลี้ลับยามดึก", title: "ลี้ลับยามดึก: ชิงช้าแกว่งเอง", hashtags: ["#เรื่องลี้ลับ", "#สยองขวัญ", "#ลี้ลับยามดึก"],
+    line: "ตีสามแล้ว ชิงช้านี้ยังแกว่งอยู่ ทั้งที่ไม่มีลม",
+    hook: "an empty wooden swing under a big banyan tree in a moonlit Thai village yard is already swinging slowly on its own",
+    twist: "the swing stops dead mid-air for a second, fireflies freeze, then it starts swinging again",
+    payoff: "the camera slowly pulls back; the swing creaks gently in the blue moonlight, framed like the opening",
+    follow: "ติดตามไว้ คืนพรุ่งนี้มีเรื่องลี้ลับเรื่องใหม่" },
+  { series: "ลี้ลับยามดึก", title: "ลี้ลับยามดึก: ลิฟต์ชั้น 13", hashtags: ["#เรื่องลี้ลับ", "#สยองขวัญ", "#ลี้ลับยามดึก"],
+    line: "ตึกนี้ไม่มีชั้น 13 แต่ลิฟต์หยุดทุกคืน",
+    hook: "inside an empty old apartment elevator at night, the floor indicator light is already climbing with a soft hum",
+    twist: "the doors slide open onto a dim corridor with a single flickering lamp and a pair of slippers neatly placed",
+    payoff: "the doors slowly close again on the empty corridor and the hum resumes, in the opening framing",
+    follow: "ติดตามไว้ คืนพรุ่งนี้มีเรื่องลี้ลับเรื่องใหม่" },
+  { series: "ลี้ลับยามดึก", title: "ลี้ลับยามดึก: ตุ๊กตาหันหน้า", hashtags: ["#เรื่องลี้ลับ", "#สยองขวัญ", "#ลี้ลับยามดึก"],
+    line: "วางตุ๊กตาหันไปทางหน้าต่าง ตื่นมาหันมาทางเตียงทุกวัน",
+    hook: "a porcelain doll in a Thai dress sits on a wooden shelf facing a moonlit window, curtains already drifting",
+    twist: "the curtain sways across it and when it passes, the doll is facing the camera",
+    payoff: "the camera creeps slowly toward the doll's calm face as the curtain settles, silent and still",
+    follow: "ติดตามไว้ คืนพรุ่งนี้มีเรื่องลี้ลับเรื่องใหม่" },
+  { series: "ตำนานไทย", title: "ตำนานไทย: ไฟพญานาค", hashtags: ["#ตำนานไทย", "#บั้งไฟพญานาค", "#เรื่องลี้ลับ"],
+    line: "คืนออกพรรษา ลูกไฟสีแดงลอยขึ้นจากแม่น้ำโขง",
+    hook: "the dark Mekong river at night, mist on the water, as a glowing red-orange fireball is already rising silently from the surface",
+    twist: "two more fireballs rise in a row and the water ripples as if something huge moved underneath",
+    payoff: "the fireballs fade high in the sky and the river goes calm and dark again, framed like the opening",
+    follow: "ติดตามไว้ ตอนหน้าเล่าตำนานไทยเรื่องไหนดี" },
+  { series: "ตำนานไทย", title: "ตำนานไทย: ต้นตะเคียนกลางป่า", hashtags: ["#ตำนานไทย", "#ต้นตะเคียน", "#เรื่องลี้ลับ"],
+    line: "ต้นตะเคียนต้นนี้ ใครผ่านต้องไหว้ทุกครั้ง",
+    hook: "a giant ancient takhian tree deep in a misty forest at dusk, wrapped in colourful silk ribbons that are already fluttering",
+    twist: "the wind stops but the ribbons keep moving, and a faint warm glow appears between the roots",
+    payoff: "a single jasmine garland slowly swings on a low branch as the light fades, the tree framed like the opening",
+    follow: "ติดตามไว้ ตอนหน้าเล่าตำนานไทยเรื่องไหนดี" },
+  { series: "ตำนานไทย", title: "ตำนานไทย: แมวดำหน้าศาล", hashtags: ["#ตำนานไทย", "#แมวดำ", "#เรื่องลี้ลับ"],
+    line: "แมวดำนั่งเฝ้าศาลพระภูมิทุกคืน ไม่เคยกินอะไรเลย",
+    hook: "a sleek black cat already sits perfectly still in front of a small Thai spirit house lit by candles at night",
+    twist: "the candle flames lean toward the cat all at once and its eyes reflect a soft gold glow",
+    payoff: "the cat slowly turns its head to look straight at the camera, then back to the shrine",
+    follow: "ติดตามไว้ ตอนหน้าเล่าตำนานไทยเรื่องไหนดี" },
+  { series: "เห็นเลขไหม", title: "เห็นเลขไหม: ควันธูป", hashtags: ["#เห็นเลขไหม", "#เลขมงคล", "#สายมู"], numerals: true,
+    line: "ควันธูปลอยเป็นเลขอะไร เห็นไหม คอมเมนต์มา",
+    hook: "macro of three lit incense sticks in a brass bowl in front of a Thai shrine, smoke already curling upward in slow spirals",
+    twist: "the smoke briefly drifts into a shape that looks like two numerals before breaking apart",
+    payoff: "the smoke swirls softly again in warm candlelight, in the opening framing",
+    follow: "ติดตามไว้ พรุ่งนี้มีให้ทายเลขใหม่" },
+  { series: "เห็นเลขไหม", title: "เห็นเลขไหม: น้ำตาเทียน", hashtags: ["#เห็นเลขไหม", "#เลขมงคล", "#สายมู"], numerals: true,
+    line: "น้ำตาเทียนไหลเป็นเลขอะไร ดูดี ๆ",
+    hook: "close-up of a tall golden candle on a shrine, a fresh drip of wax already running down its side",
+    twist: "the drips cool into curving shapes that look like a pair of numerals on the candle's side",
+    payoff: "the flame flickers and the camera slowly tilts up the candle to the glowing tip",
+    follow: "ติดตามไว้ พรุ่งนี้มีให้ทายเลขใหม่" },
+  { series: "เห็นเลขไหม", title: "เห็นเลขไหม: บ่อบัว", hashtags: ["#เห็นเลขไหม", "#เลขมงคล", "#สายมู"], numerals: true,
+    line: "ปลาว่ายวนในบ่อบัวเป็นเลขอะไร เห็นไหม",
+    hook: "top-down view of a temple lotus pond, golden koi already swimming in a smooth curve between pink lotus flowers",
+    twist: "for a moment the fish trails line up into a shape that looks like two numerals",
+    payoff: "the fish scatter, a lotus petal drops onto the water and ripples spread outward",
+    follow: "ติดตามไว้ พรุ่งนี้มีให้ทายเลขใหม่" },
+  { series: "เห็นเลขไหม", title: "เห็นเลขไหม: ลายกระดองเต่า", hashtags: ["#เห็นเลขไหม", "#เลขมงคล", "#สายมู"], numerals: true,
+    line: "เต่าวัดตัวนี้ ลายกระดองเป็นเลขอะไร",
+    hook: "macro of an old tortoise slowly walking across temple stone tiles, sunlight already gleaming on its shell",
+    twist: "the camera glides over the shell pattern, where the markings look like a pair of numerals",
+    payoff: "the tortoise stops, lifts its head toward the camera and blinks slowly",
+    follow: "ติดตามไว้ พรุ่งนี้มีให้ทายเลขใหม่" },
+  { series: "สายมู", title: "สายมู: แมวกวักทองคำ", hashtags: ["#สายมู", "#มูเตลู", "#แมวกวัก"],
+    line: "แมวกวักตัวนี้กวักเงินมาให้ ใครรับ พิมพ์สาธุ",
+    hook: "a gleaming golden lucky cat statue on a shop counter is already waving its paw, gold coins glinting beside it",
+    twist: "with each wave, a few shiny gold coins tumble gently out of a red pouch beside it",
+    payoff: "the cat's eyes catch a warm sparkle of light as coins settle in a small pile, in the opening framing",
+    follow: "ติดตามไว้ พรุ่งนี้มีของมงคลชิ้นใหม่" },
+  { series: "สายมู", title: "สายมู: ดอกบัวบานรับโชค", hashtags: ["#สายมู", "#มูเตลู", "#ดอกบัว"],
+    line: "ดอกบัวบานตรงหน้า ขอพรได้หนึ่งข้อ พิมพ์สาธุ",
+    hook: "a pink lotus bud in a brass bowl of water in front of a golden Buddha image, its petals already starting to open",
+    twist: "the lotus blooms fully in slow motion and a soft golden light glows from its centre",
+    payoff: "a single petal drifts onto the water and the light softly pulses, calm and still",
+    follow: "ติดตามไว้ พรุ่งนี้มีของมงคลชิ้นใหม่" },
+  { series: "สายมู", title: "สายมู: ระฆังวัดยามเช้า", hashtags: ["#สายมู", "#มูเตลู", "#วัดไทย"],
+    line: "ได้ยินเสียงระฆังนี้ ขอให้มีแต่เรื่องดี ๆ พิมพ์สาธุ",
+    hook: "a row of small golden temple bells along an eave at sunrise, the first bell already swinging and ringing",
+    twist: "the bells ring one after another down the row as morning mist lifts off the temple roof",
+    payoff: "warm sunlight floods the golden roof as the last bell sways to a stop, in the opening framing",
+    follow: "ติดตามไว้ พรุ่งนี้มีของมงคลชิ้นใหม่" },
+  { series: "เที่ยววิวสวย", title: "เที่ยววิวสวย: ทะเลหมอกดอยตอนเช้า", hashtags: ["#เที่ยวไทย", "#ทะเลหมอก", "#วิวสวย"],
+    line: "ตื่นตีห้ามาเจอวิวนี้ คุ้มไหม",
+    hook: "a steaming enamel mug of coffee on a wooden railing at a mountain campsite, a sea of clouds already rolling below at sunrise",
+    twist: "the sun breaks over the ridge and golden light sweeps across the cloud sea and a small tent beside the railing",
+    payoff: "the camera pulls back to show the tent, the mug and the endless glowing clouds, framed like the opening",
+    follow: "ติดตามไว้ พรุ่งนี้พาไปเที่ยวที่ไหนต่อ" },
+  { series: "เที่ยววิวสวย", title: "เที่ยววิวสวย: กางเต็นท์ริมน้ำตก", hashtags: ["#เที่ยวไทย", "#แคมป์ปิ้ง", "#วิวสวย"],
+    line: "กางเต็นท์ข้างน้ำตก หลับฟังเสียงน้ำทั้งคืน",
+    hook: "a dome tent already glowing warm from a lantern inside, beside a waterfall in a green forest at dusk",
+    twist: "fireflies rise from the grass and the waterfall shimmers in the lantern light",
+    payoff: "the camera drifts slowly around the tent as the forest turns deep blue, the lantern still glowing",
+    follow: "ติดตามไว้ พรุ่งนี้พาไปเที่ยวที่ไหนต่อ" },
+  { series: "เที่ยววิวสวย", title: "เที่ยววิวสวย: ทะเลใสกลางเกาะ", hashtags: ["#เที่ยวไทย", "#ทะเลไทย", "#วิวสวย"],
+    line: "น้ำใสขนาดนี้ อยู่ในไทยจริง ๆ นะ",
+    hook: "aerial shot already gliding low over crystal-clear turquoise water toward a white-sand island with a longtail boat",
+    twist: "the camera dips to the surface and colourful fish dart under the boat's shadow",
+    payoff: "the camera rises back up to the island and the bright water, framed like the opening",
+    follow: "ติดตามไว้ พรุ่งนี้พาไปเที่ยวที่ไหนต่อ" },
+  { series: "แต่งห้องฟิน", title: "แต่งห้องฟิน: ห้องรกกลายเป็นห้องฝัน", hashtags: ["#แต่งห้อง", "#roommakeover", "#ห้องสวย"],
+    line: "ห้องรกแบบนี้ แต่งใหม่ใน 8 วินาที",
+    hook: "a messy small bedroom with clothes piled on a chair, already starting to tidy itself in a fast smooth time-lapse",
+    twist: "fairy lights switch on, plants slide into place and the bed smooths into crisp white linen",
+    payoff: "the finished cosy room glows warmly at night, same framing as the first frame",
+    follow: "ติดตามไว้ พรุ่งนี้แต่งห้องไหนต่อ" },
+  { series: "แต่งห้องฟิน", title: "แต่งห้องฟิน: มุมทำงานมินิมอล", hashtags: ["#แต่งห้อง", "#deskmakeover", "#มุมทำงาน"],
+    line: "มุมทำงานแบบนี้ นั่งทั้งวันก็ไม่เบื่อ",
+    hook: "a bare wooden desk by a window, a warm desk lamp already clicking on in the evening light",
+    twist: "a small plant, a ceramic mug and a soft LED strip appear one by one with satisfying clicks",
+    payoff: "the camera slowly pushes in on the cosy finished desk as rain streaks the window",
+    follow: "ติดตามไว้ พรุ่งนี้แต่งห้องไหนต่อ" },
+  { series: "แต่งห้องฟิน", title: "แต่งห้องฟิน: ระเบียงคอนโดสายชิล", hashtags: ["#แต่งห้อง", "#ระเบียง", "#คอนโด"],
+    line: "ระเบียงเล็ก ๆ ก็ชิลได้",
+    hook: "an empty condo balcony at sunset, a folded rattan chair already unfolding by itself",
+    twist: "string lights unroll along the railing and potted plants slide into the corners",
+    payoff: "the city lights come on beyond the cosy balcony as the camera settles, framed like the opening",
+    follow: "ติดตามไว้ พรุ่งนี้แต่งห้องไหนต่อ" },
+  { series: "แกดเจ็ตล้ำ", title: "แกดเจ็ตล้ำ: แก้วกาแฟเปลี่ยนสี", hashtags: ["#แกดเจ็ต", "#ของมันต้องมี", "#gadget"],
+    line: "แก้วนี้บอกได้ว่ากาแฟร้อนแค่ไหน",
+    hook: "hot coffee is already pouring into a sleek matte black mug on a desk",
+    twist: "the mug's surface ripples with colour, shifting from deep blue to glowing orange as it heats",
+    payoff: "steam curls up from the glowing mug as the camera slowly orbits it",
+    follow: "ติดตามไว้ พรุ่งนี้มีแกดเจ็ตล้ำอะไรอีก" },
+  { series: "แกดเจ็ตล้ำ", title: "แกดเจ็ตล้ำ: โคมไฟลอยได้", hashtags: ["#แกดเจ็ต", "#ของมันต้องมี", "#gadget"],
+    line: "หลอดไฟลอยกลางอากาศ เปิดปิดด้วยการแตะ",
+    hook: "a glowing bulb is already hovering and slowly spinning above a wooden base on a dark bedside table",
+    twist: "a fingertip taps the base and the bulb brightens, casting warm moving shadows around the room",
+    payoff: "the bulb settles into a gentle bob, glowing softly in the dark, framed like the opening",
+    follow: "ติดตามไว้ พรุ่งนี้มีแกดเจ็ตล้ำอะไรอีก" },
+  { series: "แกดเจ็ตล้ำ", title: "แกดเจ็ตล้ำ: หุ่นยนต์ดูดฝุ่นจิ๋ว", hashtags: ["#แกดเจ็ต", "#ของมันต้องมี", "#gadget"],
+    line: "หุ่นยนต์ตัวเท่าฝ่ามือ ทำความสะอาดโต๊ะให้",
+    hook: "a palm-sized round robot is already gliding across a desk, sweeping crumbs into itself with a soft whirr",
+    twist: "it reaches the desk edge, stops, beeps and turns neatly away",
+    payoff: "it parks beside a laptop and its tiny light blinks to green",
+    follow: "ติดตามไว้ พรุ่งนี้มีแกดเจ็ตล้ำอะไรอีก" },
+  { series: "บิวตี้ ASMR", title: "บิวตี้ ASMR: ครีมหมุนวน", hashtags: ["#ASMR", "#skincare", "#บิวตี้"],
+    line: "เนื้อครีมแบบนี้ ดูกี่รอบก็เพลิน",
+    hook: "macro of a silky white cream already swirling in a glass jar under soft pink light",
+    twist: "a spatula lifts a glossy ribbon of cream that folds back over itself in slow motion",
+    payoff: "the surface settles into a smooth glossy swirl, catching the light, framed like the opening",
+    follow: "ติดตามไว้ พรุ่งนี้ ASMR อะไรต่อ" },
+  { series: "บิวตี้ ASMR", title: "บิวตี้ ASMR: ลิปสติกละลาย", hashtags: ["#ASMR", "#ลิปสติก", "#บิวตี้"],
+    line: "สีนี้สวยจนอยากเก็บไว้ดูเฉย ๆ",
+    hook: "a deep red lipstick bullet is already twisting up from its gold case on a marble surface",
+    twist: "it is pressed into a glass and smears into a perfect glossy swatch, light rippling across it",
+    payoff: "the lipstick twists back down and the case clicks shut beside the swatch",
+    follow: "ติดตามไว้ พรุ่งนี้ ASMR อะไรต่อ" },
+  { series: "บิวตี้ ASMR", title: "บิวตี้ ASMR: เซรั่มหยดน้ำ", hashtags: ["#ASMR", "#เซรั่ม", "#บิวตี้"],
+    line: "หยดเดียวผิวฉ่ำ ดูแล้วชื่นใจ",
+    hook: "a glass dropper is already releasing a single golden drop of serum onto a glossy surface in slow motion",
+    twist: "the drop spreads into a shimmering clear circle with tiny bubbles rising",
+    payoff: "a second drop falls into the centre and ripples spread outward softly",
+    follow: "ติดตามไว้ พรุ่งนี้ ASMR อะไรต่อ" },
+  { series: "สวนจิ๋วในบ้าน", title: "สวนจิ๋วในบ้าน: เมล็ดงอกใน 8 วิ", hashtags: ["#ปลูกต้นไม้", "#ต้นไม้ในบ้าน", "#plant"],
+    line: "จากเมล็ดเดียว กลายเป็นต้นไม้ในพริบตา",
+    hook: "macro time-lapse of soil in a small clay pot, a seed already cracking open and a green shoot pushing up",
+    twist: "the shoot unfurls two leaves, then more leaves spiral upward toward window light",
+    payoff: "the small leafy plant sways gently in the sunlight, framed like the opening",
+    follow: "ติดตามไว้ พรุ่งนี้ปลูกอะไรต่อ" },
+  { series: "สวนจิ๋วในบ้าน", title: "สวนจิ๋วในบ้าน: มุมต้นไม้ริมหน้าต่าง", hashtags: ["#ต้นไม้ในบ้าน", "#แต่งบ้าน", "#plant"],
+    line: "มุมนี้มีต้นไม้ ห้องดูมีชีวิตขึ้นเลย",
+    hook: "an empty sunny windowsill, a watering can already tipping water into the first pot",
+    twist: "more pots of monstera, pothos and cactus appear one by one, leaves bouncing as they land",
+    payoff: "morning light streams through the lush green corner as droplets glisten on leaves",
+    follow: "ติดตามไว้ พรุ่งนี้ปลูกอะไรต่อ" },
+  { series: "สวนจิ๋วในบ้าน", title: "สวนจิ๋วในบ้าน: ดอกไม้บานรับฝน", hashtags: ["#ต้นไม้", "#ดอกไม้", "#plant"],
+    line: "ฝนตกปุ๊บ ดอกไม้บานปั๊บ",
+    hook: "raindrops are already splashing onto a pot of closed flower buds on a balcony",
+    twist: "the buds burst open into bright pink flowers in slow motion as water beads on the petals",
+    payoff: "the rain eases and a sunbeam lights up the blooming pot, framed like the opening",
+    follow: "ติดตามไว้ พรุ่งนี้ปลูกอะไรต่อ" },
+  { series: "รถสวยติดล้อ", title: "รถสวยติดล้อ: ขับเลียบทะเลตอนเย็น", hashtags: ["#ขับรถเที่ยว", "#roadtrip", "#รถ"],
+    line: "ขับเลียบทะเลตอนพระอาทิตย์ตก ฟินที่สุด",
+    hook: "a camera mounted on a car's side is already gliding along a coastal road at golden hour, waves sparkling beside it",
+    twist: "the road curves and the sun dips into the sea, painting the car's glossy paint orange",
+    payoff: "the car rolls to a stop at a viewpoint as the last light fades, framed like the opening",
+    follow: "ติดตามไว้ พรุ่งนี้พาขับไปไหนต่อ" },
+  { series: "รถสวยติดล้อ", title: "รถสวยติดล้อ: ล้างรถฟองฟู", hashtags: ["#ล้างรถ", "#ASMR", "#รถ"],
+    line: "ล้างรถแบบนี้ ดูแล้วสะอาดตาม",
+    hook: "thick white foam is already sliding down the glossy dark paint of a parked car",
+    twist: "a pressure rinse sweeps across, revealing a mirror-like shine that reflects the sky",
+    payoff: "water beads roll off the gleaming paint in slow motion as the camera glides past",
+    follow: "ติดตามไว้ พรุ่งนี้พาขับไปไหนต่อ" },
+  { series: "รถสวยติดล้อ", title: "รถสวยติดล้อ: ขึ้นดอยในสายหมอก", hashtags: ["#ขับรถเที่ยว", "#ขึ้นดอย", "#รถ"],
+    line: "ทางขึ้นดอยในหมอก ขับช้า ๆ ปลอดภัยนะ",
+    hook: "headlights are already cutting through thick mist on a winding mountain road lined with pine trees",
+    twist: "the car climbs above the mist and a sea of clouds appears beside the road",
+    payoff: "the car pauses on the ridge, the cloud sea glowing in morning light",
+    follow: "ติดตามไว้ พรุ่งนี้พาขับไปไหนต่อ" },
+  { series: "แฟชั่นแปลงร่าง", title: "แฟชั่นแปลงร่าง: ชุดเดียวแต่งได้ 3 ลุค", hashtags: ["#แฟชั่น", "#แต่งตัว", "#ootd"],
+    line: "เสื้อตัวเดียว แต่งได้ 3 ลุค เลือกลุคไหน",
+    hook: "a flat-lay of a white shirt on a wooden floor, jeans and sneakers already sliding into place beside it",
+    twist: "the outfit swaps with smooth snapping transitions: a blazer and loafers, then a skirt and sandals",
+    payoff: "the three looks line up side by side as the camera pulls up, framed like the opening",
+    follow: "ติดตามไว้ พรุ่งนี้แปลงร่างชุดไหนต่อ" },
+  { series: "แฟชั่นแปลงร่าง", title: "แฟชั่นแปลงร่าง: รองเท้าผ้าใบใหม่เอี่ยม", hashtags: ["#แฟชั่น", "#sneakers", "#รองเท้า"],
+    line: "รองเท้าคู่ใหม่ เสียงตอนแกะกล่องฟินมาก",
+    hook: "a shoebox lid is already lifting off and tissue paper unfolds with a crisp rustle",
+    twist: "a pair of clean white sneakers rises out and laces tie themselves into neat bows",
+    payoff: "the sneakers land side by side on the box under a soft spotlight",
+    follow: "ติดตามไว้ พรุ่งนี้แปลงร่างชุดไหนต่อ" },
+  { series: "แฟชั่นแปลงร่าง", title: "แฟชั่นแปลงร่าง: กระเป๋าใบนี้ใส่อะไรได้บ้าง", hashtags: ["#แฟชั่น", "#whatsinmybag", "#กระเป๋า"],
+    line: "กระเป๋าใบเล็ก แต่ใส่ของได้เยอะเกิน",
+    hook: "a small leather bag sits open on a bed, items already flying into it one by one",
+    twist: "a phone, a wallet, sunglasses, a bottle and a book all fit inside impossibly neatly",
+    payoff: "the bag snaps shut and sits perfectly flat as the camera pushes in",
+    follow: "ติดตามไว้ พรุ่งนี้แปลงร่างชุดไหนต่อ" },
+  { series: "ฟิตจิ๋ว", title: "ฟิตจิ๋ว: แฮมสเตอร์เข้ายิม", hashtags: ["#ออกกำลังกาย", "#แฮมสเตอร์", "#fitness"],
+    line: "แฮมสเตอร์ยังขยัน คุณล่ะวันนี้ออกกำลังยัง",
+    hook: "a chubby hamster in a tiny sweatband is already running hard on a miniature treadmill in a tiny gym",
+    twist: "it hops off and lifts a tiny dumbbell made of two sunflower seeds, cheeks puffing",
+    payoff: "it flops onto a tiny towel beside a mini water bottle, panting happily",
+    follow: "ติดตามไว้ พรุ่งนี้ใครออกกำลังกายต่อ" },
+  { series: "ฟิตจิ๋ว", title: "ฟิตจิ๋ว: แมวโยคะยามเช้า", hashtags: ["#โยคะ", "#แมว", "#fitness"],
+    line: "โยคะตอนเช้ากับครูแมว ยืดตามไหวไหม",
+    hook: "a fluffy cat on a tiny yoga mat is already stretching into a long downward-dog pose in morning sunlight",
+    twist: "it rolls into a perfect loaf shape, then stretches one leg high into the air",
+    payoff: "it settles into a calm sitting pose and blinks slowly at the camera",
+    follow: "ติดตามไว้ พรุ่งนี้ใครออกกำลังกายต่อ" },
+  { series: "ฟิตจิ๋ว", title: "ฟิตจิ๋ว: วิ่งเช้าริมสวน", hashtags: ["#วิ่ง", "#ออกกำลังกาย", "#fitness"],
+    line: "วิ่งเช้าวันละนิด ร่างกายดีขึ้นเยอะ",
+    hook: "low-angle shot of running shoes already hitting a park path at sunrise, dew flying off the grass",
+    twist: "the camera rises to follow the runner's shadow stretching long across the path past a lake",
+    payoff: "the shoes slow to a stop at a bench as the sun lights up the mist over the lake",
+    follow: "ติดตามไว้ พรุ่งนี้ใครออกกำลังกายต่อ" },
 ];
 /** The series a warm-up title belongs to (current and past concepts), for the learning loop. */
 export function seriesOfTitle(title: string): string | null {
@@ -187,9 +469,24 @@ const SERIES_REALISM: Record<string, string> = {
   "ตัดแล้วเพลิน": "The cut follows real physics: the blade goes through cleanly in one motion, pieces keep their shape and weight, no jelly wobble on solid objects.",
   "สตรีทฟู้ดไทย": "Real food physics: liquids pour and drip naturally, steam and smoke rise and fade, hands have five fingers and stay steady.",
   "โลกจิ๋ว": "The tiny world keeps a fixed layout and scale during the camera move; buildings and boats never melt, merge or pop in and out.",
+  "หมาดราม่า": "Natural dog anatomy at all times: four legs, one tail, real fur that moves with each motion; expressions come from ears, eyes and posture, never human faces.",
+  "ผลไม้ปากแจ๋ว": "Fruits keep their real shape, colour and texture; the small cartoon eyes and mouth stay fixed on the same spot of each fruit and move smoothly.",
+  "ครัวป่วน": "Utensils keep their real shape and material; the small cartoon eyes stay fixed in place; movements are small, bouncy and physically plausible.",
+  "ลี้ลับยามดึก": "Eerie, slow and quiet, not gory: no blood, no monsters, no faces in the dark; tension comes from stillness, shadows and something moving on its own.",
+  "ตำนานไทย": "Atmospheric and respectful of Thai beliefs: mist, candlelight, moonlight; no blood or frightening faces; slow and steady camera.",
+  "เห็นเลขไหม": "The numeral-like shape forms naturally from the material (smoke, wax, water, shell) for about one second and is easy to miss; it is never printed text.",
+  "เที่ยววิวสวย": "Real landscapes with natural light and weather; no people's faces; camera moves like a smooth drone or gimbal.",
+  "แต่งห้องฟิน": "Furniture and objects keep their shape and size as they move into place; straight lines stay straight; warm, believable interior light.",
+  "แกดเจ็ตล้ำ": "No brand names or logos on any device; materials look real (matte plastic, metal, glass); glowing effects stay subtle.",
+  "บิวตี้ ASMR": "Macro product textures look real and glossy; no brand names; no faces; slow, smooth, satisfying motion.",
+  "สวนจิ๋วในบ้าน": "Plants grow with natural leaf shapes and real soil texture; time-lapse motion is smooth, never morphing.",
+  "รถสวยติดล้อ": "No brand logos or licence plates; cars keep their real shape; wheels turn in sync with motion; safe, calm driving.",
+  "แฟชั่นแปลงร่าง": "No brand logos; fabric folds and drapes like real cloth; transitions are clean snaps, not melting.",
+  "ฟิตจิ๋ว": "Natural animal anatomy; tiny gym props stay to scale; any person appears only as feet, hands or a shadow, never a face.",
+  "สายมู": "Reverent, warm, golden light; sacred objects are shown respectfully, never stepped on or treated as toys; slow, graceful motion.",
 };
 
-export function growthPrompt(concept: Pick<GrowthConcept, "hook" | "twist" | "payoff" | "line"> & { series?: string }, options: { strict?: boolean } = {}) {
+export function growthPrompt(concept: Pick<GrowthConcept, "hook" | "twist" | "payoff" | "line"> & { series?: string; numerals?: boolean }, options: { strict?: boolean } = {}) {
   const series = concept.series ? SERIES_REALISM[concept.series] : undefined;
   return [
     "Photoreal, cinematic vertical 9:16 video, a full 8 seconds, one continuous take, made to stop people scrolling on TikTok.",
@@ -202,7 +499,9 @@ export function growthPrompt(concept: Pick<GrowthConcept, "hook" | "twist" | "pa
     ...(series ? [`DETAIL: ${series}`] : []),
     ...(options.strict ? ["EXTRA CARE: earlier clips like this looked artificial. Prefer fewer, slower, simpler movements over complex action; keep every subject fully in frame and in focus; nothing changes shape."] : []),
     `AUDIO: crisp, exaggerated foley that matches every action (sizzle, crunch, pour, clink), plus a lively, playful Thai voice that says only: "${concept.line}" in the first 3 seconds — nothing else; no music.`,
-    "AVOID: on-screen text, captions, subtitles, logos, brand names, watermarks, human faces, celebrities, slow or empty openings, cuts or scene changes, ending early.",
+    concept.numerals
+      ? "AVOID: printed text, written words, captions, subtitles, logos, brand names, watermarks, human faces, celebrities, slow or empty openings, cuts or scene changes, ending early."
+      : "AVOID: on-screen text, captions, subtitles, logos, brand names, watermarks, human faces, celebrities, slow or empty openings, cuts or scene changes, ending early.",
   ].join("\n");
 }
 
@@ -230,21 +529,33 @@ export function ctaText(id: CtaId, concept: Pick<GrowthConcept, "series" | "foll
 }
 
 /**
- * Chooses the day's warm-up concepts. Series that brought more views, engagement and follows are picked more often, but
- * every series keeps a chance (so the channel keeps testing), ideas made in the last days are skipped, and two clips in a
- * row never come from the same series.
+ * Chooses the day's warm-up concepts. While the channel is still finding its niche, clips rotate across niches
+ * (animals, food, comedy, mystery, lucky numbers...), favouring those that already did well; once a niche is chosen
+ * (by the results or by the owner), about four in five clips come from it and the rest keep testing others.
+ * Ideas made in the last days are skipped, and the same series never runs twice in a row when there is another choice.
  */
 function chooseGrowth(count: number, guide: PlanGuide | undefined, seasonal: GrowthConcept | undefined, random: () => number) {
-  const recent = new Set(guide?.recentTitles ?? []), picked: GrowthConcept[] = [];
-  if (seasonal && count > 0 && !(guide?.recentTitles ?? []).slice(0, 6).includes(seasonal.title)) picked.push(seasonal);
+  const recent = new Set(guide?.recentTitles ?? []), picked: GrowthConcept[] = [], focus = guide?.focusNiche ?? null;
+  // The season's clip leads only when it fits the channel's niche (or no niche is set yet).
+  if (seasonal && count > 0 && !(guide?.recentTitles ?? []).slice(0, 6).includes(seasonal.title) &&
+    (!focus || nicheOfSeries(seasonal.series) === focus)) picked.push(seasonal);
   const allSeries = [...new Set(GROWTH_CONCEPTS.map(c => c.series))];
+  const nicheWeight = (key: NicheKey) => guide?.nicheWeights?.[key] ?? 1;
   while (picked.length < count) {
-    const used = new Set(picked.map(c => c.title)), last = picked.at(-1)?.series;
+    const used = new Set(picked.map(c => c.title)), last = picked.at(-1);
     const open = (series: string) => GROWTH_CONCEPTS.filter(c => c.series === series && !used.has(c.title));
-    let pool = allSeries.filter(s => s !== last && open(s).length);
-    if (!pool.length) pool = allSeries.filter(s => open(s).length);
-    if (!pool.length) { picked.push(GROWTH_CONCEPTS[picked.length % GROWTH_CONCEPTS.length]); continue; }
-    const series = weightedPick(pool, s => guide?.seriesWeights[s] ?? 1, random);
+    const lastNiche = last ? nicheOfSeries(last.series) : null;
+    const niches = NICHE_KEYS.filter(n => NICHES[n].series.some(sr => open(sr).length));
+    if (!niches.length) { picked.push(GROWTH_CONCEPTS[picked.length % GROWTH_CONCEPTS.length]); continue; }
+    let niche: NicheKey;
+    if (focus && niches.includes(focus) && random() < 0.8) niche = focus;
+    else {
+      const others = niches.filter(n => n !== focus && n !== lastNiche);
+      niche = weightedPick(others.length ? others : niches, nicheWeight, random);
+    }
+    let pool = NICHES[niche].series.filter(sr => allSeries.includes(sr) && sr !== last?.series && open(sr).length);
+    if (!pool.length) pool = NICHES[niche].series.filter(sr => open(sr).length);
+    const series = weightedPick(pool, sr => guide?.seriesWeights[sr] ?? 1, random);
     const options = open(series), fresh = options.filter(c => !recent.has(c.title));
     // Fresh ideas first; otherwise the one made longest ago.
     const order = guide?.recentTitles ?? [];

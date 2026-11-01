@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { analyzeLearning, ctaOf, estimateFollows, matchVideos, mergeApiStats, videoIdFromUrl, type LearningClip, type StatsByClip } from "./learning";
 import { planBatch, seriesOfTitle } from "./planner";
+import { decideFocus, NICHE_KEYS, NICHES, nicheOfSeries, nichePoints, productsForNiche } from "./niches";
 
 const clip = (id: string, title: string, extra: Partial<LearningClip> = {}): LearningClip => ({
   id, kind: "GROWTH", title, caption: "ครัวจิ๋ว EP.1 · กะเพราจานจิ๋ว ใครกินได้คำเดียวหมด\nติดตามไว้ พรุ่งนี้ครัวจิ๋วทำเมนูอะไรดี",
@@ -83,7 +84,8 @@ describe("automatic follower estimate", () => {
 
 describe("learning-guided warm-up batch", () => {
   const guide = { seriesWeights: { "แมวทำงาน": 3, "ตัดแล้วเพลิน": 0.25, "ครัวจิ๋ว": 1, "สตรีทฟู้ดไทย": 1, "โลกจิ๋ว": 1 },
-    ctaWeights: { PART_TWO: 3 }, episodes: { "แมวทำงาน": 4 }, recentTitles: ["แมวบาริสต้า"], strictSeries: ["ครัวจิ๋ว"] };
+    ctaWeights: { PART_TWO: 3 }, episodes: { "แมวทำงาน": 4 }, recentTitles: ["แมวบาริสต้า"], strictSeries: ["ครัวจิ๋ว"],
+    nicheWeights: { PETS: 3, SATISFYING: 0.25 } };
   it("makes more of what works, numbers the episodes, and never repeats a series back to back", () => {
     let cats = 0, cuts = 0;
     for (let offset = 0; offset < 20; offset++) {
@@ -104,5 +106,51 @@ describe("learning-guided warm-up batch", () => {
     const clips = planBatch({ mode: "GROWTH", count: 5, products: [], offset: 3 });
     expect(clips.every(c => c.prompt.includes("REALISM:") && c.caption.includes("ติดตาม"))).toBe(true);
     expect(clips.every(c => c.prompt.length < 12000 && c.caption.length < 2200)).toBe(true);
+  });
+});
+
+describe("channel niches", () => {
+  it("covers many niches, each tied to products, and every niche series has ideas to make", () => {
+    expect(NICHE_KEYS.length).toBeGreaterThanOrEqual(12);
+    const clips = planBatch({ mode: "GROWTH", count: 30, products: [], offset: 1, now: new Date("2026-08-10T05:00:00Z") });
+    for (const key of NICHE_KEYS) {
+      // A channel focused on any niche gets at least three different ideas from it.
+      const focused = planBatch({ mode: "GROWTH", count: 20, products: [], offset: 3, learning: { seriesWeights: {}, ctaWeights: {}, episodes: {},
+        recentTitles: [], strictSeries: [], focusNiche: key } });
+      const own = new Set(focused.filter(c => NICHES[key].series.includes(seriesOfTitle(c.title) ?? "")).map(c => c.title));
+      expect(own.size, key).toBeGreaterThanOrEqual(3);
+    }
+    expect(nicheOfSeries("เที่ยววิวสวย")).toBe("TRAVEL");
+    expect(new Set(clips.map(c => nicheOfSeries(seriesOfTitle(c.title)))).size).toBeGreaterThanOrEqual(10);
+  });
+  it("scores a niche 0-100 and only reaches 100 with enough strong posts", () => {
+    expect(nichePoints({ posted: 0, score: 3 })).toBe(0);
+    expect(nichePoints({ posted: 2, score: 1.6 })).toBe(33);
+    expect(nichePoints({ posted: 6, score: 1.6 })).toBe(100);
+    expect(nichePoints({ posted: 10, score: 0.8 })).toBe(50);
+  });
+  it("makes a niche the main one at 100, keeps it above 70, and respects the owner's choice", () => {
+    expect(decideFocus({ PETS: 100, FOOD: 60 }, null)).toBe("PETS");
+    expect(decideFocus({ PETS: 75 }, "PETS")).toBe("PETS");
+    expect(decideFocus({ PETS: 65, FOOD: 90 }, "PETS")).toBeNull();
+    expect(decideFocus({ PETS: 100 }, null, "MYSTERY")).toBe("MYSTERY");
+  });
+  it("focuses about four in five clips on the main niche and sells products that fit it", () => {
+    const guide = { seriesWeights: {}, ctaWeights: {}, episodes: {}, recentTitles: [], strictSeries: [], focusNiche: "PETS" as const };
+    let pets = 0, total = 0;
+    for (let offset = 0; offset < 10; offset++) {
+      const clips = planBatch({ mode: "GROWTH", count: 10, products: [], offset, now: new Date("2026-08-10T05:00:00Z"), learning: guide });
+      pets += clips.filter(c => nicheOfSeries(seriesOfTitle(c.title)) === "PETS").length; total += clips.length;
+    }
+    expect(pets / total).toBeGreaterThan(0.6);
+    const products = [{ title: "เซรั่มหน้าใส", categoryKey: "beauty" }, { title: "อาหารแมวเม็ด", categoryKey: "general" }, { title: "เต็นท์ 2 คน", categoryKey: "outdoor" }];
+    expect(productsForNiche(products, "PETS").items[0].title).toBe("อาหารแมวเม็ด");
+    expect(productsForNiche(products, "TRAVEL").items[0].title).toBe("เต็นท์ 2 คน");
+    expect(productsForNiche(products, "COMEDY").items).toEqual(products);
+  });
+  it("words the no-text rule around numerals for the lucky-number series", () => {
+    const clips = planBatch({ mode: "GROWTH", count: 40, products: [], offset: 2 });
+    const lucky = clips.find(c => seriesOfTitle(c.title) === "เห็นเลขไหม");
+    if (lucky) expect(lucky.prompt).toMatch(/AVOID: printed text/);
   });
 });

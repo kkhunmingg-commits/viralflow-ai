@@ -134,3 +134,16 @@ export async function saveClipStatsAction(formData: FormData) {
   }
   done(formData, "บันทึกผลแล้ว ระบบจะเรียนรู้จากคลิปนี้ในรอบถัดไป");
 }
+
+/** The owner picks the channel's niche, or lets the 0-100 scores decide ("AUTO"). */
+export async function nicheChoiceAction(formData: FormData) {
+  const { isNicheKey, NICHES } = await import("@/features/flow-farm/niches");
+  const id = z.uuid().safeParse(formData.get("accountId")), niche = formData.get("niche");
+  if (!id.success || !(niche === "AUTO" || isNicheKey(niche))) done(formData, "คำสั่งไม่ถูกต้อง");
+  const ownerId = await owner();
+  const { setNicheChoice } = await import("@/features/flow-farm/learning-store");
+  try { await setNicheChoice(createAdminClient(), ownerId, id.data, niche); }
+  catch { done(formData, "ไม่พบบัญชี TikTok นี้"); }
+  done(formData, niche === "AUTO" ? "ให้ระบบเลือกหมวดจากคะแนนแล้ว หมวดที่ถึง 100 จะเป็นหมวดหลักของช่อง"
+    : `ตั้งหมวดหลักเป็น “${NICHES[niche].label}” แล้ว คลิปรอบถัดไปจะเน้นหมวดนี้ และตอนขายของจะเลือก${NICHES[niche].productLabel}ก่อน`);
+}

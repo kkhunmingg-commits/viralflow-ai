@@ -7,6 +7,7 @@
  * Everything here is pure so it can be tested; reading and saving the numbers lives in learning-store.ts.
  */
 import type { FlowClipKind, FlowClipStatus } from "./contracts";
+import { decideFocus, NICHE_KEYS, nicheOfSeries, nichePoints, type NicheKey } from "./niches";
 
 /** A clip as the learning loop sees it: what was planned, and what happened to it. */
 export interface LearningClip {
@@ -134,13 +135,19 @@ export interface PlanGuide {
   recentTitles: string[];
   /** Series whose clips were often thrown away get stricter realism instructions. */
   strictSeries: string[];
+  /** How often each niche is tried while the channel has no main niche. */
+  nicheWeights?: Partial<Record<NicheKey, number>>;
+  /** The channel's main niche (reached 100 points, or chosen by the owner); null while still exploring. */
+  focusNiche?: NicheKey | null;
 }
+export interface NicheResult extends GroupResult { key: NicheKey; points: number }
 export interface LearningReport {
-  sampleSize: number; withFollows: number; series: GroupResult[]; ctas: GroupResult[]; stats: StatsByClip;
+  sampleSize: number; withFollows: number; series: GroupResult[]; ctas: GroupResult[]; stats: StatsByClip; niches: NicheResult[];
   top: ClipScore[]; guide: PlanGuide; status: "NO_DATA" | "LEARNING" | "CONFIDENT";
 }
 
-export function analyzeLearning(clips: LearningClip[], rawStats: StatsByClip, seriesOf: SeriesLookup, followers: FollowerSnapshot[] = []): LearningReport {
+export function analyzeLearning(clips: LearningClip[], rawStats: StatsByClip, seriesOf: SeriesLookup, followers: FollowerSnapshot[] = [],
+  focus: { current?: NicheKey | null; ownerChoice?: NicheKey | "AUTO" } = {}): LearningReport {
   // Follower estimates need at least two snapshots; until then follows stay unknown, never zero.
   const stats = followers.length >= 2 ? estimateFollows(rawStats, followers) : rawStats;
   const growth = clips.filter(c => c.kind === "GROWTH");
@@ -155,6 +162,13 @@ export function analyzeLearning(clips: LearningClip[], rawStats: StatsByClip, se
   for (const s of scores) if (s.series) entry(s.series).scores.push(s);
   const seriesResults = [...series].map(([key, e]) => summarize(key, e.scores, e.discarded, e.made))
     .toSorted((a, b) => b.score - a.score || b.posted - a.posted);
+  const niches: NicheResult[] = NICHE_KEYS.map(key => {
+    const inNiche = (series: string | null) => nicheOfSeries(series) === key;
+    const group = summarize(key, scores.filter(s => inNiche(s.series)),
+      made.filter(c => c.status === "DISCARDED" && inNiche(seriesOf(c.title))).length, made.filter(c => inNiche(seriesOf(c.title))).length);
+    return { ...group, key, points: nichePoints(group) };
+  }).toSorted((a, b) => b.points - a.points || b.posted - a.posted);
+  const focusNiche = decideFocus(Object.fromEntries(niches.map(n => [n.key, n.points])), focus.current ?? null, focus.ownerChoice ?? "AUTO");
   const ctas = CTA_VARIANTS.map(v => summarize(v.id, scores.filter(s => s.cta === v.id), 0, 0))
     .toSorted((a, b) => b.score - a.score || b.posted - a.posted);
   const episodes: Record<string, number> = {};
@@ -163,9 +177,10 @@ export function analyzeLearning(clips: LearningClip[], rawStats: StatsByClip, se
   const strictSeries = seriesResults.filter(r => r.discarded >= 2 && r.discarded / Math.max(1, r.discarded + r.posted) >= 0.3).map(r => r.key);
   return {
     stats, sampleSize: scores.length, withFollows: scores.filter(s => s.followsPer1k !== null).length,
-    series: seriesResults, ctas, top: scores.toSorted((a, b) => b.score - a.score).slice(0, 5),
+    series: seriesResults, ctas, niches, top: scores.toSorted((a, b) => b.score - a.score).slice(0, 5),
     guide: { seriesWeights: Object.fromEntries(seriesResults.map(r => [r.key, r.weight])),
-      ctaWeights: Object.fromEntries(ctas.map(r => [r.key, r.weight])), episodes, recentTitles, strictSeries },
+      ctaWeights: Object.fromEntries(ctas.map(r => [r.key, r.weight])), episodes, recentTitles, strictSeries,
+      nicheWeights: Object.fromEntries(niches.map(n => [n.key, n.weight])), focusNiche },
     status: scores.length === 0 ? "NO_DATA" : scores.length < 8 ? "LEARNING" : "CONFIDENT",
   };
 }

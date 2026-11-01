@@ -2,7 +2,8 @@ import { CTA_VARIANTS, type GroupResult } from "@/features/flow-farm/learning";
 import { after } from "next/server";
 import { loadLearning, statsScopeGranted, syncStaleAccounts, type LearningView } from "@/features/flow-farm/learning-store";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { saveClipStatsAction, syncClipStatsAction } from "./flow-actions";
+import { NICHE_KEYS, NICHES } from "@/features/flow-farm/niches";
+import { nicheChoiceAction, saveClipStatsAction, syncClipStatsAction } from "./flow-actions";
 
 const bangkokTime = (iso: string) => new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
 const n = (value: number | null | undefined) => value === null || value === undefined ? "–" : new Intl.NumberFormat("th-TH").format(value);
@@ -50,6 +51,22 @@ export async function LearningPanel({ owner, accountId, scopes }: { owner: strin
     {view?.syncedAt && view.lastVideos === 0 && <p className="manual-warning">TikTok ส่งเฉพาะโพสต์ที่เป็นสาธารณะ คลิปที่ยังตั้งเป็น “เฉพาะฉัน” จะยังไม่ถูกนับ เปลี่ยนเป็นสาธารณะในแอป TikTok แล้วระบบจะดึงเองภายในชั่วโมง</p>}
     {view?.lastError && <p className="manual-warning">ดึงยอดครั้งล่าสุดไม่สำเร็จ ({view.lastError}) กดดึงใหม่ หรือกรอกยอดเองด้านล่าง</p>}
     {!view && <p className="manual-warning">ยังอ่านผลคลิปไม่ได้ตอนนี้ ลองรีเฟรชหน้าอีกครั้ง</p>}
+
+    {report && <div className="learning-niches">
+      <h3>หมวดของช่อง{report.guide.focusNiche ? `: ${NICHES[report.guide.focusNiche].label}` : " · กำลังสุ่มทดลองทุกหมวด"}</h3>
+      <p className="manual-muted">{report.guide.focusNiche
+        ? `คลิปส่วนใหญ่ (ประมาณ 4 ใน 5) จะเป็นหมวด${NICHES[report.guide.focusNiche].label} ที่เหลือยังทดลองหมวดอื่นต่อ ตอนขายของ ระบบจะเลือก${NICHES[report.guide.focusNiche].productLabel}ก่อน`
+        : "ระบบสุ่มคลิปหลายหมวดและให้คะแนนแต่ละหมวด 0-100 หมวดไหนถึง 100 ช่องจะทำหมวดนั้นเป็นหลัก แล้วตอนขายของจะดึงสินค้าในหมวดนั้นให้อัตโนมัติ"}</p>
+      <form action={nicheChoiceAction} className="library-inline"><input type="hidden" name="accountId" value={accountId} />{back}
+        <label className="manual-filter">เลือกหมวดเอง<select name="niche" defaultValue={view?.nicheChoice ?? "AUTO"}>
+          <option value="AUTO">ให้ระบบเลือกจากคะแนน (แนะนำ)</option>
+          {NICHE_KEYS.map(k => <option key={k} value={k}>{NICHES[k].label}</option>)}</select></label>
+        <button className="manual-secondary" type="submit">บันทึก</button></form>
+      <ol className="niche-scores">{report.niches.map(g => <li key={g.key} className={report.guide.focusNiche === g.key ? "focus" : undefined}>
+        <div><strong>{NICHES[g.key].label}</strong><small>{g.posted ? `โพสต์ ${g.posted} คลิป${g.avgViews !== null ? ` · วิวเฉลี่ย ${n(g.avgViews)}` : ""}` : "ยังไม่มีผล · จะสุ่มลอง"} · ขาย: {NICHES[g.key].productLabel}</small></div>
+        <span className="niche-bar" aria-label={`${g.points} คะแนนจาก 100`}><span style={{ width: `${g.points}%` }} /></span><b>{g.points}</b>
+      </li>)}</ol>
+    </div>}
 
     {report && report.series.length > 0 && <div className="learning-tables">
       <table className="learning-table"><caption>ซีรีส์ไหนคนชอบ</caption>

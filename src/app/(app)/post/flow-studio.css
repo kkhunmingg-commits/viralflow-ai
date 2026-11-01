@@ -58,3 +58,10 @@
 .live-failed small, .live-skipped_no_credit small { color: #b91c1c; }
 .live-ready .live-icon, .live-scheduled .live-icon, .live-posted .live-icon { color: #16a34a; }
 @media (prefers-reduced-motion: reduce) { .live-dot.on::before { animation: none; } .live-bar span { transition: none; } }
+.learning-niches{margin-top:14px;display:grid;gap:10px}.learning-niches h3{margin:0;color:#ecf1fa}
+.niche-scores{list-style:none;padding:0;margin:0;display:grid;gap:8px}
+.niche-scores li{display:grid;grid-template-columns:minmax(0,1fr) minmax(80px,160px) 36px;gap:10px;align-items:center;padding:8px 10px;border:1px solid #2a3547;border-radius:10px}
+.niche-scores li.focus{border-color:#8b7bff;background:#1a1b33}
+.niche-scores li div{display:flex;flex-direction:column;min-width:0}.niche-scores small{color:#93a3bd}
+.niche-bar{height:8px;border-radius:99px;background:#2a3547;overflow:hidden}.niche-bar span{display:block;height:100%;background:linear-gradient(90deg,#6d5dfc,#2fd3a6)}
+.niche-scores b{text-align:right;color:#ecf1fa}

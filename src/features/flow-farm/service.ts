@@ -6,6 +6,7 @@ import { bangkokDate, bangkokDayRange, COUNTED_STATUSES, FLOW_CLIP_MAX_BYTES, LI
   decodeProgress, encodeProgress, type FlowAccountRow, type FlowClipStatus, type FlowLoginState, type FlowProgress, type FlowProgressStage } from "./contracts";
 import { clipsToAdd, flowAccountViews } from "./capacity";
 import { planBatch, type FarmProduct } from "./planner";
+import { productsForNiche, type NicheKey } from "./niches";
 
 const BUCKET = "video-assets";
 const ACCOUNT_COLUMNS = "id,tiktok_account_id,label,priority,clips_per_day_estimate,active,exhausted_on,clips_today,clips_today_on,last_used_at,created_at";
@@ -123,9 +124,12 @@ export async function removeFlowAccount(admin: SupabaseClient, owner: string, id
 // ---------------------------------------------------------------- One click: find products and queue clips
 
 /** Best-scoring available products that have a reviewed, commercially cleared photograph Flow can use. */
-export async function findBatchProducts(admin: SupabaseClient, owner: string, limit = 5, now = new Date()): Promise<FarmProduct[]> {
+export async function findBatchProducts(admin: SupabaseClient, owner: string, limit = 5, now = new Date(), niche: NicheKey | null = null): Promise<FarmProduct[]> {
   const radar = await getProductRadar(admin, owner, { sort: "opportunity" }, now);
-  const candidates = radar.items.filter(item => item.product.status === "available").slice(0, 40);
+  // A channel with a main niche sells what fits it first (pets channel → pet supplies), best sellers within that.
+  const available = radar.items.filter(item => item.product.status === "available");
+  const candidates = productsForNiche(available.map(item => ({ item, title: item.product.title, categoryKey: item.product.category_key })), niche)
+    .items.map(entry => entry.item).slice(0, 40);
   if (!candidates.length) return [];
   const ids = candidates.map(item => item.product.id);
   const assets = check(await admin.from("media_assets").select("id,product_id,storage_path,mime_type,created_at")
@@ -162,7 +166,7 @@ export async function startBatch(admin: SupabaseClient, owner: string, accountId
   const accounts = check(await query, "accounts_unavailable") as Array<{ id: string; effective_mode: string | null }>;
   if (!accounts.length) throw new Error("account_not_found");
   const today = bangkokDate(now), { start, end } = bangkokDayRange(today);
-  let products: FarmProduct[] | null = null;
+  const productsByNiche = new Map<string, FarmProduct[]>();
   const results: BatchResult[] = [];
   for (const [position, account] of accounts.entries()) {
     const existing = await admin.from("flow_clips").select("id", { count: "exact", head: true }).eq("owner_id", owner)
@@ -170,9 +174,14 @@ export async function startBatch(admin: SupabaseClient, owner: string, accountId
     if (existing.error) throw new Error("flow_clips_unavailable");
     const add = clipsToAdd(count, existing.count ?? 0, MAX_CLIPS_PER_BATCH);
     const mode = account.effective_mode === "AFFILIATE" ? "AFFILIATE" : "GROWTH";
-    if (mode === "AFFILIATE" && products === null) products = await findBatchProducts(admin, owner);
-    // What this account's posted clips taught (views, engagement, follows, discards) steers the warm-up batch.
+    // What this account's posted clips taught (views, engagement, follows, discards) steers the batch and its niche.
     const learning = add ? await import("./learning-store").then(m => m.guideForBatch(admin, owner, account.id, now)).catch(() => undefined) : undefined;
+    const nicheKey = learning?.focusNiche ?? null;
+    let products: FarmProduct[] | null = null;
+    if (mode === "AFFILIATE") {
+      products = productsByNiche.get(nicheKey ?? "ANY") ?? await findBatchProducts(admin, owner, 5, now, nicheKey);
+      productsByNiche.set(nicheKey ?? "ANY", products);
+    }
     const planned = add ? planBatch({ mode, count: add, products: products ?? [], offset: (existing.count ?? 0) + Number(today.slice(-2)) + position * 3, now, learning }) : [];
     if (planned.length) {
       const batchId = crypto.randomUUID();

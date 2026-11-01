@@ -5,6 +5,7 @@ import { serverEnv } from "@/lib/server-env";
 import { analyzeLearning, matchVideos, mergeApiStats, trimStats, type ClipStats, type LearningClip, type LearningReport,
   type StatsByClip, type TikTokVideo } from "./learning";
 import { seriesOfTitle } from "./planner";
+import type { NicheKey } from "./niches";
 import { readStateFile, saveStateFile } from "./service";
 
 /**
@@ -13,7 +14,9 @@ import { readStateFile, saveStateFile } from "./service";
  */
 interface StatsFile {
   version: 1; clips: StatsByClip;
-  accounts: Record<string, { syncedAt: string | null; followers?: Array<{ at: string; count: number }>; lastError?: string | null; videos?: number; matched?: number }>;
+  accounts: Record<string, { syncedAt: string | null; followers?: Array<{ at: string; count: number }>; lastError?: string | null; videos?: number; matched?: number;
+    /** The niche the channel focuses on (set when one reached 100 points) and the owner's own choice. */
+    focusNiche?: NicheKey | null; nicheChoice?: NicheKey | "AUTO" }>;
 }
 const statsPath = (owner: string) => {
   if (!/^[0-9a-f-]{36}$/i.test(owner)) throw new Error("INVALID_OWNER");
@@ -44,13 +47,21 @@ export async function learningClips(client: SupabaseClient, owner: string, accou
 export interface LearningView {
   report: LearningReport; clips: LearningClip[]; stats: StatsByClip; syncedAt: string | null; lastError: string | null;
   followers: Array<{ at: string; count: number }>; lastVideos: number | null; lastMatched: number | null;
+  nicheChoice: NicheKey | "AUTO";
 }
 export async function loadLearning(admin: SupabaseClient, owner: string, accountId: string): Promise<LearningView> {
   const [clips, file] = await Promise.all([learningClips(admin, owner, accountId), readStats(admin, owner)]);
   const account = file.accounts[accountId];
-  const report = analyzeLearning(clips, file.clips, seriesOfTitle, account?.followers ?? []);
+  const report = analyzeLearning(clips, file.clips, seriesOfTitle, account?.followers ?? [],
+    { current: account?.focusNiche ?? null, ownerChoice: account?.nicheChoice ?? "AUTO" });
+  // Remember the automatic main niche, so it only changes when its score really drops (below 70).
+  if ((account?.nicheChoice ?? "AUTO") === "AUTO" && (account?.focusNiche ?? null) !== (report.guide.focusNiche ?? null)) {
+    file.accounts[accountId] = { ...{ syncedAt: null }, ...account, focusNiche: report.guide.focusNiche ?? null };
+    await writeStats(admin, owner, file).catch(() => {});
+  }
   return { report, clips, stats: report.stats, syncedAt: account?.syncedAt ?? null,
-    lastError: account?.lastError ?? null, followers: account?.followers ?? [], lastVideos: account?.videos ?? null, lastMatched: account?.matched ?? null };
+    lastError: account?.lastError ?? null, followers: account?.followers ?? [], lastVideos: account?.videos ?? null, lastMatched: account?.matched ?? null,
+    nicheChoice: account?.nicheChoice ?? "AUTO" };
 }
 
 /** Numbers the owner typed in from TikTok Studio (the only place that shows new followers per post). */
@@ -160,4 +171,13 @@ export async function syncStaleAccounts(admin: SupabaseClient, owner: string, no
     if (synced && now.getTime() - Date.parse(synced) < maxAgeMs) continue;
     await syncFromTikTok(admin, owner, account.id, now).catch(() => null);
   }
+}
+
+/** The owner picks the channel's niche by hand, or hands it back to the results ("AUTO"). */
+export async function setNicheChoice(admin: SupabaseClient, owner: string, accountId: string, choice: NicheKey | "AUTO") {
+  const account = await admin.from("tiktok_accounts").select("id").eq("owner_id", owner).eq("id", accountId).maybeSingle();
+  if (account.error || !account.data) throw new Error("account_not_found");
+  const file = await readStats(admin, owner);
+  file.accounts[accountId] = { ...{ syncedAt: null }, ...file.accounts[accountId], nicheChoice: choice };
+  await writeStats(admin, owner, file);
 }
