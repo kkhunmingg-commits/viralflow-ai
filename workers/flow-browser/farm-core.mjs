@@ -97,6 +97,13 @@ export async function runFarmPass(deps, options = {}) {
             await progress(clip.id, "DONE");
             summary.made++; failures = 0;
             log(`[${account.label}] เสร็จ เข้าคลังแล้ว (${summary.made})`);
+            if (result.creditsUsedUp) {
+              // This clip took the account's last credits: count it, then move on to the next account.
+              await api.exhausted(account.id);
+              summary.exhaustedAccounts.push(account.id);
+              log(`[${account.label}] คลิปนี้ใช้เครดิตสุดท้าย → ย้ายไปบัญชีถัดไป`);
+              accountDone = true;
+            }
           } catch (error) {
             summary.failed++;
             log(`[${account.label}] ส่งเข้าคลังไม่สำเร็จ: ${message(error)} (ไฟล์ยังอยู่ในเครื่อง)`);

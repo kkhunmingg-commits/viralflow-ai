@@ -149,3 +149,15 @@ test("a clip Flow never showed holds the account instead of spending credits on 
   assert.equal(summary.stoppedBy, "ACCOUNTS_NEED_ATTENTION");
   assert.deepEqual(steps, [["c0", "OPENING_FLOW"], ["c0", "FAILED"], [null, "IDLE"]]);
 });
+
+test("a clip that took the account's last credits is kept, then the account counts as used up", async () => {
+  const queue = [{ id: "c0", title: "one", prompt: "p" }, { id: "c1", title: "two", prompt: "p" }], uploaded = [], exhausted = [];
+  const api = { accounts: async () => [{ id: "a", label: "a" }], claim: async () => queue.shift() ?? null, upload: async clip => { uploaded.push(clip.id); },
+    exhausted: async id => { exhausted.push(id); }, fail: async () => {}, finish: async () => ({ skipped: 0 }) };
+  const summary = await runFarmPass({ api, openAccount: async () => ({ close: async () => {},
+    generate: async () => ({ status: "OK", path: "x", sha256: "0".repeat(64), media: {}, creditsUsedUp: true }) }) });
+  assert.deepEqual(uploaded, ["c0"]);
+  assert.deepEqual(exhausted, ["a"]);
+  assert.equal(queue.length, 1);
+  assert.equal(summary.stoppedBy, "ALL_CREDITS_USED");
+});

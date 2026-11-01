@@ -52,7 +52,7 @@ function config() {
     portal: portal.origin, token, windowMode, channel: process.env.FLOW_CHROME_CHANNEL || (process.platform === "win32" ? "chrome" : ""),
     flowUrl: process.env.FLOW_URL || "https://flow.google.com/",
     costPolicy: { maxCredits: Number(process.env.FLOW_MAX_CREDITS_PER_CLIP || 10), requireKnownCost: process.env.FLOW_ALLOW_UNKNOWN_COST !== "1" },
-    maxWaitMs: Number(process.env.FLOW_MAX_WAIT_SECONDS || 600) * 1000, pollMs: 3000,
+    maxWaitMs: Number(process.env.FLOW_MAX_WAIT_SECONDS || 600) * 1000, noCreditGraceMs: Number(process.env.FLOW_NO_CREDIT_GRACE_SECONDS || 240) * 1000, pollMs: 3000,
     watchSeconds: Math.max(20, Number(process.env.FLOW_WATCH_SECONDS || 60)),
   };
 }

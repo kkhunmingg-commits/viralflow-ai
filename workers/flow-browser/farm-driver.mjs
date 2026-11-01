@@ -277,7 +277,7 @@ export async function openFlowAccount(account, config) {
       await config.journal?.(clip.id, { state: "GENERATING", account: account.id, cost, clickedAt: new Date().toISOString() });
       await button.click({ timeout: 15_000 });
       const clickedAt = Date.now(), deadline = clickedAt + config.maxWaitMs;
-      let lastReport = 0, lastReload = clickedAt;
+      let lastReport = 0, lastReload = clickedAt, noCreditAt = 0;
       await step("WAITING_FLOW", "ส่งงานให้ Google แล้ว");
       while (Date.now() < deadline) {
         await page.waitForTimeout(config.pollMs);
@@ -303,11 +303,19 @@ export async function openFlowAccount(account, config) {
             const media = await inspectVideo(path);
             const sha256 = createHash("sha256").update(bytes).digest("hex");
             await config.journal?.(clip.id, { state: "DOWNLOADED", path, sha256 });
-            return { status: "OK", path, sha256, bytes: bytes.length, media, cost };
+            return { status: "OK", path, sha256, bytes: bytes.length, media, cost, ...(noCreditAt ? { creditsUsedUp: true } : {}) };
           } catch (error) { return fail(error.message, true); }
         }
-        // Refused for credits right after the click: Flow did not take the job.
-        if (appeared(beforeText, text, NO_CREDIT_PATTERNS)) return { status: "NO_CREDIT" };
+        // An out-of-credits banner after the click can mean this job took the last credits (seen 1 Nov): keep looking
+        // for the video a while before treating it as refused.
+        if (!noCreditAt && appeared(beforeText, text, NO_CREDIT_PATTERNS)) {
+          noCreditAt = Date.now();
+          await step("WAITING_FLOW", "เครดิตหมดหลังกดสร้าง กำลังรอดูว่างานนี้ได้วิดีโอไหม");
+        }
+        if (noCreditAt && Date.now() - noCreditAt > config.noCreditGraceMs) {
+          await saveDebug(page, config.debugDir, clip.id, "no-credit");
+          return { status: "NO_CREDIT", afterClick: true };
+        }
         if (appeared(beforeText, text, FAILED_PATTERNS)) {
           await saveDebug(page, config.debugDir, clip.id, "failed");
           return fail("FLOW_REPORTED_FAILURE", true);
