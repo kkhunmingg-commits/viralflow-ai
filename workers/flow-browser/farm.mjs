@@ -13,7 +13,7 @@
  * FLOW_WINDOW (offscreen | headless | visible), FLOW_CHROME_CHANNEL (e.g. chrome), FLOW_MAX_CREDITS_PER_CLIP (10),
  * FLOW_URL (https://flow.google.com/), FLOW_WATCH_SECONDS (60).
  */
-import { access, mkdir, open, readFile, rm, writeFile } from "node:fs/promises";
+import { access, appendFile, mkdir, open, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
@@ -105,17 +105,46 @@ async function selectors() {
   catch { return {}; }
 }
 
-const stamp = line => console.log(new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }), line);
+// The installed worker's stdout redirect (worker.log) stopped receiving lines after a sleep/resume on 1 Nov, which left
+// nothing to diagnose a stuck clip with. The worker keeps its own dated log in the workspace too: logs/worker-YYYY-MM-DD.log.
+const bangkokDay = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+let lastPrune = "";
+async function writeLog(text) {
+  try {
+    const logs = join(root, "logs"), day = bangkokDay();
+    await mkdir(logs, { recursive: true });
+    await appendFile(join(logs, `worker-${day}.log`), text + "\n");
+    if (lastPrune !== day) {
+      lastPrune = day;
+      const keep = new Set(Array.from({ length: 7 }, (_, i) => new Date(Date.now() - i * 86_400_000).toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" })));
+      for (const name of await readdir(logs)) if (/^worker-\d{4}-\d{2}-\d{2}\.log$/.test(name) && !keep.has(name.slice(7, 17))) await rm(join(logs, name), { force: true });
+    }
+  } catch { /* logging must never stop the work */ }
+}
+const now = () => new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
+const stamp = line => { const text = `${now()} ${line}`; console.log(text); void writeLog(text); };
 
+let lastSummary = "";
+/** Sends each live step to the web page and writes a log line whenever a clip's step changes. */
+function logged(progress) {
+  const last = new Map();
+  return (clipId, stage, detail) => {
+    if (last.get(clipId) !== stage) { last.set(clipId, stage); stamp(`  ${String(clipId ?? "").slice(0, 8)} ${stage}${detail ? ` ${detail}` : ""}`); }
+    return progress(clipId, stage, detail);
+  };
+}
 async function pass(settings, dryRun) {
   const api = portalApi(settings), farmSelectors = await selectors();
   const driverConfig = { ...settings, selectors: farmSelectors, dryRun, journal, profilesDir: dirs.profiles, readyDir: dirs.ready,
-    scratchDir: dirs.scratch, downloadsDir: dirs.downloads, debugDir: dirs.debug, progress: api.progress };
+    scratchDir: dirs.scratch, downloadsDir: dirs.downloads, debugDir: dirs.debug, progress: logged(api.progress) };
   // Newly linked Google accounts are signed in first, one at a time; clips only start once that is done.
   const hasProfile = account => access(join(dirs.profiles, account.id, "Default")).then(() => true, () => false);
   await runLoginPass({ api, signIn: account => signInFlowAccount(account, driverConfig), hasProfile, log: stamp });
   const summary = await runFarmPass({ api, openAccount: account => openFlowAccount(account, driverConfig), log: stamp });
-  console.log(JSON.stringify(summary));
+  // An idle pass (nothing queued, or every account used up) logs only when its outcome changes.
+  const line = JSON.stringify(summary);
+  if (summary.made || summary.failed || line !== lastSummary) stamp(line);
+  lastSummary = line;
   return summary;
 }
 
@@ -175,9 +204,13 @@ async function main() {
     if (command === "--dry-run") return void await pass(settings, true);
     if (command === "--once") return void await pass(settings, false);
     if (command !== "--watch") throw new Error("USAGE: --login <id> | --probe [id] | --dry-run | --once | --watch");
-    console.log(`เฝ้าคิวทุก ${settings.watchSeconds} วินาที (Ctrl+C เพื่อหยุด) หน้าต่าง Flow: ${settings.windowMode}`);
+    // Which files this process really loaded: on 2 Nov a worker kept behaving like the 31 Oct copy after the 1 Nov update.
+    const version = createHash("sha256");
+    for (const name of ["farm.mjs", "farm-core.mjs", "farm-driver.mjs"]) version.update(await readFile(join(here, name)));
+    stamp(`เวอร์ชัน ${version.digest("hex").slice(0, 12)} โฟลเดอร์ ${here}`);
+    stamp(`เริ่ม pid ${process.pid} เฝ้าคิวทุก ${settings.watchSeconds} วินาที (Ctrl+C เพื่อหยุด) หน้าต่าง Flow: ${settings.windowMode}`);
     for (;;) {
-      try { await pass(settings, false); } catch (error) { console.error("รอบนี้ผิดพลาด:", message(error)); }
+      try { await pass(settings, false); } catch (error) { stamp(`รอบนี้ผิดพลาด: ${message(error)}`); }
       await new Promise(done => setTimeout(done, settings.watchSeconds * 1000));
     }
   } finally { await release(); }

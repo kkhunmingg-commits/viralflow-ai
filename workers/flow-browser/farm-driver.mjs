@@ -276,6 +276,13 @@ export async function openFlowAccount(account, config) {
       const beforeVideos = await revealVideos(page, beforePosters);
       await config.journal?.(clip.id, { state: "GENERATING", account: account.id, cost, clickedAt: new Date().toISOString() });
       await button.click({ timeout: 15_000 });
+      // From here on Google may have taken the job: any error is reported as started so the clip is never sent twice.
+      try { return await waitForVideo(); }
+      catch (error) {
+        await saveDebug(page, config.debugDir, clip.id, "error");
+        return fail(`WAIT_ERROR:${error?.message ?? error}`.slice(0, 200), true);
+      }
+      async function waitForVideo() {
       const clickedAt = Date.now(), deadline = clickedAt + config.maxWaitMs;
       let lastReport = 0, lastReload = clickedAt, noCreditAt = 0;
       await step("WAITING_FLOW", "ส่งงานให้ Google แล้ว");
@@ -304,7 +311,10 @@ export async function openFlowAccount(account, config) {
             const sha256 = createHash("sha256").update(bytes).digest("hex");
             await config.journal?.(clip.id, { state: "DOWNLOADED", path, sha256 });
             return { status: "OK", path, sha256, bytes: bytes.length, media, cost, ...(noCreditAt ? { creditsUsedUp: true } : {}) };
-          } catch (error) { return fail(error.message, true); }
+          } catch (error) {
+            await saveDebug(page, config.debugDir, clip.id, "download");
+            return fail(`DOWNLOAD_FAILED:${error.message}`.slice(0, 200), true);
+          }
         }
         // An out-of-credits banner after the click can mean this job took the last credits (seen 1 Nov): keep looking
         // for the video a while before treating it as refused.
@@ -324,6 +334,7 @@ export async function openFlowAccount(account, config) {
       // Keep what Flow showed, so the next fix is based on the real page rather than a guess.
       await saveDebug(page, config.debugDir, clip.id, "timeout");
       return fail("NEW_VIDEO_TIMEOUT_CHECK_FLOW", true);
+      }
     },
   };
 }

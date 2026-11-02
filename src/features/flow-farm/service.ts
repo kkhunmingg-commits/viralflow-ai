@@ -167,6 +167,7 @@ export async function startBatch(admin: SupabaseClient, owner: string, accountId
   const accounts = check(await query, "accounts_unavailable") as Array<{ id: string; effective_mode: string | null }>;
   if (!accounts.length) throw new Error("account_not_found");
   const today = bangkokDate(now), { start, end } = bangkokDayRange(today);
+  await releaseTimeoutHolds(admin, owner).catch(() => {});
   const productsByNiche = new Map<string, FarmProduct[]>();
   const results: BatchResult[] = [];
   for (const [position, account] of accounts.entries()) {
@@ -223,6 +224,21 @@ export async function workerLastSeen(client: SupabaseClient, owner: string) {
 export async function expireStaleGenerating(admin: SupabaseClient, owner: string, now = new Date()) {
   check(await admin.from("flow_clips").update({ status: "FAILED", error: "WORKER_LOST_CHECK_FLOW_LIBRARY", lease_until: null, updated_at: now.toISOString() })
     .eq("owner_id", owner).eq("status", "GENERATING").lt("lease_until", now.toISOString()), "flow_clips_unavailable");
+}
+
+/** The note the worker leaves when it holds an account after a clip Flow never showed (farm-core NEW_VIDEO_TIMEOUT). */
+export const TIMEOUT_HOLD_NOTE = /^รอวิดีโอนานเกิน/;
+/**
+ * Pressing "create" again means the owner has looked: a timeout hold from an earlier batch (often the day before)
+ * must not leave today's queue sitting with no account allowed to claim it. A signed-out account stays held.
+ */
+export async function releaseTimeoutHolds(admin: SupabaseClient, owner: string, now = new Date()) {
+  const logins = await flowLogins(admin, owner);
+  const held = Object.entries(logins).filter(([, entry]) => entry.state === "FAILED" && TIMEOUT_HOLD_NOTE.test(entry.note ?? ""));
+  if (!held.length) return 0;
+  for (const [id] of held) logins[id] = { state: "READY", note: null, checkedAt: now.toISOString() };
+  await saveStateFile(admin, loginsPath(owner), logins, "flow_login_not_saved");
+  return held.length;
 }
 
 /** What the computer found when it opened (or showed) the account's sign-in window. */
