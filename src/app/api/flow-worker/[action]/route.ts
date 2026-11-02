@@ -15,7 +15,12 @@ const reply = (body: unknown, status = 200) => Response.json(body, { status, hea
 export async function GET(request: Request, context: { params: Promise<{ action: string }> }) {
   const auth = await authorizeFlowWorker(request);
   if (!auth.ok) return reply({ error: "unauthorized" }, auth.status);
-  if ((await context.params).action !== "accounts") return reply({ error: "not_found" }, 404);
+  const action = (await context.params).action;
+  if (action === "worker-files") {
+    const { workerBundle } = await import("@/features/flow-farm/installer");
+    return reply(await workerBundle());
+  }
+  if (action !== "accounts") return reply({ error: "not_found" }, 404);
   const admin = createAdminClient();
   // The worker polls every minute, which makes it a free clock for pulling clip stats from TikTok (hourly per account).
   after(() => import("@/features/flow-farm/learning-store").then(m => m.syncStaleAccounts(admin, auth.owner)).catch(() => {}));

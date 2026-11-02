@@ -2,6 +2,7 @@ import "server-only";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { crc32 } from "node:zlib";
+import { createHash } from "node:crypto";
 
 export const INSTALLER_VERSION = "1.0.2";
 /** The worker files the installed copy runs; farm.mjs imports only these. */
@@ -60,4 +61,21 @@ export async function installerSources(root = join(process.cwd(), "workers", "fl
   const script = await readFile(join(root, "installer", "setup.ps1"), "utf8");
   const files = Object.fromEntries(await Promise.all(INSTALLED_WORKER_FILES.map(async name => [name, await readFile(join(root, name), "utf8")])));
   return { script, files };
+}
+
+/** Same digest farm.mjs computes over its own files, so the worker can tell it is behind the deployed copy. */
+export function workerVersion(files: Record<string, string>) {
+  const hash = createHash("sha256");
+  for (const name of INSTALLED_WORKER_FILES) hash.update(name).update("\0").update(files[name] ?? "").update("\0");
+  return hash.digest("hex").slice(0, 16);
+}
+
+/**
+ * The deployed worker files for the installed worker to update itself. On the owner's PC, files written from inside the
+ * Claude desktop app land in its MSIX LocalCache, not the real %LOCALAPPDATA%, so the autostarted worker kept running the
+ * 31 Oct copy after every "update" (found 2 Nov). Pulling from the site removes that trap.
+ */
+export async function workerBundle(root = join(process.cwd(), "workers", "flow-browser")) {
+  const { files } = await installerSources(root);
+  return { version: workerVersion(files), files };
 }

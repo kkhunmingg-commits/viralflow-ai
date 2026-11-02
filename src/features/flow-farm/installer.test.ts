@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-const { buildInstaller, INSTALLED_WORKER_FILES, installerSources, zipOne } = await import("./installer");
+const { buildInstaller, INSTALLED_WORKER_FILES, installerSources, workerBundle, workerVersion, zipOne } = await import("./installer");
 
 const token = `vfw_${"A".repeat(43)}`;
 
@@ -44,5 +44,20 @@ describe("Windows installer", () => {
   it("refuses values that could break out of the script", () => {
     expect(() => buildInstaller({ portal: "https://x.example/'; calc", token, script: "", files: {} })).toThrow("INVALID_INSTALLER_INPUT");
     expect(() => buildInstaller({ portal: "https://x.example", token: "vfw_a'b", script: "", files: {} })).toThrow("INVALID_INSTALLER_INPUT");
+  });
+});
+
+describe("worker self-update", () => {
+  it("the site and the installed worker hash the same files the same way", async () => {
+    const sources = await installerSources();
+    const farm = sources.files["farm.mjs"];
+    const list = farm.match(/const WORKER_FILES = (\[[^\]]+\])/)?.[1];
+    expect(list && JSON.parse(list)).toEqual([...INSTALLED_WORKER_FILES]);
+    // Re-run the worker's own function body on the same files.
+    const body = farm.match(/export function workerVersion\(files\) \{([\s\S]*?)\n\}/)?.[1];
+    const { createHash } = await import("node:crypto");
+    const workerSide = new Function("files", "createHash", "WORKER_FILES", body!) as (f: Record<string, string>, c: typeof createHash, w: string[]) => string;
+    expect(workerSide(sources.files, createHash, [...INSTALLED_WORKER_FILES])).toBe(workerVersion(sources.files));
+    expect((await workerBundle()).version).toBe(workerVersion(sources.files));
   });
 });

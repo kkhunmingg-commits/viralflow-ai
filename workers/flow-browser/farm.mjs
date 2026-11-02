@@ -124,6 +124,43 @@ async function writeLog(text) {
 const now = () => new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
 const stamp = line => { const text = `${now()} ${line}`; console.log(text); void writeLog(text); };
 
+// Must match workerVersion() in src/features/flow-farm/installer.ts.
+const WORKER_FILES = ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs"];
+export function workerVersion(files) {
+  const hash = createHash("sha256");
+  for (const name of WORKER_FILES) hash.update(name).update("\0").update(files[name] ?? "").update("\0");
+  return hash.digest("hex").slice(0, 16);
+}
+async function ownVersion() {
+  const files = {};
+  for (const name of WORKER_FILES) files[name] = await readFile(join(here, name), "utf8").catch(() => "");
+  return workerVersion(files);
+}
+/**
+ * The installed worker keeps itself on the site's copy: an update written from inside the Claude desktop app lands in
+ * its private LocalCache, so the copy Windows starts at logon never saw the 1 Nov fixes. Returns true when files changed
+ * (the caller exits and run-hidden.vbs starts the new code a minute later).
+ */
+async function selfUpdate(settings, current) {
+  if (process.env.FLOW_INSTALLED !== "1" || process.env.FLOW_AUTO_UPDATE === "0") return false;
+  const response = await fetch(`${settings.portal}/api/flow-worker/worker-files`, { headers: { authorization: `Bearer ${settings.token}` } });
+  if (!response.ok) return false;
+  const bundle = await response.json().catch(() => null);
+  if (!bundle?.version || bundle.version === current || !WORKER_FILES.every(name => typeof bundle.files?.[name] === "string" && bundle.files[name].length > 100)) return false;
+  if (workerVersion(bundle.files) !== bundle.version) return false;
+  const { spawnSync } = await import("node:child_process");
+  // ".mjs" keeps the staged copy an ES module for node --check.
+  const staged = name => join(here, `${name.replace(/\.mjs$/, "")}.next.mjs`);
+  for (const name of WORKER_FILES) {
+    await writeFile(staged(name), bundle.files[name], "utf8");
+    if (spawnSync(process.execPath, ["--check", staged(name)]).status !== 0) throw new Error(`UPDATE_SYNTAX_${name}`);
+  }
+  const { rename } = await import("node:fs/promises");
+  for (const name of WORKER_FILES) await rename(staged(name), join(here, name));
+  stamp(`อัปเดตตัวเองจากเว็บ ${current} → ${bundle.version} เริ่มใหม่ในอีก 1 นาที`);
+  return true;
+}
+
 let lastSummary = "";
 /** Sends each live step to the web page and writes a log line whenever a clip's step changes. */
 function logged(progress) {
@@ -205,11 +242,15 @@ async function main() {
     if (command === "--once") return void await pass(settings, false);
     if (command !== "--watch") throw new Error("USAGE: --login <id> | --probe [id] | --dry-run | --once | --watch");
     // Which files this process really loaded: on 2 Nov a worker kept behaving like the 31 Oct copy after the 1 Nov update.
-    const version = createHash("sha256");
-    for (const name of ["farm.mjs", "farm-core.mjs", "farm-driver.mjs"]) version.update(await readFile(join(here, name)));
-    stamp(`เวอร์ชัน ${version.digest("hex").slice(0, 12)} โฟลเดอร์ ${here}`);
+    const version = await ownVersion();
+    stamp(`เวอร์ชัน ${version} โฟลเดอร์ ${here}`);
     stamp(`เริ่ม pid ${process.pid} เฝ้าคิวทุก ${settings.watchSeconds} วินาที (Ctrl+C เพื่อหยุด) หน้าต่าง Flow: ${settings.windowMode}`);
+    let checkedAt = 0;
     for (;;) {
+      if (Date.now() - checkedAt >= 10 * 60_000) {
+        checkedAt = Date.now();
+        try { if (await selfUpdate(settings, version)) return; } catch (error) { stamp(`อัปเดตตัวเองไม่สำเร็จ: ${message(error)}`); }
+      }
       try { await pass(settings, false); } catch (error) { stamp(`รอบนี้ผิดพลาด: ${message(error)}`); }
       await new Promise(done => setTimeout(done, settings.watchSeconds * 1000));
     }

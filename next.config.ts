@@ -31,6 +31,8 @@ const nextConfig: NextConfig = {
     "/video-factory/[id]": ["./assets/fonts/**", "./node_modules/ffmpeg-static/ffmpeg", "./node_modules/ffprobe-static/bin/linux/x64/ffprobe"],
     // The Windows installer embeds the Flow worker and its setup script.
     "/api/flow-installer": ["./workers/flow-browser/*.mjs", "./workers/flow-browser/installer/setup.ps1"],
+    // The installed worker pulls its own files from here (self-update).
+    "/api/flow-worker/[action]": ["./workers/flow-browser/*.mjs", "./workers/flow-browser/installer/setup.ps1"],
   },
   poweredByHeader: false,
   async headers() {
