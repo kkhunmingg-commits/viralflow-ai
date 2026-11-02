@@ -38,7 +38,11 @@ export async function POST(request: Request, context: { params: Promise<{ action
     switch (action) {
       // A worker without self-update (the 31 Oct copy kept coming back after reboots) cannot see finished clips and
       // spends 10 credits per clip for nothing: it gets no new clips, only the self-updating worker does.
-      case "claim": if (!request.headers.get("x-flow-worker")) return reply({ error: "WORKER_OUTDATED" }, 409);
+      case "claim": if (!request.headers.get("x-flow-worker")) {
+          // Tell the clip page, so a stuck queue says why instead of looking idle.
+          await reportProgress(admin, owner, { stage: "IDLE", detail: "WORKER_OUTDATED" }).catch(() => {});
+          return reply({ error: "WORKER_OUTDATED" }, 409);
+        }
         return reply({ clip: await claimClip(admin, owner, claimSchema.parse(body).flowAccountId) });
       case "upload-url": return reply(await clipUploadUrl(admin, owner, clipRefSchema.parse(body).clipId));
       case "complete": return reply(await completeClip(admin, owner, completeSchema.parse(body)));

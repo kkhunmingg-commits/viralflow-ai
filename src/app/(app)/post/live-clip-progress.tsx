@@ -60,6 +60,7 @@ export function LiveClipProgressPanel({ accountId, initial }: { accountId: strin
     <div className="live-bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={doneCount}><span style={{ width: `${Math.round(doneCount / total * 100)}%` }} /></div>
     <ul className="library-counts">{ORDER.filter(s => counts.get(s)).map(s => <li key={s} className={`library-chip library-${s.toLowerCase()}`}>{flowClipStatusLabels[s]} <strong>{counts.get(s)}</strong></li>)}</ul>
     {busy && !online && <p className="manual-warning">มีคลิปรอสร้าง {queuedWaiting} คลิป แต่เครื่องสร้างคลิปไม่ได้ติดต่อมา{data.lastSeen ? ` ${ago(now - Date.parse(data.lastSeen))}` : ""} เปิดคอมเครื่องที่ติดตั้งไว้ให้ออนไลน์</p>}
+    {busy && online && progress?.detail === "WORKER_OUTDATED" && <p className="manual-warning">เครื่องสร้างคลิปในคอมเป็นรุ่นเก่า (มักเกิดหลังรีสตาร์ทคอม) จึงยังไม่รับคิว บอก Claude ว่า “เปิด worker ใหม่” หรือดาวน์โหลดตัวติดตั้งในหน้านี้แล้วดับเบิลคลิกครั้งเดียว</p>}
     <ol className="live-list">{data.clips.map(clip => {
       const live = clip.status === "GENERATING" && progress?.clipId === clip.id ? progress : null;
       const since = live ? now - Date.parse(live.at) : 0;
