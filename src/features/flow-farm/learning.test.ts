@@ -148,9 +148,15 @@ describe("channel niches", () => {
     expect(productsForNiche(products, "TRAVEL").items[0].title).toBe("เต็นท์ 2 คน");
     expect(productsForNiche(products, "COMEDY").items).toEqual(products);
   });
-  it("words the no-text rule around numerals for the lucky-number series", () => {
-    const clips = planBatch({ mode: "GROWTH", count: 40, products: [], offset: 2 });
-    const lucky = clips.find(c => seriesOfTitle(c.title) === "เห็นเลขไหม");
-    if (lucky) expect(lucky.prompt).toMatch(/AVOID: printed text/);
+  it("keeps belief clips mystical, with no lottery or lucky-number hints", () => {
+    const lottery = /หวย|ใบ้|เลขเด็ด|เลขมงคล|ทายเลข|เห็นเลข|เป็นเลข|lottery|lotto/i;
+    for (let offset = 0; offset < 10; offset++) {
+      for (const clip of planBatch({ mode: "GROWTH", count: 40, products: [], offset })) {
+        expect(`${clip.title} ${clip.caption} ${clip.hashtags.join(" ")}`).not.toMatch(lottery);
+      }
+    }
+    expect(NICHES.LUCKY.series).toContain("ปาฏิหาริย์สายมู");
+    const products = [{ title: "หนังสือใบ้หวยงวดนี้", categoryKey: "book" }, { title: "กำไลหินนำโชค", categoryKey: "general" }];
+    expect(productsForNiche(products, "LUCKY").items.map(p => p.title)).toEqual(["กำไลหินนำโชค"]);
   });
 });

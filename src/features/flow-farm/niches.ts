@@ -20,7 +20,7 @@ export const NICHES: Record<NicheKey, Niche> = {
   COMEDY: { label: "ตลก", series: ["ผลไม้ปากแจ๋ว", "ครัวป่วน"], products: null, productLabel: "สินค้าทั่วไปที่ขายดี" },
   MYSTERY: { label: "ลี้ลับ สยองขวัญ", series: ["ลี้ลับยามดึก", "ตำนานไทย"],
     products: /มู|มงคล|เครื่องราง|พระ|amulet|lucky|ธูป|incense|เทียน|candle|กำไล|หินนำโชค|crystal|คริสตัล|ไพ่|tarot|ฮวงจุ้ย/i, productLabel: "สินค้ามูเตลูและของมงคล" },
-  LUCKY: { label: "เห็นเลขไหม สายมู", series: ["เห็นเลขไหม", "สายมู"],
+  LUCKY: { label: "ความเชื่อ มูเตลู", series: ["ปาฏิหาริย์สายมู", "สายมู"],
     products: /มู|มงคล|เครื่องราง|พระ|amulet|lucky|ธูป|incense|เทียน|candle|กำไล|หินนำโชค|crystal|คริสตัล|ไพ่|tarot|ฮวงจุ้ย/i, productLabel: "สินค้ามูเตลูและของมงคล" },
   SATISFYING: { label: "ตัดแล้วเพลิน ASMR", series: ["ตัดแล้วเพลิน"],
     products: /clean|ทำความสะอาด|slime|สไลม์|stationery|เครื่องเขียน|home|บ้าน|storage|จัดเก็บ/i, productLabel: "ของใช้ในบ้านและของทำความสะอาด" },
@@ -50,12 +50,16 @@ export function nicheOfSeries(series: string | null): NicheKey | null {
 }
 export const isNicheKey = (value: unknown): value is NicheKey => typeof value === "string" && (NICHE_KEYS as readonly string[]).includes(value);
 
+/** Lottery and number-hint items are never sold on any channel: TikTok treats them as gambling. */
+const LOTTERY = /หวย|สลาก|ใบ้เลข|เลขเด็ด|lottery|lotto/i;
+
 /** Products that fit the channel's niche first, then the rest, so a niche with no matching product still sells something. */
 export function productsForNiche<T extends { title: string; categoryKey: string }>(products: T[], niche: NicheKey | null): { items: T[]; matched: number } {
+  const allowed = products.filter(p => !LOTTERY.test(p.title));
   const pattern = niche ? NICHES[niche].products : null;
-  if (!pattern) return { items: products, matched: 0 };
-  const fits = products.filter(p => pattern.test(p.categoryKey) || pattern.test(p.title));
-  return { items: [...fits, ...products.filter(p => !fits.includes(p))], matched: fits.length };
+  if (!pattern) return { items: allowed, matched: 0 };
+  const fits = allowed.filter(p => pattern.test(p.categoryKey) || pattern.test(p.title));
+  return { items: [...fits, ...allowed.filter(p => !fits.includes(p))], matched: fits.length };
 }
 
 /**

@@ -20,8 +20,6 @@ export interface PlannedClip {
  * to loop back into the first. Each belongs to a `series`, because people follow a channel for the next episode. */
 interface GrowthConcept {
   series: string; title: string; hashtags: readonly string[]; line: string; hook: string; twist: string; payoff: string; follow: string;
-  /** "เห็นเลขไหม": digits are meant to appear as natural shapes (smoke, water, wax), so the no-text rule is worded around them. */
-  numerals?: boolean;
 }
 
 /** The owner found calm, slow scenes (a tidy desk) boring and not follow-worthy. These are the faceless AI formats
@@ -240,30 +238,30 @@ const GROWTH_CONCEPTS: readonly GrowthConcept[] = [
     twist: "the candle flames lean toward the cat all at once and its eyes reflect a soft gold glow",
     payoff: "the cat slowly turns its head to look straight at the camera, then back to the shrine",
     follow: "ติดตามไว้ ตอนหน้าเล่าตำนานไทยเรื่องไหนดี" },
-  { series: "เห็นเลขไหม", title: "เห็นเลขไหม: ควันธูป", hashtags: ["#เห็นเลขไหม", "#เลขมงคล", "#สายมู"], numerals: true,
-    line: "ควันธูปลอยเป็นเลขอะไร เห็นไหม คอมเมนต์มา",
-    hook: "macro of three lit incense sticks in a brass bowl in front of a Thai shrine, smoke already curling upward in slow spirals",
-    twist: "the smoke briefly drifts into a shape that looks like two numerals before breaking apart",
+  { series: "ปาฏิหาริย์สายมู", title: "ปาฏิหาริย์สายมู: ควันธูปพญานาค", hashtags: ["#ปาฏิหาริย์", "#มูเตลู", "#เรื่องลี้ลับ"],
+    line: "จุดธูปไหว้ศาลคืนนี้ ควันลอยขึ้นมาเป็นแบบนี้ เคยเห็นไหม",
+    hook: "macro of three lit incense sticks in a brass bowl in front of a Thai shrine at night, smoke already curling upward in slow spirals",
+    twist: "the smoke gathers into a long coiling serpent-like shape, like a naga rising, glowing faintly in the candlelight before it drifts apart",
     payoff: "the smoke swirls softly again in warm candlelight, in the opening framing",
-    follow: "ติดตามไว้ พรุ่งนี้มีให้ทายเลขใหม่" },
-  { series: "เห็นเลขไหม", title: "เห็นเลขไหม: น้ำตาเทียน", hashtags: ["#เห็นเลขไหม", "#เลขมงคล", "#สายมู"], numerals: true,
-    line: "น้ำตาเทียนไหลเป็นเลขอะไร ดูดี ๆ",
-    hook: "close-up of a tall golden candle on a shrine, a fresh drip of wax already running down its side",
-    twist: "the drips cool into curving shapes that look like a pair of numerals on the candle's side",
-    payoff: "the flame flickers and the camera slowly tilts up the candle to the glowing tip",
-    follow: "ติดตามไว้ พรุ่งนี้มีให้ทายเลขใหม่" },
-  { series: "เห็นเลขไหม", title: "เห็นเลขไหม: บ่อบัว", hashtags: ["#เห็นเลขไหม", "#เลขมงคล", "#สายมู"], numerals: true,
-    line: "ปลาว่ายวนในบ่อบัวเป็นเลขอะไร เห็นไหม",
-    hook: "top-down view of a temple lotus pond, golden koi already swimming in a smooth curve between pink lotus flowers",
-    twist: "for a moment the fish trails line up into a shape that looks like two numerals",
-    payoff: "the fish scatter, a lotus petal drops onto the water and ripples spread outward",
-    follow: "ติดตามไว้ พรุ่งนี้มีให้ทายเลขใหม่" },
-  { series: "เห็นเลขไหม", title: "เห็นเลขไหม: ลายกระดองเต่า", hashtags: ["#เห็นเลขไหม", "#เลขมงคล", "#สายมู"], numerals: true,
-    line: "เต่าวัดตัวนี้ ลายกระดองเป็นเลขอะไร",
-    hook: "macro of an old tortoise slowly walking across temple stone tiles, sunlight already gleaming on its shell",
-    twist: "the camera glides over the shell pattern, where the markings look like a pair of numerals",
-    payoff: "the tortoise stops, lifts its head toward the camera and blinks slowly",
-    follow: "ติดตามไว้ พรุ่งนี้มีให้ทายเลขใหม่" },
+    follow: "ติดตามไว้ คืนพรุ่งนี้มีเรื่องลี้ลับสายมูเรื่องใหม่" },
+  { series: "ปาฏิหาริย์สายมู", title: "ปาฏิหาริย์สายมู: เทียนไม่ดับกลางลม", hashtags: ["#ปาฏิหาริย์", "#มูเตลู", "#เรื่องลี้ลับ"],
+    line: "ลมแรงขนาดนี้ แต่เทียนเล่มนี้ไม่ดับเลย",
+    hook: "a single golden candle burning on an old temple altar at night, strong wind already whipping the cloth and leaves around it",
+    twist: "everything around it shakes in the wind, yet the candle flame stays perfectly upright and still, glowing brighter",
+    payoff: "the wind dies down, the leaves settle and the flame gives one slow flicker, framed like the opening",
+    follow: "ติดตามไว้ คืนพรุ่งนี้มีเรื่องลี้ลับสายมูเรื่องใหม่" },
+  { series: "ปาฏิหาริย์สายมู", title: "ปาฏิหาริย์สายมู: บัวบานใต้แสงจันทร์", hashtags: ["#ปาฏิหาริย์", "#มูเตลู", "#เรื่องลี้ลับ"],
+    line: "บัวในสระวัด บานกลางดึกคืนวันพระ",
+    hook: "a still temple lotus pond under a full moon, mist drifting on the water, a white lotus bud already starting to open",
+    twist: "the lotus opens fully in slow motion and a soft silver light glows from its centre, rippling across the water",
+    payoff: "the glow fades gently and moonlight shimmers on the calm pond, in the opening framing",
+    follow: "ติดตามไว้ คืนพรุ่งนี้มีเรื่องลี้ลับสายมูเรื่องใหม่" },
+  { series: "ปาฏิหาริย์สายมู", title: "ปาฏิหาริย์สายมู: หินคริสตัลรับแสงจันทร์", hashtags: ["#ปาฏิหาริย์", "#มูเตลู", "#เรื่องลี้ลับ"],
+    line: "คืนจันทร์เต็มดวง สายมูเอาหินมาวางรับแสงแบบนี้",
+    hook: "a cluster of clear and rose quartz crystals on a wooden windowsill at night, full-moon light already pouring onto them",
+    twist: "the moonlight seems to soak into the crystals, which begin to glow softly from within, one after another",
+    payoff: "the crystals hold a gentle inner glow as a thin cloud drifts past the moon, framed like the opening",
+    follow: "ติดตามไว้ คืนพรุ่งนี้มีเรื่องลี้ลับสายมูเรื่องใหม่" },
   { series: "สายมู", title: "สายมู: แมวกวักทองคำ", hashtags: ["#สายมู", "#มูเตลู", "#แมวกวัก"],
     line: "แมวกวักตัวนี้กวักเงินมาให้ ใครรับ พิมพ์สาธุ",
     hook: "a gleaming golden lucky cat statue on a shop counter is already waving its paw, gold coins glinting beside it",
@@ -474,7 +472,8 @@ const SERIES_REALISM: Record<string, string> = {
   "ครัวป่วน": "Utensils keep their real shape and material; the small cartoon eyes stay fixed in place; movements are small, bouncy and physically plausible.",
   "ลี้ลับยามดึก": "Eerie, slow and quiet, not gory: no blood, no monsters, no faces in the dark; tension comes from stillness, shadows and something moving on its own.",
   "ตำนานไทย": "Atmospheric and respectful of Thai beliefs: mist, candlelight, moonlight; no blood or frightening faces; slow and steady camera.",
-  "เห็นเลขไหม": "The numeral-like shape forms naturally from the material (smoke, wax, water, shell) for about one second and is easy to miss; it is never printed text.",
+  // The owner dropped the lucky-number series: lottery and gambling hints break TikTok rules. Belief clips stay mystical.
+  "ปาฏิหาริย์สายมู": "Mystical, reverent and calm: candlelight, moonlight, mist and soft glows; the strange moment forms naturally from the material (smoke, flame, water, light); never any digits, numbers, lottery tickets, money or gambling.",
   "เที่ยววิวสวย": "Real landscapes with natural light and weather; no people's faces; camera moves like a smooth drone or gimbal.",
   "แต่งห้องฟิน": "Furniture and objects keep their shape and size as they move into place; straight lines stay straight; warm, believable interior light.",
   "แกดเจ็ตล้ำ": "No brand names or logos on any device; materials look real (matte plastic, metal, glass); glowing effects stay subtle.",
@@ -483,7 +482,7 @@ const SERIES_REALISM: Record<string, string> = {
   "รถสวยติดล้อ": "No brand logos or licence plates; cars keep their real shape; wheels turn in sync with motion; safe, calm driving.",
   "แฟชั่นแปลงร่าง": "No brand logos; fabric folds and drapes like real cloth; transitions are clean snaps, not melting.",
   "ฟิตจิ๋ว": "Natural animal anatomy; tiny gym props stay to scale; any person appears only as feet, hands or a shadow, never a face.",
-  "สายมู": "Reverent, warm, golden light; sacred objects are shown respectfully, never stepped on or treated as toys; slow, graceful motion.",
+  "สายมู": "Reverent, warm, golden light; sacred objects are shown respectfully, never stepped on or treated as toys; slow, graceful motion; never any digits, numbers, lottery tickets or gambling.",
 };
 
 /** Food series get the cooking-stage rule: the owner saw a roti clip where the dough turned into a plate mid-take,
@@ -499,7 +498,7 @@ const COOKING_CONTINUITY = "COOKING: show only one cooking stage, as if filmed o
   "and changes only through what the hands and utensils visibly do (press, flip, fold, toss, cut, pour, sprinkle). Every ingredient that is added is already visible in a bowl or a hand before it goes in. " +
   "The food never turns into a plate, bowl or different dish, never jumps ahead to a finished state, and only moves to other dishware if a hand is shown carrying it there.";
 
-export function growthPrompt(concept: Pick<GrowthConcept, "hook" | "twist" | "payoff" | "line"> & { series?: string; numerals?: boolean }, options: { strict?: boolean } = {}) {
+export function growthPrompt(concept: Pick<GrowthConcept, "hook" | "twist" | "payoff" | "line"> & { series?: string }, options: { strict?: boolean } = {}) {
   const series = concept.series ? SERIES_REALISM[concept.series] : undefined;
   const food = concept.series ? FOOD_SERIES.has(concept.series) : false;
   return [
@@ -517,7 +516,7 @@ export function growthPrompt(concept: Pick<GrowthConcept, "hook" | "twist" | "pa
     ...(series ? [`DETAIL: ${series}`] : []),
     ...(options.strict ? ["EXTRA CARE: earlier clips like this looked artificial. Prefer fewer, slower, simpler movements over complex action; keep every subject fully in frame and in focus; nothing changes shape."] : []),
     `AUDIO: crisp, exaggerated foley that matches every action (sizzle, crunch, pour, clink), plus a lively, playful Thai voice that says only: "${concept.line}" in the first 3 seconds — nothing else; no music.`,
-    `AVOID: ${concept.numerals ? "printed text, written words" : "on-screen text"}, captions, subtitles, logos, brand names, watermarks, human faces, celebrities, slow or empty openings, cuts or scene changes, time jumps, ` +
+    `AVOID: on-screen text, captions, subtitles, logos, brand names, watermarks, human faces, celebrities, slow or empty openings, cuts or scene changes, time jumps, ` +
       `one object morphing into another${food ? ", food turning into a plate or a different dish, finished food appearing without being cooked" : ""}, ending early.`,
   ].join("\n");
 }
