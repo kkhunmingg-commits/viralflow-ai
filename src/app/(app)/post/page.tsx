@@ -18,9 +18,11 @@ export default async function ManualPostPage({ searchParams }: { searchParams: P
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) redirect("/login?next=/post");
   const { account, mode, msg } = await searchParams;
-  const accountsResult = await client.from("tiktok_accounts").select("id,display_name,username,daily_post_target,effective_mode")
+  const accountsResult = await client.from("tiktok_accounts").select("id,display_name,username,daily_post_target,effective_mode,is_mock")
     .eq("owner_id", data.user.id).is("hidden_at", null).order("created_at", { ascending: true });
-  const accounts = (accountsResult.data ?? []) as Array<StudioAccount & { username: string | null }>;
+  // Mock/test accounts exist only for local development; never offer them in production.
+  const accounts = ((accountsResult.data ?? []) as Array<StudioAccount & { username: string | null; is_mock: boolean | null }>)
+    .filter(a => process.env.NODE_ENV !== "production" || !a.is_mock);
   const accountId = z.uuid().safeParse(account).success && accounts.some(a => a.id === account) ? account : accounts[0]?.id;
   const selected = accounts.find(a => a.id === accountId);
   const productsResult = await client.from("products").select("id,title").eq("owner_id", data.user.id).eq("status", "available").limit(100);
@@ -37,9 +39,9 @@ export default async function ManualPostPage({ searchParams }: { searchParams: P
 
     {accounts.length === 0 ? <section className="manual-panel"><div className="manual-empty"><h3>ยังไม่มีบัญชี TikTok</h3><p>เชื่อมบัญชี TikTok ก่อน แล้วกลับมาผูกบัญชี Google เพื่อสร้างคลิปฟรี</p>
       <Link className="manual-primary" href="/accounts">เชื่อม TikTok →</Link></div></section> : <>
-      <form method="get" className="flow-account-picker"><label className="manual-filter">บัญชี TikTok<select name="account" defaultValue={accountId}>
+      {accounts.length > 1 && <form method="get" className="flow-account-picker"><label className="manual-filter">สร้างคลิปให้บัญชี TikTok<select name="account" defaultValue={accountId}>
         {accounts.map(a => <option key={a.id} value={a.id}>{a.display_name}{a.effective_mode === "AFFILIATE" ? " · ขายของ" : " · ปั้นช่อง"}</option>)}</select></label>
-        <button className="manual-secondary" type="submit">เปลี่ยนบัญชี</button></form>
+        <button className="manual-secondary" type="submit">เปลี่ยนบัญชี</button></form>}
       {selected && <FlowStudio client={client} owner={data.user.id} account={selected} />}
     </>}
 
