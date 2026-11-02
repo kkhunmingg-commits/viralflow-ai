@@ -154,7 +154,7 @@ Start-Process cmd.exe -ArgumentList ('/c timeout /t 2 /nobreak >nul & rmdir /s /
   }
   if ($text -match 'PORTAL_ACCOUNTS_401') { throw 'TOKEN_REJECTED: ดาวน์โหลดไฟล์ติดตั้งใหม่จากหน้าเว็บ (ไฟล์เก่าใช้ไม่ได้เมื่อดาวน์โหลดไฟล์ใหม่)' }
   if ($text -notmatch '"made"|ล็อกอิน') { throw ("WORKER_DID_NOT_START`n" + (($text -split "`n" | Select-Object -Last 5) -join "`n")) }
-  Box "ติดตั้งเสร็จแล้ว เครื่องสร้างคลิปทำงานเบื้องหลังและจะเปิดเองทุกครั้งที่เปิดคอม`n`nขั้นต่อไป: ในหน้าเว็บ (สร้างคลิปฟรี) กด “+ ผูกบัญชี Google”`nภายใน 1 นาที Chrome จะเปิดหน้าล็อกอิน Google ให้ ล็อกอินเสร็จแล้วปิดหน้าต่างนั้นได้เลย`n`nถอนการติดตั้ง: Settings > Apps > ViralFlow สร้างคลิป"
+  Box "ติดตั้งเสร็จแล้ว เครื่องสร้างคลิปทำงานเบื้องหลังและจะเปิดเองทุกครั้งที่เปิดคอม`n`nขั้นต่อไป: ในหน้าเว็บ (สร้างคลิปฟรี) กด + ผูกบัญชี Google`nภายใน 1 นาที Chrome จะเปิดหน้าล็อกอิน Google ให้ ล็อกอินเสร็จแล้วปิดหน้าต่างนั้นได้เลย`n`nถอนการติดตั้ง: Settings > Apps > ViralFlow สร้างคลิป"
   exit 0
 } catch {
   Box ("ติดตั้งไม่สำเร็จ`n`n" + $_.Exception.Message + "`n`nบันทึก: $log") 'Error'

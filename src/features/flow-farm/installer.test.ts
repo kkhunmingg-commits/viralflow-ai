@@ -47,6 +47,13 @@ describe("Windows installer", () => {
   });
 });
 
+describe("setup.ps1", () => {
+  it("has no curly quotes: PowerShell treats them as string delimiters (a success box broke on 2 Nov)", async () => {
+    const { script } = await installerSources();
+    expect(script).not.toMatch(/[\u201C\u201D\u2018\u2019]/);
+  });
+});
+
 describe("worker self-update", () => {
   it("the site and the installed worker hash the same files the same way", async () => {
     const sources = await installerSources();
