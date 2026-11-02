@@ -27,7 +27,7 @@ export const TREND_FORMATS: Partial<Record<AdFormat, TrendFormat>> = {
     camera: "very close macro with a slow drift along the product surface", audio: "the handling sounds are crisp and up front; the voice, if any, comes in softly after second 2",
     hooks: ["ฟังเสียงนี้ก่อน", "เปิดเสียงดูนะ"], captionHooks: ["เปิดเสียงดู 🎧", "เสียงนี้ฟังแล้วเพลิน"] },
   PROBLEM_SOLUTION: { format: "PROBLEM_SOLUTION", nameTh: "ปัญหา → ของที่ช่วย",
-    opening: "the take opens for under one second on a small, relatable everyday mess in the set (no product yet); the hand then brings the product in and the set looks calmer",
+    opening: "the take opens for under one second on a small, relatable everyday mess in the set (no product yet); the hand then carries the product in from the edge of the frame and sets it down beside the mess, which stays exactly as it was",
     camera: "slow, smooth push-in that ends on the product", audio: "a light 'ah' moment of relief in the ambience",
     hooks: ["ใครเจอแบบนี้ทุกวันบ้าง", "เรื่องเล็กที่กวนใจ จบได้ง่าย ๆ", "ถ้ายังเจอแบบนี้ ลองดู {product}"],
     captionHooks: ["ใครเป็นแบบนี้ยกมือ 🙋", "ปัญหาเล็ก ๆ ที่เจอทุกวัน"] },

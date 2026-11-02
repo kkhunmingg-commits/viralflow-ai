@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { accountsFor, clipsToAdd, flowAccountViews, nextFlowAccount, remainingCapacity } from "./capacity";
 import { bangkokDate, bangkokDayRange, bangkokLocalToIso, draftDelivered } from "./contracts";
-import { planBatch, type FarmProduct } from "./planner";
+import { growthPrompt, planBatch, type FarmProduct } from "./planner";
 
 const row = (id: string, priority: number, extra: Partial<Parameters<typeof flowAccountViews>[0][number]> = {}) => ({
   id, tiktok_account_id: null as string | null, label: id, priority, clips_per_day_estimate: 5, active: true, exhausted_on: null, clips_today: 0, clips_today_on: null,
@@ -61,6 +61,30 @@ describe("one-click batch plan", () => {
     expect(new Set(clips.map(c => c.title)).size).toBe(4);
     expect(clips[0].prompt).toMatch(/9:16/);
     expect(clips[0].prompt).toMatch(/AVOID: on-screen text/);
+  });
+});
+
+// The owner saw a roti clip where the dough turned into a plate mid-take; every clip now carries a continuity rule.
+describe("clip continuity", () => {
+  it("gives every warm-up clip one location and no rewind to the first frame", () => {
+    const clips = planBatch({ mode: "GROWTH", count: 12, products: [] });
+    for (const c of clips) {
+      expect(c.prompt).toContain("CONTINUITY (most important)");
+      expect(c.prompt).toContain("nothing rewinds");
+      expect(c.prompt).not.toMatch(/final frame mirrors the opening/);
+    }
+  });
+  it("adds the one-cooking-stage rule to food clips only", () => {
+    const roti = growthPrompt({ series: "สตรีทฟู้ดไทย", line: "x", hook: "a roti sizzles", twist: "it flips", payoff: "it is cut" });
+    expect(roti).toContain("COOKING: show only one cooking stage");
+    expect(roti).toMatch(/food turning into a plate/);
+    const cat = growthPrompt({ series: "แมวทำงาน", line: "x", hook: "a", twist: "b", payoff: "c" });
+    expect(cat).not.toContain("COOKING:");
+  });
+  it("keeps product ads to one product in a fixed set", () => {
+    const product: FarmProduct = { id: "p1", title: "นาฬิกา", categoryKey: "watch", imagePath: "a.jpg", imageAssetId: "a1", facts: [{ id: "f1", text: "กันน้ำ" }] };
+    const [clip] = planBatch({ mode: "AFFILIATE", count: 1, products: [product] });
+    expect(clip.prompt).toContain("CONTINUITY: there is exactly one product");
   });
 });
 

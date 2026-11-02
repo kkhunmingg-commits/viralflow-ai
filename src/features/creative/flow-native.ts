@@ -84,12 +84,15 @@ export function flowNativePrompt(input: Pick<DirectorInput, "product" | "facts">
   trend?: { format: TrendFormat; setTouch?: string }) {
   const negative = ["any change to the product's shape, colours, strap, logo, model name or printed text versus the reference image",
     "changing, animating or flickering digits or screen content", "extra buttons, extra text, extra logos or a different product",
-    "gloves, mittens or covered hands", "faces, testimonials, captions, subtitles, watermarks or on-screen text", "the product being used to perform a feature it is not shown performing in the reference", "cuts or scene changes"];
+    "gloves, mittens or covered hands", "faces, testimonials, captions, subtitles, watermarks or on-screen text", "the product being used to perform a feature it is not shown performing in the reference", "cuts or scene changes",
+    "objects morphing into other objects, duplicating, or appearing and vanishing on their own"];
   const prompt = [
     `Use the attached reference image as the exact product (${input.product.title}). Photoreal vertical 9:16 video, 8 seconds, one continuous take.`,
     `SET: ${style.set}; props: ${style.props}${trend?.setTouch ? `; ${trend.setTouch}` : ""}. Styled like a premium product advert, uncluttered, product is the hero in the middle third.`,
     ...(trend ? [`HOOK (first second, ${trend.format.format.toLowerCase().replaceAll("_", " ")} style that stops the scroll on TikTok): ${trend.format.opening}.`] : []),
     `ACTION: ${ACTIONS[action].en}. Hands: ${style.hands}.`,
+    // Same continuity rule as the warm-up clips: one object, one place, change only through what the hand does.
+    `CONTINUITY: there is exactly one product, the same single object from the moment it is in frame to the last frame; it is either resting in the set or carried in by the hand, and never appears, multiplies or changes on its own. The set, props and their positions stay fixed for the whole take.`,
     `CAMERA: ${trend ? trend.format.camera : camera}. Shallow depth of field, product always in sharp focus.`,
     // Take 2 of the Casio pilot sat still for 3.5 s before the hand arrived; the hook has to start at once.
     `TIMING: the hand is already moving in frame within the first half second; the product is lifted and facing the camera by second 3; hold it steady and sharp from second 3 to second 8.`,
