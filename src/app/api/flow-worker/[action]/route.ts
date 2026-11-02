@@ -36,7 +36,10 @@ export async function POST(request: Request, context: { params: Promise<{ action
   const admin = createAdminClient(), owner = auth.owner;
   try {
     switch (action) {
-      case "claim": return reply({ clip: await claimClip(admin, owner, claimSchema.parse(body).flowAccountId) });
+      // A worker without self-update (the 31 Oct copy kept coming back after reboots) cannot see finished clips and
+      // spends 10 credits per clip for nothing: it gets no new clips, only the self-updating worker does.
+      case "claim": if (!request.headers.get("x-flow-worker")) return reply({ error: "WORKER_OUTDATED" }, 409);
+        return reply({ clip: await claimClip(admin, owner, claimSchema.parse(body).flowAccountId) });
       case "upload-url": return reply(await clipUploadUrl(admin, owner, clipRefSchema.parse(body).clipId));
       case "complete": return reply(await completeClip(admin, owner, completeSchema.parse(body)));
       case "fail": await failClip(admin, owner, failSchema.parse(body)); return reply({ ok: true });

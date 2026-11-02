@@ -62,7 +62,7 @@ export function portalApi({ portal, token }, fetchImpl = fetch) {
   async function call(action, body) {
     const response = await fetchImpl(`${portal}/api/flow-worker/${action}`, {
       method: body === undefined ? "GET" : "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json", "x-flow-worker": "self-update-1" },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const data = await response.json().catch(() => ({}));
