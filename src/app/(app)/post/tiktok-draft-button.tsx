@@ -38,8 +38,8 @@ export function TikTokDraftButton({ clipId, accountId, initial, caption }: { cli
     if (!response.ok) throw new Error("status_unavailable");
     const { removed, ...next }: DraftReceipt & { removed?: boolean } = await response.json();
     setReceipt(next);
-    // TikTok confirmed the draft and the server deleted the library copy: let the owner read the result, then drop the card.
-    if (removed) setTimeout(() => router.refresh(), 6000);
+    // TikTok confirmed the draft and the server deleted the library copy: show the result briefly, then drop the card.
+    if (removed) setTimeout(() => router.refresh(), 2000);
     return next;
   }, [accountId, router]);
 
