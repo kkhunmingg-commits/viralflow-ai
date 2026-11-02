@@ -1,5 +1,7 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { closeSharedClipAction } from "./flow-actions";
 
 /** Clipboard write with a fallback for browsers that block the async API (older iOS, in-app browsers). */
 export async function copyToClipboard(text: string) {
@@ -38,6 +40,15 @@ type State = "idle" | "loading" | "ready" | "shared" | "downloaded" | "error";
 export function ClipPhoneActions({ clipId, caption }: { clipId: string; caption: string }) {
   const [state, setState] = useState<State>("idle");
   const [copied, setCopied] = useState<boolean | null>(null);
+  const [removed, setRemoved] = useState(false);
+  const router = useRouter();
+
+  /** The share sheet finished: the clip is in TikTok (or saved to the phone), so it leaves the library. */
+  async function closeShared() {
+    try {
+      if (await closeSharedClipAction(clipId)) { setRemoved(true); setTimeout(() => router.refresh(), 4000); }
+    } catch { /* keep the clip; "โพสต์แล้ว · ลบไฟล์" still works */ }
+  }
 
   async function share(file: File) {
     if (!navigator.canShare?.({ files: [file] })) {
@@ -50,6 +61,7 @@ export function ClipPhoneActions({ clipId, caption }: { clipId: string; caption:
     try {
       await navigator.share({ files: [file] });
       setState("shared");
+      void closeShared();
     } catch (error) {
       const name = (error as DOMException)?.name;
       // The download outlived the tap: the browser wants a fresh tap before opening the share sheet.
@@ -76,10 +88,8 @@ export function ClipPhoneActions({ clipId, caption }: { clipId: string; caption:
       <button type="button" className="manual-primary" onClick={shareClip} onPointerDown={() => { clipFile(clipId).catch(() => {}); }} disabled={state === "loading"}>
         <span aria-hidden="true">📲</span> {state === "loading" ? "กำลังโหลด…" : state === "ready" ? "แตะเพื่อแชร์คลิป" : "แชร์/บันทึกคลิป + คัดลอกคำบรรยาย"}
       </button>
-      {caption && <button type="button" className="manual-secondary" onClick={async () => setCopied(await copyToClipboard(caption))}>
-        <span aria-hidden="true">📋</span> คัดลอกคำบรรยาย</button>}
     </div>
     {(copied !== null || state !== "idle") && <small role="status" aria-live="polite">
-      {copied === true ? "✓ คัดลอกคำบรรยาย + แฮชแท็กแล้ว " : copied === false ? "คัดลอกอัตโนมัติไม่ได้ กดค้างที่กล่องคำบรรยายแล้วคัดลอกเอง " : ""}{status[state]}</small>}
+      {copied === true ? "✓ คัดลอกคำบรรยาย + แฮชแท็กแล้ว " : copied === false ? "คัดลอกอัตโนมัติไม่ได้ กดค้างที่กล่องคำบรรยายแล้วคัดลอกเอง " : ""}{status[state]}{removed ? " · ลบคลิปออกจากคลังแล้ว" : ""}</small>}
   </div>;
 }

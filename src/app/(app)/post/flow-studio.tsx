@@ -5,7 +5,7 @@ import { closeDeliveredDraftClips, draftDelivered, flowLogins, listFlowAccounts,
 import { LiveClipProgressPanel } from "./live-clip-progress";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addFlowAccountAction, discardClipAction, flowAccountAction, markPostedAction, scheduleClipAction, startBatchAction, unscheduleClipAction } from "./flow-actions";
-import { TikTokDraftButton, type DraftReceipt } from "./tiktok-draft-button";
+import type { DraftReceipt } from "./tiktok-draft-button";
 import { TikTokPrivatePostButton } from "./tiktok-private-post-button";
 import { LearningPanel } from "./learning-panel";
 import { ClipPhoneActions } from "./clip-phone-actions";
@@ -54,7 +54,7 @@ function loginLabel(f: FlowAccountView) {
 }
 
 export async function FlowStudio({ client, owner, account }: { client: SupabaseClient; owner: string; account: StudioAccount }) {
-  const { flowAccounts, live, library, lastSeen, unavailable, now, drafts, draftScope, publishScope, scopes } = await dropDeliveredDrafts(owner, account.id, await loadStudio(client, owner, account.id));
+  const { flowAccounts, live, library, lastSeen, unavailable, now, publishScope, scopes } = await dropDeliveredDrafts(owner, account.id, await loadStudio(client, owner, account.id));
   const own = flowAccounts.filter(f => f.tiktokAccountId === account.id), shared = flowAccounts.filter(f => f.tiktokAccountId === null);
   const capacity = remainingCapacity(flowAccounts);
   const defaultCount = Math.min(30, Math.max(1, account.daily_post_target ?? 5));
@@ -146,9 +146,6 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
               <ClipPhoneActions clipId={clip.id} caption={caption} />
               <div className="library-actions">
                 {publishScope && clip.kind === "GROWTH" && <TikTokPrivatePostButton clipId={clip.id} caption={caption} />}
-                {draftScope ? <TikTokDraftButton clipId={clip.id} accountId={account.id} initial={(clip.video_sha256 && drafts.get(clip.video_sha256)) || null}
-                  caption={caption} />
-                  : <a className="manual-secondary" href="/auth/tiktok/start?inbox=1&new_account=1">อนุญาตส่งเข้า TikTok (ครั้งเดียว)</a>}
                 <form action={markPostedAction} className="library-inline"><input type="hidden" name="id" value={clip.id} />{back}
                   <input name="url" type="url" placeholder="ลิงก์โพสต์ TikTok (ไม่บังคับ)" aria-label="ลิงก์โพสต์ TikTok" />
                   <button className="manual-secondary" type="submit">โพสต์แล้ว · ลบไฟล์</button></form>
@@ -166,7 +163,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
             </div>
           </article>;
         })}</div></>}
-      <p className="manual-muted">โพสต์ใน TikTok แล้วเปิดป้าย “เนื้อหาที่สร้างด้วย AI” ทุกครั้ง กด “ส่งเข้า TikTok (แบบร่าง)” แล้วคลิปจะไปรอในการแจ้งเตือน (Inbox) ของแอป TikTok ระบบคัดลอกคำบรรยายและแฮชแท็กให้ในปุ่มเดียวกัน (TikTok ไม่รับคำบรรยายผ่านการส่งแบบร่าง) วางในช่องคำบรรยายแล้วกดโพสต์ หรือกด “โพสต์แบบส่วนตัว (มีคำบรรยาย)” คลิปจะขึ้นโปรไฟล์เป็น “เฉพาะฉัน” พร้อมคำบรรยาย แฮชแท็ก และป้าย AI แล้วเปลี่ยนเป็น “ทุกคน” ในแอป (คลิปขายของต้องส่งแบบร่าง) เสร็จแล้วกลับมากด “โพสต์แล้ว” ระบบลบไฟล์ออกจากคลังทันที การตั้งเวลาตอนนี้เป็นการเตือนในคลัง เมื่อ TikTok อนุมัติ API โพสต์อัตโนมัติ คลิปที่ตั้งเวลาไว้จะโพสต์เองแล้วลบไฟล์</p>
+      <p className="manual-muted">โพสต์ใน TikTok แล้วเปิดป้าย “เนื้อหาที่สร้างด้วย AI” ทุกครั้ง กด “📲 แชร์/บันทึกคลิป + คัดลอกคำบรรยาย” แล้วเลือก TikTok วางคำบรรยายแล้วกดโพสต์ แชร์สำเร็จระบบลบคลิปออกจากคลังให้เอง หรือกด “โพสต์แบบส่วนตัว (มีคำบรรยาย)” คลิปจะขึ้นโปรไฟล์เป็น “เฉพาะฉัน” พร้อมคำบรรยาย แฮชแท็ก และป้าย AI แล้วเปลี่ยนเป็น “ทุกคน” ในแอป (คลิปขายของใช้ปุ่มแชร์) ถ้าโพสต์ด้วยวิธีอื่นให้กลับมากด “โพสต์แล้ว” ระบบลบไฟล์ออกจากคลังทันที การตั้งเวลาตอนนี้เป็นการเตือนในคลัง เมื่อ TikTok อนุมัติ API โพสต์อัตโนมัติ คลิปที่ตั้งเวลาไว้จะโพสต์เองแล้วลบไฟล์</p>
     </section>
 
     <LearningPanel owner={owner} accountId={account.id} scopes={scopes} />

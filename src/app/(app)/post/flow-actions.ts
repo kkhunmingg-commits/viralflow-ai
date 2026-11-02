@@ -93,6 +93,14 @@ export async function markPostedAction(formData: FormData) {
   await closeClip(createAdminClient(), await owner(), parsed.data.id, { posted: true, url: parsed.data.url || null });
   done(formData, "บันทึกว่าโพสต์แล้ว และลบไฟล์ออกจากคลังแล้ว");
 }
+/** Called by the phone share button once the share sheet completes: the clip went to TikTok, so close it. */
+export async function closeSharedClipAction(clipId: string) {
+  const id = z.uuid().safeParse(clipId);
+  if (!id.success) return false;
+  await closeClip(createAdminClient(), await owner(), id.data, { posted: true, url: null });
+  revalidatePath("/post");
+  return true;
+}
 export async function discardClipAction(formData: FormData) {
   const id = z.uuid().safeParse(formData.get("id"));
   if (!id.success) done(formData, "คำสั่งไม่ถูกต้อง");
