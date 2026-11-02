@@ -65,3 +65,5 @@
 .niche-scores li div{display:flex;flex-direction:column;min-width:0}.niche-scores small{color:#93a3bd}
 .niche-bar{height:8px;border-radius:99px;background:#2a3547;overflow:hidden}.niche-bar span{display:block;height:100%;background:linear-gradient(90deg,#6d5dfc,#2fd3a6)}
 .niche-scores b{text-align:right;color:#ecf1fa}
+
+.library-clip.is-leaving{display:none}

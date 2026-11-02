@@ -46,7 +46,7 @@ export function ClipPhoneActions({ clipId, caption }: { clipId: string; caption:
   /** The share sheet finished: the clip is in TikTok (or saved to the phone), so it leaves the library. */
   async function closeShared() {
     try {
-      if (await closeSharedClipAction(clipId)) { setRemoved(true); setTimeout(() => router.refresh(), 4000); }
+      if (await closeSharedClipAction(clipId)) { setRemoved(true); router.refresh(); }
     } catch { /* keep the clip; "โพสต์แล้ว · ลบไฟล์" still works */ }
   }
 

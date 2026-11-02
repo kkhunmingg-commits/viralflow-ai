@@ -9,6 +9,7 @@ import type { DraftReceipt } from "./tiktok-draft-button";
 import { TikTokPrivatePostButton } from "./tiktok-private-post-button";
 import { LearningPanel } from "./learning-panel";
 import { ClipPhoneActions } from "./clip-phone-actions";
+import { LeaveOnSubmit } from "./leave-on-submit";
 import "./flow-studio.css";
 
 export interface StudioAccount { id: string; display_name: string; daily_post_target: number | null; effective_mode: string | null }
@@ -148,7 +149,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
                 {publishScope && clip.kind === "GROWTH" && <TikTokPrivatePostButton clipId={clip.id} caption={caption} />}
                 <form action={markPostedAction} className="library-inline"><input type="hidden" name="id" value={clip.id} />{back}
                   <input name="url" type="url" placeholder="ลิงก์โพสต์ TikTok (ไม่บังคับ)" aria-label="ลิงก์โพสต์ TikTok" />
-                  <button className="manual-secondary" type="submit">โพสต์แล้ว · ลบไฟล์</button></form>
+                  <button className="manual-secondary" type="submit">โพสต์แล้ว · ลบไฟล์</button><LeaveOnSubmit /></form>
                 <details className="library-more"><summary>ดาวน์โหลด · ตั้งเวลา · ทิ้งคลิป</summary>
                   <a className="manual-secondary" href={`/api/library/${clip.id}/video?download=1`}>ดาวน์โหลด MP4</a>
                   <form action={scheduleClipAction} className="library-inline"><input type="hidden" name="id" value={clip.id} />{back}
@@ -156,7 +157,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
                     <button className="manual-secondary" type="submit">ตั้งเวลา</button></form>
                   <div className="library-inline">
                     {clip.status === "SCHEDULED" && <form action={unscheduleClipAction}><input type="hidden" name="id" value={clip.id} />{back}<button className="library-link" type="submit">ยกเลิกเวลา</button></form>}
-                    <form action={discardClipAction}><input type="hidden" name="id" value={clip.id} />{back}<button className="library-link danger" type="submit">ทิ้งคลิปนี้</button></form>
+                    <form action={discardClipAction}><input type="hidden" name="id" value={clip.id} />{back}<button className="library-link danger" type="submit">ทิ้งคลิปนี้</button><LeaveOnSubmit /></form>
                   </div>
                 </details>
               </div>
