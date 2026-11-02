@@ -15,13 +15,14 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#0d1018",
     theme_color: "#0d1018",
     icons: [
-      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
-      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
-      { src: "/icons/maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
+      { src: "/icons/vf-icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icons/vf-icon-1024.png", sizes: "1024x1024", type: "image/png", purpose: "any" },
+      { src: "/icons/vf-icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icons/vf-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
     shortcuts: [
-      { name: "คลังคลิป", short_name: "คลิป", url: "/post#library", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
-      { name: "บัญชี TikTok", short_name: "บัญชี", url: "/accounts", icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }] },
+      { name: "คลังคลิป", short_name: "คลิป", url: "/post#library", icons: [{ src: "/icons/vf-icon-192.png", sizes: "192x192" }] },
+      { name: "บัญชี TikTok", short_name: "บัญชี", url: "/accounts", icons: [{ src: "/icons/vf-icon-192.png", sizes: "192x192" }] },
     ],
   };
 }

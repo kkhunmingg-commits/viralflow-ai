@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import "./legal.css";
+import { BrandIcon } from "@/components/brand-icon";
 
 export default function LegalLayout({ children }: { children: ReactNode }) {
   return (
@@ -8,7 +9,7 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
       <header className="legal-header">
         <div className="legal-header-inner">
           <Link className="legal-brand" href="/" aria-label="Viral Flow AI — Homepage">
-            <span className="legal-brand-mark" aria-hidden="true">V<span>✦</span></span>
+            <BrandIcon className="legal-brand-mark" size={39} />
             <span>Viral Flow <b>AI</b></span>
           </Link>
           <nav className="legal-nav" aria-label="นโยบายและการเข้าสู่ระบบ">

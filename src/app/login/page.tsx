@@ -4,6 +4,7 @@ import { LoginForm } from "./login-form";
 import { loginErrorMessage } from "./auth-flow";
 import { InstallAppButton } from "@/components/pwa/install-app-button";
 import "./login.css";
+import { BrandIcon } from "@/components/brand-icon";
 
 export const metadata: Metadata = { title: { absolute: "Viral Flow AI — Login" } };
 
@@ -13,7 +14,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     <main className="auth-page">
       <div className="auth-layout">
         <section className="auth-story" aria-label="Viral Flow AI">
-          <div className="auth-brand"><span className="auth-brand-mark" aria-hidden="true">V<span>✦</span></span><span>Viral Flow <b>AI</b></span></div>
+          <div className="auth-brand"><BrandIcon className="auth-brand-mark" size={45} /><span>Viral Flow <b>AI</b></span></div>
           <div className="auth-story-main">
             <p className="auth-kicker"><span /> YOUR CONTENT COMMAND CENTER</p>
             <h1>Automate.<br />Publish.<br /><em>Learn. Grow.</em></h1>
@@ -23,7 +24,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <p className="auth-story-foot">CREATE WITH INTENT <span>·</span> GROW WITH EVIDENCE</p>
         </section>
         <section className="auth-panel" aria-labelledby="auth-heading">
-          <div className="auth-mobile-brand"><span className="auth-brand-mark" aria-hidden="true">V<span>✦</span></span><span>Viral Flow <b>AI</b></span></div>
+          <div className="auth-mobile-brand"><BrandIcon className="auth-brand-mark" size={45} /><span>Viral Flow <b>AI</b></span></div>
           <div className="auth-card">
             <div className="auth-card-accent" aria-hidden="true" />
             <p className="auth-card-kicker">WELCOME BACK</p>

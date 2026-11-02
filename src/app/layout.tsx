@@ -12,8 +12,16 @@ export const metadata: Metadata = {
   applicationName: "ViralFlow",
   appleWebApp: { capable: true, title: "ViralFlow", statusBarStyle: "black-translucent" },
   icons: {
-    icon: [{ url: "/icons/favicon-32.png", sizes: "32x32", type: "image/png" }, { url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
-    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+    // Same artwork as the TikTok app icon (public/icons/vf-icon-1024.png). Keep them identical.
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icons/vf-favicon-32.png", sizes: "32x32", type: "image/png" },
+      { url: "/icons/vf-favicon-16.png", sizes: "16x16", type: "image/png" },
+      { url: "/icons/vf-icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/vf-icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: [{ url: "/favicon.ico" }],
+    apple: [{ url: "/icons/vf-apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
   formatDetection: { telephone: false },
 };

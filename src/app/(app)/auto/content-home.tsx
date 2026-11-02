@@ -7,6 +7,7 @@ import { statusLabels } from "@/features/content-export/contracts";
 import { listContentRuns } from "@/features/content-export/service";
 import { SYSTEM_STATUS } from "@/features/system/status";
 import { AutoRefresh } from "./auto-refresh";
+import { BrandIcon } from "@/components/brand-icon";
 
 type Account = { id: string; display_name: string; account_status: string; authorization_status: string; effective_mode: string; daily_post_target: number; daily_post_hard_limit: number; follower_count: number };
 export async function ContentHome({ client, owner, accounts, accountId, today, dayStart, dayEnd }: {
@@ -35,7 +36,7 @@ export async function ContentHome({ client, owner, accounts, accountId, today, d
   const nextStep = steps.findIndex(step => !step.done);
   return <div className="operator-page">
     <AutoRefresh />
-    <header className="operator-hero"><div className="operator-brand-mark" aria-hidden="true">V</div>
+    <header className="operator-hero"><BrandIcon className="operator-brand-mark" size={52} />
       <div className="operator-hero-copy"><p className="operator-overline">Viral Flow AI</p><h1>หน้าหลัก</h1><p>ระบบทำคลิปให้ทุกวัน คุณแค่ตรวจ ดาวน์โหลด แล้วโพสต์ใน TikTok</p></div>
       <span className="operator-state"><span aria-hidden="true">●</span>{overall}</span></header>
 

@@ -1,11 +1,11 @@
 /* ViralFlow service worker: makes the site installable and shows an offline page.
  * Pages and API calls always go to the network (they are private and change often);
  * only hashed build assets and icons are cached. Bump VERSION to drop old caches. */
-const VERSION = "vf-v1";
+const VERSION = "vf-v2";
 const OFFLINE = "/offline.html";
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll([OFFLINE, "/icons/icon-192.png"])).then(() => self.skipWaiting()));
+  event.waitUntil(caches.open(VERSION).then((cache) => cache.addAll([OFFLINE, "/icons/vf-icon-192.png"])).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {

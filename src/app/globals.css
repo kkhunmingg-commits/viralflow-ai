@@ -437,3 +437,7 @@ a { color: inherit; text-decoration: none; }
 .install-sheet .manual-primary { width: 100%; min-height: 48px; border: 0; border-radius: 12px; color: #fff; background: linear-gradient(110deg,#8165ed,#567de7); font: inherit; font-weight: 750; }
 .install-glyph { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; color: #8db4ff; background: #263049; font-size: 13px; }
 @media (min-width: 821px) { .install-sheet-backdrop { align-items: center; } .install-sheet { border-radius: 20px; } }
+
+/* App icon image (BrandIcon) replaces the old letter marks: drop their fills, borders and text styling. */
+img.brand-icon { display: block; flex: none; padding: 0; border: 0; object-fit: cover; background: none !important; color: transparent; }
+img.brand-icon.brand-mark { border-radius: 10px; }

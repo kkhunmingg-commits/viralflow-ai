@@ -2,6 +2,7 @@ import { signOut } from "@/app/(app)/actions";
 import Image from "next/image";
 import Link from "next/link";
 import { InstallAppButton } from "@/components/pwa/install-app-button";
+import { BrandIcon } from "@/components/brand-icon";
 
 export function Topbar({
   displayName,
@@ -16,7 +17,7 @@ export function Topbar({
 
   return (
     <header className="topbar">
-      <Link href="/auto" className="topbar-brand" aria-label="ViralFlow หน้าหลัก"><span className="brand-mark">V</span><span>ViralFlow</span></Link>
+      <Link href="/auto" className="topbar-brand" aria-label="ViralFlow หน้าหลัก"><BrandIcon className="brand-mark" size={36} /><span>ViralFlow</span></Link>
       <div className="topbar-title">
         <p className="topbar-kicker">VIRALFLOW AI</p>
         <p className="topbar-status">

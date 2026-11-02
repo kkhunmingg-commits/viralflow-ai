@@ -16,6 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AutoRefresh } from "./auto-refresh";
 import { ContentHome } from "./content-home";
 import "./operator.css";
+import { BrandIcon } from "@/components/brand-icon";
 
 export const maxDuration = 300;
 
@@ -296,7 +297,7 @@ export default async function AutoPage({ searchParams }: {
   return <div className="operator-page">
     <AutoRefresh/>
     <header className="operator-hero">
-      <div className="operator-brand-mark" aria-hidden="true">V</div>
+      <BrandIcon className="operator-brand-mark" size={52} />
       <div className="operator-hero-copy"><p className="operator-overline">VIRALFLOW AI</p>
         <h1>Home</h1><p>เริ่มงานและดูผลลัพธ์ของคุณในหน้าเดียว</p><Link href="/auto/accounts">จัดการหลายบัญชี →</Link></div>
       <span className={`operator-state ${status.tone}`}><span aria-hidden="true">●</span>{customerStatus}</span>
