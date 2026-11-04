@@ -333,7 +333,8 @@ export async function reopenMissedClip(admin: SupabaseClient, owner: string, cli
 export async function failClip(admin: SupabaseClient, owner: string, input: { clipId: string; reason: string; notStarted: boolean }) {
   const now = new Date().toISOString();
   const patch = input.notStarted
-    ? { status: "QUEUED", flow_account_id: null, lease_until: null, error: null, updated_at: now }
+    // Back in the queue, but the reason stays visible until the clip is made (the worker log is on another computer).
+    ? { status: "QUEUED", flow_account_id: null, lease_until: null, error: input.reason === "NO_CREDIT" || input.reason === "DRY_RUN" ? null : `ยังไม่ได้สร้าง: ${input.reason}`.slice(0, 300), updated_at: now }
     : { status: "FAILED", lease_until: null, error: input.reason.slice(0, 300), updated_at: now };
   check(await admin.from("flow_clips").update(patch).eq("owner_id", owner).eq("id", input.clipId).eq("status", "GENERATING"), "flow_clip_not_saved");
 }
