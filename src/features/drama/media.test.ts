@@ -63,3 +63,15 @@ describe.skipIf(!binary)("drama media (real ffmpeg)", () => {
     expect(info).toMatch(/Audio: aac/);
   }, 180_000);
 });
+
+describe("isDecodeFailure", () => {
+  it("blames the file only when ffmpeg read it and refused it", async () => {
+    const { isDecodeFailure } = await import("./media");
+    expect(isDecodeFailure(new Error("FFMPEG_FAILED(183): in.mp4: Invalid data found when processing input"))).toBe(true);
+    expect(isDecodeFailure(new Error("FFMPEG_FAILED(1): moov atom not found"))).toBe(true);
+    expect(isDecodeFailure(new Error("FFMPEG_FAILED(null): "))).toBe(false);
+    expect(isDecodeFailure(new Error("FFMPEG_TIMEOUT"))).toBe(false);
+    expect(isDecodeFailure(Object.assign(new Error("spawn ffmpeg ENOENT"), { code: "ENOENT" }))).toBe(false);
+    expect(isDecodeFailure(new Error("FFMPEG_UNAVAILABLE"))).toBe(false);
+  });
+});

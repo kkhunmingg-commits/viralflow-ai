@@ -226,7 +226,7 @@ export async function tickOwner(admin: SupabaseClient, owner: string, now = new 
   if (result.error) return { series: 0 }; // migration not applied yet
   const series = (result.data ?? []) as SeriesRow[];
   for (const s of series) {
-    try { await tickSeries(admin, owner, s, now); } catch { /* one series never stops the others */ }
+    try { await tickSeries(admin, owner, s, now); } catch (error) { console.error("[drama] tick failed", s.id, error); /* one series never stops the others */ }
   }
   return { series: series.length };
 }
@@ -272,7 +272,16 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
     if (verdict === "WAIT") return;
     let broken: string | null = null;
     if (verdict === "CHECK") {
-      broken = clip?.storage_path ? await absorbShot(admin, owner, series, episode, queued, clip as { id: string; storage_path: string; duration_seconds: number | null }, now) : "ไม่พบไฟล์วิดีโอ";
+      try {
+        broken = clip?.storage_path ? await absorbShot(admin, owner, series, episode, queued, clip as { id: string; storage_path: string; duration_seconds: number | null }, now) : "ไม่พบไฟล์วิดีโอ";
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!message.startsWith("SHOT_CHECK_UNAVAILABLE")) throw error;
+        // The server could not run its check: the take is kept as it is and checked again on the next round.
+        console.error("[drama] shot check unavailable", message);
+        await updateShot(admin, owner, queued.id, "QUEUED", { error: `เซิร์ฟเวอร์ยังตรวจช็อตนี้ไม่ได้ จะตรวจใหม่เอง ไม่เสียเครดิตเพิ่ม (${message})`.slice(0, 400) }, now);
+        return;
+      }
     }
     if (verdict === "BROKEN") broken = (clip?.error ?? "CLIP_MISSING").slice(0, 300);
     if (broken !== null || verdict === "NO_CREDIT") {

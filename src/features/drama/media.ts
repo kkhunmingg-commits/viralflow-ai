@@ -21,7 +21,7 @@ function run(args: string[], cwd: string, timeoutMs = 240_000) {
     child.on("close", code => {
       clearTimeout(timer);
       const stderr = Buffer.concat(errors).toString();
-      if (failed || code !== 0) reject(failed ?? new Error(`FFMPEG_FAILED: ${stderr.slice(-300)}`)); else resolve(stderr);
+      if (failed || code !== 0) reject(failed ?? new Error(`FFMPEG_FAILED(${code}): ${stderr.slice(-300)}`)); else resolve(stderr);
     });
   });
 }
@@ -42,6 +42,14 @@ export function lastFrameJpeg(mp4: Uint8Array) {
     return bytes;
   });
 }
+
+/** ffmpeg read the file and said it is not a usable video, as opposed to the server being unable to run the check at all. */
+const DECODE_FAILURE = /Invalid data found|moov atom not found|Error opening input|does not contain any stream|could not find codec|corrupt/i;
+export function isDecodeFailure(error: unknown) {
+  return error instanceof Error && /^FFMPEG_FAILED\(\d+\)/.test(error.message) && DECODE_FAILURE.test(error.message);
+}
+/** Thrown when the server itself could not check a shot: the take is kept and checked again later, no credits are spent. */
+export const SHOT_CHECK_UNAVAILABLE = "SHOT_CHECK_UNAVAILABLE";
 
 export type ShotCheck = { ok: true; durationSeconds: number } | { ok: false; reason: string };
 /** Seconds covered by detector events: each start pairs with the next end; an open start runs to the end of the clip. */
@@ -69,7 +77,11 @@ export function checkShot(mp4: Uint8Array) {
     try {
       log = await run(["-nostdin", "-hide_banner", "-i", "in.mp4", "-map", "0:v:0", "-vf", "blackdetect=d=0.5:pic_th=0.98:pix_th=0.10,freezedetect=n=-60dB:d=1.5",
         "-an", "-f", "null", "-"], dir, 120_000);
-    } catch { return { ok: false, reason: "เปิดไฟล์วิดีโอไม่ได้" }; }
+    } catch (error) {
+      const detail = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim();
+      if (isDecodeFailure(error)) return { ok: false, reason: `เปิดไฟล์วิดีโอไม่ได้ (${detail.slice(-160)})` };
+      throw new Error(`${SHOT_CHECK_UNAVAILABLE}: ${ffmpegBinary() ?? "no ffmpeg"} ${detail}`.slice(0, 400));
+    }
     const match = /Duration: (\d+):(\d+):([\d.]+)/.exec(log);
     const duration = match ? Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]) : 0;
     if (!/Stream #\d+:\d+.*Video:/.test(log)) return { ok: false, reason: "ไม่มีภาพ" };

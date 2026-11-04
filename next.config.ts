@@ -35,6 +35,8 @@ const nextConfig: NextConfig = {
     // Drama Studio takes last frames and cuts episodes in this route's background work.
     "/api/flow-worker/[action]": ["./workers/flow-browser/*.mjs", "./workers/flow-browser/installer/setup.ps1", "./assets/fonts/**", "./node_modules/ffmpeg-static/ffmpeg"],
     "/drama": ["./assets/fonts/**", "./node_modules/ffmpeg-static/ffmpeg"],
+    // The drama tab lives in the clip page; its buttons move a series on, which may check a shot.
+    "/post": ["./assets/fonts/**", "./node_modules/ffmpeg-static/ffmpeg"],
     "/drama/[id]": ["./assets/fonts/**", "./node_modules/ffmpeg-static/ffmpeg"],
   },
   poweredByHeader: false,
