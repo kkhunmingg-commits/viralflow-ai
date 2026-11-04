@@ -1,0 +1,38 @@
+.drama-page h2{margin:0 0 14px}.drama-page h3{margin:14px 0 8px;font-size:16px}
+.drama-series-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:24px}
+.drama-series-list>h2,.drama-series-list>p{grid-column:1/-1}
+.drama-card{display:flex;flex-direction:column;gap:6px;background:linear-gradient(125deg,#1c2230,#181e2a);border:1px solid #2b3549;border-radius:18px;padding:20px;color:inherit;text-decoration:none;transition:border-color .15s}
+.drama-card:hover{border-color:#7d6be6}.drama-card h3{margin:6px 0 0;font-size:19px}
+.drama-card-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.drama-genre{border-radius:999px;padding:3px 11px;font-size:12px;font-weight:750;background:#2b3549;color:#dfe6f5}
+.drama-genre-horror{background:#4a1d25;color:#ffb3bd}.drama-genre-action{background:#4a3214;color:#ffcf8f}.drama-genre-comedy{background:#3d4214;color:#f2f08a}
+.drama-genre-romance{background:#4a1c3d;color:#ffb3e6}.drama-genre-mystery{background:#1d2e4a;color:#a8c8ff}.drama-genre-fantasy{background:#2f1d4a;color:#d4b8ff}
+.drama-status{font-size:12px;color:#c5b9ff;font-weight:700}
+.drama-logline{color:#9faec6;font-size:14px;line-height:1.6;margin:0}
+.drama-progress{height:6px;border-radius:99px;background:#2b3549;overflow:hidden;margin-top:6px}.drama-progress span{display:block;height:100%;background:linear-gradient(90deg,#8165ed,#567de7)}
+.drama-meta{font-size:13px;color:#9faec6;margin:0}.drama-meta a{color:#c5b9ff}.drama-next{font-size:13px;color:#e6eaf3;margin:0}
+.drama-form{display:flex;flex-direction:column;gap:18px}
+.drama-genres{border:0;padding:0;margin:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}.drama-genres legend{font-weight:750;margin-bottom:10px}
+.drama-genre-option{display:flex;gap:10px;align-items:flex-start;border:1px solid #2b3549;border-radius:14px;padding:14px;cursor:pointer;background:#151a24}
+.drama-genre-option:has(input:checked){border-color:#8165ed;background:#1f1d3a}.drama-genre-option.is-taken{opacity:.45;cursor:not-allowed}
+.drama-genre-option input{margin-top:4px;accent-color:#8165ed}.drama-genre-option span{display:flex;flex-direction:column;gap:4px}.drama-genre-option small{color:#9faec6;line-height:1.55}
+.drama-form-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.drama-note{margin:0;font-size:13px}
+.drama-controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:22px}
+.drama-arc{list-style:none;padding:0;margin:0 0 12px;display:flex;flex-wrap:wrap;gap:6px}
+.drama-arc li{width:58px;border-radius:10px;padding:6px 4px;text-align:center;background:#151a24;border:1px solid #2b3549}
+.drama-arc li span{display:block;font-weight:800}.drama-arc li small{display:block;font-size:10px;color:#9faec6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drama-arc-ready{background:#1f2d4a!important;border-color:#567de7!important}.drama-arc-producing,.drama-arc-assembling{border-color:#c5b9ff!important;box-shadow:0 0 0 2px #8165ed55}.drama-arc-failed{border-color:#f4cb93!important}
+.drama-shots{list-style:none;padding:0;margin:14px 0;display:flex;flex-direction:column;gap:10px}
+.drama-shot{border:1px solid #2b3549;border-radius:14px;padding:14px;background:#151a24;display:flex;flex-direction:column;gap:8px}
+.drama-shot>div{display:flex;flex-wrap:wrap;gap:8px;align-items:baseline}.drama-shot small{color:#9faec6}
+.drama-shot-done{border-color:#355b9e}.drama-shot-queued{border-color:#8165ed}.drama-shot-failed{border-color:#a8743a}
+.drama-line{margin:0;font-size:15px}.drama-prompt{white-space:pre-wrap;font-size:12px;color:#b8c3d9;background:#0f131b;border-radius:10px;padding:12px;max-height:280px;overflow:auto}
+.drama-page details summary{cursor:pointer;color:#c5b9ff;font-size:13px}
+.drama-two{display:grid;grid-template-columns:1fr 1fr;gap:24px}.drama-two>.manual-panel{margin-bottom:24px}
+.drama-still{width:100%;max-width:240px;border-radius:14px;display:block;margin-bottom:12px}
+.drama-cast,.drama-places,.drama-recap{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:10px}
+.drama-cast p{margin:4px 0;color:#9faec6;font-size:14px}.drama-cast small{color:#c5b9ff}.drama-change{color:#f4cb93!important}
+.drama-episodes{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px}
+.drama-episode{background:#151a24;border:1px solid #2b3549;border-radius:14px;padding:12px}.drama-episode video{width:100%;aspect-ratio:9/16;border-radius:10px;background:#000}
+.drama-episode h3{margin:8px 0 4px}
+@media (max-width:760px){.drama-two{grid-template-columns:1fr}.drama-arc li{width:50px}.drama-genres{grid-template-columns:1fr}}

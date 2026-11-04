@@ -21,7 +21,7 @@ export async function ContentHome({ client, owner, accounts, accountId, today, d
   const count = async (states: string[]) => {
     if (!accountId) return null;
     const result = await client.from("flow_clips").select("id", { count: "exact", head: true })
-      .eq("owner_id", owner).eq("tiktok_account_id", accountId).in("status", states).gte("created_at", dayStart).lt("created_at", dayEnd);
+      .eq("owner_id", owner).eq("tiktok_account_id", accountId).in("status", states).neq("kind", "DRAMA_SHOT").gte("created_at", dayStart).lt("created_at", dayEnd);
     return result.error ? null : result.count ?? 0;
   };
   const values = await Promise.all([count(["READY", "SCHEDULED", "POSTED"]), count(["QUEUED", "GENERATING"]), count(["READY", "SCHEDULED"]), count(["FAILED", "SKIPPED_NO_CREDIT"])]);

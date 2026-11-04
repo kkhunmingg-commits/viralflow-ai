@@ -141,12 +141,12 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
             <video controls playsInline preload="metadata" src={`/api/library/${clip.id}/video#t=0.1`} aria-label={clip.title} />
             <div className="library-clip-body">
               <h3>{clip.title}</h3>
-              <p className="library-meta">{clip.kind === "AFFILIATE" ? "ขายของ" : "ปั้นช่อง"}{clip.duration_seconds ? ` · ${Number(clip.duration_seconds).toFixed(0)} วิ` : ""} · สร้างด้วย Google Flow</p>
+              <p className="library-meta">{clip.kind === "AFFILIATE" ? "ขายของ" : clip.kind === "DRAMA" ? "ละครซีรีส์" : "ปั้นช่อง"}{clip.duration_seconds ? ` · ${Number(clip.duration_seconds).toFixed(0)} วิ` : ""} · สร้างด้วย Google Flow</p>
               {clip.status === "SCHEDULED" && clip.scheduled_at && <p className={due ? "library-due" : "library-scheduled"}>{due ? "ถึงเวลาโพสต์แล้ว · " : "ตั้งเวลาไว้ · "}{bangkokTime(clip.scheduled_at)}</p>}
               <textarea className="library-caption" readOnly rows={3} defaultValue={caption} aria-label="คำบรรยายสำหรับคัดลอก" />
               <ClipPhoneActions clipId={clip.id} caption={caption} />
               <div className="library-actions">
-                {publishScope && clip.kind === "GROWTH" && <TikTokPrivatePostButton clipId={clip.id} caption={caption} />}
+                {publishScope && clip.kind !== "AFFILIATE" && <TikTokPrivatePostButton clipId={clip.id} caption={caption} />}
                 <form action={markPostedAction} className="library-inline"><input type="hidden" name="id" value={clip.id} />{back}
                   <input name="url" type="url" placeholder="ลิงก์โพสต์ TikTok (ไม่บังคับ)" aria-label="ลิงก์โพสต์ TikTok" />
                   <button className="manual-secondary" type="submit">โพสต์แล้ว · ลบไฟล์</button><LeaveOnSubmit /></form>

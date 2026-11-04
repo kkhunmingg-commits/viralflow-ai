@@ -172,7 +172,7 @@ export async function startBatch(admin: SupabaseClient, owner: string, accountId
   const results: BatchResult[] = [];
   for (const [position, account] of accounts.entries()) {
     const existing = await admin.from("flow_clips").select("id", { count: "exact", head: true }).eq("owner_id", owner)
-      .eq("tiktok_account_id", account.id).in("status", COUNTED_STATUSES).gte("created_at", start).lt("created_at", end);
+      .eq("tiktok_account_id", account.id).in("status", COUNTED_STATUSES).in("kind", ["GROWTH", "AFFILIATE"]).gte("created_at", start).lt("created_at", end);
     if (existing.error) throw new Error("flow_clips_unavailable");
     const add = clipsToAdd(count, existing.count ?? 0, MAX_CLIPS_PER_BATCH);
     const mode = account.effective_mode === "AFFILIATE" ? "AFFILIATE" : "GROWTH";
@@ -346,7 +346,7 @@ export async function finishWithoutCredits(admin: SupabaseClient, owner: string,
 // ---------------------------------------------------------------- Library (owner)
 
 export interface LibraryClip {
-  id: string; tiktok_account_id: string; product_id: string | null; kind: "GROWTH" | "AFFILIATE"; title: string; caption: string;
+  id: string; tiktok_account_id: string; product_id: string | null; kind: "GROWTH" | "AFFILIATE" | "DRAMA"; title: string; caption: string;
   hashtags: string[]; status: FlowClipStatus; error: string | null; ready_at: string | null; scheduled_at: string | null; posted_at: string | null;
   post_url: string | null; duration_seconds: number | null; width: number | null; height: number | null; created_at: string; flow_account_id: string | null;
   video_sha256: string | null;
@@ -354,7 +354,8 @@ export interface LibraryClip {
 
 export async function listTodayClips(client: SupabaseClient, owner: string, accountId?: string, now = new Date()) {
   const { start, end } = bangkokDayRange(bangkokDate(now));
-  let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).gte("created_at", start).lt("created_at", end)
+  // Drama Studio production shots are not clips to post; only their cut episodes (kind DRAMA) are.
+  let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).neq("kind", "DRAMA_SHOT").gte("created_at", start).lt("created_at", end)
     .order("created_at", { ascending: true });
   if (accountId) query = query.eq("tiktok_account_id", accountId);
   return check(await query, "flow_clips_unavailable") as LibraryClip[];
@@ -375,7 +376,7 @@ export async function liveClipProgress(client: SupabaseClient, owner: string, ac
   return { clips, lastSeen: worker.lastSeen, progress: worker.progress, now: now.toISOString() };
 }
 export async function listLibrary(client: SupabaseClient, owner: string, accountId?: string) {
-  let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).in("status", LIBRARY_STATUSES)
+  let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).in("status", LIBRARY_STATUSES).neq("kind", "DRAMA_SHOT")
     .order("scheduled_at", { ascending: true, nullsFirst: false }).order("ready_at", { ascending: true }).limit(200);
   if (accountId) query = query.eq("tiktok_account_id", accountId);
   return check(await query, "flow_clips_unavailable") as LibraryClip[];
