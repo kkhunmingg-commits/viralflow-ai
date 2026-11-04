@@ -2,6 +2,19 @@
 export interface EpisodeCut {
   seriesTitle: string; episodeNumber: number; totalEpisodes: number; episodeTitle: string; finale: boolean;
   shots: Array<{ durationSeconds: number; subtitle: string }>;
+  /** The cast's Thai names (lead, ally, rival): a subtitle "name: line" shows the name in that character's colour. */
+  speakers?: string[];
+}
+
+/** ASS colours (&HBBGGRR) for the lead, the ally and the rival. */
+const SPEAKER_COLOURS = ["&H0066E0FF&", "&H00FFC864&", "&H008C8CFF&"];
+
+/** "มิน: ใครอยู่ตรงนั้น" → the name on its own small line in the speaker's colour, then the line. */
+export function subtitleText(subtitle: string, speakers: string[] = []) {
+  const match = /^([^:]{1,24}):\s*(.+)$/.exec(subtitle.trim());
+  const at = match ? speakers.indexOf(match[1].trim()) : -1;
+  if (!match || at < 0) return wrapLine(subtitle);
+  return `{\\c${SPEAKER_COLOURS[at % SPEAKER_COLOURS.length]}\\fs34}${clean(match[1])}{\\r}\\N${wrapLine(match[2])}`;
 }
 
 const time = (seconds: number) => {
@@ -32,7 +45,7 @@ export function buildEpisodeSubtitles(cut: EpisodeCut) {
   let start = 0;
   for (const shot of cut.shots) {
     const end = start + shot.durationSeconds;
-    if (shot.subtitle.trim()) events.push(`Dialogue: 1,${time(start + .5)},${time(Math.max(start + 1.5, end - .4))},Sub,,0,0,0,,${wrapLine(shot.subtitle)}`);
+    if (shot.subtitle.trim()) events.push(`Dialogue: 1,${time(start + .5)},${time(Math.max(start + 1.5, end - .4))},Sub,,0,0,0,,${subtitleText(shot.subtitle, cut.speakers)}`);
     start = end;
   }
   const total = start;

@@ -55,11 +55,26 @@ describe("planEpisode", () => {
     });
   }
 
-  it("uses the right reference image for each shot", () => {
+  it("attaches a start picture only when it shows the same place", () => {
     const { episodes } = season("HORROR", 6, 4);
     expect(episodes[0].shots[0].referenceMode).toBe("NONE");
-    for (const ep of episodes.slice(1)) expect(ep.shots[0].referenceMode).toBe("KEY_STILL");
-    for (const ep of episodes) for (const shot of ep.shots.slice(1)) expect(["KEY_STILL", "PREVIOUS_FRAME"]).toContain(shot.referenceMode);
+    for (const ep of episodes) for (const [i, shot] of ep.shots.entries()) {
+      expect(["NONE", "KEY_STILL", "PREVIOUS_FRAME"]).toContain(shot.referenceMode);
+      if (shot.referenceMode === "PREVIOUS_FRAME") expect(i).toBeGreaterThan(0);
+    }
+    // Episode 1 of บ้านกระจกผ้าแดง: hall, hall, hall, hall, then the attic starts fresh instead of morphing from the hall.
+    expect(episodes[0].shots.map(s => s.referenceMode)).toContain("NONE");
+  });
+
+  it("gives every line its speaker's voice and age, and keeps one take in one place", () => {
+    const { episodes } = season("HORROR", 6, 5);
+    const prompts = episodes.flatMap(ep => ep.shots.map(s => s.prompt));
+    expect(prompts.every(p => p.includes("no cuts, no transitions, no flashes"))).toBe(true);
+    const jaem = prompts.find(p => p.includes("only Aunt Jaem"));
+    expect(jaem).toMatch(/old person.s voice/);
+    expect(prompts.filter(p => p.includes("only Min")).some(p => p.includes("old person"))).toBe(false);
+    const lines = episodes.flatMap(ep => ep.shots.filter(s => s.subtitle));
+    expect(lines.every(s => /^(มิน|ต้น|ป้าแจ่ม): /.test(s.subtitle))).toBe(true);
   });
 
   it("picks up the previous cliffhanger and carries memory forward", () => {

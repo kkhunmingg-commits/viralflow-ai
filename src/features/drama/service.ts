@@ -401,7 +401,7 @@ async function assemble(admin: SupabaseClient, owner: string, series: SeriesRow,
     }
     const { assembleEpisode } = await import("./media");
     const video = await assembleEpisode({ shots: inputs, cut: { seriesTitle: series.title, episodeNumber: episode.number, totalEpisodes: series.total_episodes,
-      episodeTitle: episode.title, finale: episode.number >= series.total_episodes } });
+      episodeTitle: episode.title, finale: episode.number >= series.total_episodes, speakers: series.bible.cast.map(c => c.name) } });
     const sha256 = createHash("sha256").update(video.bytes).digest("hex");
     const upload = await admin.storage.from(BUCKET).upload(path, video.bytes, { contentType: "video/mp4", upsert: true });
     if (upload.error) throw new Error("EPISODE_NOT_SAVED");

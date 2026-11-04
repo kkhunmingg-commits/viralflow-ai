@@ -87,6 +87,21 @@ const CAMERA = {
   intro: "medium-wide establishing shot, every face clearly visible and well lit",
 };
 
+/** Words in a move that mean other people (a crowd, customers) belong in the shot. */
+const CROWD = /\b(crowd|customers?|class|students|children|kids|passengers|people|guests|audience|villagers|everyone|strangers?|men|women)\b/i;
+/** One take, one place: Veo otherwise flashes or morphs into a different room mid-shot. */
+const CONTINUITY = "One single continuous take: no cuts, no transitions, no flashes, no dissolves. The location, background and lighting stay exactly the same from the first frame to the last, and every person's hair and clothes never change.";
+const OLD = /elderly|(?<!-)\bold\b|sixties|seventies|eighties|grand(mother|father|ma|pa)|\b[6-9]\d-year/i;
+
+/** The spoken line with the speaker's age and voice next to it, so Veo gives each character their own voice. */
+export function dialogueLine(speaker: CastMember, line: string, visible: boolean) {
+  const aged = OLD.test(`${speaker.age} ${speaker.look}`) ? "; unmistakably an old person's voice: aged, thin, slightly shaky and breathy, never young" : "";
+  const voice = `${speaker.voice}${aged}`;
+  return visible
+    ? `Dialogue (Thai, lip-synced): only ${speaker.nameEn} (${speaker.age}) speaks, in a ${voice}. ${speaker.nameEn} says: "${line}". Everyone else stays silent with their mouth closed.`
+    : `Dialogue (Thai): an off-screen voice belonging to ${speaker.nameEn} (${speaker.age}), a ${voice}, says: "${line}". No one on screen speaks.`;
+}
+
 export interface ShotDraft { move: Move; place: PlaceKey; camera: string; hook?: boolean }
 
 /** The English prompt the Flow worker types. Character and place descriptions are repeated word for word every time. */
@@ -99,20 +114,24 @@ export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<Sto
     return `- ${c.nameEn}: ${c.age}, ${c.look}; wearing ${c.outfit}${condition ? `; ${condition.en}` : ""}. Voice: ${c.voice}.`;
   });
   const speaker = line ? castOf(bible, line.who) : null;
-  const dialogue = line && speaker
-    ? speakerVisible ? `Dialogue: ${speaker.nameEn} says in Thai, clearly and naturally: "${fill(line.line, bible, "th")}"`
-      : `Dialogue: an off-screen ${speaker.voice} says in Thai: "${fill(line.line, bible, "th")}"`
-    : "No dialogue; natural sound only.";
+  const dialogue = line && speaker ? dialogueLine(speaker, fill(line.line, bible, "th"), speakerVisible) : "No dialogue; natural sound only.";
+  const names = present.map(role => castOf(bible, role).nameEn);
+  const crowd = CROWD.test(draft.move.en);
+  const people = names.length
+    ? `People on screen: ${names.join(", ")}. Each of them appears exactly once; never duplicate a person, never show a double or a look-alike, faces never blend or morph into each other${crowd ? "" : "; no other people"}.`
+    : crowd ? "" : "No people on screen.";
   const reference = mode === "PREVIOUS_FRAME" ? "Begin exactly on the attached image (same people, same place, same light) and continue the action from there."
-    : mode === "KEY_STILL" ? "Match every character's face, hair and clothes to the attached reference image." : "";
+    : mode === "KEY_STILL" ? "Begin on the attached image of this same place and continue from there; keep every face, hair and outfit as shown." : "";
   return [
     `${bible.style}. Vertical 9:16, one continuous 8-second shot.`,
     `Setting: ${place.look}.`,
     ...(cast.length ? ["Characters (keep faces, hair, clothes and voices identical in every shot):", ...cast] : []),
+    ...(people ? [people] : []),
     ...(draft.move.en.includes("{OBJ}") ? [`Key object, always identical: ${bible.object.look}.`] : []),
     `Action: ${fill(draft.move.en, bible, "en")}.`,
     dialogue,
     `Camera: ${draft.camera}.`,
+    CONTINUITY,
     `Sound: ${bible.sound}.`,
     ...(reference ? [reference] : []),
     "No on-screen text, no captions, no subtitles, no watermark, no logo. Realistic human motion and expressions.",
@@ -192,15 +211,20 @@ export function planEpisode(input: { bible: SeriesBible; state: StoryState; numb
 
   // Memory: lasting changes apply from the shot they happen in, so later shots (and episodes) keep them.
   const next: StoryState = { ...state, conditions: { ...state.conditions }, clues: [...state.clues], usedMoves: [...state.usedMoves], usedCliffs: [...state.usedCliffs] };
+  // Flow starts a shot from the attached picture, so a picture of another room makes the background flash or morph
+  // into the new one. Attach one only when it shows the same place: the previous shot's last frame, or the key still
+  // (episode 1's first shot, in the opening place). A shot in a new place starts from its description alone.
+  const stillPlace = kit.beats.OPENING?.at ?? "A";
   const planned: PlannedShot[] = drafts.map((draft, i) => {
-    const mode: ReferenceMode = number === 1 && i === 0 ? "NONE" : i === 0 ? "KEY_STILL"
-      : draft.place === drafts[i - 1].place ? "PREVIOUS_FRAME" : "KEY_STILL";
+    const mode: ReferenceMode = number === 1 && i === 0 ? "NONE"
+      : i > 0 && draft.place === drafts[i - 1].place ? "PREVIOUS_FRAME" : draft.place === stillPlace ? "KEY_STILL" : "NONE";
     const prompt = shotPrompt(bible, draft, next, mode, kit);
     if (draft.move.condition) next.conditions[draft.move.condition.who] = { en: draft.move.condition.en, th: draft.move.condition.th };
     if (draft.move.clue && !next.clues.includes(draft.move.clue)) next.clues.push(draft.move.clue);
     if (!draft.hook && !fixedKey && draft.move !== cliff) next.usedMoves.push(draft.move.id);
     const line = lineOf(draft.move.say, kit);
-    return { position: i + 1, summary: fill(draft.move.th, bible, "th"), prompt, subtitle: line ? fill(line.line, bible, "th") : "",
+    // The subtitle names who speaks ("มิน: ..."); the cut colours each name.
+    return { position: i + 1, summary: fill(draft.move.th, bible, "th"), prompt, subtitle: line ? `${castOf(bible, line.who).name}: ${fill(line.line, bible, "th")}` : "",
       speaker: line?.who ?? null, referenceMode: mode };
   });
   if (cliff && !fixedKey) next.usedCliffs.push(cliff.id);
