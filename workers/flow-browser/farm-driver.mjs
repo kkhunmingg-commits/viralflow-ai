@@ -122,30 +122,44 @@ export async function chooseSingleOutput(page, selectors) {
 }
 
 const LITE_MODEL = /Veo\s*3\.1\s*[-–]?\s*Lite/i;
-/** Opens Flow's settings and picks the Veo 3.1 Lite model. Never clicks Generate. True when Lite ended up chosen. */
-export async function chooseLiteModel(page, selectors) {
-  const chip = await firstVisible(page, selectors.settingsChip) ?? await firstVisible(page, 'button:has-text("Veo"), button:has-text("tune"), button:has-text("settings")');
+/** The composer's settings chip: "วิดีโอ · 720p · 8 วินาที crop_9_16 x1" (or "Nano Banana … x2" on a fresh account). */
+async function settingsChip(page, selectors) {
+  return await firstVisible(page, selectors.settingsChip) ?? await firstVisible(page, 'button:has-text("crop_")');
+}
+async function pickRadio(page, name) {
+  const radio = page.getByRole("radio", { name }).first();
+  if (await radio.count() && await radio.getAttribute("aria-checked") !== "true") { await radio.click({ timeout: 10_000 }).catch(() => {}); await page.waitForTimeout(400); }
+}
+/**
+ * Sets what every account must use, whatever Flow last remembered for it: video, 9:16, Veo 3.1 Lite, one output, and
+ * frames (a start picture) or ingredients mode. A newly added account starts on the image model, whose cost is not a
+ * video's. Never clicks Generate. True when the panel was found.
+ */
+export async function chooseVideoSettings(page, selectors, { frames = false } = {}) {
+  const chip = await settingsChip(page, selectors);
   if (!chip) return false;
-  if (LITE_MODEL.test(await chip.innerText().catch(() => ""))) return true;
   await chip.click({ timeout: 10_000 }).catch(() => {});
   await page.waitForTimeout(800);
-  let chosen = false;
   try {
-    let lite = page.getByRole("option", { name: LITE_MODEL }).or(page.getByRole("menuitemradio", { name: LITE_MODEL })).or(page.getByRole("radio", { name: LITE_MODEL }));
-    if (!await lite.count()) {
-      // The model is a dropdown inside the panel: open it first.
-      const model = page.getByRole("combobox").or(page.locator('button:has-text("Veo")')).filter({ hasText: /Veo/i }).last();
-      if (await model.count()) { await model.click({ timeout: 10_000 }).catch(() => {}); await page.waitForTimeout(800); }
-      lite = page.getByRole("option", { name: LITE_MODEL }).or(page.getByRole("menuitemradio", { name: LITE_MODEL })).or(page.getByText(LITE_MODEL));
+    await pickRadio(page, /วิดีโอ|video/i);
+    if (frames) await pickRadio(page, /เฟรม|frames?/i);
+    await pickRadio(page, /9:16/);
+    const model = page.locator('button:has-text("arrow_drop_down")').filter({ hasText: /Veo|Omni|Flash|Lite|Fast|Quality/i }).last();
+    if (await model.count() && !LITE_MODEL.test(await model.innerText().catch(() => ""))) {
+      await model.click({ timeout: 10_000 }).catch(() => {});
+      await page.waitForTimeout(600);
+      const lite = page.getByRole("menuitem", { name: LITE_MODEL }).or(page.getByRole("option", { name: LITE_MODEL })).first();
+      if (await lite.count()) { await lite.click({ timeout: 10_000 }).catch(() => {}); await page.waitForTimeout(600); }
     }
-    if (await lite.count()) { await lite.last().click({ timeout: 10_000 }); chosen = true; await page.waitForTimeout(800); }
-  } catch { chosen = false; }
-  await page.keyboard.press("Escape").catch(() => {});
-  await page.waitForTimeout(300);
-  return chosen;
+    await pickRadio(page, /^x1$/);
+  } finally {
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(400);
+  }
+  return true;
 }
 
-async function attachReference(page, selectors, imageUrl, scratchDir, clipId) {
+async function attachReference(page, selectors, imageUrl, scratchDir, clipId, { frames = false } = {}) {
   if (!imageUrl) return;
   const response = await page.request.get(imageUrl, { timeout: 20_000, maxRedirects: 0 });
   if (!response.ok()) throw new Error("PRODUCT_IMAGE_LINK_EXPIRED");
@@ -155,9 +169,32 @@ async function attachReference(page, selectors, imageUrl, scratchDir, clipId) {
   await writeFile(path, bytes);
   try {
     const input = page.locator(selectors.imageInput).first();
-    if (!await input.count()) throw new Error("IMAGE_INPUT_NOT_FOUND");
-    await input.setInputFiles(path);
-    await page.waitForTimeout(4000);
+    if (selectors.imageInput && await input.count()) { await input.setInputFiles(path); await page.waitForTimeout(4000); return; }
+    // Flow (Nov 2026): frames mode has a "เริ่ม" (start) slot, ingredients mode an "add" button; either opens a picker
+    // whose "อัปโหลดสื่อ" button asks for a file.
+    const startSlot = () => page.locator("button.empty-chip").filter({ hasText: /^\s*(เริ่ม|start)\s*$/i }).first();
+    const slot = frames ? startSlot() : page.getByRole("button", { name: /^add$/ }).last();
+    if (!await slot.count()) throw new Error("IMAGE_INPUT_NOT_FOUND");
+    await slot.click({ timeout: 10_000 });
+    await page.waitForTimeout(1000);
+    const upload = page.getByRole("button", { name: /อัปโหลดสื่อ|upload/i }).last();
+    if (!await upload.count()) throw new Error("IMAGE_INPUT_NOT_FOUND");
+    const [chooser] = await Promise.all([page.waitForEvent("filechooser", { timeout: 15_000 }), upload.click({ timeout: 10_000 })]);
+    await chooser.setFiles(path);
+    // The picture uploads into the picker; when the picker stays open, pick the newest picture in it.
+    const deadline = Date.now() + 40_000;
+    let picked = false;
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(2000);
+      if (frames && !await startSlot().isVisible().catch(() => false)) return;
+      const picker = page.locator(':text("เลือกรูปภาพ"), :text("Select")').first();
+      if (!await picker.isVisible().catch(() => false)) { if (!frames) return; continue; }
+      if (!picked) {
+        const image = picker.locator("xpath=ancestor::*[.//img][1]").locator("img").first();
+        if (await image.count()) { await image.click({ timeout: 5_000 }).catch(() => {}); picked = true; }
+      }
+    }
+    throw new Error("IMAGE_NOT_ATTACHED");
   } finally { await rm(path, { force: true }); }
 }
 
@@ -278,18 +315,16 @@ export async function openFlowAccount(account, config) {
       catch (error) { return fail(error.message); }
       if (appeared("", await bodyText(page), NO_CREDIT_PATTERNS)) return { status: "NO_CREDIT" };
       if (clip.imageUrl) await step("ATTACHING_IMAGE");
-      try { await attachReference(page, selectors, clip.imageUrl, config.scratchDir, clip.id); }
-      catch (error) { return fail(error.message); }
+      // A drama shot continues from a picture (the last frame, or the key still): Flow's "frames" mode, start slot.
+      const frames = clip.kind === "DRAMA_SHOT" && Boolean(clip.imageUrl);
+      await chooseVideoSettings(page, selectors, { frames });
+      try { await attachReference(page, selectors, clip.imageUrl, config.scratchDir, clip.id, { frames }); }
+      catch (error) { await saveDebug(page, config.debugDir, clip.id, "image"); return fail(error.message); }
       // Cost depends on the saved model/outputs, not the prompt: check it before typing anything.
       await step("CHECKING_COST");
       await chooseSingleOutput(page, selectors);
       let cost = await readCost(page, selectors);
-      // A newly added account still has Flow's default model, whose cost is not shown or is above the ceiling:
-      // pick Veo 3.1 Lite x1 once, as the owner did by hand on the first account, and read again.
-      if (!costDecision(cost, config.costPolicy).ok && await chooseLiteModel(page, selectors)) {
-        await chooseSingleOutput(page, selectors);
-        cost = await readCost(page, selectors);
-      }
+      if (!costDecision(cost, config.costPolicy).ok && await chooseVideoSettings(page, selectors, { frames })) cost = await readCost(page, selectors);
       const decision = costDecision(cost, config.costPolicy);
       if (!decision.ok) { await saveDebug(page, config.debugDir, clip.id, "cost"); return fail(decision.reason); }
       await step("TYPING_PROMPT", cost != null ? `${cost} เครดิต` : undefined);
