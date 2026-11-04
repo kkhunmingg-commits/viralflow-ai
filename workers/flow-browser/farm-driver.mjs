@@ -189,6 +189,9 @@ async function attachReference(page, selectors, imageUrl, scratchDir, clipId, { 
       if (frames && !await startSlot().isVisible().catch(() => false)) return;
       const picker = page.locator(':text("เลือกรูปภาพ"), :text("Select")').first();
       if (!await picker.isVisible().catch(() => false)) { if (!frames) return; continue; }
+      // The uploaded picture shows in the picker's preview with "เพิ่มไปยังพรอมต์" (add to prompt) under it.
+      const add = page.getByRole("button", { name: /เพิ่มไปยังพรอมต์|add to prompt/i }).last();
+      if (await add.isVisible().catch(() => false)) { await add.click({ timeout: 5_000 }).catch(() => {}); continue; }
       if (!picked) {
         const image = picker.locator("xpath=ancestor::*[.//img][1]").locator("img").first();
         if (await image.count()) { await image.click({ timeout: 5_000 }).catch(() => {}); picked = true; }
