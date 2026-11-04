@@ -43,6 +43,43 @@ export function lastFrameJpeg(mp4: Uint8Array) {
   });
 }
 
+export type ShotCheck = { ok: true; durationSeconds: number } | { ok: false; reason: string };
+/** Seconds covered by detector events: each start pairs with the next end; an open start runs to the end of the clip. */
+function covered(log: string, startKey: string, endKey: string, duration: number) {
+  const escape = (key: string) => key.replace(/[.]/g, "\\.");
+  const events = [...log.matchAll(new RegExp(`(${escape(startKey)}|${escape(endKey)}):\\s*(-?[\\d.]+)`, "g"))];
+  let total = 0, open: number | null = null;
+  for (const [, key, value] of events) {
+    if (key === startKey) open = Number(value);
+    else if (open !== null) { total += Number(value) - open; open = null; }
+  }
+  if (open !== null) total += Math.max(0, duration - open);
+  return total;
+}
+/**
+ * The server's check of every shot before it goes into an episode: a real video, long enough, not (mostly) black and
+ * not a frozen picture. Only clear defects fail, so a quiet, still scene is not remade for nothing. Whether the scene
+ * shows what the prompt asked for is not judged here (that would need a paid vision model).
+ */
+export function checkShot(mp4: Uint8Array) {
+  return workspace(async (dir): Promise<ShotCheck> => {
+    if (mp4.length < 1000 || Buffer.from(mp4).toString("ascii", 4, 8) !== "ftyp") return { ok: false, reason: "ไฟล์วิดีโอเสีย" };
+    await writeFile(join(dir, "in.mp4"), mp4);
+    let log: string;
+    try {
+      log = await run(["-nostdin", "-hide_banner", "-i", "in.mp4", "-map", "0:v:0", "-vf", "blackdetect=d=0.5:pic_th=0.98:pix_th=0.10,freezedetect=n=-60dB:d=1.5",
+        "-an", "-f", "null", "-"], dir, 120_000);
+    } catch { return { ok: false, reason: "เปิดไฟล์วิดีโอไม่ได้" }; }
+    const match = /Duration: (\d+):(\d+):([\d.]+)/.exec(log);
+    const duration = match ? Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]) : 0;
+    if (!/Stream #\d+:\d+.*Video:/.test(log)) return { ok: false, reason: "ไม่มีภาพ" };
+    if (duration < 4) return { ok: false, reason: `สั้นเกินไป (${duration.toFixed(1)} วิ)` };
+    if (covered(log, "black_start", "black_end", duration) >= duration * 0.8) return { ok: false, reason: "จอดำเกือบทั้งช็อต" };
+    if (covered(log, "lavfi.freezedetect.freeze_start", "lavfi.freezedetect.freeze_end", duration) >= duration * 0.9) return { ok: false, reason: "ภาพค้างทั้งช็อต" };
+    return { ok: true, durationSeconds: Math.round(duration * 1000) / 1000 };
+  });
+}
+
 const hasAudio = async (dir: string, file: string) => {
   // `ffmpeg -i` with no output exits non-zero but lists the streams.
   const binary = ffmpegBinary();

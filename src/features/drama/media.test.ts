@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterAll, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { ffmpegBinary } from "@/features/video/ffmpeg-binary";
-import { assembleEpisode, lastFrameJpeg } from "./media";
+import { assembleEpisode, checkShot, lastFrameJpeg } from "./media";
 
 const binary = ffmpegBinary(), dir = mkdtempSync(join(tmpdir(), "drama-media-test-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
@@ -21,6 +21,25 @@ const probe = (bytes: Uint8Array) => {
   writeFileSync(file, bytes);
   try { execFileSync(binary!, ["-i", file], { stdio: "pipe" }); return ""; } catch (error) { return String((error as { stderr?: Buffer }).stderr ?? ""); }
 };
+
+/** A clip from any lavfi source (moving test pattern, black, a still colour). */
+function source(name: string, input: string, seconds: number) {
+  const out = join(dir, name);
+  execFileSync(binary!, ["-y", "-f", "lavfi", "-i", `${input}:d=${seconds}:r=24`, "-c:v", "libx264", "-pix_fmt", "yuv420p", out], { stdio: "ignore" });
+  return new Uint8Array(readFileSync(out));
+}
+
+describe.skipIf(!binary)("checkShot (real ffmpeg)", () => {
+  it("passes a normal moving shot", async () => {
+    expect(await checkShot(source("ok.mp4", "testsrc2=s=360x640", 8))).toEqual({ ok: true, durationSeconds: 8 });
+  }, 60_000);
+  it("rejects black, frozen, too short and broken files", async () => {
+    expect(await checkShot(source("black.mp4", "color=c=black:s=360x640", 8))).toMatchObject({ ok: false, reason: "จอดำเกือบทั้งช็อต" });
+    expect(await checkShot(source("frozen.mp4", "color=c=0x406080:s=360x640", 8))).toMatchObject({ ok: false, reason: "ภาพค้างทั้งช็อต" });
+    expect(await checkShot(source("short.mp4", "testsrc2=s=360x640", 2))).toMatchObject({ ok: false });
+    expect(await checkShot(new Uint8Array(5000))).toMatchObject({ ok: false, reason: "ไฟล์วิดีโอเสีย" });
+  }, 90_000);
+});
 
 describe.skipIf(!binary)("drama media (real ffmpeg)", () => {
   it("takes the last frame as a JPEG", async () => {

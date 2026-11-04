@@ -2,21 +2,22 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { bangkokDate } from "@/features/flow-farm/contracts";
-import { MAX_ASSEMBLE_ATTEMPTS, MAX_SHOT_ATTEMPTS, emptyStoryState, type DramaGenre, type EpisodeStatus, type SeriesBible, type SeriesStatus,
+import { MAX_ASSEMBLE_ATTEMPTS, emptyStoryState, type DramaGenre, type EpisodeStatus, type SeriesBible, type SeriesStatus,
   type StoryState } from "./contracts";
-import { ASSEMBLY_STALE_MS, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, promptFor, referencePath, shotOutcome,
+import { ASSEMBLY_STALE_MS, clipVerdict, episodeShotsFinished, mayStartEpisode, nextShotToQueue, planRetry, promptFor, referencePath, shotAccount,
   type ShotRow } from "./engine";
-import { SHOWRUNNER_WRITER, createBible, planEpisode } from "./showrunner";
+import { SHOWRUNNER_WRITER, createBible, pickStory, planEpisode } from "./showrunner";
 
 const BUCKET = "video-assets";
-const SERIES_COLUMNS = "id,tiktok_account_id,genre,title,logline,status,total_episodes,shots_per_episode,episodes_per_day,bible,story_state,writer,key_still_path,next_episode_number,created_at,updated_at";
+const SERIES_COLUMNS = "id,tiktok_account_id,genre,title,logline,status,total_episodes,shots_per_episode,episodes_per_day,bible,story_state,writer,key_still_path,next_episode_number,flow_account_id,repair_flow_account_id,previous_series_id,auto_next,created_at,updated_at";
 const EPISODE_COLUMNS = "id,series_id,number,phase,title,summary,cliffhanger,caption,hashtags,status,state_after,started_on,flow_clip_id,assemble_attempts,error,ready_at,created_at,updated_at";
-const SHOT_COLUMNS = "id,series_id,episode_id,position,prompt,subtitle,reference_mode,status,flow_clip_id,attempts,retry_after,last_frame_path,video_path,duration_seconds,error,created_at,updated_at";
+const SHOT_COLUMNS = "id,series_id,episode_id,position,prompt,subtitle,reference_mode,status,flow_clip_id,attempts,retry_after,last_frame_path,video_path,duration_seconds,error,route,created_at,updated_at";
 
 export interface SeriesRow {
   id: string; tiktok_account_id: string; genre: DramaGenre; title: string; logline: string; status: SeriesStatus; total_episodes: number;
   shots_per_episode: number; episodes_per_day: number; bible: SeriesBible; story_state: StoryState; writer: string; key_still_path: string | null;
-  next_episode_number: number; created_at: string; updated_at: string;
+  next_episode_number: number; flow_account_id: string | null; repair_flow_account_id: string | null; previous_series_id: string | null;
+  auto_next: boolean; created_at: string; updated_at: string;
 }
 export interface EpisodeRow {
   id: string; series_id: string; number: number; phase: string; title: string; summary: string; cliffhanger: string; caption: string; hashtags: string[];
@@ -44,23 +45,49 @@ export async function dramaAvailable(client: SupabaseClient) {
 
 // ---------------------------------------------------------------- Owner actions
 
-export async function createSeries(admin: SupabaseClient, owner: string, input: { tiktokAccountId: string; genre: DramaGenre; totalEpisodes: number;
-  shotsPerEpisode: number; episodesPerDay: number }, now = new Date()) {
+export interface NewSeries {
+  tiktokAccountId: string; flowAccountId: string; repairFlowAccountId?: string; genre: DramaGenre; totalEpisodes: number; shotsPerEpisode: number;
+  episodesPerDay: number;
+}
+/** The stories of this genre the owner already made, oldest first, so the next one is new. */
+async function usedStories(admin: SupabaseClient, owner: string, genre: DramaGenre) {
+  const rows = check(await admin.from("drama_series").select("bible").eq("owner_id", owner).eq("genre", genre).order("created_at", { ascending: true }),
+    "drama_unavailable") as Array<{ bible: SeriesBible }>;
+  return rows.map(row => row.bible?.premiseKey).filter((key): key is string => Boolean(key));
+}
+
+export async function createSeries(admin: SupabaseClient, owner: string, input: NewSeries, now = new Date(), previousSeriesId: string | null = null) {
   const account = check(await admin.from("tiktok_accounts").select("id").eq("owner_id", owner).eq("id", input.tiktokAccountId).is("hidden_at", null).maybeSingle(),
     "accounts_unavailable");
   if (!account) throw new Error("ACCOUNT_NOT_FOUND");
-  // The built-in writer has one story per genre: a second running series of the same genre would repeat it.
-  const sameGenre = check(await admin.from("drama_series").select("id").eq("owner_id", owner).eq("genre", input.genre).in("status", ["ACTIVE", "PAUSED"]),
-    "drama_unavailable") as Array<{ id: string }>;
-  if (sameGenre.length) throw new Error("GENRE_ALREADY_RUNNING");
-  const bible = createBible(input.genre, input.totalEpisodes);
-  const row = check(await admin.from("drama_series").insert({
+  const ids = [input.flowAccountId, input.repairFlowAccountId].filter((id): id is string => Boolean(id));
+  const google = check(await admin.from("flow_accounts").select("id,tiktok_account_id,active").eq("owner_id", owner).in("id", ids), "flow_accounts_unavailable") as
+    Array<{ id: string; tiktok_account_id: string | null; active: boolean }>;
+  const main = google.find(g => g.id === input.flowAccountId);
+  if (!main?.active) throw new Error("FLOW_ACCOUNT_NOT_FOUND");
+  if (main.tiktok_account_id && main.tiktok_account_id !== input.tiktokAccountId) throw new Error("FLOW_ACCOUNT_OTHER_CHANNEL");
+  if (input.repairFlowAccountId && !google.find(g => g.id === input.repairFlowAccountId)?.active) throw new Error("REPAIR_ACCOUNT_NOT_FOUND");
+  const story = pickStory(input.genre, await usedStories(admin, owner, input.genre));
+  const bible = createBible(input.genre, input.totalEpisodes, story);
+  const inserted = await admin.from("drama_series").insert({
     owner_id: owner, tiktok_account_id: input.tiktokAccountId, genre: input.genre, title: bible.title, logline: bible.logline,
     total_episodes: input.totalEpisodes, shots_per_episode: input.shotsPerEpisode, episodes_per_day: input.episodesPerDay,
-    bible, story_state: emptyStoryState(), writer: SHOWRUNNER_WRITER,
-  }).select("id").single(), "series_not_created") as { id: string };
-  await tickSeriesById(admin, owner, row.id, now).catch(() => {});
+    bible, story_state: emptyStoryState(), writer: SHOWRUNNER_WRITER, flow_account_id: input.flowAccountId,
+    repair_flow_account_id: input.repairFlowAccountId ?? null, previous_series_id: previousSeriesId,
+  }).select("id").single();
+  // One running story per Google account (unique index): its daily credits are one episode.
+  if (inserted.error?.code === "23505") throw new Error("FLOW_ACCOUNT_BUSY");
+  const row = check(inserted, "series_not_created") as { id: string };
+  if (!previousSeriesId) await tickSeriesById(admin, owner, row.id, now).catch(() => {});
   return row.id;
+}
+
+/** The season ended: the same Google accounts carry on with a new story of the same genre (from tomorrow). */
+async function startNextStory(admin: SupabaseClient, owner: string, series: SeriesRow, now: Date) {
+  if (!series.auto_next || !series.flow_account_id) return null;
+  return createSeries(admin, owner, { tiktokAccountId: series.tiktok_account_id, flowAccountId: series.flow_account_id,
+    repairFlowAccountId: series.repair_flow_account_id ?? undefined, genre: series.genre, totalEpisodes: series.total_episodes,
+    shotsPerEpisode: series.shots_per_episode, episodesPerDay: series.episodes_per_day }, now, series.id).catch(() => null);
 }
 
 export async function setSeriesStatus(admin: SupabaseClient, owner: string, id: string, status: "ACTIVE" | "PAUSED" | "ARCHIVED") {
@@ -76,7 +103,7 @@ export async function retryEpisode(admin: SupabaseClient, owner: string, seriesI
   const episode = await openEpisode(admin, owner, series.id);
   if (!episode) throw new Error("NO_OPEN_EPISODE");
   const now = new Date().toISOString();
-  check(await admin.from("drama_shots").update({ status: "PLANNED", attempts: 0, retry_after: null, error: null, flow_clip_id: null, updated_at: now })
+  check(await admin.from("drama_shots").update({ status: "PLANNED", attempts: 0, route: "PRIMARY", retry_after: null, error: null, flow_clip_id: null, updated_at: now })
     .eq("owner_id", owner).eq("episode_id", episode.id).eq("status", "FAILED"), "shot_not_saved");
   check(await admin.from("drama_episodes").update({ status: "PRODUCING", error: null, assemble_attempts: 0, updated_at: now })
     .eq("owner_id", owner).eq("id", episode.id), "episode_not_saved");
@@ -171,10 +198,12 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
     if (started.error) throw new Error("drama_unavailable");
     const count = started.count ?? 0;
     if (series.next_episode_number > series.total_episodes) {
-      await admin.from("drama_series").update({ status: "COMPLETED", updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", series.id).eq("status", "ACTIVE");
+      const done = await admin.from("drama_series").update({ status: "COMPLETED", updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", series.id)
+        .eq("status", "ACTIVE").select("id");
+      if (done.data?.length) await startNextStory(admin, owner, series, now);
       return;
     }
-    if (!mayStartEpisode(series, count, 0)) return;
+    if (!mayStartEpisode(series, count, 0, now)) return;
     episode = await startEpisode(admin, owner, series, now);
     if (!episode) return;
   }
@@ -186,21 +215,29 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
   }
 
   let shots = await episodeShots(admin, owner, episode.id);
-  // 1. A queued shot whose Flow clip finished, failed or was skipped.
+  // 1. A queued shot whose Flow clip finished, failed or ran out of credits.
   const queued = shots.find(shot => shot.status === "QUEUED");
   if (queued) {
     const clip = queued.flow_clip_id ? check(await admin.from("flow_clips").select("id,status,storage_path,duration_seconds,error").eq("owner_id", owner)
       .eq("id", queued.flow_clip_id).maybeSingle(), "flow_clips_unavailable") as { id: string; status: string; storage_path: string | null; duration_seconds: number | null; error: string | null } | null : null;
-    const outcome = shotOutcome(clip?.status ?? null, queued.attempts);
-    if (outcome === "WAIT") return;
-    if (outcome === "ABSORB" && clip?.storage_path) await absorbShot(admin, owner, series, episode, queued, clip as { id: string; storage_path: string; duration_seconds: number | null }, now);
-    else if (outcome === "RETRY_TOMORROW") await updateShot(admin, owner, queued.id, "QUEUED", { status: "PLANNED", flow_clip_id: null, retry_after: nextBangkokMorning(now), error: "NO_CREDIT" }, now);
-    else if (outcome === "GIVE_UP" || (outcome === "ABSORB" && !clip?.storage_path)) {
-      await updateShot(admin, owner, queued.id, "QUEUED", { status: "FAILED", attempts: queued.attempts + 1, error: (clip?.error ?? "CLIP_MISSING").slice(0, 400) }, now);
-      await admin.from("drama_episodes").update({ status: "FAILED", error: `ช็อต ${queued.position} สร้างไม่สำเร็จ ${MAX_SHOT_ATTEMPTS} ครั้ง`, updated_at: now.toISOString() })
-        .eq("owner_id", owner).eq("id", episode.id).eq("status", "PRODUCING");
-      return;
-    } else await updateShot(admin, owner, queued.id, "QUEUED", { status: "PLANNED", flow_clip_id: null, attempts: queued.attempts + 1, error: (clip?.error ?? "CLIP_MISSING").slice(0, 400) }, now);
+    const verdict = clipVerdict(clip?.status ?? null);
+    if (verdict === "WAIT") return;
+    let broken: string | null = null;
+    if (verdict === "CHECK") {
+      broken = clip?.storage_path ? await absorbShot(admin, owner, series, episode, queued, clip as { id: string; storage_path: string; duration_seconds: number | null }, now) : "ไม่พบไฟล์วิดีโอ";
+    }
+    if (verdict === "BROKEN") broken = (clip?.error ?? "CLIP_MISSING").slice(0, 300);
+    if (broken !== null || verdict === "NO_CREDIT") {
+      const repair = await repairState(admin, owner, series, now);
+      const plan = planRetry(queued, verdict === "NO_CREDIT" ? "NO_CREDIT" : "BROKEN", repair, now);
+      await updateShot(admin, owner, queued.id, "QUEUED", { status: plan.status, route: plan.route, attempts: plan.attempts, retry_after: plan.retryAfter,
+        flow_clip_id: plan.status === "FAILED" ? queued.flow_clip_id : null, error: verdict === "NO_CREDIT" ? "NO_CREDIT" : `${broken}`.slice(0, 400) }, now);
+      if (plan.status === "FAILED") {
+        await admin.from("drama_episodes").update({ status: "FAILED", error: `ช็อต ${queued.position} ใช้ไม่ได้ ${plan.attempts} ครั้ง (${broken})`.slice(0, 480), updated_at: now.toISOString() })
+          .eq("owner_id", owner).eq("id", episode.id).eq("status", "PRODUCING");
+        return;
+      }
+    }
     shots = await episodeShots(admin, owner, episode.id);
     series = await loadSeries(admin, owner, series.id);
   }
@@ -209,6 +246,15 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
   // 3. Otherwise queue the next shot.
   const next = nextShotToQueue(shots, now);
   if (next) await queueShot(admin, owner, series, episode, next, shots, now);
+}
+
+/** Whether the series has a repair account, and whether Flow already said it is out of credits today. */
+async function repairState(admin: SupabaseClient, owner: string, series: SeriesRow, now: Date) {
+  if (!series.repair_flow_account_id) return { exists: false, outOfCreditsToday: false };
+  const row = check(await admin.from("flow_accounts").select("active,exhausted_on").eq("owner_id", owner).eq("id", series.repair_flow_account_id).maybeSingle(),
+    "flow_accounts_unavailable") as { active: boolean; exhausted_on: string | null } | null;
+  if (!row?.active) return { exists: false, outOfCreditsToday: false };
+  return { exists: true, outOfCreditsToday: row.exhausted_on === bangkokDate(now) };
 }
 
 async function updateShot(admin: SupabaseClient, owner: string, id: string, from: string, patch: Record<string, unknown>, now: Date) {
@@ -241,10 +287,11 @@ async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow
     .eq("owner_id", owner).eq("id", shot.id).eq("status", "PLANNED").select("id");
   if (claimed.error || !claimed.data?.length) return;
   const image = referencePath(shot, shots, series.key_still_path);
-  const title = `ละคร ${series.title} EP.${episode.number} ช็อต ${shot.position}/${shots.length}`.slice(0, 200);
+  const title = `ละคร ${series.title} EP.${episode.number} ช็อต ${shot.position}/${shots.length}${shot.route === "REPAIR" ? " (ซ่อม)" : ""}`.slice(0, 200);
   const clip = await admin.from("flow_clips").insert({
     owner_id: owner, tiktok_account_id: series.tiktok_account_id, batch_id: episode.id, kind: "DRAMA_SHOT", title,
     prompt: promptFor(shot.prompt, image).slice(0, 12000), caption: title, hashtags: [], reference_image_path: image,
+    required_flow_account_id: shotAccount(shot.route ?? "PRIMARY", series),
   }).select("id").single();
   if (clip.error || !clip.data) {
     await admin.from("drama_shots").update({ status: "PLANNED", updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", shot.id).eq("status", "QUEUED");
@@ -253,21 +300,32 @@ async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow
   check(await admin.from("drama_shots").update({ flow_clip_id: clip.data.id, updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", shot.id), "shot_not_saved");
 }
 
+/** Checks the finished take; a good one becomes part of the episode, a bad one is thrown away. Returns why it was bad. */
 async function absorbShot(admin: SupabaseClient, owner: string, series: SeriesRow, episode: EpisodeRow, shot: DramaShotRow,
-  clip: { id: string; storage_path: string; duration_seconds: number | null }, now: Date) {
+  clip: { id: string; storage_path: string; duration_seconds: number | null }, now: Date): Promise<string | null> {
   const file = await admin.storage.from(BUCKET).download(clip.storage_path);
-  if (file.error || !file.data) throw new Error("SHOT_VIDEO_MISSING");
-  const { lastFrameJpeg } = await import("./media");
-  const frame = await lastFrameJpeg(new Uint8Array(await file.data.arrayBuffer()));
+  if (file.error || !file.data) return "ไม่พบไฟล์วิดีโอ";
+  const bytes = new Uint8Array(await file.data.arrayBuffer());
+  const { checkShot, lastFrameJpeg } = await import("./media");
+  const verdict = await checkShot(bytes);
+  if (!verdict.ok) {
+    // Not kept: its file is removed and the clip leaves the queue's records as discarded.
+    await admin.storage.from(BUCKET).remove([clip.storage_path]).catch(() => {});
+    await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, error: `ตรวจไม่ผ่าน: ${verdict.reason}`.slice(0, 300),
+      file_deleted_at: now.toISOString(), updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", clip.id).in("status", ["READY", "SCHEDULED"]);
+    return `ตรวจไม่ผ่าน: ${verdict.reason}`;
+  }
+  const frame = await lastFrameJpeg(bytes);
   const path = framePath(owner, series.id, shot.id);
   const upload = await admin.storage.from(BUCKET).upload(path, frame, { contentType: "image/jpeg", upsert: true });
   if (upload.error) throw new Error("FRAME_NOT_SAVED");
   await updateShot(admin, owner, shot.id, "QUEUED", { status: "DONE", last_frame_path: path, video_path: clip.storage_path,
-    duration_seconds: clip.duration_seconds, error: null }, now);
+    duration_seconds: clip.duration_seconds ?? verdict.durationSeconds, error: null }, now);
   // Episode 1's opening shot shows the whole cast: its last frame anchors every later episode.
   if (episode.number === 1 && shot.position === 1 && !series.key_still_path) {
     await admin.from("drama_series").update({ key_still_path: path, updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", series.id).is("key_still_path", null);
   }
+  return null;
 }
 
 async function assemble(admin: SupabaseClient, owner: string, series: SeriesRow, episode: EpisodeRow, shots: DramaShotRow[], now: Date) {
@@ -303,6 +361,7 @@ async function assemble(admin: SupabaseClient, owner: string, series: SeriesRow,
     check(await admin.from("drama_series").update({ story_state: episode.state_after, next_episode_number: episode.number + 1,
       ...(finished ? { status: "COMPLETED" } : {}), updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", series.id), "series_not_saved");
     await cleanupShots(admin, owner, series, shots, now).catch(() => {});
+    if (finished) await startNextStory(admin, owner, series, now);
   } catch (error) {
     await admin.storage.from(BUCKET).remove([path]).catch(() => {});
     const reason = error instanceof Error ? error.message.slice(0, 300) : "ASSEMBLY_FAILED";

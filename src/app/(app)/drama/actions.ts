@@ -10,17 +10,23 @@ import { createSeries, retryEpisode, setSeriesStatus, skipShot } from "@/feature
 
 async function owner() {
   const client = await createClient(), { data, error } = await client.auth.getUser();
-  if (error || !data.user) redirect("/login?next=/drama");
+  if (error || !data.user) redirect("/login?next=/post");
   await enforceOwnerMutationRateLimit("drama-studio", data.user.id);
   return data.user.id;
 }
 function done(path: string, message: string): never {
-  revalidatePath("/drama");
+  revalidatePath("/post");
+  revalidatePath("/drama", "layout");
   redirect(`${path}${path.includes("?") ? "&" : "?"}msg=${encodeURIComponent(message)}`);
 }
+const HOME = "/post?studio=drama";
 const KNOWN: Record<string, string> = {
   ACCOUNT_NOT_FOUND: "ไม่พบบัญชี TikTok นี้",
-  GENRE_ALREADY_RUNNING: "มีละครแนวนี้กำลังผลิตอยู่แล้ว เลือกแนวอื่น (ตัวเขียนบทในตัวมีหนึ่งเรื่องต่อแนว)",
+  FLOW_ACCOUNT_NOT_FOUND: "ไม่พบบัญชี Google นี้ หรือบัญชีถูกปิดอยู่",
+  REPAIR_ACCOUNT_NOT_FOUND: "ไม่พบบัญชีซ่อมนี้ หรือบัญชีถูกปิดอยู่",
+  FLOW_ACCOUNT_OTHER_CHANNEL: "บัญชี Google นี้ผูกกับช่อง TikTok อื่น เลือกบัญชีที่ผูกกับช่องนี้หรือบัญชีที่ใช้ได้ทุกช่อง",
+  FLOW_ACCOUNT_BUSY: "บัญชี Google นี้มีละครเรื่องอื่นอยู่แล้ว (1 บัญชีทำได้ 1 เรื่อง) เลือกบัญชีอื่น",
+  REPAIR_SAME_AS_MAIN: "บัญชีซ่อมต้องเป็นคนละบัญชีกับบัญชีหลัก",
   SERIES_NOT_FOUND: "ไม่พบเรื่องนี้", SERIES_COMPLETED: "เรื่องนี้จบซีซันแล้ว", NO_OPEN_EPISODE: "ไม่มีตอนที่ค้างอยู่",
   SHOT_NOT_SKIPPABLE: "ข้ามได้เฉพาะช็อตที่ยังไม่ได้สร้างหรือสร้างไม่สำเร็จ",
 };
@@ -29,27 +35,27 @@ const known = (error: unknown) => error instanceof Error ? KNOWN[error.message] 
 /** One click: the showrunner writes the season and the first shot goes into the free Flow queue. */
 export async function createSeriesAction(formData: FormData) {
   const parsed = createSeriesSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) done("/drama", "เลือกบัญชี TikTok แนวละคร และจำนวนตอน 3–60");
+  if (!parsed.success) done(HOME, parsed.error.issues.some(i => i.message === "REPAIR_SAME_AS_MAIN") ? KNOWN.REPAIR_SAME_AS_MAIN : "เลือกแนวละคร ช่อง TikTok บัญชี Google หลัก และจำนวนตอน 3–60");
   const ownerId = await owner();
   let id: string;
   try { id = await createSeries(createAdminClient(), ownerId, parsed.data); }
-  catch (error) { const message = known(error); if (message) done("/drama", message); throw error; }
-  done(`/drama/${id}`, "เขียนซีซันเสร็จแล้ว ช็อตแรกของตอนที่ 1 เข้าคิว Flow แล้ว เครื่องที่เปิด Flow worker จะเริ่มสร้างเอง");
+  catch (error) { const message = known(error); if (message) done(HOME, message); throw error; }
+  done(`/drama/${id}`, "เขียนซีซันเสร็จแล้ว ช็อตแรกของตอนที่ 1 เข้าคิว Flow ของบัญชีหลักแล้ว เครื่องที่เปิด Flow worker จะเริ่มสร้างเอง");
 }
 
 export async function seriesStatusAction(formData: FormData) {
   const parsed = seriesRefSchema.extend({ status: z.enum(["ACTIVE", "PAUSED", "ARCHIVED"]) }).safeParse(Object.fromEntries(formData));
-  if (!parsed.success) done("/drama", "คำขอไม่ถูกต้อง");
+  if (!parsed.success) done(HOME, "คำขอไม่ถูกต้อง");
   const ownerId = await owner();
   try { await setSeriesStatus(createAdminClient(), ownerId, parsed.data.id, parsed.data.status); }
   catch (error) { const message = known(error); if (message) done(`/drama/${parsed.data.id}`, message); throw error; }
-  if (parsed.data.status === "ARCHIVED") done("/drama", "เก็บเรื่องนี้เข้ากรุแล้ว ตอนที่ตัดเสร็จยังอยู่ในคลัง");
+  if (parsed.data.status === "ARCHIVED") done(HOME, "เก็บเรื่องนี้เข้ากรุแล้ว ตอนที่ตัดเสร็จยังอยู่ในคลัง");
   done(`/drama/${parsed.data.id}`, parsed.data.status === "ACTIVE" ? "ผลิตต่อแล้ว" : "พักการผลิตไว้แล้ว ช็อตที่อยู่ในคิวจะสร้างให้เสร็จก่อน");
 }
 
 export async function retryEpisodeAction(formData: FormData) {
   const parsed = seriesRefSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) done("/drama", "คำขอไม่ถูกต้อง");
+  if (!parsed.success) done(HOME, "คำขอไม่ถูกต้อง");
   const ownerId = await owner();
   try { await retryEpisode(createAdminClient(), ownerId, parsed.data.id); }
   catch (error) { const message = known(error); if (message) done(`/drama/${parsed.data.id}`, message); throw error; }
@@ -58,7 +64,7 @@ export async function retryEpisodeAction(formData: FormData) {
 
 export async function skipShotAction(formData: FormData) {
   const parsed = shotRefSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) done("/drama", "คำขอไม่ถูกต้อง");
+  if (!parsed.success) done(HOME, "คำขอไม่ถูกต้อง");
   const ownerId = await owner();
   try { await skipShot(createAdminClient(), ownerId, parsed.data.seriesId, parsed.data.shotId); }
   catch (error) { const message = known(error); if (message) done(`/drama/${parsed.data.seriesId}`, message); throw error; }

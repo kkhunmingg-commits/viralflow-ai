@@ -1,6 +1,6 @@
 import { emptyStoryState, type CastMember, type DramaGenre, type EpisodePhase, type Line, type PlaceKey, type PlannedEpisode,
   type PlannedShot, type ReferenceMode, type Role, type SeriesBible, type StoryState } from "./contracts";
-import { GENRE_KITS, type Beat, type FixedPhase, type GenreKit, type Move, type Say } from "./genres";
+import { GENRE_STORIES, type Beat, type FixedPhase, type GenreKit, type Move, type Say } from "./genres";
 
 /**
  * The built-in showrunner: writes a whole season up front (cast, places, hidden truth, locked ending and the phase of
@@ -25,8 +25,23 @@ export function seasonArc(total: number): EpisodePhase[] {
   return arc.map((phase, i) => phase === "RISING" && midpoint >= 0 && i > midpoint ? "ESCALATION" : phase);
 }
 
-export function createBible(genre: DramaGenre, totalEpisodes: number): SeriesBible {
-  const kit = GENRE_KITS[genre], p = kit.premise;
+/** The story kit a series was written from (its premise key), or the genre's first story. */
+export function kitFor(bible: Pick<SeriesBible, "genre" | "premiseKey">): GenreKit {
+  const stories = GENRE_STORIES[bible.genre];
+  return stories.find(kit => kit.premise.key === bible.premiseKey) ?? stories[0];
+}
+
+/** The next story for a genre: the first one not made yet, otherwise the one made longest ago. */
+export function pickStory(genre: DramaGenre, used: string[]) {
+  const stories = GENRE_STORIES[genre];
+  const fresh = stories.find(kit => !used.includes(kit.premise.key));
+  if (fresh) return fresh.premise.key;
+  const lastUse = (key: string) => used.lastIndexOf(key);
+  return stories.toSorted((a, b) => lastUse(a.premise.key) - lastUse(b.premise.key))[0].premise.key;
+}
+
+export function createBible(genre: DramaGenre, totalEpisodes: number, storyKey?: string): SeriesBible {
+  const kit = kitFor({ genre, premiseKey: storyKey ?? "" }), p = kit.premise;
   return { version: 1, genre, premiseKey: p.key, title: p.title, logline: p.logline, style: kit.style, sound: kit.sound,
     hashtags: [...kit.hashtags, `#${p.title.replace(/\s+/g, "")}`], cast: p.cast, places: p.places, object: p.object,
     truth: p.truth, ending: p.ending, arc: seasonArc(totalEpisodes) };
@@ -75,7 +90,7 @@ const CAMERA = {
 export interface ShotDraft { move: Move; place: PlaceKey; camera: string; hook?: boolean }
 
 /** The English prompt the Flow worker types. Character and place descriptions are repeated word for word every time. */
-export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<StoryState, "conditions">, mode: ReferenceMode, kit = GENRE_KITS[bible.genre]) {
+export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<StoryState, "conditions">, mode: ReferenceMode, kit = kitFor(bible)) {
   const place = placeOf(bible, draft.place), line = lineOf(draft.move.say, kit);
   const present = rolesIn(draft.move.en);
   const speakerVisible = line ? present.includes(line.who) : false;
@@ -127,7 +142,7 @@ const FIXED: Partial<Record<EpisodePhase, FixedPhase>> = { OPENING: "OPENING", I
  * cast instead, and its last frame becomes the series key still); the last shot is a new cliffhanger, or the ending.
  */
 export function planEpisode(input: { bible: SeriesBible; state: StoryState; number: number; shotsPerEpisode: number; seed: string; pulse?: number }): PlannedEpisode {
-  const { bible, number } = input, kit = GENRE_KITS[bible.genre], state = input.state ?? emptyStoryState();
+  const { bible, number } = input, kit = kitFor(bible), state = input.state ?? emptyStoryState();
   const shots = Math.max(2, Math.min(6, Math.floor(input.shotsPerEpisode)));
   const phase = bible.arc[number - 1] ?? "FINALE";
   const rand = random(`${input.seed}:${number}`);

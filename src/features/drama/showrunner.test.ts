@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DRAMA_GENRES, emptyStoryState, type StoryState } from "./contracts";
-import { createBible, planEpisode, seasonArc } from "./showrunner";
+import { GENRE_STORIES } from "./genres";
+import { createBible, kitFor, pickStory, planEpisode, seasonArc } from "./showrunner";
 
 describe("seasonArc", () => {
   it.each([3, 4, 5, 6, 10, 15, 20, 30, 60])("plans %i episodes that open and end the season", total => {
@@ -18,8 +19,8 @@ describe("seasonArc", () => {
 });
 
 /** Writes a whole season the way the service does: each episode from the state the previous one left. */
-function season(genre: (typeof DRAMA_GENRES)[number], total: number, shots: number) {
-  const bible = createBible(genre, total);
+function season(genre: (typeof DRAMA_GENRES)[number], total: number, shots: number, story?: string) {
+  const bible = createBible(genre, total, story);
   let state: StoryState = emptyStoryState();
   const episodes = [];
   for (let n = 1; n <= total; n++) {
@@ -31,9 +32,10 @@ function season(genre: (typeof DRAMA_GENRES)[number], total: number, shots: numb
 }
 
 describe("planEpisode", () => {
-  for (const genre of DRAMA_GENRES) for (const shots of [2, 3, 4, 5, 6]) {
-    it(`${genre} with ${shots} shots writes a full season with no loose placeholders`, () => {
-      const { bible, episodes, state } = season(genre, 12, shots);
+  for (const genre of DRAMA_GENRES) for (const kit of GENRE_STORIES[genre]) for (const shots of [2, 3, 4, 5, 6]) {
+    it(`${kit.premise.key} with ${shots} shots writes a full season with no loose placeholders`, () => {
+      const { bible, episodes, state } = season(genre, 12, shots, kit.premise.key);
+      expect(bible.premiseKey).toBe(kit.premise.key);
       expect(bible.cast).toHaveLength(3);
       for (const ep of episodes) {
         expect(ep.shots).toHaveLength(shots);
@@ -82,5 +84,40 @@ describe("planEpisode", () => {
     const withLead = episodes.flatMap(e => e.shots).filter(s => s.prompt.includes(lead.nameEn));
     expect(withLead.length).toBeGreaterThan(0);
     for (const shot of withLead) expect(shot.prompt).toContain(lead.look);
+  });
+});
+
+describe("stories", () => {
+  it("has at least two complete stories per genre with unique keys and cast names", () => {
+    const keys = new Set<string>();
+    for (const genre of DRAMA_GENRES) {
+      expect(GENRE_STORIES[genre].length).toBeGreaterThanOrEqual(2);
+      for (const kit of GENRE_STORIES[genre]) {
+        expect(kit.genre).toBe(genre);
+        expect(keys.has(kit.premise.key)).toBe(false);
+        keys.add(kit.premise.key);
+        expect(kit.premise.cast.map(c => c.role).toSorted()).toEqual(["ALLY", "LEAD", "RIVAL"]);
+        expect(kit.premise.places.map(p => p.key)).toEqual(["A", "B", "C"]);
+        expect(kit.moves.length).toBeGreaterThanOrEqual(8);
+        expect(kit.cliffs.length).toBeGreaterThanOrEqual(5);
+        expect(kit.beats.FINALE.cliff).toBeUndefined();
+        expect(kit.beats.MIDPOINT.shots.some(s => s.say === "REVEAL1")).toBe(true);
+        expect(kit.beats.CLIMAX.shots.some(s => s.say === "REVEAL2")).toBe(true);
+        expect(kit.beats.FINALE.shots.some(s => s.say === "FINAL")).toBe(true);
+      }
+    }
+  });
+
+  it("picks an unused story first, then the one made longest ago", () => {
+    const [first, second] = GENRE_STORIES.HORROR.map(k => k.premise.key);
+    expect(pickStory("HORROR", [])).toBe(first);
+    expect(pickStory("HORROR", [first])).toBe(second);
+    expect(pickStory("HORROR", [first, second])).toBe(first);
+    expect(pickStory("HORROR", [second, first])).toBe(second);
+  });
+
+  it("keeps old series on their own story and falls back to the first", () => {
+    expect(kitFor({ genre: "COMEDY", premiseKey: GENRE_STORIES.COMEDY[1].premise.key })).toBe(GENRE_STORIES.COMEDY[1]);
+    expect(kitFor({ genre: "COMEDY", premiseKey: "gone" })).toBe(GENRE_STORIES.COMEDY[0]);
   });
 });

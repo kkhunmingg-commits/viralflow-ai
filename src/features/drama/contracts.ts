@@ -68,16 +68,23 @@ export const seriesStatusLabels: Record<SeriesStatus, string> = { ACTIVE: "ก�
 export const episodeStatusLabels: Record<EpisodeStatus, string> = { PRODUCING: "กำลังถ่ายทำ", ASSEMBLING: "กำลังตัดต่อ", READY: "ตัดต่อเสร็จ อยู่ในคลัง", FAILED: "ต้องตรวจ" };
 export const shotStatusLabels: Record<ShotStatus, string> = { PLANNED: "รอคิว", QUEUED: "อยู่ในคิว Flow", DONE: "ได้แล้ว", FAILED: "ไม่สำเร็จ", SKIPPED: "ข้าม" };
 
-/** A failed shot is retried this many times in total before the episode waits for the owner. */
-export const MAX_SHOT_ATTEMPTS = 2;
+/** Tries per shot before the episode waits for the owner: one on the main account, then up to three repairs. */
+export const MAX_SHOT_ATTEMPTS = 4;
+/** Which Google account a shot is queued on: the series' own account, or its repair account after a broken take. */
+export type ShotRoute = "PRIMARY" | "REPAIR";
 export const MAX_ASSEMBLE_ATTEMPTS = 3;
 
+const optionalUuid = z.preprocess(value => value === "" || value == null ? undefined : value, z.uuid().optional());
 export const createSeriesSchema = z.object({
   tiktokAccountId: z.uuid(),
+  /** The Google (Flow) account that makes this series and nothing else while it runs. */
+  flowAccountId: z.uuid(),
+  /** A second Google account that remakes any broken shot. */
+  repairFlowAccountId: optionalUuid,
   genre: z.enum(DRAMA_GENRES),
   totalEpisodes: z.coerce.number().int().min(3).max(60).default(30),
-  shotsPerEpisode: z.coerce.number().int().min(2).max(6).default(4),
+  shotsPerEpisode: z.coerce.number().int().min(2).max(6).default(5),
   episodesPerDay: z.coerce.number().int().min(1).max(5).default(1),
-});
+}).refine(input => input.repairFlowAccountId !== input.flowAccountId, { message: "REPAIR_SAME_AS_MAIN", path: ["repairFlowAccountId"] });
 export const seriesRefSchema = z.object({ id: z.uuid() });
 export const shotRefSchema = z.object({ seriesId: z.uuid(), shotId: z.uuid() });

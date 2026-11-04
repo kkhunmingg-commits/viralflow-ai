@@ -1,0 +1,521 @@
+import type { DramaGenre, Line, Role } from "./contracts";
+import type { GenreKit, Move } from "./genres";
+
+/**
+ * More stories per genre, so a finished season hands over to a new story with a new cast instead of repeating.
+ * Same shape as the first story of each genre in genres.ts; the genre's look and sound are shared.
+ */
+export type StoryPart = Omit<GenreKit, "genre" | "style" | "sound"> & Partial<Pick<GenreKit, "style" | "sound">>;
+
+const m = (id: string, t: string, th: string, en: string, level: 1 | 2 | 3, extra: Partial<Move> = {}): Move => ({ id, t, th, en, level, ...extra });
+const say = (who: Role, line: string): Line => ({ who, line });
+
+const HORROR_BELL: StoryPart = {
+  hashtags: ["#ละครสั้น", "#ละครผี", "#สยองขวัญ", "#โรงเรียนร้าง"],
+  premise: {
+    key: "horror-school-bell", title: "กระดิ่งโรงเรียนร้าง",
+    logline: "ครูพลอยย้ายมาสอนโรงเรียนริมแม่น้ำที่ใกล้ถูกปิด ทุกเที่ยงคืนกระดิ่งเก่าจะดังเอง แล้วมีเสียงเด็กท่องสูตรคูณในห้องที่ไม่มีใคร",
+    cast: [
+      { role: "LEAD", name: "ครูพลอย", nameEn: "Ploy", age: "27-year-old Thai woman", look: "petite, long straight black hair in a low ponytail, gentle round face, small silver stud earrings",
+        outfit: "a pale blue button-up blouse, a navy knee-length skirt and a teacher's lanyard", voice: "warm, clear, soft-spoken female voice",
+        trait: "ใจดี ไม่ยอมแพ้", want: "อยากให้โรงเรียนไม่ถูกปิด", secret: "เคยเกือบจมน้ำตอนเด็กที่แม่น้ำสายนี้" },
+      { role: "ALLY", name: "ภารโรงแบงก์", nameEn: "Bank", age: "30-year-old Thai man", look: "stocky, buzz-cut black hair, a friendly wide face with a short beard",
+        outfit: "a grey work shirt with rolled sleeves, khaki trousers and a big ring of keys on his belt", voice: "deep, easygoing, slightly rough male voice",
+        trait: "ตลก ใจกล้ากว่าที่คิด", want: "อยากเก็บเงินกลับไปเปิดร้านที่บ้าน", secret: "ได้ยินเสียงกระดิ่งมาตั้งแต่ปีแรกแต่ไม่เคยบอกใคร" },
+      { role: "RIVAL", name: "ผอ.สมชาย", nameEn: "Director Somchai", age: "62-year-old Thai man", look: "thin, neatly combed white hair, thick black-framed glasses, a stern lined face",
+        outfit: "a beige safari suit with a pen in the breast pocket", voice: "dry, measured, strict elderly male voice",
+        trait: "เข้มงวด เก็บความลับ", want: "อยากให้โรงเรียนปิดเร็วที่สุด", secret: "น้องสาวของเขาหายไปในน้ำท่วมใหญ่เมื่อสี่สิบปีก่อน" },
+    ],
+    places: [
+      { key: "A", name: "ห้องเรียนไม้ ป.3", look: "an old wooden Thai primary-school classroom, rows of small wooden desks, a dusty blackboard with chalk sums, faded posters, moonlight through louvred windows" },
+      { key: "B", name: "ท่าน้ำหน้าโรงเรียน", look: "a crumbling concrete river landing in front of the school at night, a broken flagpole, reeds and slow dark water under a pale moon" },
+      { key: "C", name: "ห้องเก็บของใต้ถุน", look: "a low cramped storeroom under the raised school building, stacked broken chairs, old flood marks on the pillars, one hanging bulb" },
+    ],
+    object: { name: "กระดิ่งทองเหลือง", look: "an old tarnished brass hand bell with a worn wooden handle tied with faded red string" },
+    truth: "เด็กหญิงที่หายไปในน้ำท่วมคือน้องสาวของ ผอ.สมชาย กระดิ่งดังทุกคืนเพราะเธอยังรอให้มีคนสั่นกระดิ่งเลิกเรียนเรียกเธอกลับบ้าน",
+    ending: "ครูพลอยกับ ผอ.สมชาย สั่นกระดิ่งเลิกเรียนที่ท่าน้ำตอนรุ่งสาง วิญญาณเด็กหญิงเดินกลับบ้านอย่างสงบ โรงเรียนได้เปิดต่อ",
+    reveal1: say("RIVAL", "กระดิ่งนั่นไม่ได้ดังเพราะลม มันดังเพราะมีคนยังไม่ได้กลับบ้าน"),
+    reveal2: say("RIVAL", "เธอคือน้องสาวผม วันนั้นผมไม่ได้สั่นกระดิ่งเรียกเธอ"),
+    finalLine: say("RIVAL", "เลิกเรียนแล้วนะ กลับบ้านได้แล้ว"),
+  },
+  hooks: [say("LEAD", "ตั้งสติไว้ เรามาไกลขนาดนี้แล้ว"), say("ALLY", "ครูได้ยินเหมือนผมใช่ไหม"), say("LEAD", "คืนนี้เราต้องรู้ให้ได้"),
+    say("ALLY", "ผมว่าเราควรไปจากที่นี่นะครู"), say("LEAD", "ไม่ เด็กคนนั้นต้องการความช่วยเหลือ")],
+  moves: [
+    m("chant", "เสียงท่องสูตรคูณ", "{LEAD}ได้ยินเสียงเด็กท่องสูตรคูณจากห้องที่ว่างเปล่า", "{LEAD} stops in the dark corridor as faint children's voices chant multiplication tables from an empty classroom; she slowly turns toward the door", 1, { say: say("LEAD", "ใครอยู่ในห้องนั้น") }),
+    m("chalk", "ตัวเลขบนกระดาน", "ตัวเลขบนกระดานถูกเขียนใหม่เองทั้งที่ไม่มีใครแตะชอล์ก", "{LEAD} and {ALLY} watch as a piece of chalk rests untouched while fresh white numbers appear one by one on the blackboard", 2, { at: "A", say: say("ALLY", "ชอล์กไม่ได้ขยับเลยนะครู") }),
+    m("register", "สมุดเช็กชื่อ", "{LEAD}พบสมุดเช็กชื่อปีน้ำท่วม มีชื่อหนึ่งที่ไม่เคยถูกขีดว่ากลับบ้าน", "{LEAD} opens a yellowed attendance register under a flashlight and runs her finger down to one name left unmarked", 1, { say: say("LEAD", "คนนี้... ไม่เคยถูกเช็กว่ากลับบ้าน"), clue: "มีนักเรียนหญิงคนหนึ่งไม่เคยถูกเช็กว่ากลับบ้านในปีน้ำท่วม" }),
+    m("warn", "คำสั่ง", "{RIVAL}ปรากฏตัวและสั่งห้ามแตะกระดิ่ง", "{RIVAL} appears in the doorway with a flashlight, glaring through his thick glasses, and points sharply at {LEAD}", 1, { say: say("RIVAL", "ใครอนุญาตให้ครูมาอยู่ที่นี่ตอนกลางคืน") }),
+    m("puddle", "น้ำซึมจากพื้น", "น้ำเย็นๆ ซึมขึ้นมาจากร่องพื้นไม้ ทั้งที่ฝนไม่ตก", "cold water slowly seeps up between the wooden floorboards around {ALLY}'s shoes although the night is dry; he lifts one foot and stares", 2, { say: say("ALLY", "น้ำมาจากไหนเนี่ย") }),
+    m("swing", "ชิงช้าแกว่งเอง", "ชิงช้าข้างโรงเรียนแกว่งเองช้าๆ ในคืนที่ไม่มีลม", "through the window {LEAD} sees an old playground swing outside moving back and forth by itself in the still night air", 1, { say: say("LEAD", "ไม่มีลมเลยสักนิด") }),
+    m("handprint", "รอยมือเล็กๆ", "รอยมือเด็กเปียกน้ำปรากฏบนกระจกหน้าต่าง", "small wet child handprints appear one after another on the inside of the window glass beside {LEAD}'s face", 3, { say: say("LEAD", "มือเด็ก...") }),
+    m("keys", "กุญแจหาย", "พวงกุญแจของ{ALLY}หายไป แล้วไปโผล่บนโต๊ะครู", "{ALLY} pats his empty belt in panic, then sees his ring of keys sitting neatly on the teacher's desk across the room", 2, { say: say("ALLY", "เมื่อกี้มันยังอยู่ที่เอวผมเลย") }),
+    m("cold", "ตัวเปียกโชก", "{LEAD}ถูกน้ำเย็นสาดใส่จากความมืดจนตัวเปียกโชก", "a sudden splash of cold river water hits {LEAD} out of the darkness, soaking her hair and blouse; she gasps and shivers", 3, { say: say("LEAD", "หนาว... น้ำมาจากไหน"), condition: { who: "LEAD", en: "her hair and pale blue blouse soaking wet", th: "ผมและเสื้อเปียกโชก" } }),
+    m("giggle", "เสียงหัวเราะใต้ถุน", "มีเสียงเด็กหัวเราะคิกคักมาจากใต้ถุนอาคาร", "{LEAD} and {ALLY} freeze as a small girl's giggle echoes up from beneath the floor of the building", 2, { say: say("ALLY", "ใต้ถุน... มีเด็กอยู่ข้างล่าง") }),
+  ],
+  cliffs: [
+    m("c-bell", "กระดิ่งดังเอง", "{OBJ}บนโต๊ะดังขึ้นเองสามครั้งในความเงียบ", "on the empty desk {OBJ} rings three times by itself in the silent classroom; slow push-in on the trembling bell", 2, { say: say("LEAD", "มันดังเอง...") }),
+    m("c-girl", "เด็กหญิงที่หน้าต่าง", "เด็กหญิงตัวเปียกยืนมองอยู่นอกหน้าต่าง แล้วหายไป", "outside the window a small soaking-wet girl in an old school uniform stands looking in, then she is gone", 3),
+    m("c-door", "ประตูล็อก", "ประตูห้องเรียนปิดเองดังปังและล็อก", "the classroom door slams shut by itself and the bolt slides across; {ALLY} pulls the handle with both hands", 2, { say: say("ALLY", "เปิดไม่ออก!") }),
+    m("c-behind", "ผอ.ข้างหลัง", "{RIVAL}ยืนอยู่ข้างหลัง{LEAD}ในความมืดโดยไม่มีเสียง", "{LEAD} turns and {RIVAL} is standing silently right behind her in the dark, his glasses reflecting the flashlight", 1, { say: say("RIVAL", "ครูไม่ควรได้ยินเสียงนั้น") }),
+    m("c-water", "น้ำขึ้น", "น้ำเริ่มเอ่อขึ้นท่วมพื้นห้องอย่างรวดเร็ว", "dark water rises fast across the classroom floor, lifting chalk and paper; {LEAD} and {ALLY} back toward the wall", 3),
+    m("c-name", "ชื่อบนกระดาน", "บนกระดานมีคำว่า กลับบ้าน เขียนซ้ำเต็มกระดาน", "the flashlight sweeps the blackboard: the Thai word for 'home' is written over and over across the whole board in a child's hand", 2, { at: "A" }),
+  ],
+  beats: {
+    OPENING: { title: "โรงเรียนริมน้ำ", at: "A", shots: [
+      m("o1", "วันแรก", "{LEAD}มาถึงโรงเรียนวันแรก {ALLY}พาเดินชม {RIVAL}ยืนรอที่ห้องเรียน", "{LEAD} arrives at the classroom carrying a box of books while {ALLY} holds the door open; {RIVAL} stands by the blackboard watching them; all three faces clearly visible, medium-wide shot", 1, { say: say("ALLY", "ยินดีต้อนรับครับครู โรงเรียนเหลือนักเรียนสิบสองคนเอง") }),
+      m("o2", "คำเตือน", "{RIVAL}บอกกฎข้อเดียวของโรงเรียน", "{RIVAL} taps {OBJ} hanging on a nail beside the blackboard and speaks gravely to {LEAD}", 1, { say: say("RIVAL", "กฎมีข้อเดียว ห้ามใครแตะกระดิ่งนี่") }),
+      m("o3", "เที่ยงคืน", "เที่ยงคืน {LEAD}ที่นอนค้างบ้านพักครูได้ยินเสียงกระดิ่ง", "at midnight {LEAD} sits up in a dim teacher's room as the distant clang of a hand bell drifts across the dark schoolyard", 2, { say: say("LEAD", "ใครสั่นกระดิ่งตอนนี้") }),
+    ], cliff: m("o-c", "ห้องที่ไฟเปิด", "{LEAD}เดินมาที่ห้องเรียน เห็นโต๊ะเด็กเรียงตัวเองใหม่หันไปทางหน้าต่าง", "{LEAD} opens the classroom door with a flashlight; every small desk has turned to face the window and {OBJ} lies on the floor", 2, { at: "A" }) },
+    INCITING: { title: "นักเรียนคนที่สิบสาม", at: "A", shots: [
+      m("i1", "เช็กชื่อ", "{LEAD}เช็กชื่อนักเรียน มีเสียงขานรับเกินมาหนึ่งเสียง", "in daylight {LEAD} reads names from a list to the class; she pauses, frowning, as one extra small voice answers from the empty back row", 1, { say: say("LEAD", "เมื่อกี้ใครขานรับ") }),
+      m("i2", "ปรึกษา", "{LEAD}เล่าให้{ALLY}ฟังที่ท่าน้ำ", "{LEAD} and {ALLY} talk quietly at the river landing at dusk; he nervously spins his ring of keys", 1, { at: "B", say: say("ALLY", "ผมได้ยินเสียงนั้นมาสามปีแล้วครับครู") }),
+      m("i3", "ผอ.แอบดู", "{RIVAL}แอบยืนดูทั้งสองจากอาคารเรียน", "from the school veranda {RIVAL} watches them in silence, then turns away into the building", 1, { at: "B" }),
+    ], cliff: m("i-c", "รูปเก่า", "{ALLY}พบรูปนักเรียนปีน้ำท่วม เด็กหญิงคนหนึ่งในรูปกำลังมองกล้อง", "{ALLY} pulls an old class photo from a drawer; one little girl in the photo slowly turns her eyes toward the camera", 3, { at: "C", say: say("ALLY", "ครู... เด็กในรูปขยับ") }) },
+    MIDPOINT: { title: "ความลับของ ผอ.", at: "C", shots: [
+      m("mp1", "เผชิญหน้า", "{LEAD}เอาสมุดเช็กชื่อไปถาม{RIVAL}ในห้องเก็บของ", "{LEAD} confronts {RIVAL} in the storeroom, holding up the yellowed attendance register; {ALLY} stands behind her", 2, { say: say("LEAD", "ผอ.รู้ใช่ไหมว่าเด็กคนนี้เป็นใคร") }),
+      m("mp2", "ยอมรับ", "{RIVAL}ถอดแว่น ยอมเล่าความจริงครึ่งหนึ่ง", "{RIVAL} takes off his glasses and looks at the old flood marks on the pillar for a long moment before speaking", 1, { say: "REVEAL1" }),
+      m("mp3", "เข้าใจ", "{ALLY}เข้าใจว่าที่ผ่านมาไม่ใช่การหลอกหลอน", "{ALLY} lowers his flashlight slowly, his fear turning into sadness", 1, { say: say("ALLY", "แปลว่าเขาแค่อยากกลับบ้าน...") }),
+    ], cliff: m("mp-c", "ใต้พื้น", "เสียงเคาะดังมาจากใต้พื้นห้องเก็บของเป็นจังหวะเหมือนเด็กเล่น", "a light playful knocking comes from beneath the storeroom floor in a child's rhythm; all three look down at once", 2) },
+    CRISIS: { title: "คืนน้ำขึ้น", at: "B", shots: [
+      m("cr1", "พายุ", "พายุเข้า แม่น้ำเอ่อขึ้นมาถึงท่าน้ำ", "a sudden storm whips the river into waves that spill over the landing; {LEAD} shields her face from the rain", 3),
+      m("cr2", "ลื่น", "{ALLY}ลื่นตกลงไปในน้ำที่เชี่ยว", "{ALLY} slips on the wet concrete and falls into the churning dark water, reaching up", 3, { say: say("ALLY", "ครู!") }),
+      m("cr3", "คว้ามือ", "{LEAD}คุกเข่าคว้ามือ{ALLY}ไว้สุดแรง", "{LEAD} drops to her knees at the edge and grabs {ALLY}'s hand with both hands, rain pouring down", 3, { say: say("LEAD", "อย่าปล่อยนะ!") }),
+    ], cliff: m("cr-c", "มือเล็กๆ", "มือเด็กเล็กๆ ซีดๆ จับข้อเท้า{ALLY}ใต้น้ำ", "under the water a small pale child's hand closes around {ALLY}'s ankle; he looks down in terror as the current pulls", 3) },
+    CLIMAX: { title: "กระดิ่งเลิกเรียน", at: "B", shots: [
+      m("cl1", "นำกระดิ่ง", "{LEAD}กับ{RIVAL}นำ{OBJ}ไปที่ท่าน้ำ", "before dawn {LEAD} and {RIVAL} walk to the river landing through the mist; {RIVAL} carries {OBJ} in both hands", 2),
+      m("cl2", "สารภาพ", "{RIVAL}เล่าความจริงทั้งหมดด้วยน้ำตา", "{RIVAL} kneels at the water's edge, tears behind his thick glasses, and speaks to the river", 2, { say: "REVEAL2" }),
+      m("cl3", "เงาในน้ำ", "เงาเด็กหญิงปรากฏบนผิวน้ำ จ้องมองทั้งสอง", "on the misty surface of the river the faint reflection of a small girl in an old school uniform appears, looking up at them", 2),
+    ], cliff: m("cl-c", "ยื่นมือ", "เด็กหญิงยื่นมือออกมาจากน้ำหา{RIVAL}", "a small hand rises gently out of the water toward {RIVAL}; he hesitates, trembling", 2) },
+    FINALE: { title: "กลับบ้าน", at: "B", shots: [
+      m("f1", "สั่นกระดิ่ง", "{RIVAL}สั่นกระดิ่งเลิกเรียนเป็นครั้งแรกในรอบสี่สิบปี", "at sunrise {RIVAL} lifts {OBJ} and rings it slowly over the calm river while {LEAD} stands beside him", 1, { say: "FINAL" }),
+      m("f2", "เดินกลับบ้าน", "เงาเด็กหญิงเดินขึ้นจากน้ำ โบกมือลา แล้วจางหายไปในแสงเช้า", "in the golden morning light the faint figure of a little girl walks up the landing steps, waves goodbye and fades into the sun", 1),
+      m("f3", "โรงเรียนเปิด", "นักเรียนวิ่งเข้าโรงเรียน {LEAD}กับ{ALLY}ยืนรับ", "wide shot: children run laughing into the sunny schoolyard as {LEAD} and {ALLY} greet them at the gate", 1, { at: "A", say: say("LEAD", "โรงเรียนเรายังอยู่ต่อนะทุกคน") }),
+    ] },
+  },
+};
+
+const ACTION_DASHCAM: StoryPart = {
+  hashtags: ["#ละครสั้น", "#แอ็กชัน", "#ทางด่วน", "#ละครไทย"],
+  premise: {
+    key: "action-dashcam", title: "เมมกล้องหน้ารถ",
+    logline: "กล้าคนขับรถยกที่เคยเป็นสตันต์แมน เก็บเมมโมรีการ์ดจากรถชนกลางทางด่วน แล้วคนทั้งบริษัทรถยกคู่แข่งก็ไล่ล่าเขาทั้งคืน",
+    cast: [
+      { role: "LEAD", name: "กล้า", nameEn: "Kla", age: "32-year-old Thai man", look: "muscular, short spiky black hair, a strong jaw with light stubble, a small tattoo of a star on his left wrist",
+        outfit: "a dark green tow-truck company work shirt with reflective stripes, black work trousers and boots", voice: "steady, low, confident male voice",
+        trait: "ใจเด็ด เงียบ", want: "อยากล้างมลทินให้ครูสตันต์ที่ติดคุก", secret: "เป็นคนขับรถคันที่ครูรับผิดแทนเมื่อห้าปีก่อน" },
+      { role: "ALLY", name: "มิ้นท์", nameEn: "Mint", age: "26-year-old Thai woman", look: "bright-eyed, a chin-length black bob with a silver hair clip, expressive eyebrows",
+        outfit: "a cream oversized radio-station jacket over a striped shirt and big headphones around her neck", voice: "lively, quick, warm female radio voice",
+        trait: "ช่างพูด กล้าเสี่ยง", want: "อยากได้ข่าวใหญ่ให้รายการวิทยุจราจรไม่ถูกปิด", secret: "เคยแอบอัดเสียงโทรศัพท์ของบอสรถยก" },
+      { role: "RIVAL", name: "เสี่ยวิทย์", nameEn: "Boss Wit", age: "48-year-old Thai man", look: "heavyset, slicked-back greying hair, a gold chain necklace, a calm smiling face",
+        outfit: "a navy polo shirt under a black leather jacket", voice: "smooth, slow, friendly-sounding male voice",
+        trait: "ยิ้มแต่เหี้ยม", want: "อยากได้เมมโมรีการ์ดก่อนตำรวจ", secret: "จัดฉากอุบัติเหตุเพื่อเอาประกันมาหลายปี" },
+    ],
+    places: [
+      { key: "A", name: "ไหล่ทางด่วนกลางคืน", look: "the shoulder of an elevated Bangkok expressway at night, orange sodium lights, a bright yellow tow truck with flashing amber lights, city towers behind" },
+      { key: "B", name: "ห้องจัดรายการวิทยุ", look: "a small late-night radio studio with a glowing on-air sign, a mixing desk, foam panels and a window over the city" },
+      { key: "C", name: "ลานจอดรถยึด", look: "a fenced impound lot under a flyover at night, rows of damaged cars, chain-link fence and harsh floodlights" },
+    ],
+    object: { name: "เมมโมรีการ์ด", look: "a small black dashcam memory card in a clear plastic case with a red sticker" },
+    truth: "ในเมมโมรีการ์ดมีวิดีโอที่เสี่ยวิทย์สั่งให้คนขับรถเบรกกะทันหันเพื่อจัดฉากอุบัติเหตุ คดีเดียวกับที่ครูสตันต์ของกล้าติดคุกแทน",
+    ending: "มิ้นท์เปิดวิดีโอออกอากาศสด ตำรวจล้อมเสี่ยวิทย์ที่ลานรถยึด ครูของกล้าได้รับการปล่อยตัว",
+    reveal1: say("RIVAL", "อุบัติเหตุบนทางด่วนไม่เคยบังเอิญหรอกน้อง มีคนจ่ายให้มันเกิดเสมอ"),
+    reveal2: say("RIVAL", "ใช่ ฉันจัดฉากคืนนั้น และครูแกก็ยอมรับผิดแทนแกเอง"),
+    finalLine: say("ALLY", "นี่คือรายการจราจรกลางคืน และคืนนี้ความจริงออกอากาศแล้ว"),
+  },
+  hooks: [say("LEAD", "ตั้งสติ ทางยังไม่ตัน"), say("ALLY", "พวกมันตามมาอีกแล้ว"), say("LEAD", "จับไว้แน่นๆ"),
+    say("ALLY", "เราต้องไปให้ถึงสถานีก่อนตีห้า"), say("LEAD", "ฉันไม่ทิ้งเมมนี้แน่")],
+  moves: [
+    m("tail", "ถูกสะกดรอย", "{LEAD}เห็นรถตู้สีดำขับตามมาในกระจกมองหลัง", "{LEAD} glances at the side mirror of the tow truck: a black van with no plates keeps the same distance behind; his grip tightens on the wheel", 1, { say: say("LEAD", "ตามมาตั้งแต่ด่านแล้ว") }),
+    m("call", "โทรขู่", "{RIVAL}โทรหา{LEAD}ด้วยน้ำเสียงเป็นมิตร", "{LEAD} answers his phone with one hand on the wheel and listens as a smooth friendly voice speaks; his face hardens", 1, { say: say("RIVAL", "ของที่เก็บมาเมื่อคืน เอามาคืนพี่ดีๆ") }),
+    m("onair", "ออกอากาศ", "{ALLY}เปิดไมค์บอกผู้ฟังให้ช่วยดูรถตู้สีดำ", "{ALLY} leans into the studio microphone under the glowing on-air sign, talking fast to her listeners", 1, { at: "B", say: say("ALLY", "ใครเห็นรถตู้ดำไม่มีป้ายทะเบียน โทรเข้ามาเลยค่ะ"), clue: "ผู้ฟังรายการแจ้งว่ารถตู้ดำออกจากอู่ของเสี่ยวิทย์ทุกคืน" }),
+    m("fence", "ปีนรั้ว", "{LEAD}ปีนรั้วตาข่ายเข้าลานรถยึด", "{LEAD} climbs a tall chain-link fence in one fluid motion and drops silently into the impound lot", 2, { at: "C" }),
+    m("swap", "สลับการ์ด", "{ALLY}ทำการ์ดปลอมไว้หลอกคนของ{RIVAL}", "{ALLY} quickly copies files on a laptop and slips a second identical memory card into her jacket pocket", 2, { at: "B", say: say("ALLY", "ถ้าอยากได้ เดี๋ยวให้ตัวปลอมไป") }),
+    m("hook", "เกี่ยวรถ", "{LEAD}ใช้รถยกเกี่ยวรถตู้ที่ขวางทางออกไป", "{LEAD} swings the tow truck's crane hook onto a black van blocking the road and drags it aside with a screech", 2, { at: "A", say: say("LEAD", "หลบไป!") }),
+    m("stunt", "สไลด์ใต้รถ", "{LEAD}สไลด์ลอดใต้รถเพื่อหลบไฟฉาย", "as flashlight beams sweep the lot {LEAD} slides on his back under a wrecked car and holds his breath", 2, { at: "C" }),
+    m("chase", "วิ่งหนี", "{LEAD}กับ{ALLY}วิ่งหนีลงบันไดหนีไฟทางด่วน", "{LEAD} and {ALLY} sprint down a steel emergency staircase of the expressway, footsteps clanging, lights flashing above", 3, { say: say("ALLY", "ซ้ายๆ ลงทางนี้!") }),
+    m("cut", "แผลที่แขน", "{LEAD}ถูกเศษกระจกบาดแขนระหว่างหนี", "{LEAD} forces a car door open and broken glass slices his right forearm; he wraps it fast with a strip of cloth", 3, { say: say("LEAD", "ไม่เป็นไร ไปต่อ"), condition: { who: "LEAD", en: "a cloth bandage tied around his right forearm", th: "แขนขวาพันผ้าห้ามเลือด" } }),
+    m("blackout", "ไฟดับ", "ไฟในห้องจัดรายการดับ มีคนตัดสายสัญญาณ", "the studio lights and the on-air sign cut out at once; {ALLY} freezes in the dark, listening to footsteps outside", 3, { at: "B", say: say("ALLY", "เขามาถึงที่นี่แล้ว") }),
+  ],
+  cliffs: [
+    m("c-van", "รถตู้พุ่งชน", "รถตู้สีดำพุ่งตรงเข้ามาหา{LEAD}จากด้านหน้า", "headlights flare as a black van races straight toward {LEAD} standing beside the tow truck; slow push-in on his face", 2),
+    m("c-grab", "ถูกจับ", "มือใหญ่จับไหล่{ALLY}จากข้างหลังในห้องมืด", "a large hand grabs {ALLY}'s shoulder from behind in the dark studio; her eyes go wide", 2),
+    m("c-phone", "ข้อความ", "โทรศัพท์{LEAD}มีข้อความเป็นรูป{ALLY}ถูกมัด", "{LEAD} looks down at his phone screen; his breath stops; slow push-in on his face lit by the screen", 2, { say: say("LEAD", "{ALLY}...") }),
+    m("c-boss", "เสี่ยมาเอง", "{RIVAL}เดินออกมาจากเงามืดพร้อมรอยยิ้ม", "{RIVAL} steps out of the shadows between the wrecked cars, smiling, clapping slowly", 1, { say: say("RIVAL", "เก่งมาก แต่จบแค่นี้แหละ") }),
+    m("c-card", "การ์ดหล่น", "{OBJ}หลุดจากมือร่วงลงช่องทางด่วน", "{OBJ} slips from {LEAD}'s fingers and tumbles toward a gap in the expressway barrier; he lunges for it", 3),
+    m("c-sirens", "เสียงไซเรน", "เสียงไซเรนดังใกล้เข้ามา แต่ไม่รู้ว่าเป็นตำรวจจริงหรือไม่", "blue and red lights sweep over {LEAD}'s face as sirens close in; he cannot tell whose side they are on", 1, { say: say("LEAD", "ตำรวจจริงหรือคนของมัน") }),
+  ],
+  beats: {
+    OPENING: { title: "รถชนกลางทางด่วน", at: "A", shots: [
+      m("o1", "งานกลางคืน", "{LEAD}ยกรถที่ชนบนทางด่วน {ALLY}มาทำข่าว {RIVAL}จอดรถยกคู่แข่งอยู่ไม่ไกล", "on the expressway shoulder {LEAD} hooks a crashed sedan to his tow truck while {ALLY} records with a microphone; {RIVAL} leans on a rival tow truck nearby watching; all three faces clearly visible, medium-wide shot", 1, { say: say("ALLY", "คืนนี้รถชนตรงนี้เป็นครั้งที่สามแล้วนะคะ") }),
+      m("o2", "เจอการ์ด", "{LEAD}พบ{OBJ}ในกล้องหน้ารถที่ชน", "{LEAD} pulls {OBJ} out of the crashed car's dashcam and studies it under the amber lights", 1, { say: say("LEAD", "กล้องยังบันทึกอยู่") }),
+      m("o3", "เสี่ยทัก", "{RIVAL}เดินมาทักอย่างเป็นมิตรและขอของคืน", "{RIVAL} walks over smiling and holds out his palm toward {LEAD}", 1, { say: say("RIVAL", "งานนี้ของพี่ ของในรถพี่เก็บเอง") }),
+    ], cliff: m("o-c", "ไฟหน้ารถ", "{LEAD}ปฏิเสธ แล้วไฟสูงของรถตู้สามคันก็สาดเข้ามาพร้อมกัน", "{LEAD} closes his fist around {OBJ}; behind him three black vans switch on their high beams at once", 2) },
+    INCITING: { title: "วิดีโอที่ไม่ควรเห็น", at: "B", shots: [
+      m("i1", "หาที่พึ่ง", "{LEAD}มาที่สถานีวิทยุของ{ALLY}", "{LEAD} bursts into the late-night radio studio and shuts the door behind him; {ALLY} pulls off her headphones", 1, { say: say("ALLY", "คุณคนรถยกเมื่อคืนนี่") }),
+      m("i2", "เปิดดู", "ทั้งสองเปิดดูวิดีโอในการ์ด", "{LEAD} and {ALLY} lean over a laptop as dashcam footage plays, the screen light on their faces", 1, { say: say("LEAD", "ดูจังหวะเบรกนี่ ไม่ใช่อุบัติเหตุ") }),
+      m("i3", "ข้อความเตือน", "มีข้อความเข้าโทรศัพท์{LEAD}จากเบอร์แปลก", "{LEAD}'s phone buzzes on the desk; he reads the message and looks out the studio window", 1, { say: say("LEAD", "มันรู้ว่าผมอยู่ที่นี่") }),
+    ], cliff: m("i-c", "หน้าคนขับ", "วิดีโอซูมเห็นหน้าคนขับ เป็นคนของ{RIVAL}", "the footage freezes on the face of the other driver; {ALLY} zooms in and recognises him with a gasp", 2, { say: say("ALLY", "นี่มันคนของเสี่ยวิทย์") }) },
+    MIDPOINT: { title: "ความจริงห้าปีก่อน", at: "C", shots: [
+      m("mp1", "ถูกจับได้", "{RIVAL}ดักรอ{LEAD}ในลานรถยึด", "in the floodlit impound lot {RIVAL} waits between wrecked cars as {LEAD} steps out of the dark", 2, { say: say("LEAD", "เสี่ยจัดฉากมาตลอดใช่ไหม") }),
+      m("mp2", "เสี่ยเล่า", "{RIVAL}เล่าความจริงครึ่งหนึ่ง", "{RIVAL} lights nothing, just turns his gold ring slowly and speaks calmly", 1, { say: "REVEAL1" }),
+      m("mp3", "จำได้", "{LEAD}นึกถึงคืนที่ครูรับผิดแทน", "{LEAD} stands frozen, his jaw tight, staring at a wrecked car that looks like the one from five years ago", 1, { say: say("LEAD", "รถคันนั้น... คืนนั้น") }),
+    ], cliff: m("mp-c", "ถูกล้อม", "คนของ{RIVAL}เดินออกมาล้อม{LEAD}ทุกทิศทาง", "men in dark jackets step out from between the cars on every side, closing a circle around {LEAD}", 2) },
+    CRISIS: { title: "ไฟดับทั้งสถานี", at: "B", shots: [
+      m("cr1", "สัญญาณถูกตัด", "คนของ{RIVAL}ตัดสัญญาณวิทยุ", "the on-air sign flickers and dies; {ALLY} hits switches on the dead mixing desk in panic", 3, { say: say("ALLY", "สัญญาณหายหมดแล้ว") }),
+      m("cr2", "ประตูพัง", "ประตูห้องถูกกระแทกจากข้างนอก", "the studio door shakes violently under heavy blows; {ALLY} pushes a desk against it", 3),
+      m("cr3", "โทรหากล้า", "{ALLY}โทรหา{LEAD}ด้วยเสียงสั่น", "{ALLY} crouches behind the desk in the dark, holding her phone to her ear", 3, { say: say("ALLY", "กล้า ถ้าฉันโดนจับ ไฟล์อยู่ในการ์ดใบจริง") }),
+    ], cliff: m("cr-c", "ถูกจับตัว", "ประตูพังลง เงาคนหลายคนเข้ามาในห้อง", "the door bursts open and several silhouettes fill the doorway against the corridor light; {ALLY} drops the phone", 3) },
+    CLIMAX: { title: "แลกตัวที่ลานรถยึด", at: "C", shots: [
+      m("cl1", "แลกตัว", "{LEAD}มาแลกการ์ดกับตัว{ALLY}", "{LEAD} walks alone into the floodlit lot holding up {OBJ}; across from him {RIVAL} holds {ALLY} by the arm", 2, { say: say("LEAD", "ปล่อยเธอก่อน") }),
+      m("cl2", "เสี่ยสารภาพ", "{RIVAL}ยอมรับทุกอย่างเพราะคิดว่าชนะแล้ว", "{RIVAL} laughs softly, sure he has won, and admits everything", 2, { say: "REVEAL2" }),
+      m("cl3", "ไมค์ลับ", "{ALLY}ยิ้ม เผยไมค์ลับที่ติดปกเสื้อ", "{ALLY} lifts her collar to reveal a tiny clip microphone with a red light, and smiles", 2, { say: say("ALLY", "ขอบคุณที่พูดชัดๆ นะคะเสี่ย") }),
+    ], cliff: m("cl-c", "เสี่ยเปลี่ยนหน้า", "รอยยิ้มของ{RIVAL}หายไป เขาสั่งให้คนเข้ามา", "{RIVAL}'s smile vanishes; he snaps his fingers and his men rush forward", 3) },
+    FINALE: { title: "ออกอากาศ", at: "B", shots: [
+      m("f1", "ตำรวจมาถึง", "ตำรวจล้อม{RIVAL}ที่ลานรถยึด", "red and blue lights flood the impound lot as police surround {RIVAL}, who raises his hands slowly", 1, { at: "C" }),
+      m("f2", "ออกอากาศ", "{ALLY}เปิดไมค์ออกอากาศความจริงตอนรุ่งเช้า", "at dawn {ALLY} sits at the glowing on-air desk with {LEAD} beside her, his arm bandaged, and speaks into the microphone", 1, { say: "FINAL" }),
+      m("f3", "ครูกลับบ้าน", "{LEAD}ขับรถยกพา{ALLY}ไปรับครูที่ออกจากเรือนจำ", "wide sunrise shot on the empty expressway: {LEAD} drives the yellow tow truck with {ALLY} in the passenger seat, both smiling", 1, { at: "A", say: say("LEAD", "ไปรับครูกัน") }),
+    ] },
+  },
+};
+
+const COMEDY_BAND: StoryPart = {
+  hashtags: ["#ละครสั้น", "#ตลก", "#ฮาๆ", "#งานวัด"],
+  premise: {
+    key: "comedy-temple-fair-band", title: "วงดนตรีงานวัด",
+    logline: "ตุ้มนักร้องตกอับกับป้าหน่อยผู้จัดการปากไวต้องชนะประกวดร้องเพลงงานวัด แข่งกับริกกี้ดาวติ๊กต็อกที่มีผู้ติดตามล้านคน",
+    cast: [
+      { role: "LEAD", name: "ตุ้ม", nameEn: "Tum", age: "29-year-old Thai man", look: "chubby round face, a big curly black hairstyle, expressive eyebrows and a gap-toothed grin",
+        outfit: "a shiny gold sequined shirt, white trousers and white loafers", voice: "bright, theatrical, slightly nasal male voice",
+        trait: "มั่นใจเกินตัว ใจดี", want: "อยากได้ขึ้นเวทีใหญ่สักครั้ง", secret: "ร้องเพลงช้าเพราะมาก แต่อายที่จะร้อง" },
+      { role: "ALLY", name: "ป้าหน่อย", nameEn: "Auntie Noi", age: "55-year-old Thai woman", look: "short and sturdy, a tall curled bouffant hairdo, bright red lipstick and big gold earrings",
+        outfit: "a hot-pink blouse with a floral sarong and a fanny pack full of cash", voice: "loud, bossy, cackling female voice",
+        trait: "ปากไว ใจใหญ่", want: "อยากให้หลานดังจะได้ปลดหนี้ร้านหมูกระทะ", secret: "เคยเป็นนักร้องลูกทุ่งที่หนีงานวัดเมื่อสามสิบปีก่อน" },
+      { role: "RIVAL", name: "ริกกี้", nameEn: "Ricky", age: "27-year-old Thai man", look: "slim, bleached platinum hair swept to one side, a perfect smile, small diamond stud earring",
+        outfit: "a white designer jacket over a black T-shirt and tinted sunglasses", voice: "smooth, smug, carefully trained male voice",
+        trait: "หลงตัวเอง ขี้อวด", want: "อยากชนะเพื่อทำคลิปไวรัล", secret: "คือเพื่อนสมัยประถมของตุ้มที่เคยโดนหัวเราะเยาะบนเวที" },
+    ],
+    places: [
+      { key: "A", name: "เวทีงานวัด", look: "a small temple-fair stage at night with strings of coloured bulbs, a glittery backdrop, plastic chairs and food stalls glowing in the background" },
+      { key: "B", name: "ร้านหมูกระทะของป้า", look: "a busy roadside Thai barbecue restaurant at night, smoking grill pots on tables, fairy lights and a karaoke TV in the corner" },
+      { key: "C", name: "หลังเวที", look: "a cramped backstage tent behind the temple stage, racks of sparkly costumes, a cracked mirror with bulbs, tangled cables" },
+    ],
+    object: { name: "ไมค์ทองคำ", look: "a sparkly golden handheld microphone covered in rhinestones" },
+    truth: "ริกกี้คือเพื่อนประถมที่ตุ้มเคยหัวเราะเยาะตอนร้องเพลงผิดบนเวทีโรงเรียน เขาอยากชนะเพื่อแก้แค้นเรื่องที่ค้างใจมายี่สิบปี",
+    ending: "ตุ้มขอโทษริกกี้บนเวที ทั้งคู่ร้องเพลงคู่ด้วยกันจนชนะ ป้าหน่อยได้ร้องเพลงบนเวทีอีกครั้ง",
+    reveal1: say("RIVAL", "นายจำไม่ได้จริงๆ เหรอ ป.4 เวทีโรงเรียน นายหัวเราะดังที่สุด"),
+    reveal2: say("RIVAL", "ฉันฝึกร้องมายี่สิบปี เพื่อวันนี้วันเดียว"),
+    finalLine: say("ALLY", "ไม่ต้องแข่งแล้ว ร้องด้วยกันเลยลูก!"),
+  },
+  hooks: [say("LEAD", "ใจเย็นๆ ตุ้มคนนี้ไม่ยอมแพ้"), say("ALLY", "เดี๋ยวนะ เมื่อกี้มันอะไรกัน"), say("LEAD", "ผมมีแผนครับป้า"),
+    say("ALLY", "ป้าว่าแผนนี้ไม่รอดแน่"), say("LEAD", "เชื่อผมสักครั้งสิป้า")],
+  moves: [
+    m("rehearse", "ซ้อมร้อง", "{LEAD}ซ้อมร้องเพลงในร้าน แต่เสียงแหบกลางคัน", "{LEAD} sings dramatically into a grill tongs as a microphone in the barbecue restaurant, then his voice cracks badly; customers wince", 1, { at: "B", say: say("LEAD", "เดี๋ยวๆ ขอใหม่ เมื่อกี้ไม่นับ") }),
+    m("costume", "ชุดใหม่", "{ALLY}เอาชุดเลื่อมรุ่นเก่าของตัวเองมาให้{LEAD}ใส่", "{ALLY} proudly holds up an enormous old silver sequined jacket with feathered shoulders in front of {LEAD}", 1, { say: say("ALLY", "ใส่ชุดนี้ ป้าชนะมาสามงานแล้ว") }),
+    m("live", "ริกกี้ไลฟ์", "{RIVAL}ไลฟ์ล้อเลียน{LEAD}ให้ผู้ติดตามดู", "{RIVAL} films himself on a phone selfie stick, pointing behind him at {LEAD} and laughing", 1, { say: say("RIVAL", "ทุกคนดูคู่แข่งผมสิ ฮ่าๆ") }),
+    m("throat", "ยาแก้เจ็บคอ", "{ALLY}ต้มยาสมุนไพรแปลกๆ ให้{LEAD}ดื่ม", "{ALLY} forces a steaming cup of murky green herbal drink into {LEAD}'s hands; he sniffs it and gags", 2, { say: say("LEAD", "ป้า นี่มันยาหรือน้ำแกง") }),
+    m("slip", "ลื่นล้ม", "{LEAD}ลื่นสายไฟล้มกลางเวทีซ้อม", "{LEAD} spins dramatically on the stage, trips over a cable and lands flat on his back; the crowd gasps", 2, { at: "A", say: say("LEAD", "ผมตั้งใจ! นี่ท่าเต้น!") }),
+    m("swap", "สลับเพลง", "{RIVAL}แอบสลับแผ่นเพลงประกอบของ{LEAD}", "backstage {RIVAL} sneakily swaps a USB stick on the sound desk and walks away whistling", 2, { at: "C" }),
+    m("fans", "แฟนคลับป้า", "ป้าแม่ค้าในตลาดสิบคนมาเชียร์ด้วยป้ายไฟ", "{ALLY} leads a group of cheering market aunties waving handmade glowing signs with {LEAD}'s name", 1, { at: "A", say: say("ALLY", "ทีมหมูกระทะมาแล้ว!") }),
+    m("hair", "ผมพัง", "ไดร์เป่าผมระเบิด ผมของ{LEAD}ฟูตั้งชี้ฟ้า", "a hair dryer pops with a puff of smoke and {LEAD}'s curly hair stands straight up in a giant frizz", 3, { at: "C", say: say("LEAD", "ผมของผม!!"), condition: { who: "LEAD", en: "his curly hair frizzed straight up into a huge puff", th: "ผมฟูตั้งชี้ฟ้า" } }),
+    m("duet", "ท้าดวล", "{RIVAL}ท้าดวลร้องเพลงสดกลางร้าน", "{RIVAL} slams a karaoke remote on a table in the barbecue restaurant and points at {LEAD}", 2, { at: "B", say: say("RIVAL", "ดวลกันตรงนี้เลย ใครแพ้ล้างหม้อ") }),
+    m("highnote", "โน้ตสูง", "{ALLY}ร้องโน้ตสูงโชว์จนแก้วร้าว", "{ALLY} grabs the microphone and belts an impossibly high note; a glass on the table cracks; everyone stares", 3, { say: say("LEAD", "ป้า... ร้องได้ขนาดนี้เลยเหรอ"), clue: "ป้าหน่อยเคยเป็นนักร้องลูกทุ่งตัวจริง" }),
+  ],
+  cliffs: [
+    m("c-mic", "ไมค์หาย", "{OBJ}ที่เตรียมไว้หายไปจากกล่อง", "{LEAD} opens the velvet box backstage and finds it empty; slow push-in on his horrified face", 2, { say: say("LEAD", "ไมค์ทองคำหายไปไหน!") }),
+    m("c-list", "ชื่อถูกขีด", "ชื่อ{LEAD}ถูกขีดออกจากรายชื่อผู้แข่ง", "{ALLY} reads the contestant list pinned to a board and sees {LEAD}'s name crossed out in red marker", 2, { say: say("ALLY", "ใครขีดชื่อหลานฉัน!") }),
+    m("c-voice", "เสียงหาย", "{LEAD}อ้าปากจะร้อง แต่ไม่มีเสียงออกมาเลย", "{LEAD} opens his mouth to sing and only a tiny squeak comes out; he clutches his throat in panic", 2),
+    m("c-ricky", "ริกกี้มาเอง", "{RIVAL}โผล่มาในร้านหมูกระทะพร้อมทีมงานถ่ายคลิป", "the restaurant door swings open and {RIVAL} walks in with two camera operators, smiling at {ALLY}", 1, { say: say("RIVAL", "ป้าครับ ผมขอซื้อร้านนี้") }),
+    m("c-rain", "ฝนตก", "ฝนตกกระหน่ำ ไฟประดับเวทีดับหมด", "heavy rain pours down on the temple fair and every coloured bulb on the stage goes dark at once", 1, { at: "A" }),
+    m("c-photo", "รูปเก่า", "{LEAD}เห็นรูปเด็กประถมในกระเป๋า{RIVAL} มีตัวเองอยู่ในรูป", "{LEAD} picks up a photo that fell from {RIVAL}'s bag: two little boys in school uniforms on a stage; he squints at it", 2, { say: say("LEAD", "เด็กคนนี้... ผมนี่") }),
+  ],
+  beats: {
+    OPENING: { title: "ป้ายประกาศ", at: "B", shots: [
+      m("o1", "ประกาศ", "{LEAD}กับ{ALLY}เห็นป้ายประกวดร้องเพลง {RIVAL}เดินมาพอดี", "in the barbecue restaurant {LEAD} and {ALLY} read a temple-fair singing contest poster on the wall as {RIVAL} walks in with sunglasses on; all three faces clearly visible, medium-wide shot", 1, { say: say("ALLY", "รางวัลแสนนึง! ตุ้ม หนูต้องลง") }),
+      m("o2", "ริกกี้เยาะ", "{RIVAL}หัวเราะเยาะชุดเลื่อมของ{LEAD}", "{RIVAL} lowers his sunglasses, looks {LEAD} up and down and smirks", 1, { say: say("RIVAL", "ใส่ชุดนี้ขึ้นเวทีเหรอ เสียดายคิวผมจัง") }),
+      m("o3", "ท้า", "{LEAD}ตบโต๊ะรับคำท้า", "{LEAD} slams his hand on the table, grill smoke rising around him, and points back at {RIVAL}", 1, { say: say("LEAD", "เจอกันบนเวที แล้วจะรู้ว่าใครเป็นใคร") }),
+    ], cliff: m("o-c", "สมัครผิด", "{ALLY}กรอกใบสมัครแล้วพบว่ากรอกผิดประเภทเป็นประกวดนางงาม", "{ALLY} looks at the application form she just filled in and slowly realises she ticked the beauty pageant box", 2, { say: say("ALLY", "ตาย... ป้าสมัครให้หนูประกวดนางงาม") }) },
+    INCITING: { title: "ซ้อมใหญ่", at: "A", shots: [
+      m("i1", "รอบซ้อม", "{LEAD}ขึ้นซ้อมบนเวทีงานวัดครั้งแรก", "{LEAD} steps onto the temple stage for rehearsal, nervously gripping the microphone under coloured lights", 1, { say: say("LEAD", "เทสๆ หนึ่งสอง...") }),
+      m("i2", "ริกกี้โชว์", "{RIVAL}ขึ้นโชว์เสียงจนคนกรี๊ด", "{RIVAL} sings a single perfect note into the microphone and the small crowd screams and films him", 1),
+      m("i3", "ป้าปลอบ", "{ALLY}ดึง{LEAD}ไปหลังเวทีแล้วปลอบใจ", "backstage {ALLY} pinches {LEAD}'s cheeks hard to cheer him up", 1, { at: "C", say: say("ALLY", "เสียงหนูไม่แพ้ใคร แค่หนูกลัวเอง") }),
+    ], cliff: m("i-c", "ไมค์ทองคำ", "กรรมการประกาศรางวัลคือ{OBJ} {RIVAL}จ้อง{LEAD}ไม่วางตา", "the announcer lifts {OBJ} into the stage lights as the grand prize; {RIVAL} stares at {LEAD} with a strange serious face", 2, { at: "A" }) },
+    MIDPOINT: { title: "ป.4 เวทีโรงเรียน", at: "C", shots: [
+      m("mp1", "เผชิญหน้า", "{LEAD}ถาม{RIVAL}ว่าทำไมถึงเกลียดเขา", "backstage {LEAD} blocks {RIVAL}'s way between racks of sparkly costumes", 2, { say: say("LEAD", "ผมไปทำอะไรให้นาย") }),
+      m("mp2", "ริกกี้เล่า", "{RIVAL}ถอดแว่นเล่าเรื่องเก่า", "{RIVAL} takes off his tinted sunglasses for the first time, his eyes hurt and serious", 1, { say: "REVEAL1" }),
+      m("mp3", "จำได้", "{LEAD}จำได้แล้วและรู้สึกผิด", "{LEAD}'s face falls as the memory comes back; he looks down at his sequined shoes", 1, { say: say("LEAD", "ตอนนั้นเรายังเด็ก... ฉันขอโทษ") }),
+    ], cliff: m("mp-c", "ไม่รับคำขอโทษ", "{RIVAL}ใส่แว่นกลับและเดินจากไป", "{RIVAL} puts his sunglasses back on without a word and walks out through the tent flap", 2) },
+    CRISIS: { title: "คืนก่อนแข่ง", at: "B", shots: [
+      m("cr1", "ร้านจะถูกยึด", "เจ้าหนี้มาติดป้ายยึดร้านหมูกระทะของ{ALLY}", "{ALLY} stares in shock as a bright yellow notice is taped to her restaurant's front door", 3, { say: say("ALLY", "ถ้าไม่ชนะ ร้านป้าก็ไม่เหลือแล้ว") }),
+      m("cr2", "ตุ้มเสียงแหบ", "{LEAD}ซ้อมหนักจนเสียงแหบหมด", "{LEAD} sits alone at a grill table late at night, trying to sing, his voice a hoarse whisper", 3),
+      m("cr3", "ป้าร้องไห้", "{ALLY}นั่งร้องไห้เงียบๆ หลังร้าน", "{ALLY} sits on an upturned crate behind the restaurant, wiping tears with her floral sarong", 2, { say: say("ALLY", "ป้าหนีเวทีมาสามสิบปี คราวนี้ป้าไม่หนีแล้ว") }),
+    ], cliff: m("cr-c", "ริกกี้เห็น", "{RIVAL}ยืนดูอยู่ในเงามืด ได้ยินทุกอย่าง", "in the shadows by the street {RIVAL} stands listening, his hands slowly lowering his phone", 2) },
+    CLIMAX: { title: "คืนประกวด", at: "A", shots: [
+      m("cl1", "ขึ้นเวที", "{LEAD}ขึ้นเวทีด้วยผมฟูๆ ท่ามกลางเสียงหัวเราะ", "{LEAD} walks onto the glittering temple stage under the lights as the crowd giggles at his outfit", 2, { say: say("LEAD", "เพลงนี้... ผมขอร้องให้เพื่อนเก่าคนนึง") }),
+      m("cl2", "ริกกี้ขึ้นมา", "{RIVAL}เดินขึ้นเวทีกลางเพลง", "halfway through the song {RIVAL} climbs onto the stage and takes the second microphone", 2, { say: "REVEAL2" }),
+      m("cl3", "ร้องคู่", "ทั้งสองร้องคู่กันเป็นครั้งแรก", "{LEAD} and {RIVAL} sing side by side, voices blending, the crowd going silent, then cheering", 2),
+    ], cliff: m("cl-c", "ไฟดับ", "ไฟเวทีดับกลางเพลงท่อนสุดท้าย", "on the last chorus every stage light cuts out; in the dark the crowd gasps", 2) },
+    FINALE: { title: "เพลงสุดท้าย", at: "A", shots: [
+      m("f1", "ไฟฉายมือถือ", "คนดูเปิดไฟมือถือส่องเวทีให้ร้องต่อ", "hundreds of phone flashlights light up in the crowd, shining on the stage as {LEAD} and {RIVAL} keep singing", 1),
+      m("f2", "ป้าขึ้นเวที", "{ALLY}ปีนขึ้นเวทีร่วมร้องท่อนสุดท้าย", "{ALLY} climbs onto the stage in her hot-pink blouse and grabs the microphone between the two singers", 1, { say: "FINAL" }),
+      m("f3", "ไมค์ทองคำ", "ทั้งสามชู{OBJ}ด้วยกัน ร้านหมูกระทะรอดแล้ว", "wide shot: {LEAD}, {RIVAL} and {ALLY} lift {OBJ} together under the coloured lights as confetti falls", 1, { say: say("LEAD", "ไปฉลองที่ร้านป้ากัน หมูกระทะฟรี!") }),
+    ] },
+  },
+};
+
+const ROMANCE_FLORIST: StoryPart = {
+  hashtags: ["#ละครสั้น", "#โรแมนติก", "#ละครรัก", "#ร้านดอกไม้"],
+  premise: {
+    key: "romance-jasmine-garland", title: "พวงมาลัยไร้ชื่อ",
+    logline: "ใหม่เจ้าของร้านดอกไม้ได้รับพวงมาลัยมะลิไร้ชื่อผู้ส่งทุกเช้า ขณะที่บาริสต้าเงียบๆ ร้านตรงข้ามกำลังจะย้ายไปต่างประเทศ",
+    cast: [
+      { role: "LEAD", name: "ใหม่", nameEn: "Mai", age: "26-year-old Thai woman", look: "slender, long wavy dark-brown hair often tied with a ribbon, bright almond eyes, a dimple on her right cheek",
+        outfit: "a cream linen apron over a sage-green dress, with a flower tucked behind one ear", voice: "gentle, bright, playful female voice",
+        trait: "ร่าเริง ช่างฝัน", want: "อยากรู้ว่าใครส่งพวงมาลัยมาทุกเช้า", secret: "เคยมีเพื่อนสนิทตอนเด็กที่ย้ายไปแล้วไม่ได้บอกลา" },
+      { role: "ALLY", name: "ข้าว", nameEn: "Khao", age: "28-year-old Thai man", look: "tall and quiet, neat short black hair, warm dark eyes, a small burn scar on the back of his left hand",
+        outfit: "a black barista apron over a white rolled-sleeve shirt", voice: "low, soft, slow-speaking male voice",
+        trait: "เงียบ อบอุ่น", want: "อยากบอกความในใจก่อนต้องย้ายไปญี่ปุ่น", secret: "เป็นเพื่อนตอนเด็กคนนั้นของใหม่ และส่งพวงมาลัยมาตลอด" },
+      { role: "RIVAL", name: "เบลล่า", nameEn: "Bella", age: "27-year-old Thai woman", look: "elegant, a sleek black bob, red lipstick, gold hoop earrings",
+        outfit: "a sharp white blazer over a black silk top and high heels", voice: "confident, crisp, teasing female voice",
+        trait: "มั่นใจ ตรงไปตรงมา", want: "อยากซื้อตึกแถวทั้งสองร้านไปทำคอนโด", secret: "คืออดีตคู่หมั้นที่ข้าวขอถอนหมั้นเพราะรักคนอื่น" },
+    ],
+    places: [
+      { key: "A", name: "ร้านดอกไม้ของใหม่", look: "a small sunlit Bangkok shophouse florist overflowing with roses, orchids and jasmine garlands, buckets of flowers on the floor, a bell over the glass door" },
+      { key: "B", name: "ร้านกาแฟฝั่งตรงข้าม", look: "a cosy minimalist coffee shop across the street with warm wood counters, an espresso machine, hanging plants and a big window facing the florist" },
+      { key: "C", name: "ตลาดดอกไม้ยามเช้า", look: "a bustling early-morning Bangkok flower market under strings of bulbs, piles of marigolds, roses and jasmine, vendors and carts" },
+    ],
+    object: { name: "พวงมาลัยมะลิ", look: "a small white jasmine garland with a red rose bud and green ribbon tails" },
+    truth: "ข้าวคือเพื่อนตอนเด็กที่ย้ายไปโดยไม่ได้บอกลา เขาตามกลับมาเปิดร้านตรงข้ามและส่งพวงมาลัยทุกเช้าเหมือนที่เคยร้อยให้ใหม่ตอนเด็ก",
+    ending: "ข้าวตัดสินใจไม่ย้ายไปญี่ปุ่น สารภาพรักที่ตลาดดอกไม้ตอนรุ่งเช้า เบลล่ายกเลิกซื้อตึกและเป็นคนผลักให้ทั้งคู่ได้กัน",
+    reveal1: say("RIVAL", "ฉันเคยเป็นคู่หมั้นเขานะ เขาถอนหมั้นเพราะผู้หญิงคนหนึ่งที่ไม่เคยรู้ตัว"),
+    reveal2: say("ALLY", "คนที่ร้อยพวงมาลัยให้เธอตอนเด็ก... คือผมเอง"),
+    finalLine: say("ALLY", "ต่อจากนี้ ผมจะให้พวงมาลัยกับมือทุกเช้า"),
+  },
+  hooks: [say("LEAD", "ใจเต้นแรงจัง"), say("ALLY", "คุณโอเคไหมครับ"), say("LEAD", "เมื่อกี้หมายความว่ายังไง"),
+    say("ALLY", "ผมยังไม่พร้อมจะพูด"), say("LEAD", "ฉันต้องรู้ให้ได้วันนี้")],
+  moves: [
+    m("garland", "พวงมาลัยหน้าร้าน", "{LEAD}พบ{OBJ}แขวนหน้าประตูร้านอีกเช้า", "{LEAD} unlocks the florist's glass door in the morning light and finds {OBJ} hanging on the handle again; she smiles and looks around the street", 1, { at: "A", say: say("LEAD", "วันนี้ก็มาอีกแล้ว") }),
+    m("latte", "ลาเต้รูปดอกไม้", "{ALLY}ทำลาเต้อาร์ตเป็นรูปดอกมะลิให้{LEAD}", "{ALLY} quietly slides a latte across the counter to {LEAD}; the foam art is a perfect jasmine flower", 1, { at: "B", say: say("LEAD", "รูปมะลิ... บังเอิญจังเลยนะ") }),
+    m("window", "มองข้ามถนน", "{ALLY}มอง{LEAD}จัดดอกไม้ผ่านหน้าต่างร้านกาแฟ", "through the coffee shop window {ALLY} pauses wiping a cup and watches {LEAD} arranging roses across the street, then looks away when she glances up", 1, { at: "B" }),
+    m("bella", "เบลล่าเยี่ยม", "{RIVAL}เข้ามาในร้านดอกไม้และสั่งดอกไม้ราคาแพงที่สุด", "{RIVAL} strides into the florist in high heels, removes her sunglasses and taps the most expensive bouquet", 1, { at: "A", say: say("RIVAL", "เอาช่อนี้ ส่งไปให้ข้าวฝั่งตรงข้ามนะ") }),
+    m("rain", "ฝนตก", "ฝนตกหนัก ทั้งสองยืนหลบฝนใต้กันสาดเดียวกัน", "sudden heavy rain; {LEAD} and {ALLY} end up standing close under the same narrow awning, shoulders almost touching", 2, { say: say("ALLY", "ผม... มีร่มคันเดียว") }),
+    m("photo", "รูปวัยเด็ก", "{LEAD}พบรูปเด็กชายถือพวงมาลัยในกล่องเก่า", "{LEAD} opens an old biscuit tin of childhood photos and stares at a picture of a little boy holding a jasmine garland", 2, { say: say("LEAD", "เด็กคนนี้... ฉันจำหน้าไม่ได้แล้ว"), clue: "เพื่อนตอนเด็กของใหม่เคยร้อยพวงมาลัยมะลิให้ทุกเช้า" }),
+    m("burn", "มือโดนน้ำร้อน", "{ALLY}โดนไอน้ำเครื่องกาแฟลวกมือเพราะมัวแต่มอง{LEAD}", "{ALLY} gets distracted watching {LEAD} through the window and the espresso steam wand scalds his hand; he winces", 2, { at: "B", say: say("ALLY", "โอ๊ย... ไม่เป็นไรครับ"), condition: { who: "ALLY", en: "a small white bandage on his left hand", th: "มือซ้ายพันผ้าพันแผล" } }),
+    m("ticket", "ตั๋วเครื่องบิน", "{LEAD}เห็นตั๋วเครื่องบินไปญี่ปุ่นบนเคาน์เตอร์ร้านกาแฟ", "{LEAD} notices a printed plane ticket to Tokyo lying on the coffee counter; her smile fades", 2, { at: "B", say: say("LEAD", "คุณจะไปญี่ปุ่นเหรอ") }),
+    m("dance", "เต้นในร้าน", "{LEAD}เปิดเพลงแล้วดึง{ALLY}มาเต้นกลางร้านดอกไม้", "{LEAD} turns up an old radio and pulls a shy {ALLY} into a clumsy little dance between the flower buckets, both laughing", 3, { at: "A", say: say("LEAD", "เต้นไม่เป็นก็เต้นได้ค่ะ") }),
+    m("almost", "เกือบบอก", "{ALLY}เกือบบอกความในใจแต่โทรศัพท์ดังขัดจังหวะ", "{ALLY} takes a breath, looking into {LEAD}'s eyes, about to speak, when his phone rings loudly between them", 3, { say: say("ALLY", "ใหม่ ผมอยากบอกว่า...") }),
+  ],
+  cliffs: [
+    m("c-card", "การ์ดใบแรก", "พวงมาลัยเช้านี้มีการ์ดเขียนว่า จำได้ไหม", "{LEAD} finds a tiny card tucked into {OBJ}; slow push-in as she reads the handwritten words 'remember me?'", 2, { say: say("LEAD", "จำได้ไหม... ใครกัน") }),
+    m("c-kiss", "เบลล่าจูบแก้ม", "{LEAD}เห็น{RIVAL}จูบแก้ม{ALLY}ผ่านกระจกร้าน", "through the coffee shop window {LEAD} sees {RIVAL} kiss {ALLY} on the cheek; the roses fall from her hands", 2),
+    m("c-sold", "ป้ายขาย", "ป้ายขายตึกถูกติดหน้าร้านดอกไม้", "a large 'for sale' sign is nailed above the florist's door; {LEAD} stands in the street staring up at it", 2, { say: say("LEAD", "ร้านของฉัน...") }),
+    m("c-hand", "จับมือ", "{ALLY}จับมือ{LEAD}ไว้ก่อนเธอจะเดินจากไป", "as {LEAD} turns to leave, {ALLY} catches her hand; both freeze, looking down at their fingers", 1, { say: say("ALLY", "อย่าเพิ่งไป") }),
+    m("c-empty", "ไม่มีพวงมาลัย", "เช้านี้ไม่มีพวงมาลัยแขวนหน้าร้านเป็นครั้งแรก", "{LEAD} opens the florist door in the morning and the handle is bare for the first time; she looks across the street at the closed coffee shop", 2, { at: "A" }),
+    m("c-boarding", "เสียงประกาศ", "{ALLY}ยืนอยู่หน้าร้านพร้อมกระเป๋าเดินทาง", "{ALLY} stands outside his closed coffee shop with a suitcase, looking one last time at the florist across the street", 1, { at: "B" }),
+  ],
+  beats: {
+    OPENING: { title: "พวงมาลัยพวงแรก", at: "A", shots: [
+      m("o1", "เช้าแรก", "{LEAD}เปิดร้านดอกไม้ {ALLY}ยกกาแฟมาส่ง {RIVAL}ลงจากรถหรูหน้าร้าน", "morning in the florist: {LEAD} arranges jasmine as {ALLY} walks in carrying two coffees, while {RIVAL} steps out of a luxury car outside the window; all three faces clearly visible, medium-wide shot", 1, { say: say("LEAD", "อรุณสวัสดิ์ค่ะ ร้านตรงข้ามใช่ไหมคะ") }),
+      m("o2", "ของขวัญ", "{LEAD}ได้รับ{OBJ}ที่ไม่มีชื่อผู้ส่ง", "{LEAD} lifts {OBJ} from the door handle and turns it over looking for a name; {ALLY} watches quietly from the doorway", 1, { say: say("LEAD", "ใครส่งมาไม่มีชื่อเลย") }),
+      m("o3", "เบลล่ามา", "{RIVAL}เดินเข้าร้านกาแฟของ{ALLY}", "{RIVAL} walks into the coffee shop and sits at the counter facing {ALLY} with a knowing smile", 1, { at: "B", say: say("RIVAL", "ไม่เจอกันนานนะ ข้าว") }),
+    ], cliff: m("o-c", "สายตา", "{ALLY}มอง{LEAD}ข้ามถนนด้วยสายตาที่{RIVAL}รู้ทันที", "{ALLY} gazes across the street at {LEAD}; {RIVAL} follows his eyes, then slowly raises one eyebrow", 1, { at: "B", say: say("RIVAL", "อ๋อ... คนนี้เองสินะ") }) },
+    INCITING: { title: "ข้อเสนอของเบลล่า", at: "A", shots: [
+      m("i1", "ข้อเสนอ", "{RIVAL}เสนอซื้อตึกร้านดอกไม้", "{RIVAL} places a thick contract on the florist counter in front of {LEAD}", 1, { say: say("RIVAL", "ฉันให้ราคาดี ขายเถอะ") }),
+      m("i2", "ปฏิเสธ", "{LEAD}ปฏิเสธและเชิญ{RIVAL}ออกจากร้าน", "{LEAD} slides the contract back politely but firmly and points to the door", 1, { say: say("LEAD", "ร้านนี้ไม่ขายค่ะ") }),
+      m("i3", "ข้าวช่วย", "{ALLY}เข้ามาช่วยยกถังดอกไม้ที่ล้ม", "a bucket of roses tips over; {ALLY} rushes in and catches it just in time, their hands touching", 1, { say: say("ALLY", "ระวังครับ") }),
+    ], cliff: m("i-c", "ลายมือ", "{LEAD}เห็นลายมือ{ALLY}บนใบเสร็จ เหมือนลายมือบนการ์ดพวงมาลัย", "{LEAD} glances at a receipt {ALLY} wrote; slow push-in on her face as she compares it with the little card from the garland", 2) },
+    MIDPOINT: { title: "อดีตคู่หมั้น", at: "B", shots: [
+      m("mp1", "เบลล่าคุย", "{RIVAL}นั่งคุยกับ{LEAD}ในร้านกาแฟตอนข้าวไม่อยู่", "{RIVAL} sits across from {LEAD} at a window table in the empty coffee shop, stirring her coffee slowly", 2, { say: say("LEAD", "คุณกับข้าวเป็นอะไรกันคะ") }),
+      m("mp2", "เบลล่าเล่า", "{RIVAL}เล่าความจริงครึ่งหนึ่ง", "{RIVAL} smiles sadly, looking out the window at the florist", 1, { say: "REVEAL1" }),
+      m("mp3", "ใหม่สับสน", "{LEAD}มองพวงมาลัยในมือแล้วสับสน", "{LEAD} looks down at the jasmine garland in her hands, confused and blushing", 1, { say: say("LEAD", "ผู้หญิงคนนั้น... ใครกัน") }),
+    ], cliff: m("mp-c", "ข้าวกลับมา", "{ALLY}เดินเข้าร้านมาเห็นทั้งสองนั่งด้วยกัน", "the shop door bell rings; {ALLY} walks in and stops dead, seeing the two women together", 2) },
+    CRISIS: { title: "วันก่อนบินไป", at: "A", shots: [
+      m("cr1", "บอกลา", "{ALLY}มาบอก{LEAD}ว่าพรุ่งนี้จะบินไปญี่ปุ่น", "{ALLY} stands awkwardly among the flowers holding the plane ticket while {LEAD} keeps her back turned", 3, { say: say("ALLY", "พรุ่งนี้ผมบินแล้วนะครับ") }),
+      m("cr2", "โกรธ", "{LEAD}หันมาด้วยน้ำตา", "{LEAD} turns around with tears in her eyes, holding a jasmine garland", 3, { say: say("LEAD", "งั้นก็ไปสิ ไม่ต้องส่งพวงมาลัยมาอีกแล้ว") }),
+      m("cr3", "ข้าวเดินออก", "{ALLY}เดินออกจากร้านไปกลางสายฝน", "{ALLY} walks out of the florist into the pouring rain without an umbrella", 2),
+    ], cliff: m("cr-c", "รูปในกระเป๋า", "{LEAD}เห็นรูปเด็กชายถือพวงมาลัยหล่นจากกระเป๋าเงินที่{ALLY}ลืมไว้", "{LEAD} picks up a wallet {ALLY} left behind; an old photo slides out: the same little boy with a jasmine garland", 3) },
+    CLIMAX: { title: "ตลาดดอกไม้ตอนตีห้า", at: "C", shots: [
+      m("cl1", "ตามหา", "{LEAD}วิ่งตามหา{ALLY}ในตลาดดอกไม้ตอนเช้ามืด", "before dawn {LEAD} runs through the crowded flower market, searching every stall", 2, { say: say("LEAD", "ข้าว! ข้าวอยู่ไหน") }),
+      m("cl2", "เจอกัน", "{ALLY}ยืนร้อยพวงมาลัยอยู่ที่แผงเก่าแผงหนึ่ง", "at an old vendor's stall {ALLY} is threading jasmine flowers into a garland by hand; he looks up and sees her", 2, { say: "REVEAL2" }),
+      m("cl3", "ใหม่ร้องไห้", "{LEAD}ร้องไห้และหัวเราะพร้อมกัน", "{LEAD} laughs and cries at the same time, holding the old photo up beside his face", 2, { say: say("LEAD", "ทำไมไม่บอกตั้งแต่แรก") }),
+    ], cliff: m("cl-c", "เบลล่ามา", "{RIVAL}เดินเข้ามาในตลาดพร้อมตั๋วเครื่องบิน", "{RIVAL} walks into the flower market holding {ALLY}'s plane ticket between two fingers", 2, { say: say("RIVAL", "ไฟลต์ออกสองชั่วโมงนะ ข้าว") }) },
+    FINALE: { title: "พวงมาลัยกับมือ", at: "C", shots: [
+      m("f1", "ฉีกตั๋ว", "{RIVAL}ฉีกตั๋วเครื่องบินทิ้งและยิ้มให้ทั้งสอง", "{RIVAL} tears the plane ticket in half, smiles at both of them and walks away into the market crowd", 1, { say: say("RIVAL", "สัญญาซื้อตึกก็ยกเลิกด้วย ไปรักกันให้ดีๆ") }),
+      m("f2", "สารภาพ", "{ALLY}คล้อง{OBJ}ให้{LEAD}ด้วยมือตัวเอง", "in the first golden light {ALLY} gently places {OBJ} around {LEAD}'s neck", 1, { say: "FINAL" }),
+      m("f3", "สองร้าน", "เช้าวันใหม่ ป้ายร้านดอกไม้และร้านกาแฟเชื่อมกันด้วยพวงมาลัย", "wide sunny shot of the street: a long jasmine garland now hangs between the florist and the coffee shop as {LEAD} and {ALLY} wave from their doors", 1, { at: "A" }),
+    ] },
+  },
+};
+
+const MYSTERY_TRAIN: StoryPart = {
+  style: "Photorealistic Thai detective noir, cinematic vintage overnight sleeper train, moody amber and green light, deep shadows, slow precise camera",
+  sound: "rhythmic train wheels on rails, rattling glass, distant horn, quiet footsteps; no music score",
+  hashtags: ["#ละครสั้น", "#สืบสวน", "#ปริศนา", "#รถไฟ"],
+  premise: {
+    key: "mystery-night-train", title: "ตู้นอนหมายเลขเก้า",
+    logline: "จ่าพิมตำรวจรถไฟต้องหาผู้โดยสารที่หายไปจากตู้นอนหมายเลขเก้า ทั้งที่รถไฟสายเหนือไม่ได้จอดสักสถานีตลอดคืน",
+    cast: [
+      { role: "LEAD", name: "จ่าพิม", nameEn: "Sergeant Pim", age: "33-year-old Thai woman", look: "athletic, black hair in a tight bun, sharp observant eyes, a thin silver watch",
+        outfit: "a dark navy railway police uniform with a radio clipped to the shoulder", voice: "firm, calm, precise female voice",
+        trait: "ช่างสังเกต ใจนิ่ง", want: "อยากไขคดีให้ได้ก่อนรถไฟถึงเชียงใหม่", secret: "พ่อของเธอเคยเป็นพนักงานรถไฟขบวนนี้" },
+      { role: "ALLY", name: "ต้อง", nameEn: "Tong", age: "24-year-old Thai man", look: "skinny, messy black hair under a cap, big curious eyes, always chewing a toothpick",
+        outfit: "a maroon sleeper-car attendant uniform with brass buttons and a white towel over one shoulder", voice: "chatty, eager, youthful male voice",
+        trait: "ขี้สงสัย ช่างพูด", want: "อยากเป็นนักสืบ", secret: "แอบเปิดดูกระเป๋าผู้โดยสารเป็นนิสัย" },
+      { role: "RIVAL", name: "คุณหญิงอรวรรณ", nameEn: "Madam Orawan", age: "58-year-old Thai woman", look: "graceful, silver-streaked hair in an elegant chignon, pearl earrings, a calm proud face",
+        outfit: "a dark green silk Thai blouse with a matching long skirt and a pearl brooch", voice: "refined, cool, unhurried female voice",
+        trait: "สง่า เก็บความรู้สึก", want: "อยากให้รถไฟถึงปลายทางโดยไม่มีใครเปิดกล่องของเธอ", secret: "ช่วยลูกเขยหนีหนี้ด้วยการจัดฉากหายตัว" },
+    ],
+    places: [
+      { key: "A", name: "ทางเดินตู้นอน", look: "the narrow corridor of an old Thai overnight sleeper train, green curtained berths on both sides, dim yellow lamps, the carriage swaying" },
+      { key: "B", name: "ตู้เสบียง", look: "a vintage train dining car at night with white tablecloths, small table lamps, rattling glasses and black windows reflecting the room" },
+      { key: "C", name: "ตู้สัมภาระท้ายขบวน", look: "the last baggage car of the train, stacked trunks and mail sacks, a single swinging lantern, the rear door window showing tracks disappearing into the dark" },
+    ],
+    object: { name: "กล่องไม้สลักลาย", look: "a small carved teak box with a brass lock and an elephant pattern on the lid" },
+    truth: "ผู้โดยสารที่หายไปคือลูกเขยของคุณหญิงอรวรรณ เขาซ่อนอยู่ในหีบสัมภาระเพื่อหนีเจ้าหนี้ที่ขึ้นรถไฟมาด้วย ส่วนกล่องไม้คือเงินที่คุณหญิงเตรียมให้เขาเริ่มชีวิตใหม่",
+    ending: "จ่าพิมจับเจ้าหนี้ที่แฝงตัวเป็นผู้โดยสารได้ ลูกเขยออกมามอบตัวและยอมคุยกับครอบครัว คุณหญิงขอบคุณจ่าพิมเมื่อรถไฟถึงเชียงใหม่",
+    reveal1: say("RIVAL", "บนรถไฟขบวนนี้ ไม่มีใครหายไปหรอกจ่า มีแต่คนที่ซ่อนตัว"),
+    reveal2: say("RIVAL", "เขาเป็นลูกเขยฉัน ฉันช่วยเขาหนีคนที่จะทำร้ายเขา"),
+    finalLine: say("LEAD", "ถึงเชียงใหม่แล้วค่ะ ทุกคนปลอดภัย"),
+  },
+  hooks: [say("LEAD", "ทุกคนอยู่ในที่ของตัวเอง ห้ามขยับ"), say("ALLY", "จ่าครับ ผมเห็นอะไรบางอย่าง"), say("LEAD", "เรามีเวลาถึงสถานีสุดท้าย"),
+    say("ALLY", "แบบนี้แปลว่าคนร้ายยังอยู่บนรถไฟ"), say("LEAD", "ไม่มีใครลงจากรถไฟได้")],
+  moves: [
+    m("berth", "ตู้นอนว่าง", "{LEAD}ตรวจตู้นอนหมายเลขเก้าที่ว่างเปล่า", "{LEAD} pulls back the green curtain of an empty berth with a flashlight; the bed is neatly made, a pair of shoes still on the floor", 1, { at: "A", say: say("LEAD", "รองเท้ายังอยู่ แต่คนหายไป"), clue: "ผู้โดยสารที่หายไปทิ้งรองเท้าไว้ในตู้นอน" }),
+    m("ticket", "ตั๋วซ้ำ", "{ALLY}พบตั๋วสองใบที่ใช้ชื่อเดียวกัน", "{ALLY} holds up two train tickets side by side under a lamp, tapping the identical names", 1, { say: say("ALLY", "จ่าครับ ชื่อเดียวกันแต่คนละที่นั่ง") }),
+    m("tea", "ชาของคุณหญิง", "{RIVAL}จิบชาอย่างใจเย็นขณะถูกสอบปากคำ", "in the dining car {RIVAL} sips tea calmly as {LEAD} questions her; her hand rests protectively on {OBJ}", 1, { at: "B", say: say("RIVAL", "ฉันหลับทั้งคืนค่ะจ่า") }),
+    m("window", "เงาที่หน้าต่าง", "{LEAD}เห็นเงาคนในกระจกหน้าต่างตู้เสบียง แต่หันไปไม่มีใคร", "{LEAD} sees a man's reflection behind her in the black dining-car window, turns, and nobody is there", 2, { at: "B", say: say("LEAD", "เมื่อกี้มีคนยืนตรงนี้") }),
+    m("scratch", "รอยบนพื้น", "{ALLY}พบรอยลากบนพื้นทางเดินไปทางท้ายขบวน", "{ALLY} kneels in the swaying corridor shining a torch on faint drag marks leading toward the rear of the train", 2, { at: "A", say: say("ALLY", "รอยลากไปทางท้ายขบวน") }),
+    m("conductor", "นายตรวจตั๋ว", "{LEAD}สอบนายตรวจที่ยืนยันว่ารถไฟไม่จอดเลย", "{LEAD} questions an elderly train conductor who shakes his head firmly, holding his pocket watch", 1, { say: say("LEAD", "ไม่จอดเลยแม้แต่สถานีเดียว?") }),
+    m("lock", "กุญแจกล่อง", "{LEAD}สังเกตกุญแจทองเหลืองบนสร้อยของ{RIVAL}", "{LEAD} notices a small brass key hanging on {RIVAL}'s pearl necklace and narrows her eyes", 2, { at: "B", clue: "คุณหญิงพกกุญแจกล่องไม้ติดตัวตลอดเวลา" }),
+    m("bump", "รถไฟกระตุก", "รถไฟเบรกกระตุก {ALLY}ล้มหน้าผากแตก", "the train jolts violently; {ALLY} is thrown against a berth frame and comes up with a cut on his forehead", 3, { say: say("ALLY", "โอ๊ย! ใครดึงเบรกฉุกเฉิน"), condition: { who: "ALLY", en: "a small bandage on his forehead", th: "หน้าผากติดพลาสเตอร์" } }),
+    m("stranger", "ผู้โดยสารแปลกหน้า", "ชายใส่หมวกแก๊ปเดินผ่าน{LEAD}แล้วหลบสายตา", "a man in a dark cap brushes past {LEAD} in the narrow corridor and quickly looks away; she turns to watch him go", 2, { at: "A" }),
+    m("note", "โน้ตลับ", "{ALLY}พบโน้ตเขียนว่า อย่าเปิดหีบใบที่สาม", "{ALLY} unfolds a crumpled note found under a seat and reads it aloud nervously", 3, { say: say("ALLY", "อย่าเปิดหีบใบที่สาม...") }),
+  ],
+  cliffs: [
+    m("c-lights", "ไฟดับทั้งตู้", "ไฟในตู้ดับหมด มีเสียงประตูท้ายเปิด", "all the carriage lamps go out at once; in the dark a heavy door slides open somewhere behind {LEAD}", 2, { say: say("LEAD", "ทุกคนอยู่นิ่งๆ!") }),
+    m("c-box", "กล่องหาย", "{OBJ}หายไปจากโต๊ะของ{RIVAL}", "{RIVAL} looks down at her empty table in the dining car; for the first time her calm face breaks", 2, { at: "B", say: say("RIVAL", "กล่องของฉัน!") }),
+    m("c-knock", "เสียงเคาะในหีบ", "มีเสียงเคาะดังมาจากในหีบสัมภาระ", "in the baggage car {LEAD} freezes as three slow knocks come from inside a large locked trunk", 2, { at: "C" }),
+    m("c-tong", "ต้องหายไป", "{ALLY}หายไปจากทางเดิน เหลือแต่ไฟฉายตกพื้น", "{LEAD} turns around in the corridor and {ALLY} is gone; only his torch lies rolling on the floor", 3, { at: "A", say: say("LEAD", "ต้อง?!") }),
+    m("c-face", "ใบหน้าในหน้าต่าง", "ใบหน้าชายคนหนึ่งปรากฏนอกหน้าต่างรถไฟที่กำลังวิ่ง", "a man's face appears pressed against the outside of the speeding train window for an instant, then is gone", 3),
+    m("c-gun", "คนในหมวกแก๊ป", "ชายใส่หมวกแก๊ปยืนขวางทางท้ายตู้", "at the end of the dark corridor the man in the dark cap stands blocking the way, perfectly still", 2, { at: "A" }),
+  ],
+  beats: {
+    OPENING: { title: "คนหายบนรถไฟ", at: "A", shots: [
+      m("o1", "แจ้งเหตุ", "{ALLY}รีบมาแจ้ง{LEAD}ว่าผู้โดยสารหาย {RIVAL}เปิดม่านมองจากเตียง", "in the swaying sleeper corridor {ALLY} rushes up to {LEAD} while {RIVAL} pulls aside her berth curtain to watch; all three faces clearly visible, medium-wide shot", 1, { say: say("ALLY", "จ่าครับ ผู้โดยสารตู้เก้าหายไปครับ") }),
+      m("o2", "ตรวจตู้นอน", "{LEAD}ตรวจตู้นอนหมายเลขเก้า", "{LEAD} shines her flashlight into the empty berth, then checks her silver watch", 1, { say: say("LEAD", "รถไฟไม่ได้จอดตั้งแต่ลพบุรี เขาต้องยังอยู่บนรถ") }),
+      m("o3", "คุณหญิงนิ่ง", "{RIVAL}ปิดม่านลงอย่างช้าๆ", "{RIVAL} meets {LEAD}'s eyes for a moment, then slowly closes her curtain without a word", 1),
+    ], cliff: m("o-c", "เสียงจากท้ายขบวน", "มีเสียงของหนักตกดังมาจากตู้สัมภาระท้ายขบวน", "a heavy thud echoes from the rear of the train; {LEAD} and {ALLY} look down the long dark corridor together", 2) },
+    INCITING: { title: "กล่องไม้ของคุณหญิง", at: "B", shots: [
+      m("i1", "สอบปากคำ", "{LEAD}สอบปากคำ{RIVAL}ในตู้เสบียง", "{LEAD} sits across from {RIVAL} at a lamp-lit dining table, notebook open", 1, { say: say("LEAD", "คุณหญิงรู้จักผู้โดยสารตู้เก้าไหมคะ") }),
+      m("i2", "กล่องไม้", "{LEAD}สังเกต{OBJ}ที่คุณหญิงไม่ยอมห่างตัว", "the camera settles on {OBJ} on the table under {RIVAL}'s jewelled hand as she answers", 1, { say: say("RIVAL", "ไม่เคยเห็นหน้าค่ะ") }),
+      m("i3", "ต้องกระซิบ", "{ALLY}กระซิบบอก{LEAD}เรื่องตั๋ว", "{ALLY} leans close to {LEAD}'s ear by the dining-car door, whispering", 1, { say: say("ALLY", "ตั๋วตู้เก้าซื้อด้วยบัตรของคุณหญิงครับ") }),
+    ], cliff: m("i-c", "คำโกหก", "{LEAD}หันกลับไปมอง{RIVAL}ที่กำลังซ่อนกล่องใต้ผ้าคลุม", "{LEAD} turns back and catches {RIVAL} sliding {OBJ} under her shawl", 2) },
+    MIDPOINT: { title: "ความจริงครึ่งเดียว", at: "B", shots: [
+      m("mp1", "หลักฐาน", "{LEAD}วางตั๋วตรงหน้า{RIVAL}", "{LEAD} lays the ticket receipt on the white tablecloth in front of {RIVAL}", 2, { say: say("LEAD", "คุณหญิงซื้อตั๋วให้เขาเอง") }),
+      m("mp2", "คุณหญิงพูด", "{RIVAL}วางถ้วยชาและยอมพูดบางส่วน", "{RIVAL} sets down her teacup with a soft click and looks out at the black window", 1, { say: "REVEAL1" }),
+      m("mp3", "ต้องงง", "{ALLY}มองไปทางท้ายขบวน", "{ALLY} slowly turns his head toward the rear of the train, putting it together", 1, { say: say("ALLY", "ซ่อนตัว... ในตู้สัมภาระ") }),
+    ], cliff: m("mp-c", "ชายหมวกแก๊ปฟัง", "ชายใส่หมวกแก๊ปที่โต๊ะข้างๆ ลุกเดินไปทางท้ายขบวน", "at the next table the man in the dark cap quietly stands and walks toward the rear of the train", 2) },
+    CRISIS: { title: "ท้ายขบวน", at: "C", shots: [
+      m("cr1", "ตามไป", "{LEAD}ตามชายหมวกแก๊ปเข้าตู้สัมภาระ", "{LEAD} slips into the dim baggage car, the lantern swinging, trunks creaking with the motion", 3),
+      m("cr2", "ต้องถูกจับ", "ชายหมวกแก๊ปจับตัว{ALLY}ไว้", "the man in the dark cap holds {ALLY} by the collar against a stack of trunks", 3, { say: say("ALLY", "จ่า! ระวัง!") }),
+      m("cr3", "ประตูท้าย", "ประตูท้ายขบวนเปิดออก ลมพัดแรง", "the rear door bangs open and wind roars in; the dark tracks rush away behind the train", 3),
+    ], cliff: m("cr-c", "หีบใบที่สาม", "หีบใบที่สามเปิดออกเองช้าๆ", "behind them the lid of the third trunk slowly lifts open from inside", 3) },
+    CLIMAX: { title: "คนในหีบ", at: "C", shots: [
+      m("cl1", "ลูกเขย", "ชายหนุ่มคลานออกมาจากหีบ ยกมือยอมแพ้", "a dishevelled young man climbs out of the trunk with his hands raised, blinking in the lantern light", 2),
+      m("cl2", "คุณหญิงสารภาพ", "{RIVAL}เข้ามายืนบังลูกเขย", "{RIVAL} steps into the baggage car and stands in front of the young man, chin high", 2, { say: "REVEAL2" }),
+      m("cl3", "จ่าเลือก", "{LEAD}หันไปเผชิญชายหมวกแก๊ปแทน", "{LEAD} turns away from them and faces the man in the dark cap, hand on her radio", 2, { say: say("LEAD", "คนที่ฉันต้องจับคือคุณ") }),
+    ], cliff: m("cl-c", "ชายหมวกแก๊ปหนี", "ชายหมวกแก๊ปผลัก{ALLY}แล้ววิ่งไปทางประตูท้าย", "the man in the dark cap shoves {ALLY} aside and lunges for the open rear door", 3) },
+    FINALE: { title: "ถึงปลายทาง", at: "A", shots: [
+      m("f1", "จับได้", "{LEAD}คว้าตัวชายหมวกแก๊ปไว้ทันก่อนถึงประตู", "{LEAD} tackles the man in the dark cap just before the rear door and snaps handcuffs on him", 1, { at: "C" }),
+      m("f2", "ถึงเชียงใหม่", "รถไฟถึงเชียงใหม่ตอนเช้า {LEAD}ประกาศ", "morning sunlight floods the sleeper corridor as the train pulls into Chiang Mai; {LEAD} stands tall at the door", 1, { say: "FINAL" }),
+      m("f3", "ขอบคุณ", "{RIVAL}ยื่น{OBJ}ให้ลูกเขยและโค้งขอบคุณ{LEAD}", "on the sunny platform {RIVAL} hands {OBJ} to the young man and bows gratefully to {LEAD} while {ALLY} grins", 1, { say: say("ALLY", "คดีแรกของผม!") }),
+    ] },
+  },
+};
+
+const FANTASY_MOONFLOWER: StoryPart = {
+  hashtags: ["#ละครสั้น", "#แฟนตาซี", "#เวทมนตร์", "#ร้านยาสมุนไพร"],
+  premise: {
+    key: "fantasy-moonflower", title: "ดอกไม้จันทร์",
+    logline: "ฝ้ายได้ร้านยาสมุนไพรของยายเป็นมรดก แล้วพบว่าทุกคืนเดือนเพ็ญ ร้านจะเปิดให้วิญญาณป่ามาซื้อยา และแม่มดชุดดำต้องการดอกไม้จันทร์ดอกสุดท้าย",
+    cast: [
+      { role: "LEAD", name: "ฝ้าย", nameEn: "Fai", age: "19-year-old Thai woman", look: "small and lively, two long black braids, freckles across her nose, big curious eyes",
+        outfit: "a faded indigo cotton shirt with rolled sleeves, a brown herb apron with many pockets and sandals", voice: "bright, quick, curious young female voice",
+        trait: "อยากรู้อยากเห็น ใจกล้า", want: "อยากเก็บร้านของยายไว้ไม่ให้ปิด", secret: "มองเห็นแสงรอบตัวคนป่วยมาตั้งแต่เด็ก" },
+      { role: "ALLY", name: "จันทร์", nameEn: "Chan", age: "ageless young man who looks about 22", look: "pale luminous skin, long silver-white hair tied back, calm silver eyes",
+        outfit: "a loose white Thai-style shirt and trousers with a faint glow at the hems", voice: "soft, calm, gentle male voice with a slight echo",
+        trait: "สงบ อ่อนโยน", want: "อยากปกป้องดอกไม้จันทร์ตามสัญญากับยาย", secret: "เป็นวิญญาณผู้พิทักษ์ดวงจันทร์ที่จะหายไปถ้าดอกไม้เหี่ยว" },
+      { role: "RIVAL", name: "แม่มดดำ", nameEn: "the Black Witch", age: "woman who looks about 60", look: "tall and thin, long grey hair streaked with black, sharp cheekbones, dark painted nails",
+        outfit: "a long flowing black lace dress and a black shawl embroidered with silver moons", voice: "low, silky, menacing elderly female voice",
+        trait: "ลึกลับ น่ากลัว", want: "อยากได้ดอกไม้จันทร์ดอกสุดท้าย", secret: "เป็นน้องสาวของยายที่ถูกคำสาปให้แก่ลงทุกคืน" },
+    ],
+    places: [
+      { key: "A", name: "ร้านยาสมุนไพรของยาย", look: "an old wooden Thai herbal medicine shop, walls of tiny labelled drawers, dried herbs hanging from the ceiling, brass scales, glass jars glowing in lamplight" },
+      { key: "B", name: "สวนสมุนไพรหลังร้าน", look: "a moonlit herb garden behind the shop, rows of plants, fireflies, a small stone well and a full moon low over the trees" },
+      { key: "C", name: "ป่าไผ่ยามค่ำ", look: "a dense bamboo forest at night, tall stalks creaking, silver moonlight in shafts, drifting mist and glowing mushrooms" },
+    ],
+    object: { name: "ดอกไม้จันทร์", look: "a single glowing silver-white moonflower in a small glass jar with a cork stopper" },
+    truth: "แม่มดดำคือน้องสาวของยายที่ถูกคำสาปให้แก่ลงทุกคืนเพราะเคยขโมยดอกไม้จันทร์ ยายเก็บดอกสุดท้ายไว้เพื่อรอวันที่เธอยอมขอโทษ",
+    ending: "ฝ้ายมอบดอกไม้จันทร์ให้แม่มดเมื่อเธอยอมขอโทษ คำสาปสลาย จันทร์ไม่ต้องหายไป ร้านยาเปิดต่อทั้งกลางวันและคืนเดือนเพ็ญ",
+    reveal1: say("RIVAL", "ยายของเธอไม่ได้เล่าล่ะสิ ว่าเราเคยเป็นพี่น้องกัน"),
+    reveal2: say("RIVAL", "ฉันขโมยดอกไม้ไปเพราะอิจฉาพี่ และฉันก็ถูกสาปตั้งแต่คืนนั้น"),
+    finalLine: say("LEAD", "ยายฝากดอกนี้ไว้ให้คุณค่ะ ไม่ใช่ให้ฉัน"),
+  },
+  hooks: [say("LEAD", "ใจเย็นๆ ฝ้าย คิดสิ"), say("ALLY", "อย่าเพิ่งกลัว ฉันอยู่ตรงนี้"), say("LEAD", "ยายคะ ช่วยหนูด้วย"),
+    say("ALLY", "ดวงจันทร์ใกล้จะตกแล้ว"), say("LEAD", "ฉันจะไม่ยอมให้ร้านของยายหายไป")],
+  moves: [
+    m("drawer", "ลิ้นชักเรืองแสง", "ลิ้นชักยาเล็กๆ เรืองแสงทีละช่องเมื่อ{LEAD}เดินผ่าน", "{LEAD} walks along the wall of tiny herb drawers and each one glows softly as she passes; she stops, amazed", 1, { at: "A", say: say("LEAD", "ร้านนี้... มีชีวิต") }),
+    m("customer", "ลูกค้ายามค่ำ", "วิญญาณป่าตัวเล็กๆ มาซื้อยาที่ร้าน", "a small glowing forest spirit shaped like a little old man made of leaves places a shiny pebble on the counter in front of {LEAD}", 1, { at: "A", say: say("LEAD", "จะ... รับยาอะไรดีคะ") }),
+    m("recipe", "ตำรายาของยาย", "{LEAD}พบตำรายาเขียนด้วยหมึกเงิน", "{LEAD} opens her grandmother's old recipe book and silver ink letters shimmer and rearrange on the page", 1, { say: say("LEAD", "ตัวหนังสือขยับได้"), clue: "ตำรายาบอกว่าดอกไม้จันทร์รักษาคำสาปได้แค่ครั้งเดียว" }),
+    m("glow", "จันทร์เรืองแสง", "{ALLY}ยื่นมือออกมา มีแสงเงินลอยอยู่ในฝ่ามือ", "{ALLY} opens his palm and a small orb of silver moonlight floats above it, lighting {LEAD}'s face", 1, { say: say("ALLY", "นี่คือแสงที่ยายเธอฝากไว้") }),
+    m("crow", "อีกาดำ", "อีกาดำเกาะหน้าต่างจ้องมองเข้ามาในร้าน", "a large black crow lands on the windowsill and stares in at {LEAD} with glinting silver eyes", 2, { say: say("LEAD", "นั่นนกของแม่มด") }),
+    m("potion", "ปรุงยา", "{LEAD}ลองปรุงยาตามตำรา ควันสีม่วงพวยพุ่ง", "{LEAD} stirs a bubbling brass pot and a puff of purple smoke bursts up, filling the shop; she coughs and laughs", 2, { at: "A", say: say("LEAD", "ไม่ใช่สีนี้แน่ๆ") }),
+    m("fade", "จันทร์จางลง", "ร่างของ{ALLY}โปร่งแสงลงเมื่อดอกไม้เริ่มเหี่ยว", "{ALLY}'s hand turns faintly transparent in the lamplight; he hides it behind his back when {LEAD} looks", 2, { say: say("ALLY", "ไม่เป็นไร ฉันแค่เหนื่อย") }),
+    m("thorns", "เถาหนาม", "เถาหนามดำงอกจากพื้นพันข้อเท้า{LEAD}", "black thorny vines burst from the ground and wrap around {LEAD}'s ankle; she pulls free, leaving scratches", 3, { say: say("LEAD", "อ๊ะ! มันมาจากไหน"), condition: { who: "LEAD", en: "thin red scratches around her left ankle", th: "ข้อเท้าซ้ายมีรอยหนามข่วน" } }),
+    m("fireflies", "หิ่งห้อยนำทาง", "หิ่งห้อยนับร้อยลอยเป็นเส้นนำทางไปในป่าไผ่", "hundreds of fireflies rise from the garden and form a glowing path leading into the dark bamboo forest", 2, { at: "B", say: say("ALLY", "พวกมันจะพาเราไป") }),
+    m("mirror", "กระจกน้ำในบ่อ", "{LEAD}มองลงบ่อน้ำ เห็นภาพยายตอนสาว", "{LEAD} leans over the stone well and the moonlit water shows her grandmother as a young woman, smiling", 3, { at: "B", say: say("LEAD", "ยาย...") }),
+  ],
+  cliffs: [
+    m("c-jar", "โหลร้าว", "โหลแก้วของ{OBJ}มีรอยร้าวขึ้นเอง", "a thin crack spreads across the glass jar of {OBJ} with a tiny sound; slow push-in on the flickering light inside", 2, { say: say("LEAD", "ไม่นะ...") }),
+    m("c-witch", "แม่มดในร้าน", "{RIVAL}ยืนอยู่หลังเคาน์เตอร์ในร้านที่ปิดแล้ว", "{LEAD} turns around in the dark shop and {RIVAL} is standing behind the counter, smiling, her shawl glittering", 2, { say: say("RIVAL", "ร้านนี้เคยเป็นของฉันครึ่งหนึ่งนะ") }),
+    m("c-gone", "จันทร์หายไป", "{ALLY}หายไปเหลือแต่แสงเงินจางๆ", "where {ALLY} stood there is only a fading shimmer of silver light; {LEAD} reaches into it", 3, { say: say("LEAD", "จันทร์!") }),
+    m("c-moon", "ดวงจันทร์สีแดง", "ดวงจันทร์ค่อยๆ กลายเป็นสีแดง", "{LEAD} and {ALLY} look up as the full moon slowly turns blood red above the bamboo", 2, { at: "B" }),
+    m("c-door", "ประตูถูกผนึก", "ประตูร้านถูกผนึกด้วยเถาหนามดำ", "black thorny vines snake across the shop door and windows, sealing them shut from outside", 2, { at: "A" }),
+    m("c-crow", "อีกาคาบ", "อีกาดำโฉบคาบตำรายาบินหนีไป", "the black crow swoops through the open window, snatches the recipe book in its claws and flies off into the night", 2),
+  ],
+  beats: {
+    OPENING: { title: "ร้านยามเดือนเพ็ญ", at: "A", shots: [
+      m("o1", "มาถึงร้าน", "{LEAD}เปิดร้านยาของยายครั้งแรก {ALLY}ยืนอยู่ในเงา {RIVAL}มองจากนอกหน้าต่าง", "{LEAD} steps into the dusty herbal shop holding a key while {ALLY} stands quietly among the hanging herbs and {RIVAL} watches from outside the window; all three faces clearly visible, medium-wide shot", 1, { say: say("LEAD", "ร้านของยาย... ยังเหมือนเดิมเลย") }),
+      m("o2", "ผู้พิทักษ์", "{ALLY}ก้าวออกมาจากเงาและแนะนำตัว", "{ALLY} steps out of the shadows with a soft glow around him and bows politely to {LEAD}", 1, { say: say("ALLY", "ฉันชื่อจันทร์ ยายเธอให้ฉันเฝ้าร้านนี้") }),
+      m("o3", "ดอกไม้จันทร์", "{ALLY}เปิดผ้าคลุมให้ดู{OBJ}", "{ALLY} lifts a cloth from a shelf revealing {OBJ} glowing in the dark shop; {LEAD} gasps", 1, { say: say("ALLY", "ดอกสุดท้ายในโลก ห้ามให้ใครเด็ดขาด") }),
+    ], cliff: m("o-c", "เสียงเคาะ", "มีเสียงเคาะประตูสามครั้งตอนเที่ยงคืนเดือนเพ็ญ", "at midnight under the full moon three slow knocks sound on the shop door; {LEAD} and {ALLY} look at each other", 2) },
+    INCITING: { title: "ข้อเสนอของแม่มด", at: "A", shots: [
+      m("i1", "แม่มดมา", "{RIVAL}เข้ามาในร้านพร้อมกลิ่นดอกไม้แห้ง", "{RIVAL} sweeps into the shop in her black lace dress as the lamps dim and dried flowers rustle", 1, { say: say("RIVAL", "ฉันมาซื้อยา... ยาที่ยายเธอไม่ยอมขาย") }),
+      m("i2", "ข้อเสนอ", "{RIVAL}วางถุงทองบนเคาน์เตอร์", "{RIVAL} drops a heavy velvet pouch of gold coins on the counter and smiles at {LEAD}", 1, { say: say("RIVAL", "ดอกไม้จันทร์ แลกกับร้านนี้ไม่ต้องปิด") }),
+      m("i3", "ปฏิเสธ", "{LEAD}ดันถุงทองกลับ", "{LEAD} pushes the pouch back across the counter with both hands, chin up", 1, { say: say("LEAD", "ของยายไม่ขายค่ะ") }),
+    ], cliff: m("i-c", "คำสาปแรก", "{RIVAL}ยิ้มแล้วเป่าลมใส่ดอกไม้ในร้านจนเหี่ยวทั้งหมด", "{RIVAL} smiles and blows softly; every fresh herb in the shop wilts and turns grey at once", 3) },
+    MIDPOINT: { title: "พี่น้อง", at: "B", shots: [
+      m("mp1", "เผชิญหน้า", "{LEAD}เผชิญหน้ากับ{RIVAL}ในสวนสมุนไพร", "in the moonlit herb garden {LEAD} stands between {RIVAL} and the shop door, {ALLY} at her side", 2, { say: say("LEAD", "ทำไมต้องเป็นดอกไม้ของยาย") }),
+      m("mp2", "แม่มดเล่า", "{RIVAL}เผยความจริงครึ่งหนึ่ง", "{RIVAL} touches the stone well with a trembling hand, her face softening for a moment", 1, { say: "REVEAL1" }),
+      m("mp3", "ฝ้ายตกใจ", "{LEAD}หันไปมอง{ALLY}ที่ก้มหน้า", "{LEAD} turns to {ALLY}, who lowers his silver eyes, confirming it", 1, { say: say("LEAD", "จันทร์... นายรู้มาตลอดเหรอ") }),
+    ], cliff: m("mp-c", "แม่มดแก่ลง", "แสงจันทร์ตกกระทบ ใบหน้าของ{RIVAL}แก่ลงต่อหน้าต่อตา", "as moonlight falls on her, {RIVAL}'s face ages rapidly before their eyes; she covers it with her shawl and flees", 2) },
+    CRISIS: { title: "คืนดวงจันทร์แดง", at: "C", shots: [
+      m("cr1", "จันทร์อ่อนแรง", "{ALLY}ทรุดลงในป่าไผ่ ร่างโปร่งแสง", "in the misty bamboo forest {ALLY} sinks to his knees, his body flickering and half transparent", 3, { say: say("ALLY", "ถ้าดอกไม้เหี่ยว ฉันก็จะหายไป") }),
+      m("cr2", "ฝ้ายประคอง", "{LEAD}ประคอง{ALLY}ไว้", "{LEAD} kneels and holds {ALLY} up, her braids falling forward, tears in her eyes", 3, { say: say("LEAD", "ไม่ ฉันไม่ยอมให้นายหายไป") }),
+      m("cr3", "เถาหนามล้อม", "เถาหนามดำงอกล้อมทั้งสองไว้", "black thorny vines rise from the ground in a tightening circle around them", 3),
+    ], cliff: m("cr-c", "แม่มดขวางทาง", "{RIVAL}เดินออกมาจากหมอก ยื่นมือขอ{OBJ}", "{RIVAL} walks out of the red-lit mist and holds out her withered hand toward the jar {LEAD} carries", 3, { say: say("RIVAL", "ให้ฉัน แล้วเขาจะรอด") }) },
+    CLIMAX: { title: "คำขอโทษ", at: "C", shots: [
+      m("cl1", "ฝ้ายถือดอกไม้", "{LEAD}ยืนขึ้นถือ{OBJ}ไว้แน่น", "{LEAD} stands up in the moonlit bamboo clutching {OBJ} to her chest, facing {RIVAL}", 2, { say: say("LEAD", "บอกความจริงมาก่อน") }),
+      m("cl2", "แม่มดสารภาพ", "{RIVAL}ร้องไห้และสารภาพ", "{RIVAL} falls to her knees, tears running down her aged face", 2, { say: "REVEAL2" }),
+      m("cl3", "เถาหนามหยุด", "เถาหนามหยุดขยับเมื่อแม่มดร้องไห้", "around them the black thorny vines stop moving and slowly crumble into ash", 2),
+    ], cliff: m("cl-c", "ดอกไม้สั่น", "{OBJ}ในโหลเรืองแสงจ้าขึ้นเรื่อยๆ", "the moonflower inside the jar begins to glow brighter and brighter until the whole forest is lit silver", 2) },
+    FINALE: { title: "ร้านยาเปิดแล้ว", at: "A", shots: [
+      m("f1", "มอบดอกไม้", "{LEAD}มอบ{OBJ}ให้{RIVAL}", "{LEAD} kneels and places {OBJ} gently into {RIVAL}'s hands in the silver light", 1, { at: "C", say: "FINAL" }),
+      m("f2", "คำสาปสลาย", "คำสาปสลาย {RIVAL}กลับเป็นหญิงชราใจดี {ALLY}กลับมาสว่างอีกครั้ง", "silver light washes over {RIVAL}, her black dress turning soft grey and her face kind, while {ALLY} glows solid and bright again", 1, { at: "C" }),
+      m("f3", "ร้านเปิด", "เช้าวันใหม่ ร้านยาเปิด ทั้งสามช่วยกันจัดสมุนไพร", "wide warm morning shot of the herbal shop open to the street: {LEAD}, {ALLY} and {RIVAL} hang fresh herbs together, laughing", 1, { say: say("LEAD", "ร้านของยายเปิดแล้วค่ะ ทั้งกลางวันและคืนเดือนเพ็ญ") }),
+    ] },
+  },
+};
+
+export const MORE_STORIES: Record<DramaGenre, StoryPart[]> = {
+  HORROR: [HORROR_BELL], ACTION: [ACTION_DASHCAM], COMEDY: [COMEDY_BAND], ROMANCE: [ROMANCE_FLORIST], MYSTERY: [MYSTERY_TRAIN], FANTASY: [FANTASY_MOONFLOWER],
+};

@@ -1,4 +1,5 @@
 import type { CastMember, DramaGenre, Line, Place, PlaceKey, Role } from "./contracts";
+import { MORE_STORIES } from "./more-stories";
 
 /**
  * The built-in showrunner's writers' room: one premise per genre plus the story moves, cliffhangers and fixed beats
@@ -541,4 +542,13 @@ const FANTASY: GenreKit = {
   },
 };
 
+/** The first story of each genre (kept for older series and screens that show one premise per genre). */
 export const GENRE_KITS: Record<DramaGenre, GenreKit> = { HORROR, ACTION, COMEDY, ROMANCE, MYSTERY, FANTASY };
+
+/** Every story per genre, first story first. A finished season hands over to the next unused one. */
+export const GENRE_STORIES: Record<DramaGenre, GenreKit[]> = Object.fromEntries(
+  (Object.keys(GENRE_KITS) as DramaGenre[]).map(genre => {
+    const base = GENRE_KITS[genre];
+    return [genre, [base, ...MORE_STORIES[genre].map(part => ({ ...part, genre, style: part.style ?? base.style, sound: part.sound ?? base.sound }))]];
+  }),
+) as Record<DramaGenre, GenreKit[]>;

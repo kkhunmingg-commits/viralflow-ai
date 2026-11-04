@@ -19,7 +19,7 @@ const shotError = (error: string | null) => !error ? null : error === "NO_CREDIT
 export default async function DramaSeriesPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ msg?: string }> }) {
   const client = await createClient();
   const { data, error } = await client.auth.getUser();
-  if (error || !data.user) redirect("/login?next=/drama");
+  if (error || !data.user) redirect("/login?next=/post");
   const { id } = await params, { msg } = await searchParams;
   if (!z.uuid().safeParse(id).success) notFound();
   const detail = await seriesDetail(client, data.user.id, id).catch(() => null);
@@ -33,11 +33,15 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
   const inLibrary = new Set(clips.filter(c => c.status === "READY" || c.status === "SCHEDULED").map(c => c.id));
   const posted = new Set(clips.filter(c => c.status === "POSTED").map(c => c.id));
   const byNumber = new Map(episodes.map(e => [e.number, e]));
+  const accountIds = [series.flow_account_id, series.repair_flow_account_id].filter((v): v is string => Boolean(v));
+  const google = accountIds.length ? ((await client.from("flow_accounts").select("id,label").eq("owner_id", data.user.id).in("id", accountIds)).data ?? []) as Array<{ id: string; label: string }> : [];
+  const accountLabel = (id: string | null) => google.find(g => g.id === id)?.label ?? null;
+  const mainLabel = accountLabel(series.flow_account_id), repairLabel = accountLabel(series.repair_flow_account_id);
 
   return <div className="manual-page drama-page">
     <header className="manual-hero"><div><p className="manual-eyebrow">Drama Studio · {dramaGenreLabels[series.genre]} · {seriesStatusLabels[series.status]}</p><h1>{series.title}</h1>
       <p>{series.logline}</p></div>
-      <Link className="manual-back" href="/drama">← ละครทั้งหมด</Link></header>
+      <Link className="manual-back" href="/post?studio=drama">← ละครทั้งหมด</Link></header>
     {msg && <p className="library-message" role="status">{msg.slice(0, 300)}</p>}
 
     <div className="drama-controls">
@@ -47,7 +51,9 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
         <button className="manual-primary" type="submit">ผลิตต่อ</button></form>}
       {series.status !== "ARCHIVED" && <form action={seriesStatusAction}><input type="hidden" name="id" value={series.id} /><input type="hidden" name="status" value="ARCHIVED" />
         <button className="manual-secondary" type="submit">เก็บเข้ากรุ</button></form>}
-      <span className="manual-muted">ตอนละ {series.shots_per_episode} ช็อต · {series.episodes_per_day} ตอน/วัน · ตัวเขียนบท {series.writer}</span>
+      <span className="manual-muted">ตอนละ {series.shots_per_episode} ช็อต · {series.episodes_per_day} ตอน/วัน · ตัวเขียนบท {series.writer}
+        {mainLabel && ` · บัญชีหลัก ${mainLabel}`}{series.flow_account_id && (repairLabel ? ` · บัญชีซ่อม ${repairLabel}` : " · ไม่มีบัญชีซ่อม")}
+        {series.auto_next && series.flow_account_id ? " · จบแล้วเริ่มเรื่องใหม่แนวเดิมให้เอง" : ""}</span>
     </div>
 
     <section className="manual-panel" aria-labelledby="arc-title">
@@ -65,7 +71,7 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
       <p className="manual-muted">{episodePhaseLabels[current.phase as EpisodePhase] ?? current.phase} · {current.summary}</p>
       {current.error && <p className="manual-warning">{current.error}</p>}
       <ol className="drama-shots">{currentShots.map(shot => <li key={shot.id} className={`drama-shot drama-shot-${shot.status.toLowerCase()}`}>
-        <div><strong>ช็อต {shot.position}</strong> <span className="drama-status">{shotStatusLabels[shot.status as ShotStatus]}</span>
+        <div><strong>ช็อต {shot.position}</strong> <span className="drama-status">{shotStatusLabels[shot.status as ShotStatus]}</span>{shot.route === "REPAIR" && <span className="drama-status drama-repair">บัญชีซ่อม</span>}
           <small>{shot.reference_mode === "PREVIOUS_FRAME" ? "ต่อจากเฟรมสุดท้ายของช็อตก่อน" : shot.reference_mode === "KEY_STILL" ? "ใช้ภาพตัวละครหลักของเรื่อง" : "ช็อตเปิดตัวละคร (สร้างภาพหลักของเรื่อง)"}</small></div>
         {shot.subtitle && <p className="drama-line">“{shot.subtitle}”</p>}
         {shotError(shot.error) && <p className="manual-warning">{shotError(shot.error)}{shot.attempts ? ` · ลองแล้ว ${shot.attempts} ครั้ง` : ""}</p>}
