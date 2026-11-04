@@ -444,3 +444,23 @@ export async function signedImage(admin: SupabaseClient, path: string | null) {
   const signed = await admin.storage.from(BUCKET).createSignedUrl(path, 600);
   return signed.error ? null : signed.data.signedUrl;
 }
+
+/** The worker's reasons for not even starting a clip on an account that is not set up for it (wrong Flow model, signed out, page changed). */
+const SETUP_FAILURE = /^(COST_|LOGIN|PROMPT_BOX|GENERATE_BUTTON|BROWSER_UNAVAILABLE)/;
+/**
+ * A repair account that cannot make a shot at all hands it back to the series' main account, which makes it like a
+ * normal clip. Nothing was spent: the worker gave the clip back before pressing Generate.
+ */
+export async function fallBackToMainAccount(admin: SupabaseClient, owner: string, clipId: string, reason: string, now = new Date()) {
+  if (!SETUP_FAILURE.test(reason)) return false;
+  const shot = (await admin.from("drama_shots").select("id,episode_id,route,status").eq("owner_id", owner).eq("flow_clip_id", clipId).maybeSingle()).data as
+    { id: string; episode_id: string; route: string; status: string } | null;
+  if (!shot || shot.route !== "REPAIR" || shot.status !== "QUEUED") return false;
+  const episode = (await admin.from("drama_episodes").select("series_id").eq("owner_id", owner).eq("id", shot.episode_id).maybeSingle()).data as { series_id: string } | null;
+  const series = episode ? (await admin.from("drama_series").select("flow_account_id").eq("owner_id", owner).eq("id", episode.series_id).maybeSingle()).data as { flow_account_id: string | null } | null : null;
+  if (!series?.flow_account_id) return false;
+  check(await admin.from("flow_clips").update({ required_flow_account_id: series.flow_account_id, updated_at: now.toISOString() })
+    .eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED"), "flow_clip_not_saved");
+  await updateShot(admin, owner, shot.id, "QUEUED", { route: "PRIMARY", error: `บัญชีซ่อมทำไม่ได้ (${reason}) ส่งกลับให้บัญชีหลักทำแทน`.slice(0, 400) }, now);
+  return true;
+}

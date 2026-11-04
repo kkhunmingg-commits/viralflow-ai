@@ -121,6 +121,30 @@ export async function chooseSingleOutput(page, selectors) {
   await page.waitForTimeout(300);
 }
 
+const LITE_MODEL = /Veo\s*3\.1\s*[-–]?\s*Lite/i;
+/** Opens Flow's settings and picks the Veo 3.1 Lite model. Never clicks Generate. True when Lite ended up chosen. */
+export async function chooseLiteModel(page, selectors) {
+  const chip = await firstVisible(page, selectors.settingsChip) ?? await firstVisible(page, 'button:has-text("Veo"), button:has-text("tune"), button:has-text("settings")');
+  if (!chip) return false;
+  if (LITE_MODEL.test(await chip.innerText().catch(() => ""))) return true;
+  await chip.click({ timeout: 10_000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  let chosen = false;
+  try {
+    let lite = page.getByRole("option", { name: LITE_MODEL }).or(page.getByRole("menuitemradio", { name: LITE_MODEL })).or(page.getByRole("radio", { name: LITE_MODEL }));
+    if (!await lite.count()) {
+      // The model is a dropdown inside the panel: open it first.
+      const model = page.getByRole("combobox").or(page.locator('button:has-text("Veo")')).filter({ hasText: /Veo/i }).last();
+      if (await model.count()) { await model.click({ timeout: 10_000 }).catch(() => {}); await page.waitForTimeout(800); }
+      lite = page.getByRole("option", { name: LITE_MODEL }).or(page.getByRole("menuitemradio", { name: LITE_MODEL })).or(page.getByText(LITE_MODEL));
+    }
+    if (await lite.count()) { await lite.last().click({ timeout: 10_000 }); chosen = true; await page.waitForTimeout(800); }
+  } catch { chosen = false; }
+  await page.keyboard.press("Escape").catch(() => {});
+  await page.waitForTimeout(300);
+  return chosen;
+}
+
 async function attachReference(page, selectors, imageUrl, scratchDir, clipId) {
   if (!imageUrl) return;
   const response = await page.request.get(imageUrl, { timeout: 20_000, maxRedirects: 0 });
@@ -259,9 +283,15 @@ export async function openFlowAccount(account, config) {
       // Cost depends on the saved model/outputs, not the prompt: check it before typing anything.
       await step("CHECKING_COST");
       await chooseSingleOutput(page, selectors);
-      const cost = await readCost(page, selectors);
+      let cost = await readCost(page, selectors);
+      // A newly added account still has Flow's default model, whose cost is not shown or is above the ceiling:
+      // pick Veo 3.1 Lite x1 once, as the owner did by hand on the first account, and read again.
+      if (!costDecision(cost, config.costPolicy).ok && await chooseLiteModel(page, selectors)) {
+        await chooseSingleOutput(page, selectors);
+        cost = await readCost(page, selectors);
+      }
       const decision = costDecision(cost, config.costPolicy);
-      if (!decision.ok) return fail(decision.reason);
+      if (!decision.ok) { await saveDebug(page, config.debugDir, clip.id, "cost"); return fail(decision.reason); }
       await step("TYPING_PROMPT", cost != null ? `${cost} เครดิต` : undefined);
       await prompt.click();
       await prompt.fill(clip.prompt);

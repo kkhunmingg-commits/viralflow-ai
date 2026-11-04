@@ -55,7 +55,13 @@ export async function POST(request: Request, context: { params: Promise<{ action
         after(() => import("@/features/drama/service").then(m => m.tickOwner(admin, owner)).catch(() => {}));
         return reply(done);
       }
-      case "fail": await failClip(admin, owner, failSchema.parse(body)); return reply({ ok: true });
+      case "fail": {
+        const input = failSchema.parse(body);
+        await failClip(admin, owner, input);
+        // A drama shot the repair account cannot make goes back to the series' main account.
+        if (input.notStarted) await import("@/features/drama/service").then(m => m.fallBackToMainAccount(admin, owner, input.clipId, input.reason)).catch(() => {});
+        return reply({ ok: true });
+      }
       case "exhausted": await markExhausted(admin, owner, exhaustedSchema.parse(body).flowAccountId); return reply({ ok: true });
       case "login": await setLoginState(admin, owner, loginStateSchema.parse(body)); return reply({ ok: true });
       case "reopen": await reopenMissedClip(admin, owner, clipRefSchema.parse(body).clipId); return reply({ ok: true });
