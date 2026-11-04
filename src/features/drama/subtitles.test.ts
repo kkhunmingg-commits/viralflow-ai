@@ -24,6 +24,6 @@ it("buildEpisodeSubtitles times lines per shot and adds the tag and end card", (
   expect(ass).toContain("0:00:00.50,0:00:07.60,Sub");
   expect(ass).toContain("ใครอยู่ตรงนั้น");
   expect(ass).toContain("EP.2/10");
-  expect(ass).toContain("ติดตามตอนต่อไป");
+  expect(ass).toContain("กดติดตามไว้\\Nเพื่อดูตอนต่อไป");
   expect(buildEpisodeSubtitles({ seriesTitle: "x", episodeNumber: 10, totalEpisodes: 10, episodeTitle: "y", finale: true, shots: [{ durationSeconds: 8, subtitle: "" }] })).toContain("จบบริบูรณ์");
 });

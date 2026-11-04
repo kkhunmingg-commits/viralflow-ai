@@ -77,10 +77,9 @@ export function promptFor(prompt: string, imagePath: string | null) {
  * Whether a new episode may start today: one at a time, up to the series' daily number, never past the season. A story
  * that took over from a finished one waits for the next day: today's credits went to the previous story's last episode.
  */
-export function mayStartEpisode(series: { next_episode_number: number; total_episodes: number; episodes_per_day: number; previous_series_id?: string | null;
-  created_at?: string }, startedToday: number, openEpisodes: number, now = new Date()) {
+export function mayStartEpisode(series: { next_episode_number: number; total_episodes: number; episodes_per_day: number },
+  startedToday: number, openEpisodes: number) {
   if (openEpisodes > 0) return false;
-  if (series.previous_series_id && series.next_episode_number === 1 && series.created_at && bangkokDate(new Date(series.created_at)) === bangkokDate(now)) return false;
   if (series.next_episode_number > series.total_episodes) return false;
   return startedToday < series.episodes_per_day;
 }

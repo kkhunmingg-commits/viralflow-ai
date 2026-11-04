@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { dramaGenreLabels, episodePhaseLabels, episodeStatusLabels, seriesStatusLabels, shotStatusLabels, type EpisodePhase, type ShotStatus } from "@/features/drama/contracts";
 import { seriesDetail, signedImage } from "@/features/drama/service";
-import { retryEpisodeAction, seriesStatusAction, skipShotAction } from "../actions";
+import { newStoryAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction } from "../actions";
 import "../../post/post.css";
 import "../drama.css";
 export const metadata = { title: "ละครซีรีส์ · Viral Flow AI" };
@@ -49,6 +49,8 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
         <button className="manual-secondary" type="submit">พักการผลิต</button></form>}
       {series.status === "PAUSED" && <form action={seriesStatusAction}><input type="hidden" name="id" value={series.id} /><input type="hidden" name="status" value="ACTIVE" />
         <button className="manual-primary" type="submit">ผลิตต่อ</button></form>}
+      {series.status === "COMPLETED" && <form action={newStoryAction}><input type="hidden" name="id" value={series.id} />
+        <button className="manual-primary" type="submit">สร้างเรื่องใหม่ (แนวเดิม)</button></form>}
       {series.status !== "ARCHIVED" && <form action={seriesStatusAction}><input type="hidden" name="id" value={series.id} /><input type="hidden" name="status" value="ARCHIVED" />
         <button className="manual-secondary" type="submit">เก็บเข้ากรุ</button></form>}
       <span className="manual-muted">ตอนละ {series.shots_per_episode} ช็อต · {series.episodes_per_day} ตอน/วัน · ตัวเขียนบท {series.writer}
@@ -112,6 +114,11 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
         <div className="drama-episodes">{episodes.filter(e => e.status === "READY").toReversed().map(e => <article key={e.id} className="drama-episode">
           {e.flow_clip_id && inLibrary.has(e.flow_clip_id) && <video controls playsInline preload="metadata" src={`/api/library/${e.flow_clip_id}/video#t=0.1`} aria-label={e.title} />}
           <h3>EP.{e.number} {e.title}</h3>
+          <p className="drama-meta">{e.review === "APPROVED" ? "✓ ผ่านแล้ว" : "รอคุณตรวจ"}</p>
+          {e.review === "PENDING" && <form action={reviewEpisodeAction} className="drama-review-buttons"><input type="hidden" name="seriesId" value={series.id} />
+            <input type="hidden" name="episodeId" value={e.id} /><input type="hidden" name="back" value="series" />
+            <button className="manual-primary" name="verdict" value="APPROVE" type="submit">ผ่าน</button>
+            <button className="manual-secondary" name="verdict" value="REJECT" type="submit">ไม่ผ่าน ทำใหม่พรุ่งนี้</button></form>}
           <p className="manual-muted">{e.summary}</p>
           <p className="drama-meta">{e.flow_clip_id && posted.has(e.flow_clip_id) ? "โพสต์แล้ว" : e.flow_clip_id && inLibrary.has(e.flow_clip_id) ? <Link href={`/post?account=${series.tiktok_account_id}`}>อยู่ในคลัง รอโพสต์ →</Link> : "ไฟล์ถูกลบจากคลังแล้ว"}</p>
         </article>)}</div>}

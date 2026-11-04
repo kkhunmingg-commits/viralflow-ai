@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { createSeriesSchema, seriesRefSchema, shotRefSchema } from "@/features/drama/contracts";
-import { createSeries, retryEpisode, setSeriesStatus, skipShot } from "@/features/drama/service";
+import { createSeries, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextStory } from "@/features/drama/service";
 
 async function owner() {
   const client = await createClient(), { data, error } = await client.auth.getUser();
@@ -28,6 +28,8 @@ const KNOWN: Record<string, string> = {
   FLOW_ACCOUNT_BUSY: "บัญชี Google นี้มีละครเรื่องอื่นอยู่แล้ว (1 บัญชีทำได้ 1 เรื่อง) เลือกบัญชีอื่น",
   REPAIR_SAME_AS_MAIN: "บัญชีซ่อมต้องเป็นคนละบัญชีกับบัญชีหลัก",
   SERIES_NOT_FOUND: "ไม่พบเรื่องนี้", SERIES_COMPLETED: "เรื่องนี้จบซีซันแล้ว", NO_OPEN_EPISODE: "ไม่มีตอนที่ค้างอยู่",
+  EPISODE_NOT_REVIEWABLE: "ตอนนี้ตรวจไปแล้ว หรือยังตัดต่อไม่เสร็จ",
+  SERIES_NOT_FINISHED: "เรื่องนี้ยังไม่จบซีซัน", NEXT_STORY_EXISTS: "สร้างเรื่องใหม่ต่อจากเรื่องนี้ไปแล้ว",
   SHOT_NOT_SKIPPABLE: "ข้ามได้เฉพาะช็อตที่ยังไม่ได้สร้างหรือสร้างไม่สำเร็จ",
 };
 const known = (error: unknown) => error instanceof Error ? KNOWN[error.message] : undefined;
@@ -69,4 +71,30 @@ export async function skipShotAction(formData: FormData) {
   try { await skipShot(createAdminClient(), ownerId, parsed.data.seriesId, parsed.data.shotId); }
   catch (error) { const message = known(error); if (message) done(`/drama/${parsed.data.seriesId}`, message); throw error; }
   done(`/drama/${parsed.data.seriesId}`, "ข้ามช็อตนี้แล้ว ตอนนี้จะตัดต่อจากช็อตที่เหลือ");
+}
+
+const reviewSchema = z.object({ seriesId: z.uuid(), episodeId: z.uuid(), verdict: z.enum(["APPROVE", "REJECT"]), back: z.enum(["home", "series"]).default("home") });
+/** Owner checked the finished episode: approve to move on, or reject to shoot the same episode again tomorrow. */
+export async function reviewEpisodeAction(formData: FormData) {
+  const parsed = reviewSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) done(HOME, "คำขอไม่ถูกต้อง");
+  const ownerId = await owner(), { seriesId, episodeId, verdict, back } = parsed.data;
+  const path = back === "series" ? `/drama/${seriesId}` : HOME;
+  let result: { approved: boolean; finished: boolean };
+  try { result = await reviewEpisode(createAdminClient(), ownerId, seriesId, episodeId, verdict === "APPROVE"); }
+  catch (error) { const message = known(error); if (message) done(path, message); throw error; }
+  done(path, !result.approved ? "บันทึกว่าไม่ผ่าน เอาตอนนี้ออกจากคลังแล้ว จะถ่ายตอนเดิมใหม่ตั้งแต่พรุ่งนี้"
+    : result.finished ? "ผ่านแล้ว เรื่องนี้จบครบทุกตอน กด “สร้างเรื่องใหม่” ในการ์ดเพื่อเริ่มเรื่องต่อไปแนวเดิม"
+    : "ผ่านแล้ว ตอนถัดไปจะเริ่มถ่ายในวันถัดไป (หรือทันทีถ้าวันนี้ยังทำได้อีกตอน)");
+}
+
+/** A finished season's card: start the next story of the same genre on the same accounts. */
+export async function newStoryAction(formData: FormData) {
+  const parsed = seriesRefSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) done(HOME, "คำขอไม่ถูกต้อง");
+  const ownerId = await owner();
+  let id: string;
+  try { id = await startNextStory(createAdminClient(), ownerId, parsed.data.id); }
+  catch (error) { const message = known(error); if (message) done(HOME, message); throw error; }
+  done(`/drama/${id}`, "สร้างเรื่องใหม่แนวเดิมแล้ว ตอนที่ 1 เข้าคิว Flow ของบัญชีหลักแล้ว");
 }

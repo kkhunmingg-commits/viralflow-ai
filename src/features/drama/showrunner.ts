@@ -220,7 +220,7 @@ export function planEpisode(input: { bible: SeriesBible; state: StoryState; numb
   const caption = [
     `${bible.title} EP.${number}/${total} ${title}`,
     planned[planned.length - 1]?.summary ?? "",
-    finale ? "จบบริบูรณ์ ขอบคุณที่ติดตามจนตอนสุดท้าย" : "ตอนต่อไปมาพรุ่งนี้ กดติดตามไว้ไม่พลาด",
+    finale ? "จบบริบูรณ์ ขอบคุณที่ดูจนตอนสุดท้าย กดติดตามไว้ เพื่อดูเรื่องใหม่" : "กดติดตามไว้ เพื่อดูตอนต่อไป",
   ].filter(Boolean).join("\n").slice(0, 1800);
   return { number, phase, title, summary: summary.slice(0, 2000), cliffhanger: next.lastCliff?.th ?? "", shots: planned, stateAfter: next,
     caption, hashtags: bible.hashtags.slice(0, 6) };

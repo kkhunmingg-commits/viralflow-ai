@@ -44,3 +44,8 @@
 .studio-tabs a small { font-weight: 400; opacity: .7; }
 .studio-tabs a.is-active { color: #fff; border-color: #93dfc7; box-shadow: inset 0 0 0 1px #93dfc7; background: #1d2b30; }
 .drama-repair { margin-left: 6px; }
+.drama-card h3 a { color: inherit; text-decoration: none; }
+.drama-review { display: grid; gap: 10px; margin-top: 10px; }
+.drama-review video { width: 100%; max-width: 240px; aspect-ratio: 9 / 16; border-radius: 12px; background: #000; }
+.drama-review-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.drama-more { display: inline-block; margin-top: 8px; font-size: 14px; color: #93dfc7; }

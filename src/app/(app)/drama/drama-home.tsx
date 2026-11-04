@@ -8,22 +8,24 @@ import { bangkokDate } from "@/features/flow-farm/contracts";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { flowLogins } from "@/features/flow-farm/service";
 import { addRepairAccountAction, flowAccountAction } from "../post/flow-actions";
-import { createSeriesAction } from "./actions";
+import { createSeriesAction, newStoryAction, reviewEpisodeAction } from "./actions";
 import "../post/flow-studio.css";
 import "./drama.css";
 
 interface GoogleAccount { id: string; label: string; tiktok_account_id: string | null; active: boolean; exhausted_on: string | null; purpose: "CLIP" | "REPAIR" }
 
 function nextStep(item: SeriesSummary, today: string) {
-  const { series, current } = item;
-  if (series.status === "COMPLETED") return series.auto_next ? "จบซีซันแล้ว เรื่องใหม่แนวเดียวกันเริ่มต่อในบัญชีเดิม" : "จบซีซันแล้ว ทุกตอนอยู่ในคลัง";
+  const { series, current, toReview, latestReady } = item;
+  if (series.status === "COMPLETED") return `จบครบ ${series.total_episodes} ตอนแล้ว`;
+  if (toReview) return `ตอนที่ ${toReview.number} ตัดต่อเสร็จ รอคุณตรวจ ดูคลิปแล้วกด “ผ่าน” เพื่อไปตอนที่ ${toReview.number + 1} หรือ “ไม่ผ่าน” เพื่อทำใหม่พรุ่งนี้`;
   if (series.status === "PAUSED") return "พักไว้ กด “ผลิตต่อ” ในหน้าเรื่อง";
   if (current?.status === "FAILED") return `ตอนที่ ${current.number} ต้องตรวจ: ${current.error ?? "ช็อตสร้างไม่สำเร็จ"}`;
   if (current?.status === "ASSEMBLING") return `กำลังตัดต่อตอนที่ ${current.number}`;
   if (current) return `กำลังถ่ายทำตอนที่ ${current.number} · ช็อต ${item.shotsDone}/${item.shotsTotal}${item.queued ? " · อยู่ในคิว Flow" : " · รอเครดิตวันใหม่"}`;
-  if (item.latestReady?.started_on === today || (series.previous_series_id && series.next_episode_number === 1 && bangkokDate(new Date(series.created_at)) === today))
-    return `ตอนที่ ${series.next_episode_number} เริ่มพรุ่งนี้เช้า (เครดิต Flow วันใหม่)`;
-  return `ตอนที่ ${series.next_episode_number} จะเริ่มเมื่อเครื่อง Flow worker เช็กคิวรอบถัดไป`;
+  const done = latestReady ? `ตอนที่ ${latestReady.number} สำเร็จ ✓ ` : "";
+  if (series.redo_on && today < series.redo_on) return `ตอนที่ ${series.next_episode_number} ไม่ผ่าน จะถ่ายใหม่พรุ่งนี้`;
+  if (latestReady?.started_on === today) return `${done}· ตอนที่ ${series.next_episode_number} เริ่มพรุ่งนี้`;
+  return `${done}· ตอนที่ ${series.next_episode_number} กำลังจะเริ่ม`;
 }
 
 /** Drama mode of the clip studio: every series, which Google accounts make it, and the form that starts a new one. */
@@ -55,22 +57,31 @@ export async function DramaHome({ client, owner }: { client: SupabaseClient; own
         : series.map(item => {
           const s = item.series, percent = Math.round(item.readyEpisodes / s.total_episodes * 100);
           const main = label(s.flow_account_id), repair = label(s.repair_flow_account_id);
-          return <Link key={s.id} href={`/drama/${s.id}`} className="drama-card">
+          return <article key={s.id} className="drama-card">
             <div className="drama-card-head"><span className={`drama-genre drama-genre-${s.genre.toLowerCase()}`}>{dramaGenreLabels[s.genre]}</span>
               <span className="drama-status">{seriesStatusLabels[s.status]}</span></div>
-            <h3>{s.title}</h3>
+            <h3><Link href={`/drama/${s.id}`}>{s.title}</Link></h3>
             <p className="drama-logline">{s.logline}</p>
-            <div className="drama-progress" role="img" aria-label={`ตัดต่อเสร็จ ${item.readyEpisodes} จาก ${s.total_episodes} ตอน`}><span style={{ width: `${percent}%` }} /></div>
-            <p className="drama-meta">ตัดต่อเสร็จ {item.readyEpisodes}/{s.total_episodes} ตอน{item.current ? ` · ${episodeStatusLabels[item.current.status]}` : ""}</p>
+            <div className="drama-progress" role="img" aria-label={`สำเร็จ ${item.readyEpisodes} จาก ${s.total_episodes} ตอน`}><span style={{ width: `${percent}%` }} /></div>
+            <p className="drama-meta">สำเร็จ {item.readyEpisodes}/{s.total_episodes} ตอน{item.current ? ` · ${episodeStatusLabels[item.current.status]}` : ""}</p>
             {main && <p className="drama-meta">บัญชีหลัก {main}{repair ? ` · บัญชีซ่อม ${repair}` : " · ไม่มีบัญชีซ่อม"}</p>}
             <p className="drama-next">{nextStep(item, today)}</p>
-          </Link>;
+            {item.toReview && <div className="drama-review">
+              {item.toReview.flow_clip_id && <video controls playsInline preload="metadata" src={`/api/library/${item.toReview.flow_clip_id}/video#t=0.1`} aria-label={`ตอนที่ ${item.toReview.number}`} />}
+              <form action={reviewEpisodeAction} className="drama-review-buttons"><input type="hidden" name="seriesId" value={s.id} /><input type="hidden" name="episodeId" value={item.toReview.id} />
+                <button className="manual-primary" name="verdict" value="APPROVE" type="submit">ผ่าน ไปตอนที่ {item.toReview.number + 1 > s.total_episodes ? "จบ" : item.toReview.number + 1}</button>
+                <button className="manual-secondary" name="verdict" value="REJECT" type="submit">ไม่ผ่าน ทำใหม่พรุ่งนี้</button></form></div>}
+            {s.status === "COMPLETED" && (item.hasNextStory ? <p className="drama-meta">สร้างเรื่องใหม่ต่อจากเรื่องนี้แล้ว</p>
+              : <form action={newStoryAction}><input type="hidden" name="id" value={s.id} />
+                <button className="manual-primary" type="submit">สร้างเรื่องใหม่ ({dramaGenreLabels[s.genre]})</button></form>)}
+            <Link className="drama-more" href={`/drama/${s.id}`}>ดูรายละเอียดเรื่อง →</Link>
+          </article>;
         })}
     </section>
 
     <section className="manual-panel" aria-labelledby="new-title">
       <h2 id="new-title">เริ่มละครเรื่องใหม่</h2>
-      <p className="manual-muted">บัญชีหลักคือบัญชี Google ที่ผูกไว้ในแท็บ “คลิป” 1 บัญชีล็อกกับละครได้ 1 เรื่อง (วันละ 1 ตอน 5 ช็อต ≈ 40 วินาที) และยังทำคลิปปกติได้เหมือนเดิม โดยระบบทำตอนละครของวันนั้นก่อนแล้วค่อยทำคลิป ช็อตไหนเสียหรือเครดิตหมดกลางตอน ระบบส่งไปบัญชีซ่อมจนได้ แล้วตัดต่อเป็นตอนพร้อมแคปชันและแฮชแท็กไปรอในคลัง เมื่อครบซีซัน ระบบเริ่มเรื่องใหม่แนวเดียวกันในบัญชีเดิมให้เอง</p>
+      <p className="manual-muted">บัญชีหลักคือบัญชี Google ที่ผูกไว้ในแท็บ “คลิป” 1 บัญชีล็อกกับละครได้ 1 เรื่อง (วันละ 1 ตอน 5 ช็อต ≈ 40 วินาที) และยังทำคลิปปกติได้เหมือนเดิม โดยระบบทำตอนละครของวันนั้นก่อนแล้วค่อยทำคลิป ช็อตไหนเสียหรือเครดิตหมดกลางตอน ระบบส่งไปบัญชีซ่อมจนได้ แล้วตัดต่อเป็นตอนพร้อมแคปชันและแฮชแท็กไปรอในคลัง ทุกตอนรอคุณกด “ผ่าน” ก่อนจะไปตอนถัดไป ถ้า “ไม่ผ่าน” ระบบถ่ายตอนเดิมใหม่พรุ่งนี้ เมื่อครบซีซัน กด “สร้างเรื่องใหม่” ในการ์ดของเรื่องนั้นได้เลย</p>
       {accounts.length === 0 ? <p className="manual-muted">เชื่อมบัญชี TikTok ก่อน <Link href="/accounts">ไปหน้าบัญชี</Link></p>
       : google.length === 0 ? <p className="manual-muted">ยังไม่มีบัญชี Google ผูกบัญชีในแท็บ “คลิป” ก่อน <Link href="/post">ไปผูกบัญชี</Link></p>
       : <form action={createSeriesAction} className="drama-form">

@@ -37,7 +37,7 @@ export function buildEpisodeSubtitles(cut: EpisodeCut) {
   }
   const total = start;
   events.push(`Dialogue: 2,${time(0)},${time(Math.min(3, total))},Tag,,0,0,0,,${clean(cut.seriesTitle)} · EP.${cut.episodeNumber}/${cut.totalEpisodes}\\N${clean(cut.episodeTitle)}`);
-  events.push(`Dialogue: 2,${time(Math.max(0, total - 2.2))},${time(total)},End,,0,0,0,,${cut.finale ? "จบบริบูรณ์" : "ติดตามตอนต่อไป"}`);
+  events.push(`Dialogue: 2,${time(Math.max(0, total - 2.5))},${time(total)},End,,0,0,0,,${cut.finale ? "จบบริบูรณ์\\Nกดติดตามไว้ เพื่อดูเรื่องใหม่" : "กดติดตามไว้\\Nเพื่อดูตอนต่อไป"}`);
   return [
     "[Script Info]", "ScriptType: v4.00+", "PlayResX: 720", "PlayResY: 1280", "WrapStyle: 2", "ScaledBorderAndShadow: yes", "",
     "[V4+ Styles]",
