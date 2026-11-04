@@ -10,7 +10,7 @@ import { planBatch, type FarmProduct } from "./planner";
 import { productsForNiche, type NicheKey } from "./niches";
 
 const BUCKET = "video-assets";
-const ACCOUNT_COLUMNS = "id,tiktok_account_id,label,priority,clips_per_day_estimate,active,exhausted_on,clips_today,clips_today_on,last_used_at,created_at";
+const ACCOUNT_COLUMNS = "id,tiktok_account_id,label,priority,clips_per_day_estimate,active,exhausted_on,clips_today,clips_today_on,last_used_at,created_at,purpose";
 export const LIBRARY_COLUMNS = "id,tiktok_account_id,video_sha256,product_id,kind,title,caption,hashtags,status,error,ready_at,scheduled_at,posted_at,post_url,duration_seconds,width,height,created_at,flow_account_id";
 
 function check<T>(result: { data: T; error: { message: string } | null }, code: string): T {
@@ -90,6 +90,13 @@ export async function addFlowAccount(admin: SupabaseClient, owner: string, input
   if (result.error?.message.includes("FLOW_ACCOUNT_LIMIT_5")) throw new Error("FLOW_ACCOUNT_LIMIT_5");
   check(result, "flow_account_not_saved");
   return { moved: false };
+}
+/** Adds a drama repair account: unlinked from any TikTok account, it makes only the drama shots sent to it. */
+export async function addRepairAccount(admin: SupabaseClient, owner: string, input: { label: string; clipsPerDay: number }) {
+  const result = await admin.from("flow_accounts").insert({ owner_id: owner, tiktok_account_id: null, label: input.label,
+    clips_per_day_estimate: input.clipsPerDay, priority: 100, purpose: "REPAIR" });
+  if (result.error?.code === "23505") throw new Error("FLOW_ACCOUNT_LABEL_TAKEN");
+  check(result, "flow_account_not_saved");
 }
 /** Moves a Google account one place earlier or later in its TikTok account's drain order. */
 export async function moveFlowAccount(admin: SupabaseClient, owner: string, id: string, direction: "UP" | "DOWN") {

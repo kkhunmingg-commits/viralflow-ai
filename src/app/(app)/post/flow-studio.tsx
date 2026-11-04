@@ -21,7 +21,7 @@ async function loadStudio(client: SupabaseClient, owner: string, accountId: stri
   const logins = await flowLogins(createAdminClient(), owner).catch(() => ({}));
   const settled = await Promise.allSettled([listFlowAccounts(client, owner, new Date(), logins), liveClipProgress(client, owner, accountId), listLibrary(client, owner, accountId), workerLastSeen(client, owner)]);
   const list = <T,>(result: PromiseSettledResult<T[]>) => result.status === "fulfilled" ? result.value : [];
-  return { flowAccounts: accountsFor(list(settled[0]), accountId), live: settled[1].status === "fulfilled" ? settled[1].value : null, library: list(settled[2]),
+  return { flowAccounts: accountsFor(list(settled[0]).filter(view => view.purpose !== "REPAIR"), accountId), live: settled[1].status === "fulfilled" ? settled[1].value : null, library: list(settled[2]),
     lastSeen: settled[3].status === "fulfilled" ? settled[3].value : null, unavailable: settled.some(result => result.status === "rejected"), now: Date.now(),
     ...await loadDrafts(client, owner, accountId, list(settled[2]).map(clip => clip.video_sha256).filter((hash): hash is string => !!hash)) };
 }

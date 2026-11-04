@@ -5,10 +5,14 @@ import { GENRE_STORIES } from "@/features/drama/genres";
 import { pickStory } from "@/features/drama/showrunner";
 import { dramaAvailable, listSeries, type SeriesSummary } from "@/features/drama/service";
 import { bangkokDate } from "@/features/flow-farm/contracts";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { flowLogins } from "@/features/flow-farm/service";
+import { addRepairAccountAction, flowAccountAction } from "../post/flow-actions";
 import { createSeriesAction } from "./actions";
+import "../post/flow-studio.css";
 import "./drama.css";
 
-interface GoogleAccount { id: string; label: string; tiktok_account_id: string | null; active: boolean; exhausted_on: string | null }
+interface GoogleAccount { id: string; label: string; tiktok_account_id: string | null; active: boolean; exhausted_on: string | null; purpose: "CLIP" | "REPAIR" }
 
 function nextStep(item: SeriesSummary, today: string) {
   const { series, current } = item;
@@ -28,11 +32,16 @@ export async function DramaHome({ client, owner }: { client: SupabaseClient; own
   const accountsResult = await client.from("tiktok_accounts").select("id,display_name,is_mock").eq("owner_id", owner).is("hidden_at", null).order("created_at", { ascending: true });
   const accounts = ((accountsResult.data ?? []) as Array<{ id: string; display_name: string; is_mock: boolean | null }>)
     .filter(a => process.env.NODE_ENV !== "production" || !a.is_mock);
-  const google = ((await client.from("flow_accounts").select("id,label,tiktok_account_id,active,exhausted_on").eq("owner_id", owner).order("priority").order("created_at")).data ?? []) as GoogleAccount[];
+  const all = ((await client.from("flow_accounts").select("id,label,tiktok_account_id,active,exhausted_on,purpose").eq("owner_id", owner).order("priority").order("created_at")).data ?? []) as GoogleAccount[];
+  const google = all.filter(g => g.purpose !== "REPAIR"), repairs = all.filter(g => g.purpose === "REPAIR");
+  const logins = await flowLogins(createAdminClient(), owner).catch(() => ({} as Awaited<ReturnType<typeof flowLogins>>));
   const series = available ? await listSeries(client, owner).catch(() => []) : [];
   const busy = new Map(series.filter(s => (s.series.status === "ACTIVE" || s.series.status === "PAUSED") && s.series.flow_account_id).map(s => [s.series.flow_account_id!, s.series.title]));
   const free = google.filter(g => g.active && !busy.has(g.id));
-  const label = (id: string | null) => google.find(g => g.id === id)?.label ?? null;
+  const label = (id: string | null) => all.find(g => g.id === id)?.label ?? null;
+  const repairUse = (id: string) => series.filter(s => s.series.repair_flow_account_id === id && (s.series.status === "ACTIVE" || s.series.status === "PAUSED")).length;
+  const loginText = (id: string) => { const l = logins[id]; return l?.state === "READY" ? "✓ ล็อกอินแล้ว" : l?.state === "FAILED" ? `⚠ ล็อกอินไม่สำเร็จ${l.note ? ` (${l.note})` : ""}` : "⏳ รอล็อกอิน (เปิดคอมที่ติดตั้งเครื่องสร้างคลิปไว้)"; };
+  const drama = <input type="hidden" name="studio" value="drama" />;
   const channel = (id: string | null) => id ? accounts.find(a => a.id === id)?.display_name ?? "ช่องอื่น" : "ใช้ได้ทุกช่อง";
   const today = bangkokDate();
 
@@ -61,7 +70,7 @@ export async function DramaHome({ client, owner }: { client: SupabaseClient; own
 
     <section className="manual-panel" aria-labelledby="new-title">
       <h2 id="new-title">เริ่มละครเรื่องใหม่</h2>
-      <p className="manual-muted">1 บัญชี Google = 1 เรื่อง วันละ 1 ตอน (5 ช็อต ≈ 40 วินาที) บัญชีหลักจะทำเฉพาะละครเรื่องนี้ ช็อตไหนเสียหรือเครดิตหมดกลางตอน ระบบส่งไปบัญชีซ่อมจนได้ แล้วตัดต่อเป็นตอนพร้อมแคปชันและแฮชแท็กไปรอในคลัง เมื่อครบซีซัน ระบบเริ่มเรื่องใหม่แนวเดียวกันในบัญชีเดิมให้เอง</p>
+      <p className="manual-muted">บัญชีหลักคือบัญชี Google ที่ผูกไว้ในแท็บ “คลิป” 1 บัญชีล็อกกับละครได้ 1 เรื่อง (วันละ 1 ตอน 5 ช็อต ≈ 40 วินาที) และยังทำคลิปปกติได้เหมือนเดิม โดยระบบทำตอนละครของวันนั้นก่อนแล้วค่อยทำคลิป ช็อตไหนเสียหรือเครดิตหมดกลางตอน ระบบส่งไปบัญชีซ่อมจนได้ แล้วตัดต่อเป็นตอนพร้อมแคปชันและแฮชแท็กไปรอในคลัง เมื่อครบซีซัน ระบบเริ่มเรื่องใหม่แนวเดียวกันในบัญชีเดิมให้เอง</p>
       {accounts.length === 0 ? <p className="manual-muted">เชื่อมบัญชี TikTok ก่อน <Link href="/accounts">ไปหน้าบัญชี</Link></p>
       : google.length === 0 ? <p className="manual-muted">ยังไม่มีบัญชี Google ผูกบัญชีในแท็บ “คลิป” ก่อน <Link href="/post">ไปผูกบัญชี</Link></p>
       : <form action={createSeriesAction} className="drama-form">
@@ -81,10 +90,10 @@ export async function DramaHome({ client, owner }: { client: SupabaseClient; own
             {accounts.map(a => <option key={a.id} value={a.id}>{a.display_name}</option>)}</select></label>
           <label className="manual-filter">บัญชี Google หลัก (ล็อกกับเรื่องนี้)<select name="flowAccountId" defaultValue={free[0]?.id} required>
             {google.map(g => <option key={g.id} value={g.id} disabled={!g.active || busy.has(g.id)}>
-              {g.label} · {channel(g.tiktok_account_id)}{busy.has(g.id) ? ` · กำลังทำ “${busy.get(g.id)}”` : !g.active ? " · ปิดอยู่" : ""}</option>)}</select></label>
+              {g.label} · {channel(g.tiktok_account_id)}{busy.has(g.id) ? ` · ล็อกกับ “${busy.get(g.id)}” แล้ว` : !g.active ? " · พักไว้" : ""}</option>)}</select></label>
           <label className="manual-filter">บัญชีซ่อม (ไม่บังคับ)<select name="repairFlowAccountId" defaultValue="">
             <option value="">ไม่ใช้บัญชีซ่อม</option>
-            {google.filter(g => g.active).map(g => <option key={g.id} value={g.id}>{g.label} · {channel(g.tiktok_account_id)}{busy.has(g.id) ? " · เป็นบัญชีหลักของอีกเรื่อง" : ""}</option>)}</select></label>
+            {repairs.filter(g => g.active).map(g => <option key={g.id} value={g.id}>{g.label}{repairUse(g.id) ? ` · ซ่อมให้ ${repairUse(g.id)} เรื่องอยู่` : ""}</option>)}</select></label>
           <label className="manual-filter">จำนวนตอนทั้งซีซัน<select name="totalEpisodes" defaultValue="30">
             {[6, 10, 15, 20, 30].map(n => <option key={n} value={n}>{n} ตอน</option>)}</select></label>
           <label className="manual-filter">ช็อตต่อตอน (ช็อตละ 8 วิ)<select name="shotsPerEpisode" defaultValue="5">
@@ -92,9 +101,27 @@ export async function DramaHome({ client, owner }: { client: SupabaseClient; own
           <label className="manual-filter">ตอนต่อวัน<select name="episodesPerDay" defaultValue="1">
             {[1, 2].map(n => <option key={n} value={n}>{n} ตอน/วัน</option>)}</select></label>
         </div>
-        <p className="manual-muted drama-note">ใช้เครดิตฟรีของบัญชี Google เท่านั้น ไม่มีค่าใช้จ่ายเพิ่ม และไม่โพสต์ TikTok เอง ตอนที่ตัดเสร็จไปรอในคลังให้คุณตรวจและโพสต์เอง บัญชีซ่อมใช้ร่วมกันได้หลายเรื่อง และยังทำคลิปปกติได้เมื่อว่าง</p>
-        <button className="manual-primary" type="submit" disabled={free.length === 0}>{free.length === 0 ? "บัญชี Google ทุกบัญชีมีละครแล้ว" : "ให้ AI เขียนซีซันและเริ่มผลิต"}</button>
+        <p className="manual-muted drama-note">ใช้เครดิตฟรีของบัญชี Google เท่านั้น ไม่มีค่าใช้จ่ายเพิ่ม และไม่โพสต์ TikTok เอง ตอนที่ตัดเสร็จไปรอในคลังให้คุณตรวจและโพสต์เอง{repairs.length === 0 ? " ยังไม่มีบัญชีซ่อม เพิ่มได้ด้านล่าง" : ""}</p>
+        <button className="manual-primary" type="submit" disabled={free.length === 0}>{free.length === 0 ? "บัญชี Google ทุกบัญชีล็อกกับละครแล้ว" : "ให้ AI เขียนซีซันและเริ่มผลิต"}</button>
       </form>}
+    </section>
+
+    <section className="manual-panel" aria-labelledby="repair-title">
+      <h2 id="repair-title">บัญชีซ่อม ({repairs.length})</h2>
+      <p className="manual-muted">บัญชี Google แยกต่างหากสำหรับทำช็อตละครใหม่เมื่อช็อตเสียหรือบัญชีหลักเครดิตหมด ใช้ร่วมกันได้ทุกเรื่อง และไม่ถูกดึงไปทำคลิปปกติ เครดิตจึงเหลือไว้ซ่อมเสมอ</p>
+      {repairs.length > 0 && <ol className="library-flow-list">{repairs.map(g => <li key={g.id} className={g.active ? undefined : "paused"}>
+        <div><strong>{g.label}</strong><small>{loginText(g.id)} · {!g.active ? "พักไว้" : g.exhausted_on === today ? "เครดิตหมดวันนี้" : "พร้อมซ่อม"}{repairUse(g.id) ? ` · ซ่อมให้ ${repairUse(g.id)} เรื่อง` : ""}</small></div>
+        <form action={flowAccountAction} className="library-inline"><input type="hidden" name="id" value={g.id} />{drama}
+          {g.exhausted_on === today && <button className="library-link" name="op" value="RESET" type="submit">เติมเครดิตแล้ว</button>}
+          {logins[g.id]?.state !== "PENDING" && <button className="library-link" name="op" value="RELOGIN" type="submit">ล็อกอินใหม่</button>}
+          <button className="library-link" name="op" value={g.active ? "PAUSE" : "RESUME"} type="submit">{g.active ? "พัก" : "ใช้งาน"}</button>
+          <button className="library-link danger" name="op" value="REMOVE" type="submit">เลิกผูก</button></form>
+      </li>)}</ol>}
+      <form action={addRepairAccountAction} className="library-start">{drama}
+        <label className="manual-filter">อีเมล Google ของบัญชีซ่อม<input name="label" required maxLength={60} placeholder="name@gmail.com" /></label>
+        <label className="manual-filter">คลิปฟรีต่อวันโดยประมาณ<input name="clipsPerDay" type="number" min={1} max={200} defaultValue={5} /></label>
+        <button className="manual-secondary" type="submit">+ เพิ่มบัญชีซ่อม</button></form>
+      <p className="manual-muted">เพิ่มแล้ว คอมพิวเตอร์ที่ติดตั้งเครื่องสร้างคลิปจะเปิดหน้าล็อกอิน Google ของบัญชีนี้ให้ครั้งเดียว ใช้บัญชีที่ไม่ได้ผูกในแท็บคลิป</p>
     </section>
   </div>;
 }

@@ -61,10 +61,10 @@ export async function createSeries(admin: SupabaseClient, owner: string, input: 
     "accounts_unavailable");
   if (!account) throw new Error("ACCOUNT_NOT_FOUND");
   const ids = [input.flowAccountId, input.repairFlowAccountId].filter((id): id is string => Boolean(id));
-  const google = check(await admin.from("flow_accounts").select("id,tiktok_account_id,active").eq("owner_id", owner).in("id", ids), "flow_accounts_unavailable") as
-    Array<{ id: string; tiktok_account_id: string | null; active: boolean }>;
+  const google = check(await admin.from("flow_accounts").select("id,tiktok_account_id,active,purpose").eq("owner_id", owner).in("id", ids), "flow_accounts_unavailable") as
+    Array<{ id: string; tiktok_account_id: string | null; active: boolean; purpose: string }>;
   const main = google.find(g => g.id === input.flowAccountId);
-  if (!main?.active) throw new Error("FLOW_ACCOUNT_NOT_FOUND");
+  if (!main?.active || main.purpose === "REPAIR") throw new Error("FLOW_ACCOUNT_NOT_FOUND");
   if (main.tiktok_account_id && main.tiktok_account_id !== input.tiktokAccountId) throw new Error("FLOW_ACCOUNT_OTHER_CHANNEL");
   if (input.repairFlowAccountId && !google.find(g => g.id === input.repairFlowAccountId)?.active) throw new Error("REPAIR_ACCOUNT_NOT_FOUND");
   const story = pickStory(input.genre, await usedStories(admin, owner, input.genre));
