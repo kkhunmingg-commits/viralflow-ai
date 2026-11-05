@@ -9,6 +9,11 @@ describe("application navigation", () => {
   });
 
   it("groups daily work apart from accounts and income", () => {
-    expect(navigationGroups.map((group) => group.items.length)).toEqual([4, 3]);
+    expect(navigationGroups.map((group) => group.items.length)).toEqual([3, 3]);
+  });
+
+  it("puts promo clips and drama series under one clip menu", () => {
+    const clip = navigationGroups[0].items.find((item) => item.label === "สร้างคลิป");
+    expect(clip?.children?.map((child) => [child.href, child.label])).toEqual([["/post", "สร้างคลิปโปรโมท"], ["/drama", "ละครซีรีส์"]]);
   });
 });
