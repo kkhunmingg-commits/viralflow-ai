@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { dramaGenreLabels, episodePhaseLabels, episodeStatusLabels, seriesStatusLabels, shotStatusLabels, type EpisodePhase, type ShotStatus } from "@/features/drama/contracts";
 import { seriesDetail, signedImage } from "@/features/drama/service";
-import { newStoryAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction } from "../actions";
+import { newStoryAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction, takeAction } from "../actions";
 import "../../post/post.css";
 import "../drama.css";
 export const metadata = { title: "ละครซีรีส์ · Viral Flow AI" };
@@ -113,14 +113,18 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
       {episodes.filter(e => e.status === "READY").length === 0 ? <p className="manual-muted">ตอนแรกจะตัดต่อเสร็จเมื่อครบ {series.shots_per_episode} ช็อต</p> :
         <div className="drama-episodes">{episodes.filter(e => e.status === "READY").toReversed().map(e => <article key={e.id} className="drama-episode">
           {e.flow_clip_id && inLibrary.has(e.flow_clip_id) && <video controls playsInline preload="metadata" src={`/api/library/${e.flow_clip_id}/video#t=0.1`} aria-label={e.title} />}
-          <h3>EP.{e.number} {e.title}</h3>
-          <p className="drama-meta">{e.review === "APPROVED" ? "✓ ผ่านแล้ว" : "รอคุณตรวจ"}</p>
+          <h3>EP.{e.number} {e.title}{e.take > 1 || e.review === "REJECTED" ? ` · เวอร์ชัน ${e.take}` : ""}</h3>
+          <p className="drama-meta">{e.review === "APPROVED" ? "✓ ผ่านแล้ว" : e.review === "REJECTED" ? "ไม่ผ่าน · เก็บไว้เทียบ" : "รอคุณตรวจ"}</p>
+          {e.review === "REJECTED" && <form action={takeAction} className="drama-review-buttons"><input type="hidden" name="seriesId" value={series.id} />
+            <input type="hidden" name="episodeId" value={e.id} /><input type="hidden" name="back" value="series" />
+            <button className="manual-primary" name="op" value="CHOOSE" type="submit">เลือกเวอร์ชันนี้ (ลบเวอร์ชันอื่น)</button>
+            <button className="library-link danger" name="op" value="DELETE" type="submit">ลบเวอร์ชันนี้</button></form>}
           {e.review === "PENDING" && <form action={reviewEpisodeAction} className="drama-review-buttons"><input type="hidden" name="seriesId" value={series.id} />
             <input type="hidden" name="episodeId" value={e.id} /><input type="hidden" name="back" value="series" />
             <button className="manual-primary" name="verdict" value="APPROVE" type="submit">ผ่าน</button>
-            <button className="manual-secondary" name="verdict" value="REJECT" type="submit">ไม่ผ่าน ทำใหม่พรุ่งนี้</button></form>}
+            <button className="manual-secondary" name="verdict" value="REJECT" type="submit">ไม่ผ่าน ทำเวอร์ชันใหม่</button></form>}
           <p className="manual-muted">{e.summary}</p>
-          <p className="drama-meta">{e.flow_clip_id && posted.has(e.flow_clip_id) ? "โพสต์แล้ว" : e.flow_clip_id && inLibrary.has(e.flow_clip_id) ? <Link href="/drama#library">อยู่ในคลังละคร รอโพสต์ →</Link> : "ไฟล์ถูกลบจากคลังแล้ว"}</p>
+          <p className="drama-meta">{e.flow_clip_id && posted.has(e.flow_clip_id) ? "โพสต์แล้ว" : e.review === "REJECTED" ? "เทียบกับเวอร์ชันอื่นได้ที่การ์ดละคร" : e.flow_clip_id && inLibrary.has(e.flow_clip_id) ? <Link href="/drama#library">อยู่ในคลังละคร รอโพสต์ →</Link> : "ไฟล์ถูกลบจากคลังแล้ว"}</p>
         </article>)}</div>}
     </section>
   </div>;

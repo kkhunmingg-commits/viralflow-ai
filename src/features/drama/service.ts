@@ -10,7 +10,7 @@ import { SHOWRUNNER_WRITER, createBible, pickStory, planEpisode } from "./showru
 
 const BUCKET = "video-assets";
 const SERIES_COLUMNS = "id,tiktok_account_id,genre,title,logline,status,total_episodes,shots_per_episode,episodes_per_day,bible,story_state,writer,key_still_path,next_episode_number,flow_account_id,repair_flow_account_id,previous_series_id,auto_next,redo_on,created_at,updated_at";
-const EPISODE_COLUMNS = "id,series_id,number,phase,title,summary,cliffhanger,caption,hashtags,status,state_after,started_on,flow_clip_id,assemble_attempts,error,ready_at,review,reviewed_at,created_at,updated_at";
+const EPISODE_COLUMNS = "id,series_id,number,phase,title,summary,cliffhanger,caption,hashtags,status,state_after,started_on,flow_clip_id,assemble_attempts,error,ready_at,review,reviewed_at,take,key_still_path,created_at,updated_at";
 const SHOT_COLUMNS = "id,series_id,episode_id,position,prompt,subtitle,reference_mode,status,flow_clip_id,attempts,retry_after,last_frame_path,video_path,duration_seconds,error,route,created_at,updated_at";
 
 export interface SeriesRow {
@@ -22,9 +22,11 @@ export interface SeriesRow {
 export interface EpisodeRow {
   id: string; series_id: string; number: number; phase: string; title: string; summary: string; cliffhanger: string; caption: string; hashtags: string[];
   status: EpisodeStatus; state_after: StoryState; started_on: string; flow_clip_id: string | null; assemble_attempts: number; error: string | null;
-  ready_at: string | null; review: EpisodeReview; reviewed_at: string | null; created_at: string; updated_at: string;
+  ready_at: string | null; review: EpisodeReview; reviewed_at: string | null; take: number; key_still_path: string | null; created_at: string; updated_at: string;
 }
-export type EpisodeReview = "PENDING" | "APPROVED";
+export type EpisodeReview = "PENDING" | "APPROVED" | "REJECTED";
+/** Takes of one episode kept for comparison; a remake past this many waits until the owner deletes one. */
+export const MAX_TAKES = 10;
 export type DramaShotRow = ShotRow & { series_id: string; created_at: string; updated_at: string };
 
 function check<T>(result: { data: T; error: { message: string; code?: string } | null }, code: string): T {
@@ -100,38 +102,98 @@ export async function startNextStory(admin: SupabaseClient, owner: string, serie
  * Owner's review of a finished episode. Approved: the story moves on and the next episode starts on its day.
  * Not approved: the cut leaves the library and the same episode is shot again from tomorrow.
  */
+/**
+ * The owner's verdict on the episode waiting for review. "ผ่าน" picks this take. "ไม่ผ่าน" keeps the cut as a rejected
+ * take for comparison and shoots a new take of the same episode from the next day.
+ */
 export async function reviewEpisode(admin: SupabaseClient, owner: string, seriesId: string, episodeId: string, approved: boolean, now = new Date()) {
+  if (approved) return chooseTake(admin, owner, seriesId, episodeId, now);
   const series = await loadSeries(admin, owner, seriesId);
   const episode = check(await admin.from("drama_episodes").select(EPISODE_COLUMNS).eq("owner_id", owner).eq("series_id", series.id).eq("id", episodeId)
     .eq("status", "READY").eq("review", "PENDING").maybeSingle(), "drama_unavailable") as EpisodeRow | null;
   if (!episode) throw new Error("EPISODE_NOT_REVIEWABLE");
-  if (approved) {
-    const marked = check(await admin.from("drama_episodes").update({ review: "APPROVED", reviewed_at: now.toISOString(), updated_at: now.toISOString() })
-      .eq("owner_id", owner).eq("id", episode.id).eq("review", "PENDING").select("id"), "episode_not_saved") as Array<{ id: string }>;
-    if (!marked.length) throw new Error("EPISODE_NOT_REVIEWABLE");
-    const finished = episode.number >= series.total_episodes;
-    check(await admin.from("drama_series").update({ story_state: episode.state_after, next_episode_number: episode.number + 1, redo_on: null,
-      ...(finished && series.status === "ACTIVE" ? { status: "COMPLETED" } : {}), updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", series.id), "series_not_saved");
-    await tickSeriesById(admin, owner, series.id, now).catch(() => {});
-    return { approved: true, finished };
-  }
-  if (episode.flow_clip_id) {
-    const clip = check(await admin.from("flow_clips").select("id,storage_path,status").eq("owner_id", owner).eq("id", episode.flow_clip_id).maybeSingle(),
-      "flow_clips_unavailable") as { id: string; storage_path: string | null; status: string } | null;
-    if (clip && (clip.status === "READY" || clip.status === "SCHEDULED")) {
-      if (clip.storage_path) await admin.storage.from(BUCKET).remove([clip.storage_path]).catch(() => {});
-      await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, file_deleted_at: now.toISOString(), updated_at: now.toISOString() })
-        .eq("owner_id", owner).eq("id", clip.id).in("status", ["READY", "SCHEDULED"]);
-    }
-  }
-  // The episode is planned again from the same story memory, so the script stays and only the takes are new.
-  check(await admin.from("drama_episodes").delete().eq("owner_id", owner).eq("id", episode.id).eq("review", "PENDING"), "episode_not_saved");
+  const rejected = await admin.from("drama_episodes").select("id", { count: "exact", head: true }).eq("owner_id", owner).eq("series_id", series.id)
+    .eq("number", episode.number).eq("review", "REJECTED");
+  if (rejected.error) throw new Error("drama_unavailable");
+  if ((rejected.count ?? 0) + 1 >= MAX_TAKES) throw new Error("TOO_MANY_TAKES");
+  // Episode 1's key still (the faces of the season) goes with its take; the remake makes its own.
+  const ownsStill = episode.number === 1 && series.key_still_path;
+  const marked = check(await admin.from("drama_episodes").update({ review: "REJECTED", reviewed_at: now.toISOString(), updated_at: now.toISOString(),
+    ...(ownsStill ? { key_still_path: series.key_still_path } : {}) }).eq("owner_id", owner).eq("id", episode.id).eq("review", "PENDING").select("id"), "episode_not_saved") as Array<{ id: string }>;
+  if (!marked.length) throw new Error("EPISODE_NOT_REVIEWABLE");
   const redoOn = bangkokDate(new Date(nextBangkokMorning(now)));
-  const resetStill = episode.number === 1 && series.key_still_path;
-  if (resetStill) await admin.storage.from(BUCKET).remove([series.key_still_path as string]).catch(() => {});
-  check(await admin.from("drama_series").update({ redo_on: redoOn, ...(resetStill ? { key_still_path: null } : {}), updated_at: now.toISOString() })
+  check(await admin.from("drama_series").update({ redo_on: redoOn, ...(ownsStill ? { key_still_path: null } : {}), updated_at: now.toISOString() })
     .eq("owner_id", owner).eq("id", series.id), "series_not_saved");
   return { approved: false, finished: false };
+}
+
+/** Every finished take of the episode the series is on (rejected ones and the one waiting for review), oldest first. */
+export async function episodeTakes(client: SupabaseClient, owner: string, seriesId: string, number: number) {
+  return check(await client.from("drama_episodes").select(EPISODE_COLUMNS).eq("owner_id", owner).eq("series_id", seriesId).eq("number", number)
+    .in("review", ["PENDING", "REJECTED"]).eq("status", "READY").order("take", { ascending: true }).order("created_at", { ascending: true }), "drama_unavailable") as EpisodeRow[];
+}
+
+/** Deletes one take: its cut in the library, its shots' files and, for episode 1, its key still. */
+async function deleteTake(admin: SupabaseClient, owner: string, episode: EpisodeRow, keepPath: string | null, now: Date) {
+  if (episode.flow_clip_id) {
+    const clip = (await admin.from("flow_clips").select("id,storage_path").eq("owner_id", owner).eq("id", episode.flow_clip_id).maybeSingle()).data as
+      { id: string; storage_path: string | null } | null;
+    if (clip?.storage_path) await admin.storage.from(BUCKET).remove([clip.storage_path]).catch(() => {});
+    if (clip) await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, file_deleted_at: now.toISOString(), updated_at: now.toISOString() })
+      .eq("owner_id", owner).eq("id", clip.id).in("status", ["READY", "SCHEDULED"]);
+  }
+  const shots = await episodeShots(admin, owner, episode.id);
+  const files = [...shots.map(s => s.video_path), ...shots.map(s => s.last_frame_path), episode.key_still_path]
+    .filter((p): p is string => Boolean(p) && p !== keepPath);
+  if (files.length) await admin.storage.from(BUCKET).remove(files).catch(() => {});
+  const shotClips = shots.map(s => s.flow_clip_id).filter((id): id is string => Boolean(id));
+  if (shotClips.length) await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, file_deleted_at: now.toISOString(), updated_at: now.toISOString() })
+    .eq("owner_id", owner).eq("kind", "DRAMA_SHOT").in("id", shotClips).in("status", ["QUEUED", "READY", "SCHEDULED", "FAILED"]);
+  check(await admin.from("drama_episodes").delete().eq("owner_id", owner).eq("id", episode.id), "episode_not_saved");
+}
+
+/**
+ * The owner picks the take to keep, out of every take of the episode. It counts as approved, the story moves on from
+ * it, and every other take of that episode is deleted, including a remake still being shot (unless a shot is in Flow
+ * right now: then the owner waits for that shot).
+ */
+export async function chooseTake(admin: SupabaseClient, owner: string, seriesId: string, episodeId: string, now = new Date()) {
+  const series = await loadSeries(admin, owner, seriesId);
+  const chosen = check(await admin.from("drama_episodes").select(EPISODE_COLUMNS).eq("owner_id", owner).eq("series_id", series.id).eq("id", episodeId)
+    .eq("status", "READY").in("review", ["PENDING", "REJECTED"]).maybeSingle(), "drama_unavailable") as EpisodeRow | null;
+  if (!chosen || chosen.number !== series.next_episode_number) throw new Error("EPISODE_NOT_REVIEWABLE");
+  const others = (check(await admin.from("drama_episodes").select(EPISODE_COLUMNS).eq("owner_id", owner).eq("series_id", series.id).eq("number", chosen.number)
+    .neq("id", chosen.id), "drama_unavailable") as EpisodeRow[]).filter(e => e.review !== "APPROVED");
+  const open = others.filter(e => e.status !== "READY");
+  if (open.length) {
+    const busy = await admin.from("drama_shots").select("id", { count: "exact", head: true }).eq("owner_id", owner).in("episode_id", open.map(e => e.id))
+      .eq("status", "QUEUED");
+    if (busy.error) throw new Error("drama_unavailable");
+    if ((busy.count ?? 0) > 0) throw new Error("TAKE_IN_PRODUCTION");
+  }
+  // Episode 1: the chosen take's key still becomes the season's faces again.
+  const keyStill = chosen.number === 1 ? (chosen.key_still_path ?? series.key_still_path) : series.key_still_path;
+  // An open remake goes first, so the unique "one open take" slot is free before the chosen take leaves REJECTED.
+  for (const take of [...open, ...others.filter(e => e.status === "READY")]) await deleteTake(admin, owner, take, keyStill, now);
+  if (chosen.number === 1 && series.key_still_path && series.key_still_path !== keyStill) await admin.storage.from(BUCKET).remove([series.key_still_path]).catch(() => {});
+  const marked = check(await admin.from("drama_episodes").update({ review: "APPROVED", reviewed_at: now.toISOString(), key_still_path: null, updated_at: now.toISOString() })
+    .eq("owner_id", owner).eq("id", chosen.id).in("review", ["PENDING", "REJECTED"]).select("id"), "episode_not_saved") as Array<{ id: string }>;
+  if (!marked.length) throw new Error("EPISODE_NOT_REVIEWABLE");
+  const finished = chosen.number >= series.total_episodes;
+  check(await admin.from("drama_series").update({ story_state: chosen.state_after, next_episode_number: chosen.number + 1, redo_on: null,
+    ...(chosen.number === 1 ? { key_still_path: keyStill } : {}),
+    ...(finished && series.status === "ACTIVE" ? { status: "COMPLETED" } : {}), updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", series.id), "series_not_saved");
+  await tickSeriesById(admin, owner, series.id, now).catch(() => {});
+  return { approved: true, finished, deleted: others.length };
+}
+
+/** The owner throws one rejected take away without picking yet. */
+export async function deleteRejectedTake(admin: SupabaseClient, owner: string, seriesId: string, episodeId: string, now = new Date()) {
+  const series = await loadSeries(admin, owner, seriesId);
+  const take = check(await admin.from("drama_episodes").select(EPISODE_COLUMNS).eq("owner_id", owner).eq("series_id", series.id).eq("id", episodeId)
+    .eq("review", "REJECTED").maybeSingle(), "drama_unavailable") as EpisodeRow | null;
+  if (!take) throw new Error("EPISODE_NOT_REVIEWABLE");
+  await deleteTake(admin, owner, take, series.key_still_path, now);
 }
 
 export async function setSeriesStatus(admin: SupabaseClient, owner: string, id: string, status: "ACTIVE" | "PAUSED" | "ARCHIVED") {
@@ -173,10 +235,10 @@ export async function listSeries(client: SupabaseClient, owner: string) {
   if (!series.length) return [];
   const ids = series.map(s => s.id);
   const [episodes, shots] = await Promise.all([
-    client.from("drama_episodes").select("id,series_id,number,title,status,error,ready_at,started_on,review,flow_clip_id").eq("owner_id", owner).in("series_id", ids).order("number", { ascending: false }).limit(400),
+    client.from("drama_episodes").select("id,series_id,number,title,status,error,ready_at,started_on,review,flow_clip_id,take").eq("owner_id", owner).in("series_id", ids).order("number", { ascending: false }).limit(400),
     client.from("drama_shots").select("series_id,episode_id,position,status,route,flow_clip_id").eq("owner_id", owner).in("series_id", ids).in("status", ["PLANNED", "QUEUED", "DONE", "FAILED", "SKIPPED"]).limit(2000),
   ]);
-  const episodeRows = (check(episodes, "drama_unavailable") ?? []) as Array<Pick<EpisodeRow, "id" | "series_id" | "number" | "title" | "status" | "error" | "ready_at" | "started_on" | "review" | "flow_clip_id">>;
+  const episodeRows = (check(episodes, "drama_unavailable") ?? []) as Array<Pick<EpisodeRow, "id" | "series_id" | "number" | "title" | "status" | "error" | "ready_at" | "started_on" | "review" | "flow_clip_id" | "take">>;
   const shotRows = (check(shots, "drama_unavailable") ?? []) as Array<{ series_id: string; episode_id: string; position: number; status: ShotStatus;
     route: string | null; flow_clip_id: string | null }>;
   // A queued shot is either waiting in Flow's queue or being generated right now: the clip says which.
@@ -191,6 +253,8 @@ export async function listSeries(client: SupabaseClient, owner: string) {
       toReview: own.find(e => e.status === "READY" && e.review === "PENDING") ?? null, hasNextStory: series.some(n => n.previous_series_id === s.id),
       shotsDone: currentShots.filter(r => r.status === "DONE" || r.status === "SKIPPED").length, shotsTotal: currentShots.length,
       queued: currentShots.some(r => r.status === "QUEUED"),
+      // Finished takes of the episode the series is on (rejected ones and the one to review), to compare side by side.
+      takes: own.filter(e => e.number === s.next_episode_number && e.status === "READY" && e.review !== "APPROVED").toSorted((a, b) => a.take - b.take),
       shots: currentShots.toSorted((a, b) => a.position - b.position).map(r => ({ position: r.position, status: r.status, repair: r.route === "REPAIR",
         generating: Boolean(r.flow_clip_id && generating.has(r.flow_clip_id)) })),
       latestReady: own.find(e => e.status === "READY" && e.review === "APPROVED") ?? null };
@@ -328,11 +392,14 @@ async function updateShot(admin: SupabaseClient, owner: string, id: string, from
 
 async function startEpisode(admin: SupabaseClient, owner: string, series: SeriesRow, now: Date) {
   const number = series.next_episode_number;
+  const earlier = await admin.from("drama_episodes").select("take").eq("owner_id", owner).eq("series_id", series.id).eq("number", number)
+    .order("take", { ascending: false }).limit(1);
+  const take = ((earlier.data ?? [])[0]?.take as number | undefined ?? 0) + 1;
   const plan = planEpisode({ bible: series.bible, state: series.story_state?.episode != null ? series.story_state : emptyStoryState(), number,
     shotsPerEpisode: series.shots_per_episode, seed: series.id });
   const inserted = await admin.from("drama_episodes").insert({
     owner_id: owner, series_id: series.id, number, phase: plan.phase, title: plan.title, summary: plan.summary, cliffhanger: plan.cliffhanger,
-    caption: plan.caption, hashtags: plan.hashtags, status: "PRODUCING", state_after: plan.stateAfter, started_on: bangkokDate(now),
+    caption: plan.caption, hashtags: plan.hashtags, status: "PRODUCING", state_after: plan.stateAfter, started_on: bangkokDate(now), take,
   }).select(EPISODE_COLUMNS).single();
   if (inserted.error) {
     if (inserted.error.code === "23505") return null; // another step started it a moment ago

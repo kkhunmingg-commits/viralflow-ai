@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { createSeriesSchema, seriesRefSchema, shotRefSchema } from "@/features/drama/contracts";
-import { createSeries, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextStory } from "@/features/drama/service";
+import { MAX_TAKES, chooseTake, createSeries, deleteRejectedTake, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextStory } from "@/features/drama/service";
 
 async function owner() {
   const client = await createClient(), { data, error } = await client.auth.getUser();
@@ -29,6 +29,8 @@ const KNOWN: Record<string, string> = {
   REPAIR_SAME_AS_MAIN: "บัญชีซ่อมต้องเป็นคนละบัญชีกับบัญชีหลัก",
   SERIES_NOT_FOUND: "ไม่พบเรื่องนี้", SERIES_COMPLETED: "เรื่องนี้จบซีซันแล้ว", NO_OPEN_EPISODE: "ไม่มีตอนที่ค้างอยู่",
   EPISODE_NOT_REVIEWABLE: "ตอนนี้ตรวจไปแล้ว หรือยังตัดต่อไม่เสร็จ",
+  TOO_MANY_TAKES: `เก็บเวอร์ชันไว้เทียบได้สูงสุด ${MAX_TAKES} เวอร์ชัน ลบเวอร์ชันที่ไม่เอาออกก่อน หรือเลือกเวอร์ชันที่ดีที่สุด`,
+  TAKE_IN_PRODUCTION: "เวอร์ชันใหม่กำลังสร้างช็อตอยู่ใน Flow ตอนนี้ รอช็อตนี้เสร็จสักครู่แล้วกดเลือกอีกครั้ง",
   SERIES_NOT_FINISHED: "เรื่องนี้ยังไม่จบซีซัน", NEXT_STORY_EXISTS: "สร้างเรื่องใหม่ต่อจากเรื่องนี้ไปแล้ว",
   SHOT_NOT_SKIPPABLE: "ข้ามได้เฉพาะช็อตที่ยังไม่ได้สร้างหรือสร้างไม่สำเร็จ",
 };
@@ -83,9 +85,27 @@ export async function reviewEpisodeAction(formData: FormData) {
   let result: { approved: boolean; finished: boolean };
   try { result = await reviewEpisode(createAdminClient(), ownerId, seriesId, episodeId, verdict === "APPROVE"); }
   catch (error) { const message = known(error); if (message) done(path, message); throw error; }
-  done(path, !result.approved ? "บันทึกว่าไม่ผ่าน เอาตอนนี้ออกจากคลังแล้ว จะถ่ายตอนเดิมใหม่ตั้งแต่พรุ่งนี้"
+  done(path, !result.approved ? "บันทึกว่าไม่ผ่าน เก็บเวอร์ชันนี้ไว้ให้เทียบ แล้วจะถ่ายเวอร์ชันใหม่ของตอนเดิมตั้งแต่พรุ่งนี้"
     : result.finished ? "ผ่านแล้ว เรื่องนี้จบครบทุกตอน กด “สร้างเรื่องใหม่” ในการ์ดเพื่อเริ่มเรื่องต่อไปแนวเดิม"
     : "ผ่านแล้ว ตอนถัดไปจะเริ่มถ่ายในวันถัดไป (หรือทันทีถ้าวันนี้ยังทำได้อีกตอน)");
+}
+
+const takeSchema = z.object({ seriesId: z.uuid(), episodeId: z.uuid(), op: z.enum(["CHOOSE", "DELETE"]), back: z.enum(["home", "series"]).default("home") });
+/** Takes of one episode: keep one (the others are deleted), or delete one rejected take. */
+export async function takeAction(formData: FormData) {
+  const parsed = takeSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) done(HOME, "คำขอไม่ถูกต้อง");
+  const ownerId = await owner(), { seriesId, episodeId, op, back } = parsed.data;
+  const path = back === "series" ? `/drama/${seriesId}` : HOME;
+  let message: string;
+  try {
+    if (op === "DELETE") { await deleteRejectedTake(createAdminClient(), ownerId, seriesId, episodeId); message = "ลบเวอร์ชันนี้แล้ว"; }
+    else {
+      const result = await chooseTake(createAdminClient(), ownerId, seriesId, episodeId);
+      message = `เลือกเวอร์ชันนี้แล้ว${result.deleted ? ` ลบอีก ${result.deleted} เวอร์ชันทิ้ง` : ""}${result.finished ? " เรื่องนี้จบครบทุกตอนแล้ว" : " ตอนถัดไปจะเริ่มต่อจากเวอร์ชันนี้"}`;
+    }
+  } catch (error) { const known_ = known(error); if (known_) done(path, known_); throw error; }
+  done(path, message);
 }
 
 /** A finished season's card: start the next story of the same genre on the same accounts. */

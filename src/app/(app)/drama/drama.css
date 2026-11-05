@@ -56,3 +56,10 @@
 .drama-shot-chip.is-live{background:#2b2550;border-color:#6d5cf0;color:#d3cbff}
 .drama-shot-chip.is-queued{background:#2a2a35;color:#c5c9da}
 .drama-shot-chip.is-failed{background:#3b2228;border-color:#7a3542;color:#ffb3bf}
+.drama-takes{display:flex;flex-direction:column;gap:8px;margin-top:4px;padding:12px;border-radius:14px;background:#1a2030;border:1px solid #2f3a4d}
+.drama-take-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.drama-take{display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:12px;background:#232a38;border:1px solid #2f3a4d}
+.drama-take.is-pending{border-color:#6d5cf0}
+.drama-take video{width:100%;aspect-ratio:9/16;border-radius:8px;background:#000;object-fit:cover}
+.drama-take-label{display:flex;flex-direction:column;margin:0;font-size:13px;color:#e6eaf3}.drama-take-label span{font-size:12px;color:#9faec6}
+.drama-take .drama-review-buttons{display:flex;flex-direction:column;gap:6px}.drama-take .drama-review-buttons button{width:100%}

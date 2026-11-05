@@ -12,11 +12,15 @@ const bangkokTime = (iso: string) => new Intl.DateTimeFormat("th-TH", { timeZone
 
 /** Reads outside render (the clock included). */
 async function loadDramaPage(client: Awaited<ReturnType<typeof createClient>>, owner: string) {
-  const [library, lastSeen, accounts] = await Promise.all([
+  const [all, lastSeen, accounts, rejected] = await Promise.all([
     listLibrary(client, owner, undefined, ["DRAMA"]).catch(() => [] as LibraryClip[]),
     workerLastSeen(client, owner).catch(() => null),
     client.from("tiktok_accounts").select("id,is_mock,authorization_status,granted_scopes").eq("owner_id", owner).is("hidden_at", null),
+    client.from("drama_episodes").select("flow_clip_id").eq("owner_id", owner).eq("review", "REJECTED"),
   ]);
+  // Rejected takes are compared on their series card, not posted.
+  const takes = new Set(((rejected.data ?? []) as Array<{ flow_clip_id: string | null }>).map(r => r.flow_clip_id).filter(Boolean));
+  const library = all.filter(clip => !takes.has(clip.id));
   // Private posting needs TikTok's publish scope on the episode's channel.
   const publishable = ((accounts.data ?? []) as Array<{ id: string; is_mock: boolean | null; authorization_status: string; granted_scopes: string[] | null }>)
     .filter(a => !a.is_mock && a.authorization_status === "authorized" && (a.granted_scopes ?? []).includes("video.publish")).map(a => a.id);
