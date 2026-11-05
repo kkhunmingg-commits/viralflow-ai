@@ -18,7 +18,8 @@ async function owner() {
 function done(formData: FormData, message: string): never {
   const back = z.uuid().safeParse(formData.get("back"));
   revalidatePath("/post");
-  if (formData.get("studio") === "drama") redirect(`/post?studio=drama&msg=${encodeURIComponent(message)}`);
+  revalidatePath("/drama");
+  if (formData.get("studio") === "drama") redirect(`/drama?msg=${encodeURIComponent(message)}`);
   redirect(`/post?${back.success ? `account=${back.data}&` : ""}msg=${encodeURIComponent(message)}`);
 }
 
@@ -113,6 +114,7 @@ export async function closeSharedClipAction(clipId: string) {
   if (!id.success) return false;
   await closeClip(createAdminClient(), await owner(), id.data, { posted: true, url: null });
   revalidatePath("/post");
+  revalidatePath("/drama");
   return true;
 }
 export async function discardClipAction(formData: FormData) {

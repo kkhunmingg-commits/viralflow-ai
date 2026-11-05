@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { bangkokDate } from "@/features/flow-farm/contracts";
 import { MAX_ASSEMBLE_ATTEMPTS, emptyStoryState, type DramaGenre, type EpisodeStatus, type SeriesBible, type SeriesStatus,
-  type StoryState } from "./contracts";
+  type ShotStatus, type StoryState } from "./contracts";
 import { ASSEMBLY_STALE_MS, clipVerdict, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, planRetry, promptFor, referencePath, shotAccount,
   type ShotRow } from "./engine";
 import { SHOWRUNNER_WRITER, createBible, pickStory, planEpisode } from "./showrunner";
@@ -174,10 +174,15 @@ export async function listSeries(client: SupabaseClient, owner: string) {
   const ids = series.map(s => s.id);
   const [episodes, shots] = await Promise.all([
     client.from("drama_episodes").select("id,series_id,number,title,status,error,ready_at,started_on,review,flow_clip_id").eq("owner_id", owner).in("series_id", ids).order("number", { ascending: false }).limit(400),
-    client.from("drama_shots").select("series_id,episode_id,position,status").eq("owner_id", owner).in("series_id", ids).in("status", ["PLANNED", "QUEUED", "DONE", "FAILED", "SKIPPED"]).limit(2000),
+    client.from("drama_shots").select("series_id,episode_id,position,status,route,flow_clip_id").eq("owner_id", owner).in("series_id", ids).in("status", ["PLANNED", "QUEUED", "DONE", "FAILED", "SKIPPED"]).limit(2000),
   ]);
   const episodeRows = (check(episodes, "drama_unavailable") ?? []) as Array<Pick<EpisodeRow, "id" | "series_id" | "number" | "title" | "status" | "error" | "ready_at" | "started_on" | "review" | "flow_clip_id">>;
-  const shotRows = (check(shots, "drama_unavailable") ?? []) as Array<{ series_id: string; episode_id: string; position: number; status: string }>;
+  const shotRows = (check(shots, "drama_unavailable") ?? []) as Array<{ series_id: string; episode_id: string; position: number; status: ShotStatus;
+    route: string | null; flow_clip_id: string | null }>;
+  // A queued shot is either waiting in Flow's queue or being generated right now: the clip says which.
+  const clipIds = shotRows.filter(r => r.status === "QUEUED" && r.flow_clip_id).map(r => r.flow_clip_id as string);
+  const generating = new Set(clipIds.length ? ((await client.from("flow_clips").select("id,status").eq("owner_id", owner).in("id", clipIds)).data ?? [])
+    .filter(c => c.status === "GENERATING").map(c => c.id as string) : []);
   return series.map(s => {
     const own = episodeRows.filter(e => e.series_id === s.id);
     const current = own.find(e => e.status !== "READY") ?? null;
@@ -185,7 +190,10 @@ export async function listSeries(client: SupabaseClient, owner: string) {
     return { series: s, readyEpisodes: own.filter(e => e.status === "READY" && e.review === "APPROVED").length, current,
       toReview: own.find(e => e.status === "READY" && e.review === "PENDING") ?? null, hasNextStory: series.some(n => n.previous_series_id === s.id),
       shotsDone: currentShots.filter(r => r.status === "DONE" || r.status === "SKIPPED").length, shotsTotal: currentShots.length,
-      queued: currentShots.some(r => r.status === "QUEUED"), latestReady: own.find(e => e.status === "READY" && e.review === "APPROVED") ?? null };
+      queued: currentShots.some(r => r.status === "QUEUED"),
+      shots: currentShots.toSorted((a, b) => a.position - b.position).map(r => ({ position: r.position, status: r.status, repair: r.route === "REPAIR",
+        generating: Boolean(r.flow_clip_id && generating.has(r.flow_clip_id)) })),
+      latestReady: own.find(e => e.status === "READY" && e.review === "APPROVED") ?? null };
   });
 }
 export type SeriesSummary = Awaited<ReturnType<typeof listSeries>>[number];

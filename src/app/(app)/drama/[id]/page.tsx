@@ -19,7 +19,7 @@ const shotError = (error: string | null) => !error ? null : error === "NO_CREDIT
 export default async function DramaSeriesPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ msg?: string }> }) {
   const client = await createClient();
   const { data, error } = await client.auth.getUser();
-  if (error || !data.user) redirect("/login?next=/post");
+  if (error || !data.user) redirect("/login?next=/drama");
   const { id } = await params, { msg } = await searchParams;
   if (!z.uuid().safeParse(id).success) notFound();
   const detail = await seriesDetail(client, data.user.id, id).catch(() => null);
@@ -41,7 +41,7 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
   return <div className="manual-page drama-page">
     <header className="manual-hero"><div><p className="manual-eyebrow">Drama Studio · {dramaGenreLabels[series.genre]} · {seriesStatusLabels[series.status]}</p><h1>{series.title}</h1>
       <p>{series.logline}</p></div>
-      <Link className="manual-back" href="/post?studio=drama">← ละครทั้งหมด</Link></header>
+      <Link className="manual-back" href="/drama">← ละครทั้งหมด</Link></header>
     {msg && <p className="library-message" role="status">{msg.slice(0, 300)}</p>}
 
     <div className="drama-controls">
@@ -120,7 +120,7 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
             <button className="manual-primary" name="verdict" value="APPROVE" type="submit">ผ่าน</button>
             <button className="manual-secondary" name="verdict" value="REJECT" type="submit">ไม่ผ่าน ทำใหม่พรุ่งนี้</button></form>}
           <p className="manual-muted">{e.summary}</p>
-          <p className="drama-meta">{e.flow_clip_id && posted.has(e.flow_clip_id) ? "โพสต์แล้ว" : e.flow_clip_id && inLibrary.has(e.flow_clip_id) ? <Link href={`/post?account=${series.tiktok_account_id}`}>อยู่ในคลัง รอโพสต์ →</Link> : "ไฟล์ถูกลบจากคลังแล้ว"}</p>
+          <p className="drama-meta">{e.flow_clip_id && posted.has(e.flow_clip_id) ? "โพสต์แล้ว" : e.flow_clip_id && inLibrary.has(e.flow_clip_id) ? <Link href="/drama#library">อยู่ในคลังละคร รอโพสต์ →</Link> : "ไฟล์ถูกลบจากคลังแล้ว"}</p>
         </article>)}</div>}
     </section>
   </div>;

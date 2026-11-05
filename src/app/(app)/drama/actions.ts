@@ -10,7 +10,7 @@ import { createSeries, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, s
 
 async function owner() {
   const client = await createClient(), { data, error } = await client.auth.getUser();
-  if (error || !data.user) redirect("/login?next=/post");
+  if (error || !data.user) redirect("/login?next=/drama");
   await enforceOwnerMutationRateLimit("drama-studio", data.user.id);
   return data.user.id;
 }
@@ -19,7 +19,7 @@ function done(path: string, message: string): never {
   revalidatePath("/drama", "layout");
   redirect(`${path}${path.includes("?") ? "&" : "?"}msg=${encodeURIComponent(message)}`);
 }
-const HOME = "/post?studio=drama";
+const HOME = "/drama";
 const KNOWN: Record<string, string> = {
   ACCOUNT_NOT_FOUND: "ไม่พบบัญชี TikTok นี้",
   FLOW_ACCOUNT_NOT_FOUND: "ไม่พบบัญชี Google นี้ หรือบัญชีถูกปิดอยู่",

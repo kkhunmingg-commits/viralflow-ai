@@ -6,7 +6,7 @@ import { navigation } from "@/lib/navigation";
 
 /** Phone navigation: a thumb-reach tab bar at the bottom instead of the sidebar. Profile stays on the avatar. */
 const tabs = navigation.filter(item => item.href !== "/profile");
-const shortLabels: Record<string, string> = { "/auto": "หน้าหลัก", "/post": "คลิป", "/ai-live": "LIVE", "/accounts": "บัญชี", "/analytics/finance": "รายได้" };
+const shortLabels: Record<string, string> = { "/auto": "หน้าหลัก", "/post": "โปรโมท", "/drama": "ละคร", "/ai-live": "LIVE", "/accounts": "บัญชี", "/analytics/finance": "รายได้" };
 
 export function MobileNav() {
   const pathname = usePathname();

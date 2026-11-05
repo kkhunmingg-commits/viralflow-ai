@@ -6,7 +6,8 @@ export const navigationGroups = [
     label: "งานประจำวัน",
     items: [
       { href: "/auto", label: "หน้าหลัก", short: "⌂" },
-      { href: "/post", label: "สร้างคลิป ละคร & คลัง", short: "▶" },
+      { href: "/post", label: "สร้างคลิปโปรโมท", short: "▶" },
+      { href: "/drama", label: "ละครซีรีส์", short: "🎬" },
       { href: "/ai-live", label: "AI LIVE", short: "●" },
     ],
   },

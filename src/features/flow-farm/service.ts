@@ -360,10 +360,13 @@ export interface LibraryClip {
   video_sha256: string | null;
 }
 
+/** Promo clips (the clip studio). Drama has its own menu: shots (DRAMA_SHOT) and cut episodes (DRAMA) never show here. */
+export const PROMO_KINDS = ["GROWTH", "AFFILIATE"] as const;
+export type LibraryKind = "GROWTH" | "AFFILIATE" | "DRAMA";
+
 export async function listTodayClips(client: SupabaseClient, owner: string, accountId?: string, now = new Date()) {
   const { start, end } = bangkokDayRange(bangkokDate(now));
-  // Drama Studio production shots are not clips to post; only their cut episodes (kind DRAMA) are.
-  let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).neq("kind", "DRAMA_SHOT").gte("created_at", start).lt("created_at", end)
+  let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).in("kind", PROMO_KINDS).gte("created_at", start).lt("created_at", end)
     .order("created_at", { ascending: true });
   if (accountId) query = query.eq("tiktok_account_id", accountId);
   return check(await query, "flow_clips_unavailable") as LibraryClip[];
@@ -375,16 +378,16 @@ export async function liveClipProgress(client: SupabaseClient, owner: string, ac
   const { start } = bangkokDayRange(bangkokDate(now));
   const columns = "id,title,status,error,created_at,updated_at,ready_at";
   const [today, open, worker] = await Promise.all([
-    client.from("flow_clips").select(columns).eq("owner_id", owner).eq("tiktok_account_id", accountId).gte("created_at", start).order("created_at", { ascending: true }).limit(60),
-    client.from("flow_clips").select(columns).eq("owner_id", owner).eq("tiktok_account_id", accountId).in("status", ["QUEUED", "GENERATING"]).lt("created_at", start)
+    client.from("flow_clips").select(columns).eq("owner_id", owner).eq("tiktok_account_id", accountId).in("kind", PROMO_KINDS).gte("created_at", start).order("created_at", { ascending: true }).limit(60),
+    client.from("flow_clips").select(columns).eq("owner_id", owner).eq("tiktok_account_id", accountId).in("kind", PROMO_KINDS).in("status", ["QUEUED", "GENERATING"]).lt("created_at", start)
       .order("created_at", { ascending: true }).limit(30),
     workerStatus(client, owner),
   ]);
   const clips = [...(check(open, "flow_clips_unavailable") ?? []), ...(check(today, "flow_clips_unavailable") ?? [])] as LiveClip[];
   return { clips, lastSeen: worker.lastSeen, progress: worker.progress, now: now.toISOString() };
 }
-export async function listLibrary(client: SupabaseClient, owner: string, accountId?: string) {
-  let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).in("status", LIBRARY_STATUSES).neq("kind", "DRAMA_SHOT")
+export async function listLibrary(client: SupabaseClient, owner: string, accountId?: string, kinds: readonly LibraryKind[] = PROMO_KINDS) {
+  let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).in("status", LIBRARY_STATUSES).in("kind", kinds)
     .order("scheduled_at", { ascending: true, nullsFirst: false }).order("ready_at", { ascending: true }).limit(200);
   if (accountId) query = query.eq("tiktok_account_id", accountId);
   return check(await query, "flow_clips_unavailable") as LibraryClip[];

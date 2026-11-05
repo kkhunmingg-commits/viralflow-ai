@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DRAMA_GENRES, dramaGenreLabels, episodeStatusLabels, seriesStatusLabels } from "@/features/drama/contracts";
 import { GENRE_STORIES } from "@/features/drama/genres";
@@ -28,8 +29,17 @@ function nextStep(item: SeriesSummary, today: string) {
   return `${done}· ตอนที่ ${series.next_episode_number} กำลังจะเริ่ม`;
 }
 
-/** Drama mode of the clip studio: every series, which Google accounts make it, and the form that starts a new one. */
-export async function DramaHome({ client, owner }: { client: SupabaseClient; owner: string }) {
+/** One chip per shot of the episode in production, so the owner sees exactly where it is. */
+function shotState(shot: SeriesSummary["shots"][number]) {
+  if (shot.status === "DONE") return { tone: "done", text: "✓ เสร็จ" };
+  if (shot.status === "SKIPPED") return { tone: "done", text: "ข้าม" };
+  if (shot.status === "FAILED") return { tone: "failed", text: "⚠ ต้องตรวจ" };
+  if (shot.status === "QUEUED") return shot.generating ? { tone: "live", text: "● กำลังสร้าง" } : { tone: "queued", text: "อยู่ในคิว" };
+  return { tone: "waiting", text: "รอคิว" };
+}
+
+/** The drama menu: every series, which Google accounts make it, and the form that starts a new one. */
+export async function DramaHome({ client, owner, library }: { client: SupabaseClient; owner: string; library?: ReactNode }) {
   const available = await dramaAvailable(client);
   const accountsResult = await client.from("tiktok_accounts").select("id,display_name,is_mock").eq("owner_id", owner).is("hidden_at", null).order("created_at", { ascending: true });
   const accounts = ((accountsResult.data ?? []) as Array<{ id: string; display_name: string; is_mock: boolean | null }>)
@@ -66,6 +76,9 @@ export async function DramaHome({ client, owner }: { client: SupabaseClient; own
             <p className="drama-meta">สำเร็จ {item.readyEpisodes}/{s.total_episodes} ตอน{item.current ? ` · ${episodeStatusLabels[item.current.status]}` : ""}</p>
             {main && <p className="drama-meta">บัญชีหลัก {main}{repair ? ` · บัญชีซ่อม ${repair}` : " · ไม่มีบัญชีซ่อม"}</p>}
             <p className="drama-next">{nextStep(item, today)}</p>
+            {item.current && item.shots.length > 0 && <ol className="drama-shot-strip" aria-label={`สถานะช็อตของตอนที่ ${item.current.number}`}>
+              {item.shots.map(shot => { const state = shotState(shot); return <li key={shot.position} className={`drama-shot-chip is-${state.tone}`}>
+                <strong>ช็อต {shot.position}</strong><small>{state.text}{shot.repair ? " · บัญชีซ่อม" : ""}</small></li>; })}</ol>}
             {item.toReview && <div className="drama-review">
               {item.toReview.flow_clip_id && <video controls playsInline preload="metadata" src={`/api/library/${item.toReview.flow_clip_id}/video#t=0.1`} aria-label={`ตอนที่ ${item.toReview.number}`} />}
               <form action={reviewEpisodeAction} className="drama-review-buttons"><input type="hidden" name="seriesId" value={s.id} /><input type="hidden" name="episodeId" value={item.toReview.id} />
@@ -79,11 +92,13 @@ export async function DramaHome({ client, owner }: { client: SupabaseClient; own
         })}
     </section>
 
+    {library}
+
     <section className="manual-panel" aria-labelledby="new-title">
       <h2 id="new-title">เริ่มละครเรื่องใหม่</h2>
-      <p className="manual-muted">บัญชีหลักคือบัญชี Google ที่ผูกไว้ในแท็บ “คลิป” 1 บัญชีล็อกกับละครได้ 1 เรื่อง (วันละ 1 ตอน 5 ช็อต ≈ 40 วินาที) และยังทำคลิปปกติได้เหมือนเดิม โดยระบบทำตอนละครของวันนั้นก่อนแล้วค่อยทำคลิป ช็อตไหนเสียหรือเครดิตหมดกลางตอน ระบบส่งไปบัญชีซ่อมจนได้ แล้วตัดต่อเป็นตอนพร้อมแคปชันและแฮชแท็กไปรอในคลัง ทุกตอนรอคุณกด “ผ่าน” ก่อนจะไปตอนถัดไป ถ้า “ไม่ผ่าน” ระบบถ่ายตอนเดิมใหม่พรุ่งนี้ เมื่อครบซีซัน กด “สร้างเรื่องใหม่” ในการ์ดของเรื่องนั้นได้เลย</p>
+      <p className="manual-muted">บัญชีหลักคือบัญชี Google ที่ผูกไว้ในเมนู “สร้างคลิปโปรโมท” 1 บัญชีล็อกกับละครได้ 1 เรื่อง (วันละ 1 ตอน 5 ช็อต ≈ 40 วินาที) และยังทำคลิปปกติได้เหมือนเดิม โดยระบบทำตอนละครของวันนั้นก่อนแล้วค่อยทำคลิป ช็อตไหนเสียหรือเครดิตหมดกลางตอน ระบบส่งไปบัญชีซ่อมจนได้ แล้วตัดต่อเป็นตอนพร้อมแคปชันและแฮชแท็กไปรอใน “คลังละคร” ด้านบน ทุกตอนรอคุณกด “ผ่าน” ก่อนจะไปตอนถัดไป ถ้า “ไม่ผ่าน” ระบบถ่ายตอนเดิมใหม่พรุ่งนี้ เมื่อครบซีซัน กด “สร้างเรื่องใหม่” ในการ์ดของเรื่องนั้นได้เลย</p>
       {accounts.length === 0 ? <p className="manual-muted">เชื่อมบัญชี TikTok ก่อน <Link href="/accounts">ไปหน้าบัญชี</Link></p>
-      : google.length === 0 ? <p className="manual-muted">ยังไม่มีบัญชี Google ผูกบัญชีในแท็บ “คลิป” ก่อน <Link href="/post">ไปผูกบัญชี</Link></p>
+      : google.length === 0 ? <p className="manual-muted">ยังไม่มีบัญชี Google ผูกบัญชีในเมนู “สร้างคลิปโปรโมท” ก่อน <Link href="/post">ไปผูกบัญชี</Link></p>
       : <form action={createSeriesAction} className="drama-form">
         <fieldset className="drama-genres"><legend>แนวละคร</legend>
           {DRAMA_GENRES.map((genre, i) => {
@@ -112,7 +127,7 @@ export async function DramaHome({ client, owner }: { client: SupabaseClient; own
           <label className="manual-filter">ตอนต่อวัน<select name="episodesPerDay" defaultValue="1">
             {[1, 2].map(n => <option key={n} value={n}>{n} ตอน/วัน</option>)}</select></label>
         </div>
-        <p className="manual-muted drama-note">ใช้เครดิตฟรีของบัญชี Google เท่านั้น ไม่มีค่าใช้จ่ายเพิ่ม และไม่โพสต์ TikTok เอง ตอนที่ตัดเสร็จไปรอในคลังให้คุณตรวจและโพสต์เอง{repairs.length === 0 ? " ยังไม่มีบัญชีซ่อม เพิ่มได้ด้านล่าง" : ""}</p>
+        <p className="manual-muted drama-note">ใช้เครดิตฟรีของบัญชี Google เท่านั้น ไม่มีค่าใช้จ่ายเพิ่ม และไม่โพสต์ TikTok เอง ตอนที่ตัดเสร็จไปรอในคลังละครให้คุณตรวจและโพสต์เอง{repairs.length === 0 ? " ยังไม่มีบัญชีซ่อม เพิ่มได้ด้านล่าง" : ""}</p>
         <button className="manual-primary" type="submit" disabled={free.length === 0}>{free.length === 0 ? "บัญชี Google ทุกบัญชีล็อกกับละครแล้ว" : "ให้ AI เขียนซีซันและเริ่มผลิต"}</button>
       </form>}
     </section>
@@ -132,7 +147,7 @@ export async function DramaHome({ client, owner }: { client: SupabaseClient; own
         <label className="manual-filter">อีเมล Google ของบัญชีซ่อม<input name="label" required maxLength={60} placeholder="name@gmail.com" /></label>
         <label className="manual-filter">คลิปฟรีต่อวันโดยประมาณ<input name="clipsPerDay" type="number" min={1} max={200} defaultValue={5} /></label>
         <button className="manual-secondary" type="submit">+ เพิ่มบัญชีซ่อม</button></form>
-      <p className="manual-muted">เพิ่มแล้ว คอมพิวเตอร์ที่ติดตั้งเครื่องสร้างคลิปจะเปิดหน้าล็อกอิน Google ของบัญชีนี้ให้ครั้งเดียว ใช้บัญชีที่ไม่ได้ผูกในแท็บคลิป</p>
+      <p className="manual-muted">เพิ่มแล้ว คอมพิวเตอร์ที่ติดตั้งเครื่องสร้างคลิปจะเปิดหน้าล็อกอิน Google ของบัญชีนี้ให้ครั้งเดียว ใช้บัญชีที่ไม่ได้ผูกในเมนูสร้างคลิปโปรโมท</p>
     </section>
   </div>;
 }

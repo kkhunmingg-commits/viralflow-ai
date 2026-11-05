@@ -8,9 +8,8 @@ import { ContentStudio } from "./content-studio";
 import { FlowStudio, type StudioAccount } from "./flow-studio";
 import { contentExportConfig } from "@/features/content-export/config";
 import { listContentRuns } from "@/features/content-export/service";
-import { DramaHome } from "../drama/drama-home";
 import "./post.css";
-export const metadata = { title: "สร้างคลิปฟรี & ละคร · Viral Flow AI" };
+export const metadata = { title: "สร้างคลิปโปรโมท · Viral Flow AI" };
 export const dynamic = "force-dynamic";
 
 /** Main path is free Google Flow clips (FlowStudio). The paid API path stays below, folded, as a backup only. */
@@ -19,7 +18,8 @@ export default async function ManualPostPage({ searchParams }: { searchParams: P
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) redirect("/login?next=/post");
   const { account, mode, msg, studio } = await searchParams;
-  const drama = studio === "drama";
+  // Drama has its own menu now; old links land there.
+  if (studio === "drama") redirect(`/drama${msg ? `?msg=${encodeURIComponent(msg.slice(0, 300))}` : ""}`);
   const accountsResult = await client.from("tiktok_accounts").select("id,display_name,username,daily_post_target,effective_mode,is_mock")
     .eq("owner_id", data.user.id).is("hidden_at", null).order("created_at", { ascending: true });
   // Mock/test accounts exist only for local development; never offer them in production.
@@ -32,23 +32,10 @@ export default async function ManualPostPage({ searchParams }: { searchParams: P
   const initialRuns = await listContentRuns(client, data.user.id).catch(() => []);
   let clips: ManualClip[] = [], unavailable = false;
   try { clips = await listManualClips(client, data.user.id, accountId); } catch { unavailable = true; }
-  const tabs = <nav className="studio-tabs" aria-label="เลือกสิ่งที่จะสร้าง">
-    <Link href="/post" className={drama ? "" : "is-active"} aria-current={drama ? undefined : "page"}>คลิป<small>คลิปเดี่ยว ปั้นช่อง / ขายของ</small></Link>
-    <Link href="/post?studio=drama" className={drama ? "is-active" : ""} aria-current={drama ? "page" : undefined}>ละคร<small>ละครสั้นต่อเนื่อง วันละ 1 ตอน</small></Link>
-  </nav>;
-  if (drama) return <div className="manual-page">
-    <header className="manual-hero"><div><p className="manual-eyebrow">Viral Flow AI · Drama Studio</p><h1>สร้างละครฟรี</h1>
-      <p>เลือกแนวละครกับบัญชี Google แล้ว AI จะคิดเรื่อง ตัวละคร และตอนจบให้ทั้งซีซัน ทุกวันสร้างตอนใหม่ 5 ช็อตต่อจากตอนที่แล้ว ตรวจทุกช็อต ตัดต่อพร้อมซับไทย แคปชัน และแฮชแท็ก แล้วเก็บไว้ในคลังรอโพสต์</p></div>
-      <Link className="manual-back" href="/auto">← กลับหน้าหลัก</Link></header>
-    {tabs}
-    {msg && <p className="library-message" role="status">{msg.slice(0, 300)}</p>}
-    <DramaHome client={client} owner={data.user.id} />
-  </div>;
   return <div className="manual-page">
-    <header className="manual-hero"><div><p className="manual-eyebrow">Viral Flow AI · Google Flow</p><h1>สร้างคลิปฟรี</h1>
-      <p>ไม่เสียเงินต่อคลิป ใช้เครดิตฟรีของบัญชี Google ที่ผูกไว้ หมุนเวียนทุกวัน ระบบสร้างอยู่เบื้องหลังในคอมพิวเตอร์ของคุณ แล้วเก็บคลิปไว้ในคลังรอโพสต์</p></div>
+    <header className="manual-hero"><div><p className="manual-eyebrow">Viral Flow AI · Google Flow · คลิปโปรโมท</p><h1>สร้างคลิปโปรโมท</h1>
+      <p>ไม่เสียเงินต่อคลิป ใช้เครดิตฟรีของบัญชี Google ที่ผูกไว้ หมุนเวียนทุกวัน ระบบสร้างอยู่เบื้องหลังในคอมพิวเตอร์ของคุณ แล้วเก็บคลิปไว้ในคลังรอโพสต์ (ละครซีรีส์อยู่ในเมนู “ละครซีรีส์” แยกต่างหาก)</p></div>
       <Link className="manual-back" href="/auto">← กลับหน้าหลัก</Link></header>
-    {tabs}
     <ol className="manual-steps" aria-label="ขั้นตอน"><li><span>1</span>ผูกบัญชี Google (สูงสุด 5)</li><li><span>2</span>กดสร้างคลิปฟรี</li><li><span>3</span>ดาวน์โหลด/ตั้งเวลา แล้วโพสต์ (ลบไฟล์ให้เอง)</li></ol>
     {msg && <p className="library-message" role="status">{msg.slice(0, 300)}</p>}
 
