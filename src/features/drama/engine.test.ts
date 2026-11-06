@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pickRepairAccount, repairAccounts, repairShotsLeft, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, promptFor, referencePath, clipVerdict, planRetry, shotAccount, type ShotRow } from "./engine";
+import { isCreditReason, pickRepairAccount, repairAccounts, repairShotsLeft, setAsideNow, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, promptFor, referencePath, clipVerdict, planRetry, shotAccount, type ShotRow } from "./engine";
 
 const shot = (position: number, patch: Partial<ShotRow> = {}): ShotRow => ({
   id: `s${position}`, episode_id: "e", position, status: "PLANNED", reference_mode: position === 1 ? "KEY_STILL" : "PREVIOUS_FRAME", attempts: 0,
@@ -109,6 +109,18 @@ describe("repair pool", () => {
     expect(pickRepairAccount(pool)?.id).toBe("dddd");
     expect(pickRepairAccount(pool, ["dddd"])?.id).toBe("ccc");
     expect(pickRepairAccount(pool, ["dddd", "ccc"])).toBeNull();
+  });
+  it("skips an account set aside after it could not start a shot", () => {
+    const pool = repairAccounts([row("a"), row("bb")], () => true, today, id => id === "a" ? "IMAGE_INPUT_NOT_FOUND" : null);
+    expect(pickRepairAccount(pool)?.id).toBe("bb");
+    expect(repairShotsLeft(pool[0])).toBe(0);
+  });
+  it("forgets a set-aside once its time is up", () => {
+    const saved = { a: { until: "2026-11-07T02:00:00Z", reason: "X" }, b: { until: "2026-11-07T00:00:00Z", reason: "Y" } };
+    expect(Object.keys(setAsideNow(saved, new Date("2026-11-07T01:00:00Z")))).toEqual(["a"]);
+    expect(isCreditReason("GENERATE_BUTTON_NOT_FOUND")).toBe(true);
+    expect(isCreditReason("NO_CREDIT")).toBe(true);
+    expect(isCreditReason("IMAGE_INPUT_NOT_FOUND")).toBe(false);
   });
   it("never picks an account that is not signed in on the worker", () => {
     expect(pickRepairAccount(repairAccounts([row("a")], () => false, today))).toBeNull();

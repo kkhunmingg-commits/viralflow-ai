@@ -90,19 +90,30 @@ export function mayStartEpisode(series: { next_episode_number: number; total_epi
 export const ASSEMBLY_STALE_MS = 10 * 60_000;
 
 /** One repair account as the shared pool sees it today. */
-export interface RepairAccount { id: string; label: string; active: boolean; loggedIn: boolean; exhaustedToday: boolean; usedToday: number; perDay: number }
+export interface RepairAccount { id: string; label: string; active: boolean; loggedIn: boolean; exhaustedToday: boolean; usedToday: number; perDay: number;
+  /** Why the account is set aside for a while (it could not start a shot), or null. */
+  asideReason: string | null }
 export interface RepairAccountRow { id: string; label: string; active: boolean; exhausted_on: string | null; clips_today: number; clips_today_on: string | null;
   clips_per_day_estimate: number; priority: number; created_at: string }
-export function repairAccounts(rows: RepairAccountRow[], loggedIn: (id: string) => boolean, today: string): RepairAccount[] {
+export function repairAccounts(rows: RepairAccountRow[], loggedIn: (id: string) => boolean, today: string, aside: (id: string) => string | null = () => null): RepairAccount[] {
   return rows.toSorted((a, b) => a.priority - b.priority || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)).map(row => ({
     id: row.id, label: row.label, active: row.active, loggedIn: loggedIn(row.id), exhaustedToday: row.exhausted_on === today,
-    usedToday: row.clips_today_on === today ? row.clips_today : 0, perDay: Math.max(1, row.clips_per_day_estimate) }));
+    usedToday: row.clips_today_on === today ? row.clips_today : 0, perDay: Math.max(1, row.clips_per_day_estimate), asideReason: aside(row.id) }));
 }
 /** Shots an account can still make today: none once Flow said it is out, or once its daily allowance is used up. */
 export function repairShotsLeft(account: RepairAccount) {
-  return !account.active || !account.loggedIn || account.exhaustedToday ? 0 : Math.max(0, account.perDay - account.usedToday);
+  return !account.active || !account.loggedIn || account.exhaustedToday || account.asideReason ? 0 : Math.max(0, account.perDay - account.usedToday);
 }
 /** The pool account to send the next repair shot to: the one with the most shots left (ties: the oldest). */
 export function pickRepairAccount(pool: RepairAccount[], exclude: string[] = []) {
   return pool.filter(a => !exclude.includes(a.id) && repairShotsLeft(a) > 0).toSorted((a, b) => repairShotsLeft(b) - repairShotsLeft(a))[0] ?? null;
+}
+
+/** A worker reason that means the account has no credits (Flow said so, or shows no usable Generate button). */
+export const isCreditReason = (reason: string) => reason === "NO_CREDIT" || /^GENERATE_BUTTON/.test(reason);
+/** How long an account that could not start a shot for another reason (page changed, picture box missing…) is skipped. */
+export const SET_ASIDE_MS = 2 * 60 * 60_000;
+/** Accounts still set aside at `now`, from the saved { id: { until, reason } } map. */
+export function setAsideNow(saved: Record<string, { until: string; reason: string }> | null, now: Date) {
+  return Object.fromEntries(Object.entries(saved ?? {}).filter(([, v]) => new Date(v.until).getTime() > now.getTime()));
 }

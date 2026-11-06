@@ -5,8 +5,8 @@ import { bangkokDate } from "@/features/flow-farm/contracts";
 import { MAX_ASSEMBLE_ATTEMPTS, emptyStoryState, type DramaGenre, type EpisodeStatus, type SeriesBible, type SeriesStatus,
   type ShotStatus, type StoryState } from "./contracts";
 import { ASSEMBLY_STALE_MS, clipVerdict, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, pickRepairAccount, planRetry, promptFor, referencePath,
-  repairAccounts, repairShotsLeft, type RepairAccountRow, type ShotRow } from "./engine";
-import { flowLogins } from "@/features/flow-farm/service";
+  repairAccounts, repairShotsLeft, isCreditReason, SET_ASIDE_MS, setAsideNow, type RepairAccountRow, type ShotRow } from "./engine";
+import { flowLogins, readStateFile, saveStateFile } from "@/features/flow-farm/service";
 import { SHOWRUNNER_WRITER, createBible, pickStory, planEpisode } from "./showrunner";
 
 const BUCKET = "video-assets";
@@ -294,6 +294,7 @@ export async function continueAfterCredits(admin: SupabaseClient, owner: string,
   const waiting = check(await admin.from("drama_shots").update({ retry_after: null, route: "PRIMARY", updated_at: now.toISOString() }).eq("owner_id", owner)
     .eq("episode_id", episode.id).eq("status", "PLANNED").not("retry_after", "is", null).select("id"), "shot_not_saved") as Array<{ id: string }>;
   if (!waiting.length) throw new Error("NOTHING_WAITING_FOR_CREDITS");
+  await clearSetAside(admin, owner);
   // Only the main account: if it is in fact still empty, the worker says so before Generate and the shot moves on to
   // the repair pool by itself. Pool accounts each have their own "เติมเครดิตแล้ว" button.
   const accounts = [series.flow_account_id].filter((id): id is string => Boolean(id));
@@ -466,13 +467,6 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
   if (next) await queueShot(admin, owner, series, episode, next, shots, now);
 }
 
-async function mainOutOfCreditsToday(admin: SupabaseClient, owner: string, series: SeriesRow, now: Date) {
-  if (!series.flow_account_id) return false;
-  const row = (await admin.from("flow_accounts").select("exhausted_on").eq("owner_id", owner).eq("id", series.flow_account_id).maybeSingle()).data as
-    { exhausted_on: string | null } | null;
-  return row?.exhausted_on === bangkokDate(now);
-}
-
 /**
  * The owner's repair accounts, as one shared pool for every series (Lucky, 7 Nov: five accounts = 25 repair shots).
  * Only accounts that are switched on, signed in on the worker, not reported empty by Flow today, and under their daily
@@ -483,7 +477,35 @@ export async function repairPool(admin: SupabaseClient, owner: string, now = new
     .eq("owner_id", owner).eq("purpose", "REPAIR"), "flow_accounts_unavailable") as RepairAccountRow[] | null;
   if (!rows?.length) return [];
   const logins = await flowLogins(admin, owner).catch(() => ({} as Awaited<ReturnType<typeof flowLogins>>));
-  return repairAccounts(rows, id => logins[id]?.state === "READY", bangkokDate(now));
+  const aside = await accountsSetAside(admin, owner, now);
+  return repairAccounts(rows, id => logins[id]?.state === "READY", bangkokDate(now), id => aside[id]?.reason ?? null);
+}
+
+type SetAside = Record<string, { until: string; reason: string }>;
+const setAsidePath = (owner: string) => {
+  if (!/^[0-9a-f-]{36}$/i.test(owner)) throw new Error("INVALID_OWNER");
+  return `owner/${owner}/drama-set-aside.json`;
+};
+/** Google accounts skipped for drama shots for a while because they could not start one (not a credit problem). */
+export async function accountsSetAside(admin: SupabaseClient, owner: string, now = new Date()): Promise<SetAside> {
+  return setAsideNow(await readStateFile<SetAside>(admin, setAsidePath(owner)).catch(() => null), now);
+}
+async function setAccountAside(admin: SupabaseClient, owner: string, id: string, reason: string, now: Date) {
+  const aside = await accountsSetAside(admin, owner, now);
+  aside[id] = { until: new Date(now.getTime() + SET_ASIDE_MS).toISOString(), reason: reason.slice(0, 120) };
+  await saveStateFile(admin, setAsidePath(owner), aside, "set_aside_not_saved").catch(() => {});
+}
+async function clearSetAside(admin: SupabaseClient, owner: string) {
+  await saveStateFile(admin, setAsidePath(owner), {}, "set_aside_not_saved").catch(() => {});
+}
+
+/** Whether the main account can take a shot now: switched on, not out of credits today, not set aside. */
+async function mainUsable(admin: SupabaseClient, owner: string, mainId: string | null, now: Date) {
+  if (!mainId) return false;
+  const row = (await admin.from("flow_accounts").select("active,exhausted_on").eq("owner_id", owner).eq("id", mainId).maybeSingle()).data as
+    { active: boolean; exhausted_on: string | null } | null;
+  if (!row?.active || row.exhausted_on === bangkokDate(now)) return false;
+  return !(await accountsSetAside(admin, owner, now))[mainId];
 }
 
 /** Whether the owner has any repair account in use, and whether every one of them is out of credits today. */
@@ -541,7 +563,7 @@ async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow
   // Claim the shot first; the unique index allows one queued shot per series, so a parallel step cannot queue twice.
   // Flow already said the main account is out of credits today: go straight to the repair account instead of
   // asking the main one again for every shot.
-  if ((shot.route ?? "PRIMARY") === "PRIMARY" && await mainOutOfCreditsToday(admin, owner, series, now)) {
+  if ((shot.route ?? "PRIMARY") === "PRIMARY" && !await mainUsable(admin, owner, series.flow_account_id, now)) {
     const repair = await repairState(admin, owner, series, now);
     if (repair.exists && !repair.outOfCreditsToday) shot = { ...shot, route: "REPAIR" };
   }
@@ -550,7 +572,7 @@ async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow
   if (shot.route === "REPAIR") {
     const picked = pickRepairAccount(await repairPool(admin, owner, now));
     if (picked) account = picked.id;
-    else if (await mainOutOfCreditsToday(admin, owner, series, now)) {
+    else if (!await mainUsable(admin, owner, series.flow_account_id, now)) {
       // Every account is out today: the shot waits for new credits instead of asking empty accounts again.
       await updateShot(admin, owner, shot.id, "PLANNED", { route: "PRIMARY", retry_after: nextBangkokMorning(now),
         error: "เครดิตหมดทั้งบัญชีหลักและบัญชีซ่อมทุกบัญชี รอเครดิตรอบใหม่" }, now, null);
@@ -667,75 +689,46 @@ export async function signedImage(admin: SupabaseClient, path: string | null) {
   return signed.error ? null : signed.data.signedUrl;
 }
 
-/** The worker's reasons for not even starting a clip on an account that is not set up for it (wrong Flow model, signed out, page changed). */
-const SETUP_FAILURE = /^(COST_|LOGIN|PROMPT_BOX|GENERATE_BUTTON|BROWSER_UNAVAILABLE)/;
 /**
- * A repair account that cannot make a shot at all hands it back to the series' main account, which makes it like a
- * normal clip. Nothing was spent: the worker gave the clip back before pressing Generate.
+ * The worker gave a drama shot back without pressing Generate (nothing was spent): no credits, no Generate button,
+ * the picture box or prompt box missing, signed out, browser trouble... Whatever the reason, the shot moves on to the
+ * next account by itself (Lucky, 7 Nov: "มันต้องย้ายเองออโต้"): the account that failed is marked out of credits for
+ * today (credit reasons) or set aside for two hours (anything else), and the shot goes to the repair-pool account with
+ * the most shots left, else back to the main account, else it waits; it never bounces between the same accounts.
  */
 export async function fallBackToMainAccount(admin: SupabaseClient, owner: string, clipId: string, reason: string, now = new Date()) {
-  if (!SETUP_FAILURE.test(reason)) return false;
+  if (reason === "DRY_RUN") return false;
   const shot = (await admin.from("drama_shots").select("id,episode_id,route,status").eq("owner_id", owner).eq("flow_clip_id", clipId).maybeSingle()).data as
     { id: string; episode_id: string; route: string; status: string } | null;
   if (!shot || shot.status !== "QUEUED") return false;
-  if (shot.route !== "REPAIR") return await mainCannotStart(admin, owner, shot, clipId, reason, now);
+  const clip = (await admin.from("flow_clips").select("required_flow_account_id").eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED").maybeSingle()).data as
+    { required_flow_account_id: string | null } | null;
+  const failed = clip?.required_flow_account_id ?? null;
+  if (!failed) return false;
   const episode = (await admin.from("drama_episodes").select("series_id").eq("owner_id", owner).eq("id", shot.episode_id).maybeSingle()).data as { series_id: string } | null;
   const series = episode ? (await admin.from("drama_series").select("flow_account_id").eq("owner_id", owner).eq("id", episode.series_id).maybeSingle()).data as
     { flow_account_id: string | null } | null : null;
-  if (!series?.flow_account_id) return false;
-  const clip = (await admin.from("flow_clips").select("required_flow_account_id").eq("owner_id", owner).eq("id", clipId).maybeSingle()).data as
-    { required_flow_account_id: string | null } | null;
-  const failed = clip?.required_flow_account_id ?? null;
-  // The pool account that could not even start (most often: no Generate button because its credits are gone) is
-  // set aside for today, so the shot cannot bounce back to it; "เติมเครดิตแล้ว" on the account brings it back.
-  if (failed && failed !== series.flow_account_id) await admin.from("flow_accounts").update({ exhausted_on: bangkokDate(now), updated_at: now.toISOString() })
-    .eq("owner_id", owner).eq("id", failed).eq("purpose", "REPAIR");
-  const next = pickRepairAccount(await repairPool(admin, owner, now), failed ? [failed] : []);
-  if (next) {
-    check(await admin.from("flow_clips").update({ required_flow_account_id: next.id, updated_at: now.toISOString() })
-      .eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED"), "flow_clip_not_saved");
-    await updateShot(admin, owner, shot.id, "QUEUED", { error: `บัญชีซ่อมทำไม่ได้ (${reason}) ส่งให้ ${next.label} ทำแทน`.slice(0, 400) }, now, clipId);
-    return true;
-  }
-  // No pool account left and the main account is already out of credits today (that is why the shot is on the repair
-  // pool): handing it back would only bounce the shot between empty accounts every two minutes (7 Nov). It waits for
-  // new credits instead; "เครดิตมาแล้ว ทำต่อเลย" sends it sooner.
-  const main = (await admin.from("flow_accounts").select("exhausted_on").eq("owner_id", owner).eq("id", series.flow_account_id).maybeSingle()).data as { exhausted_on: string | null } | null;
-  if (main?.exhausted_on === bangkokDate(now)) {
-    await admin.from("flow_clips").update({ status: "SKIPPED_NO_CREDIT", updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED");
-    await updateShot(admin, owner, shot.id, "QUEUED", { status: "PLANNED", route: "PRIMARY", flow_clip_id: null, retry_after: nextBangkokMorning(now),
-      error: `เครดิตหมดทั้งบัญชีหลักและบัญชีซ่อมทุกบัญชี (${reason}) รอเครดิตรอบใหม่`.slice(0, 400) }, now, clipId);
-    return true;
-  }
-  check(await admin.from("flow_clips").update({ required_flow_account_id: series.flow_account_id, updated_at: now.toISOString() })
-    .eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED"), "flow_clip_not_saved");
-  await updateShot(admin, owner, shot.id, "QUEUED", { route: "PRIMARY", error: `บัญชีซ่อมทำไม่ได้ (${reason}) ส่งกลับให้บัญชีหลักทำแทน`.slice(0, 400) }, now);
-  return true;
-}
+  const main = series?.flow_account_id ?? null;
+  const credit = isCreditReason(reason);
+  if (credit) await admin.from("flow_accounts").update({ exhausted_on: bangkokDate(now), updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", failed);
+  else await setAccountAside(admin, owner, failed, reason, now);
 
-/**
- * The main account could not even start a shot. With no credits left Flow shows no Generate button at all, and the
- * worker then keeps handing the shot back every two minutes without ever reaching the repair pool (7 Nov, EP2 shot 5).
- * So a missing or disabled Generate button counts as "out of credits today" for the main account, and the shot moves
- * to the pool account with the most shots left, or waits for new credits when the pool is empty too. Nothing was spent.
- */
-async function mainCannotStart(admin: SupabaseClient, owner: string, shot: { id: string }, clipId: string, reason: string, now: Date) {
-  const clip = (await admin.from("flow_clips").select("required_flow_account_id").eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED").maybeSingle()).data as
-    { required_flow_account_id: string | null } | null;
-  if (!clip?.required_flow_account_id) return false;
-  if (/^GENERATE_BUTTON/.test(reason)) await admin.from("flow_accounts").update({ exhausted_on: bangkokDate(now), updated_at: now.toISOString() })
-    .eq("owner_id", owner).eq("id", clip.required_flow_account_id);
-  const next = pickRepairAccount(await repairPool(admin, owner, now), [clip.required_flow_account_id]);
-  if (next) {
-    check(await admin.from("flow_clips").update({ required_flow_account_id: next.id, updated_at: now.toISOString() })
+  const next = pickRepairAccount(await repairPool(admin, owner, now), [failed]);
+  const target = next?.id ?? (main && main !== failed && await mainUsable(admin, owner, main, now) ? main : null);
+  if (target) {
+    check(await admin.from("flow_clips").update({ required_flow_account_id: target, error: null, updated_at: now.toISOString() })
       .eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED"), "flow_clip_not_saved");
-    await updateShot(admin, owner, shot.id, "QUEUED", { route: "REPAIR", error: `บัญชีหลักทำไม่ได้ (${reason}) ส่งให้บัญชีซ่อม ${next.label} ทำแทน`.slice(0, 400) }, now, clipId);
+    const who = next ? `บัญชีซ่อม ${next.label}` : "บัญชีหลัก";
+    await updateShot(admin, owner, shot.id, "QUEUED", { route: next ? "REPAIR" : "PRIMARY",
+      error: `บัญชีก่อนหน้าทำไม่ได้ (${credit ? "เครดิตหมด" : reason}) ย้ายให้${who}ทำแทนอัตโนมัติ ไม่เสียเครดิต`.slice(0, 400) }, now, clipId);
     return true;
   }
-  if (!/^GENERATE_BUTTON/.test(reason)) return false;
+  // No account can take it now: it waits (for new credits, or for the set-aside accounts to come back) instead of
+  // asking the same accounts again every two minutes.
+  const retryAt = credit ? nextBangkokMorning(now) : new Date(now.getTime() + SET_ASIDE_MS).toISOString();
   await admin.from("flow_clips").update({ status: "SKIPPED_NO_CREDIT", updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED");
-  await updateShot(admin, owner, shot.id, "QUEUED", { status: "PLANNED", route: "PRIMARY", flow_clip_id: null, retry_after: nextBangkokMorning(now),
-    error: `เครดิตหมดทั้งบัญชีหลักและบัญชีซ่อมทุกบัญชี (${reason}) รอเครดิตรอบใหม่`.slice(0, 400) }, now, clipId);
+  await updateShot(admin, owner, shot.id, "QUEUED", { status: "PLANNED", route: "PRIMARY", flow_clip_id: null, retry_after: retryAt,
+    error: (credit ? "เครดิตหมดทั้งบัญชีหลักและบัญชีซ่อมทุกบัญชี รอเครดิตรอบใหม่" : `ทุกบัญชีทำช็อตนี้ไม่ได้ตอนนี้ (${reason}) จะลองใหม่เองใน 2 ชั่วโมง`).slice(0, 400) }, now, clipId);
   return true;
 }
 
