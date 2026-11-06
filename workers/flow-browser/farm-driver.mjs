@@ -142,6 +142,8 @@ export async function chooseVideoSettings(page, selectors, { frames = false } = 
   await page.waitForTimeout(800);
   try {
     await pickRadio(page, /วิดีโอ|video/i);
+    // Switching from the image model redraws the panel; the frames choice only appears after it.
+    await page.waitForTimeout(600);
     if (frames) await pickRadio(page, /เฟรม|frames?/i);
     await pickRadio(page, /9:16/);
     const model = page.locator('button:has-text("arrow_drop_down")').filter({ hasText: /Veo|Omni|Flash|Lite|Fast|Quality/i }).last();
@@ -324,7 +326,20 @@ export async function openFlowAccount(account, config) {
       const frames = clip.kind === "DRAMA_SHOT" && Boolean(clip.imageUrl);
       await chooseVideoSettings(page, selectors, { frames });
       try { await attachReference(page, selectors, clip.imageUrl, config.scratchDir, clip.id, { frames }); }
-      catch (error) { await saveDebug(page, config.debugDir, clip.id, "image"); return fail(error.message); }
+      catch (error) {
+        // A newly added account opens on Flow's image model, and the switch to video + frames does not always take on
+        // the first try (7 Nov, ninokuniman2: no start slot). Open the composer again, set it once more, then retry.
+        if (error.message !== "IMAGE_INPUT_NOT_FOUND") { await saveDebug(page, config.debugDir, clip.id, "image"); return fail(error.message); }
+        try {
+          await page.keyboard.press("Escape").catch(() => {});
+          prompt = await openComposer(page, { flowUrl: config.flowUrl, selectors });
+          await page.waitForTimeout(1500);
+          await chooseVideoSettings(page, selectors, { frames });
+          await page.waitForTimeout(1500);
+          await chooseVideoSettings(page, selectors, { frames });
+          await attachReference(page, selectors, clip.imageUrl, config.scratchDir, clip.id, { frames });
+        } catch (again) { await saveDebug(page, config.debugDir, clip.id, "image"); return fail(again.message); }
+      }
       // Cost depends on the saved model/outputs, not the prompt: check it before typing anything.
       await step("CHECKING_COST");
       await chooseSingleOutput(page, selectors);
