@@ -117,14 +117,27 @@ export function dialogueLine(speaker: CastMember, line: string, visible: boolean
 /** Correct bodies: Veo sometimes grows a third arm or merges hands, most often in close two-shots. */
 const ANATOMY = "Correct human anatomy: every person has exactly two arms, two hands and five fingers on each hand; no extra, missing or merged limbs; hands never fuse with objects or with another person.";
 /** A move that jumps in time (night to morning) cannot continue from the last frame of the previous moment. */
-const TIME_JUMP = /\b(late at night|that night|at night|next morning|morning light|the next day|hours later|at dawn|midnight)\b/i;
+const TIME_JUMP = /\b(late at night|that night|at night|in the morning|next morning|morning light|the next day|hours later|at dawn|midnight)\b/i;
+/** A voice on a phone or radio is the one line that rightly comes from someone who is not in the shot. */
+const REMOTE_VOICE = /\b(phone|on the other end|radio|walkie-talkie|intercom|loudspeaker)\b/i;
+
+/**
+ * Who the shot shows: everyone its action names, plus the speaker when the action leaves them out (a scream at a
+ * falling mirror, a hook line from the friend). An off-screen voice is only for phone calls; otherwise Veo hands the
+ * line to whoever is on screen.
+ */
+export function shotRoles(move: Move, kit: GenreKit) {
+  const named = rolesIn(move.en), line = lineOf(move.say, kit);
+  const joins = line && !named.includes(line.who) && !REMOTE_VOICE.test(move.en) ? line.who : null;
+  return { named, joins, all: joins ? [...named, joins] : named };
+}
 
 export interface ShotDraft { move: Move; place: PlaceKey; camera: string; hook?: boolean }
 
 /** The English prompt the Flow worker types. Character and place descriptions are repeated word for word every time. */
 export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<StoryState, "conditions">, mode: ReferenceMode, kit = kitFor(bible), carried: Role[] = []) {
   const place = placeOf(bible, draft.place), line = lineOf(draft.move.say, kit);
-  const named = rolesIn(draft.move.en);
+  const { all: named, joins } = shotRoles(draft.move, kit);
   // Starting from the previous frame keeps whoever was in it; name them, or Veo gives one of them the line.
   const stay = mode === "PREVIOUS_FRAME" ? carried.filter(role => !named.includes(role)) : [];
   const present = [...named, ...stay];
@@ -150,7 +163,7 @@ export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<Sto
     ...(cast.length ? ["Characters (keep faces, hair, clothes and voices identical in every shot):", ...cast] : []),
     ...(people ? [people] : []),
     ...(draft.move.en.includes("{OBJ}") ? [`Key object, always identical: ${bible.object.look}.`] : []),
-    `Action: ${fill(draft.move.en, bible, "en")}.`,
+    `Action: ${fill(draft.move.en, bible, "en")}${joins ? `; ${castOf(bible, joins).nameEn} is right there in the shot, reacting, and says the line` : ""}.`,
     dialogue,
     `Camera: ${draft.camera}.`,
     CONTINUITY,
@@ -245,7 +258,8 @@ export function planEpisode(input: { bible: SeriesBible; state: StoryState; numb
       : TIME_JUMP.test(draft.move.en) ? "NONE"
       : i > 0 && draft.place === drafts[i - 1].place ? "PREVIOUS_FRAME" : draft.place === stillPlace ? "KEY_STILL" : "NONE";
     const carried = mode === "PREVIOUS_FRAME" ? seen[i - 1] : [];
-    seen[i] = [...rolesIn(draft.move.en), ...carried.filter(role => !rolesIn(draft.move.en).includes(role))];
+    const own = shotRoles(draft.move, kit).all;
+    seen[i] = [...own, ...carried.filter(role => !own.includes(role))];
     const prompt = shotPrompt(bible, draft, next, mode, kit, carried);
     if (draft.move.condition) next.conditions[draft.move.condition.who] = { en: draft.move.condition.en, th: draft.move.condition.th };
     if (draft.move.clue && !next.clues.includes(draft.move.clue)) next.clues.push(draft.move.clue);

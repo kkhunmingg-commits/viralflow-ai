@@ -91,6 +91,25 @@ describe("planEpisode", () => {
     expect(prompts.every(p => p.includes("exactly two arms"))).toBe(true);
   });
 
+  it("puts every speaker on screen in every story, except a voice on the phone", () => {
+    for (const genre of DRAMA_GENRES) for (const story of GENRE_STORIES[genre]) {
+      const { episodes } = season(genre, 12, 5, story.premise.key);
+      for (const ep of episodes) for (const shot of ep.shots) {
+        if (!shot.subtitle) continue;
+        const where = `${story.premise.key} EP${ep.number} shot ${shot.position}`;
+        if (shot.prompt.includes("off-screen voice")) {
+          expect(shot.prompt, where).toMatch(/phone|radio|intercom|walkie-talkie|loudspeaker|on the other end/i);
+          continue;
+        }
+        const speaker = shot.prompt.match(/only (.+?) speaks:/)?.[1];
+        expect(speaker, where).toBeTruthy();
+        expect(shot.prompt.match(/People on screen: (.+?)\. Each of them/)?.[1], where).toContain(speaker);
+        // An action that keeps the speaker silent fights the line (a hook only recalls how the last episode ended).
+        if (!shot.prompt.includes("picks up the exact moment")) expect(shot.prompt.match(/Action: ([^\n]+)/)?.[1], where).not.toMatch(/\bsilently\b|in silence|without a word/i);
+      }
+    }
+  });
+
   it("picks up the previous cliffhanger and carries memory forward", () => {
     const { episodes } = season("MYSTERY", 8, 4);
     for (let i = 1; i < episodes.length; i++) {

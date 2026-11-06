@@ -53,10 +53,10 @@ const HORROR_BELL: StoryPart = {
     m("giggle", "เสียงหัวเราะใต้ถุน", "มีเสียงเด็กหัวเราะคิกคักมาจากใต้ถุนอาคาร", "{LEAD} and {ALLY} freeze as a small girl's giggle echoes up from beneath the floor of the building", 2, { say: say("ALLY", "ใต้ถุน... มีเด็กอยู่ข้างล่าง") }),
   ],
   cliffs: [
-    m("c-bell", "กระดิ่งดังเอง", "{OBJ}บนโต๊ะดังขึ้นเองสามครั้งในความเงียบ", "on the empty desk {OBJ} rings three times by itself in the silent classroom; slow push-in on the trembling bell", 2, { say: say("LEAD", "มันดังเอง...") }),
+    m("c-bell", "กระดิ่งดังเอง", "{OBJ}บนโต๊ะดังขึ้นเองสามครั้งในความเงียบ", "on the empty desk {OBJ} rings three times by itself in the dark classroom while {LEAD} backs away from it; slow push-in on the trembling bell", 2, { say: say("LEAD", "มันดังเอง...") }),
     m("c-girl", "เด็กหญิงที่หน้าต่าง", "เด็กหญิงตัวเปียกยืนมองอยู่นอกหน้าต่าง แล้วหายไป", "outside the window a small soaking-wet girl in an old school uniform stands looking in, then she is gone", 3),
     m("c-door", "ประตูล็อก", "ประตูห้องเรียนปิดเองดังปังและล็อก", "the classroom door slams shut by itself and the bolt slides across; {ALLY} pulls the handle with both hands", 2, { say: say("ALLY", "เปิดไม่ออก!") }),
-    m("c-behind", "ผอ.ข้างหลัง", "{RIVAL}ยืนอยู่ข้างหลัง{LEAD}ในความมืดโดยไม่มีเสียง", "{LEAD} turns and {RIVAL} is standing silently right behind her in the dark, his glasses reflecting the flashlight", 1, { say: say("RIVAL", "ครูไม่ควรได้ยินเสียงนั้น") }),
+    m("c-behind", "ผอ.ข้างหลัง", "{RIVAL}ยืนอยู่ข้างหลัง{LEAD}ในความมืดโดยไม่มีเสียง", "{LEAD} turns and {RIVAL} is standing right behind her in the dark, his glasses reflecting the flashlight, and speaks in a low voice", 1, { say: say("RIVAL", "ครูไม่ควรได้ยินเสียงนั้น") }),
     m("c-water", "น้ำขึ้น", "น้ำเริ่มเอ่อขึ้นท่วมพื้นห้องอย่างรวดเร็ว", "dark water rises fast across the classroom floor, lifting chalk and paper; {LEAD} and {ALLY} back toward the wall", 3),
     m("c-name", "ชื่อบนกระดาน", "บนกระดานมีคำว่า กลับบ้าน เขียนซ้ำเต็มกระดาน", "the flashlight sweeps the blackboard: the Thai word for 'home' is written over and over across the whole board in a child's hand", 2, { at: "A" }),
   ],
