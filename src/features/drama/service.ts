@@ -677,7 +677,8 @@ export async function fallBackToMainAccount(admin: SupabaseClient, owner: string
   if (!SETUP_FAILURE.test(reason)) return false;
   const shot = (await admin.from("drama_shots").select("id,episode_id,route,status").eq("owner_id", owner).eq("flow_clip_id", clipId).maybeSingle()).data as
     { id: string; episode_id: string; route: string; status: string } | null;
-  if (!shot || shot.route !== "REPAIR" || shot.status !== "QUEUED") return false;
+  if (!shot || shot.status !== "QUEUED") return false;
+  if (shot.route !== "REPAIR") return await mainCannotStart(admin, owner, shot, clipId, reason, now);
   const episode = (await admin.from("drama_episodes").select("series_id").eq("owner_id", owner).eq("id", shot.episode_id).maybeSingle()).data as { series_id: string } | null;
   const series = episode ? (await admin.from("drama_series").select("flow_account_id").eq("owner_id", owner).eq("id", episode.series_id).maybeSingle()).data as
     { flow_account_id: string | null } | null : null;
@@ -709,6 +710,32 @@ export async function fallBackToMainAccount(admin: SupabaseClient, owner: string
   check(await admin.from("flow_clips").update({ required_flow_account_id: series.flow_account_id, updated_at: now.toISOString() })
     .eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED"), "flow_clip_not_saved");
   await updateShot(admin, owner, shot.id, "QUEUED", { route: "PRIMARY", error: `บัญชีซ่อมทำไม่ได้ (${reason}) ส่งกลับให้บัญชีหลักทำแทน`.slice(0, 400) }, now);
+  return true;
+}
+
+/**
+ * The main account could not even start a shot. With no credits left Flow shows no Generate button at all, and the
+ * worker then keeps handing the shot back every two minutes without ever reaching the repair pool (7 Nov, EP2 shot 5).
+ * So a missing or disabled Generate button counts as "out of credits today" for the main account, and the shot moves
+ * to the pool account with the most shots left, or waits for new credits when the pool is empty too. Nothing was spent.
+ */
+async function mainCannotStart(admin: SupabaseClient, owner: string, shot: { id: string }, clipId: string, reason: string, now: Date) {
+  const clip = (await admin.from("flow_clips").select("required_flow_account_id").eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED").maybeSingle()).data as
+    { required_flow_account_id: string | null } | null;
+  if (!clip?.required_flow_account_id) return false;
+  if (/^GENERATE_BUTTON/.test(reason)) await admin.from("flow_accounts").update({ exhausted_on: bangkokDate(now), updated_at: now.toISOString() })
+    .eq("owner_id", owner).eq("id", clip.required_flow_account_id);
+  const next = pickRepairAccount(await repairPool(admin, owner, now), [clip.required_flow_account_id]);
+  if (next) {
+    check(await admin.from("flow_clips").update({ required_flow_account_id: next.id, updated_at: now.toISOString() })
+      .eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED"), "flow_clip_not_saved");
+    await updateShot(admin, owner, shot.id, "QUEUED", { route: "REPAIR", error: `บัญชีหลักทำไม่ได้ (${reason}) ส่งให้บัญชีซ่อม ${next.label} ทำแทน`.slice(0, 400) }, now, clipId);
+    return true;
+  }
+  if (!/^GENERATE_BUTTON/.test(reason)) return false;
+  await admin.from("flow_clips").update({ status: "SKIPPED_NO_CREDIT", updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED");
+  await updateShot(admin, owner, shot.id, "QUEUED", { status: "PLANNED", route: "PRIMARY", flow_clip_id: null, retry_after: nextBangkokMorning(now),
+    error: `เครดิตหมดทั้งบัญชีหลักและบัญชีซ่อมทุกบัญชี (${reason}) รอเครดิตรอบใหม่`.slice(0, 400) }, now, clipId);
   return true;
 }
 
