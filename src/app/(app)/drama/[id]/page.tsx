@@ -8,6 +8,7 @@ import { dramaGenreLabels, episodePhaseLabels, episodeStatusLabels, seriesStatus
 import { seriesDetail, signedImage } from "@/features/drama/service";
 import { continueAfterCreditsAction, newStoryAction, redoShotAction, remakeTakeAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction, takeAction } from "../actions";
 import { OneVideoAtATime } from "../one-video";
+import { RestoreCut } from "../restore-cut";
 import "../../post/post.css";
 import "../drama.css";
 export const metadata = { title: "ละครซีรีส์ · Viral Flow AI" };
@@ -165,7 +166,7 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
             <button className="manual-primary" name="verdict" value="APPROVE" type="submit">ผ่าน</button>
             <button className="manual-secondary" name="verdict" value="REJECT" type="submit">ไม่ผ่าน ทำเวอร์ชันใหม่</button></form>}
           <p className="manual-muted">{e.summary}</p>
-          <p className="drama-meta">{e.flow_clip_id && posted.has(e.flow_clip_id) ? (watchable.has(e.flow_clip_id) ? "โพสต์แล้ว · เก็บไฟล์ไว้ดูย้อนหลัง" : "โพสต์แล้ว · ไฟล์ถูกลบไปก่อนเปิดการเก็บย้อนหลัง") : e.review === "REJECTED" ? "เทียบกับเวอร์ชันอื่นได้ที่การ์ดละคร" : e.flow_clip_id && inLibrary.has(e.flow_clip_id) ? <Link href="/drama#library">อยู่ในคลังละคร รอโพสต์ →</Link> : "ไฟล์ถูกลบจากคลังแล้ว"}</p>
+          <p className="drama-meta">{e.flow_clip_id && posted.has(e.flow_clip_id) ? (watchable.has(e.flow_clip_id) ? "โพสต์แล้ว · เก็บไฟล์ไว้ดูย้อนหลัง" : <>โพสต์แล้ว · ไฟล์ถูกลบจากระบบแล้ว <RestoreCut clipId={e.flow_clip_id} /></>) : e.review === "REJECTED" ? "เทียบกับเวอร์ชันอื่นได้ที่การ์ดละคร" : e.flow_clip_id && inLibrary.has(e.flow_clip_id) ? <Link href="/drama#library">อยู่ในคลังละคร รอโพสต์ →</Link> : "ไฟล์ถูกลบจากคลังแล้ว"}</p>
         </article>)}</div>}
     </section>
   </div>;

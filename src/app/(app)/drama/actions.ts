@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { createSeriesSchema, seriesRefSchema, shotRefSchema } from "@/features/drama/contracts";
-import { MAX_TAKES, TAKE_CREDIT_BUDGET, chooseTake, continueAfterCredits, createSeries, deleteRejectedTake, redoShot, remakeOpenTake, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextStory } from "@/features/drama/service";
+import { MAX_TAKES, TAKE_CREDIT_BUDGET, beginCutRestore, chooseTake, finishCutRestore, continueAfterCredits, createSeries, deleteRejectedTake, redoShot, remakeOpenTake, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextStory } from "@/features/drama/service";
 
 async function owner() {
   const client = await createClient(), { data, error } = await client.auth.getUser();
@@ -150,4 +150,21 @@ export async function newStoryAction(formData: FormData) {
   try { id = await startNextStory(createAdminClient(), ownerId, parsed.data.id); }
   catch (error) { const message = known(error); if (message) done(HOME, message); throw error; }
   done(`/drama/${id}`, "สร้างเรื่องใหม่แนวเดิมแล้ว ตอนที่ 1 เข้าคิว Flow ของบัญชีหลักแล้ว");
+}
+
+const RESTORE_ERRORS: Record<string, string> = {
+  CUT_NOT_RESTORABLE: "ตอนนี้มีไฟล์อยู่แล้ว หรือไม่ใช่ตอนที่โพสต์แล้ว",
+  CUT_NOT_THE_SAME: "ไฟล์นี้ไม่ใช่คลิปเดียวกับที่ระบบตัดต่อไว้ ใช้ไฟล์ต้นฉบับที่ดาวน์โหลดไปตอนนั้น",
+  CUT_NOT_UPLOADED: "อัปโหลดไม่สำเร็จ ลองใหม่อีกครั้ง", UPLOAD_UNAVAILABLE: "อัปโหลดไม่สำเร็จ ลองใหม่อีกครั้ง",
+};
+/** Puts a posted episode's file back from the owner's own copy; returns an error message, or null when it worked. */
+export async function cutRestoreTicketAction(clipId: string, bytes: number) {
+  const id = await owner();
+  try { return { ok: true as const, ...(await beginCutRestore(createAdminClient(), id, z.uuid().parse(clipId), z.number().int().positive().parse(bytes))) }; }
+  catch (error) { return { ok: false as const, message: RESTORE_ERRORS[(error as Error).message] ?? "เริ่มอัปโหลดไม่สำเร็จ" }; }
+}
+export async function finishCutRestoreAction(clipId: string) {
+  const id = await owner();
+  try { await finishCutRestore(createAdminClient(), id, z.uuid().parse(clipId)); revalidatePath("/drama", "layout"); return null; }
+  catch (error) { return RESTORE_ERRORS[(error as Error).message] ?? "เก็บไฟล์ไม่สำเร็จ"; }
 }

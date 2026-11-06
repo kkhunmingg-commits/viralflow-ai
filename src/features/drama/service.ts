@@ -674,3 +674,35 @@ export async function fallBackToMainAccount(admin: SupabaseClient, owner: string
   await updateShot(admin, owner, shot.id, "QUEUED", { route: "PRIMARY", error: `บัญชีซ่อมทำไม่ได้ (${reason}) ส่งกลับให้บัญชีหลักทำแทน`.slice(0, 400) }, now);
   return true;
 }
+
+type ClipForRestore = { id: string; kind: string; status: string; storage_path: string | null; video_sha256: string | null; video_bytes: number | null };
+async function postedCutWithoutFile(admin: SupabaseClient, owner: string, clipId: string) {
+  const clip = (await admin.from("flow_clips").select("id,kind,status,storage_path,video_sha256,video_bytes").eq("owner_id", owner).eq("id", clipId).maybeSingle()).data as ClipForRestore | null;
+  if (!clip || clip.kind !== "DRAMA" || clip.status !== "POSTED" || clip.storage_path || !clip.video_sha256) throw new Error("CUT_NOT_RESTORABLE");
+  return clip;
+}
+
+/** A one-time upload slot for putting back a posted episode's own MP4 (the owner's saved copy). */
+export async function beginCutRestore(admin: SupabaseClient, owner: string, clipId: string, bytes: number) {
+  const clip = await postedCutWithoutFile(admin, owner, clipId);
+  if (clip.video_bytes && bytes !== clip.video_bytes) throw new Error("CUT_NOT_THE_SAME");
+  const path = episodeVideoPath(owner, clip.id);
+  const signed = await admin.storage.from(BUCKET).createSignedUploadUrl(path, { upsert: true });
+  if (signed.error || !signed.data) throw new Error("UPLOAD_UNAVAILABLE");
+  return { path, token: signed.data.token };
+}
+
+/** Keeps the uploaded file only when it is byte-for-byte the cut that was posted (same SHA-256); anything else is removed. */
+export async function finishCutRestore(admin: SupabaseClient, owner: string, clipId: string, now = new Date()) {
+  const clip = await postedCutWithoutFile(admin, owner, clipId);
+  const path = episodeVideoPath(owner, clip.id);
+  const file = await admin.storage.from(BUCKET).download(path);
+  if (file.error || !file.data) throw new Error("CUT_NOT_UPLOADED");
+  const sha256 = createHash("sha256").update(new Uint8Array(await file.data.arrayBuffer())).digest("hex");
+  if (sha256 !== clip.video_sha256) {
+    await admin.storage.from(BUCKET).remove([path]).catch(() => {});
+    throw new Error("CUT_NOT_THE_SAME");
+  }
+  check(await admin.from("flow_clips").update({ storage_path: path, file_deleted_at: null, updated_at: now.toISOString() })
+    .eq("owner_id", owner).eq("id", clip.id).eq("status", "POSTED").is("storage_path", null), "flow_clip_not_saved");
+}
