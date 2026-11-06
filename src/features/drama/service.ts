@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { bangkokDate } from "@/features/flow-farm/contracts";
 import { MAX_ASSEMBLE_ATTEMPTS, emptyStoryState, type DramaGenre, type EpisodeStatus, type SeriesBible, type SeriesStatus,
   type ShotStatus, type StoryState } from "./contracts";
-import { ASSEMBLY_STALE_MS, clipVerdict, episodeShotsFinished, mayStartEpisode, nextShotToQueue, planRetry, promptFor, referencePath, shotAccount,
+import { ASSEMBLY_STALE_MS, clipVerdict, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, planRetry, promptFor, referencePath, shotAccount,
   type ShotRow } from "./engine";
 import { SHOWRUNNER_WRITER, createBible, pickStory, planEpisode } from "./showrunner";
 
@@ -261,6 +261,23 @@ export async function redoShot(admin: SupabaseClient, owner: string, seriesId: s
     check(await admin.from("drama_episodes").update({ status: "PRODUCING", flow_clip_id: null, ready_at: null, error: null, assemble_attempts: 0, updated_at: now.toISOString() })
       .eq("owner_id", owner).eq("id", episode.id).eq("status", episode.status), "episode_not_saved");
   }
+  await tickSeriesById(admin, owner, series.id, now).catch(() => {});
+}
+
+/**
+ * Owner: throw away the version being made (not cut yet) and start the episode again from shot 1 as a new version.
+ * Waits while one of its shots is in Flow right now, so nothing already paid for is lost mid-generation.
+ */
+export async function remakeOpenTake(admin: SupabaseClient, owner: string, seriesId: string, now = new Date()) {
+  const series = await loadSeries(admin, owner, seriesId);
+  const episode = await openEpisode(admin, owner, series.id);
+  if (!episode || episode.number !== series.next_episode_number || episode.status === "ASSEMBLING") throw new Error("NO_OPEN_EPISODE");
+  const shots = await episodeShots(admin, owner, episode.id);
+  if (shots.some(shot => shot.status === "QUEUED")) throw new Error("TAKE_IN_PRODUCTION");
+  // Episode 1's key still came from this version's shot 1: the new version makes its own.
+  const ownStill = episode.number === 1 && series.key_still_path && shots.some(shot => shot.last_frame_path === series.key_still_path) ? series.key_still_path : null;
+  await deleteTake(admin, owner, episode, null, now);
+  if (ownStill) check(await admin.from("drama_series").update({ key_still_path: null, updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", series.id), "series_not_saved");
   await tickSeriesById(admin, owner, series.id, now).catch(() => {});
 }
 
@@ -637,8 +654,21 @@ export async function fallBackToMainAccount(admin: SupabaseClient, owner: string
     { id: string; episode_id: string; route: string; status: string } | null;
   if (!shot || shot.route !== "REPAIR" || shot.status !== "QUEUED") return false;
   const episode = (await admin.from("drama_episodes").select("series_id").eq("owner_id", owner).eq("id", shot.episode_id).maybeSingle()).data as { series_id: string } | null;
-  const series = episode ? (await admin.from("drama_series").select("flow_account_id").eq("owner_id", owner).eq("id", episode.series_id).maybeSingle()).data as { flow_account_id: string | null } | null : null;
+  const series = episode ? (await admin.from("drama_series").select("flow_account_id,repair_flow_account_id").eq("owner_id", owner).eq("id", episode.series_id).maybeSingle()).data as
+    { flow_account_id: string | null; repair_flow_account_id: string | null } | null : null;
   if (!series?.flow_account_id) return false;
+  // The main account is already out of credits today (that is why the shot is on the repair account): handing it back
+  // would only bounce the shot between two empty accounts every two minutes (7 Nov). Both wait for new credits instead;
+  // "เครดิตมาแล้ว ทำต่อเลย" sends it sooner.
+  const main = (await admin.from("flow_accounts").select("exhausted_on").eq("owner_id", owner).eq("id", series.flow_account_id).maybeSingle()).data as { exhausted_on: string | null } | null;
+  if (main?.exhausted_on === bangkokDate(now)) {
+    if (series.repair_flow_account_id) await admin.from("flow_accounts").update({ exhausted_on: bangkokDate(now), updated_at: now.toISOString() })
+      .eq("owner_id", owner).eq("id", series.repair_flow_account_id);
+    await admin.from("flow_clips").update({ status: "SKIPPED_NO_CREDIT", updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED");
+    await updateShot(admin, owner, shot.id, "QUEUED", { status: "PLANNED", route: "PRIMARY", flow_clip_id: null, retry_after: nextBangkokMorning(now),
+      error: `เครดิตหมดทั้งบัญชีหลักและบัญชีซ่อม (${reason}) รอเครดิตรอบใหม่`.slice(0, 400) }, now, clipId);
+    return true;
+  }
   check(await admin.from("flow_clips").update({ required_flow_account_id: series.flow_account_id, updated_at: now.toISOString() })
     .eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED"), "flow_clip_not_saved");
   await updateShot(admin, owner, shot.id, "QUEUED", { route: "PRIMARY", error: `บัญชีซ่อมทำไม่ได้ (${reason}) ส่งกลับให้บัญชีหลักทำแทน`.slice(0, 400) }, now);

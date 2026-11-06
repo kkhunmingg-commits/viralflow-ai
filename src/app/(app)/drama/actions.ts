@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { createSeriesSchema, seriesRefSchema, shotRefSchema } from "@/features/drama/contracts";
-import { MAX_TAKES, TAKE_CREDIT_BUDGET, chooseTake, continueAfterCredits, createSeries, deleteRejectedTake, redoShot, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextStory } from "@/features/drama/service";
+import { MAX_TAKES, TAKE_CREDIT_BUDGET, chooseTake, continueAfterCredits, createSeries, deleteRejectedTake, redoShot, remakeOpenTake, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextStory } from "@/features/drama/service";
 
 async function owner() {
   const client = await createClient(), { data, error } = await client.auth.getUser();
@@ -82,20 +82,30 @@ export async function skipShotAction(formData: FormData) {
 export async function redoShotAction(formData: FormData) {
   const parsed = shotRefSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) done(HOME, "คำขอไม่ถูกต้อง");
-  const ownerId = await owner();
+  const ownerId = await owner(), back = `/drama/${parsed.data.seriesId}`;
   try { await redoShot(createAdminClient(), ownerId, parsed.data.seriesId, parsed.data.shotId); }
-  catch (error) { const message = known(error); if (message) done(HOME, message); throw error; }
-  done(HOME, `ส่งช็อตนี้ไปทำใหม่แล้ว ช็อตอื่นเก็บไว้เหมือนเดิม เสร็จแล้วระบบตัดต่อใหม่ให้เอง (1 เวอร์ชันใช้ได้ไม่เกิน ${TAKE_CREDIT_BUDGET} เครดิต)`);
+  catch (error) { const message = known(error); if (message) done(back, message); throw error; }
+  done(back, `ส่งช็อตนี้ไปทำใหม่แล้ว ช็อตอื่นเก็บไว้เหมือนเดิม เสร็จแล้วระบบตัดต่อใหม่ให้เอง (1 เวอร์ชันใช้ได้ไม่เกิน ${TAKE_CREDIT_BUDGET} เครดิต)`);
 }
 
 /** Credits came back before the system's "tomorrow": carry on with the waiting shot now. */
 export async function continueAfterCreditsAction(formData: FormData) {
   const parsed = seriesRefSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) done(HOME, "คำขอไม่ถูกต้อง");
-  const ownerId = await owner();
+  const ownerId = await owner(), back = `/drama/${parsed.data.id}`;
   try { await continueAfterCredits(createAdminClient(), ownerId, parsed.data.id); }
-  catch (error) { const message = known(error); if (message) done(HOME, message); throw error; }
-  done(HOME, "ทำต่อแล้ว ช็อตที่รอเครดิตกลับเข้าคิว ถ้า Flow ยังบอกว่าเครดิตหมด ระบบจะรอต่อโดยไม่เสียเครดิต");
+  catch (error) { const message = known(error); if (message) done(back, message); throw error; }
+  done(back, "ทำต่อแล้ว ช็อตที่รอเครดิตกลับเข้าคิว ถ้า Flow ยังบอกว่าเครดิตหมด ระบบจะรอต่อโดยไม่เสียเครดิต");
+}
+
+/** Owner: scrap the version being made and shoot the whole episode again. */
+export async function remakeTakeAction(formData: FormData) {
+  const parsed = seriesRefSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) done(HOME, "คำขอไม่ถูกต้อง");
+  const ownerId = await owner(), back = `/drama/${parsed.data.id}`;
+  try { await remakeOpenTake(createAdminClient(), ownerId, parsed.data.id); }
+  catch (error) { const message = known(error); if (message) done(back, message); throw error; }
+  done(back, "ทิ้งเวอร์ชันนี้แล้ว เริ่มสร้างตอนนี้ใหม่ทั้งหมดตั้งแต่ช็อต 1");
 }
 
 const reviewSchema = z.object({ seriesId: z.uuid(), episodeId: z.uuid(), verdict: z.enum(["APPROVE", "REJECT"]), back: z.enum(["home", "series"]).default("home") });

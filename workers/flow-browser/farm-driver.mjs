@@ -336,7 +336,13 @@ export async function openFlowAccount(account, config) {
       await prompt.click();
       await prompt.fill(clip.prompt);
       const button = await generateButton(page, selectors);
-      if (!button) return fail("GENERATE_BUTTON_NOT_FOUND");
+      // An account with no credits left may show no Generate button at all: that is out of credits, not a broken page
+      // (7 Nov, a shot bounced between two empty accounts every two minutes as GENERATE_BUTTON_NOT_FOUND).
+      if (!button) {
+        const noCredit = appeared("", await bodyText(page), NO_CREDIT_PATTERNS);
+        await saveDebug(page, config.debugDir, clip.id, noCredit ? "no-credit-no-button" : "no-button");
+        return noCredit ? { status: "NO_CREDIT" } : fail("GENERATE_BUTTON_NOT_FOUND");
+      }
       if (await button.isDisabled().catch(() => false)) {
         const noCredit = appeared("", await bodyText(page), NO_CREDIT_PATTERNS);
         await saveDebug(page, config.debugDir, clip.id, noCredit ? "no-credit-before" : "button-disabled");

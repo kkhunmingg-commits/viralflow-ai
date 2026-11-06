@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element -- signed Supabase URLs expire; next/image would cache them */
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -5,12 +6,12 @@ import { DRAMA_GENRES, dramaGenreLabels, episodeStatusLabels, seriesStatusLabels
 import { GENRE_STORIES } from "@/features/drama/genres";
 import { OneVideoAtATime } from "./one-video";
 import { pickStory } from "@/features/drama/showrunner";
-import { dramaAvailable, listSeries, type SeriesSummary } from "@/features/drama/service";
+import { dramaAvailable, listSeries, signedImage, type SeriesSummary } from "@/features/drama/service";
 import { bangkokDate } from "@/features/flow-farm/contracts";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { flowLogins } from "@/features/flow-farm/service";
 import { addRepairAccountAction, flowAccountAction } from "../post/flow-actions";
-import { continueAfterCreditsAction, createSeriesAction, newStoryAction, redoShotAction, reviewEpisodeAction, takeAction } from "./actions";
+import { createSeriesAction, newStoryAction, reviewEpisodeAction, takeAction } from "./actions";
 import "../post/flow-studio.css";
 import "./drama.css";
 
@@ -31,15 +32,6 @@ function nextStep(item: SeriesSummary, today: string) {
   return `${done}· ตอนที่ ${series.next_episode_number} กำลังจะเริ่ม`;
 }
 
-/** One chip per shot of the episode in production, so the owner sees exactly where it is. */
-function shotState(shot: SeriesSummary["shots"][number]) {
-  if (shot.status === "DONE") return { tone: "done", text: "✓ เสร็จ" };
-  if (shot.status === "SKIPPED") return { tone: "done", text: "ข้าม" };
-  if (shot.status === "FAILED") return { tone: "failed", text: "⚠ ต้องตรวจ" };
-  if (shot.status === "QUEUED") return shot.generating ? { tone: "live", text: "● กำลังสร้าง" } : { tone: "queued", text: "อยู่ในคิว" };
-  return { tone: "waiting", text: "รอคิว" };
-}
-
 /** The drama menu: every series, which Google accounts make it, and the form that starts a new one. */
 export async function DramaHome({ client, owner, library }: { client: SupabaseClient; owner: string; library?: ReactNode }) {
   const available = await dramaAvailable(client);
@@ -58,6 +50,9 @@ export async function DramaHome({ client, owner, library }: { client: SupabaseCl
   const drama = <input type="hidden" name="studio" value="drama" />;
   const channel = (id: string | null) => id ? accounts.find(a => a.id === id)?.display_name ?? "ช่องอื่น" : "ใช้ได้ทุกช่อง";
   const today = bangkokDate();
+  // One cover picture per series (episode 1's key still: the cast in the opening scene).
+  const admin = createAdminClient();
+  const covers = new Map(await Promise.all(series.map(async item => [item.series.id, await signedImage(admin, item.series.key_still_path).catch(() => null)] as const)));
 
   if (!available) return <section className="manual-panel"><h2>ยังเปิดใช้ไม่ได้</h2>
     <p className="manual-muted">ฐานข้อมูลยังไม่มีตาราง Drama Studio ต้องรัน migration ใน Supabase ก่อน (ไม่กระทบระบบเดิม)</p></section>;
@@ -79,20 +74,8 @@ export async function DramaHome({ client, owner, library }: { client: SupabaseCl
             <p className="drama-meta">สำเร็จ {item.readyEpisodes}/{s.total_episodes} ตอน{item.current ? ` · ${episodeStatusLabels[item.current.status]}` : ""}</p>
             {main && <p className="drama-meta">บัญชีหลัก {main}{repair ? ` · บัญชีซ่อม ${repair}` : " · ไม่มีบัญชีซ่อม"}</p>}
             <p className="drama-next">{nextStep(item, today)}</p>
-            {item.shotsOf && item.shots.length > 0 && <>
-              <ol className="drama-shot-strip" aria-label={`สถานะช็อตของตอนที่ ${item.shotsOf.number}`}>
-              {item.shots.map(shot => { const state = shotState(shot);
-                const redoable = item.shotsOf?.status !== "ASSEMBLING" && (shot.status === "FAILED" || shot.status === "SKIPPED" || (shot.status === "DONE" && shot.hasVideo));
-                return <li key={shot.position} className={`drama-shot-chip is-${state.tone}`}>
-                <strong>ช็อต {shot.position}</strong><small>{state.text}{shot.repair ? " · บัญชีซ่อม" : ""}</small>
-                {shot.hasVideo && <video className="drama-shot-video" controls playsInline preload="none" src={`/api/drama/shots/${shot.id}/video`} aria-label={`ช็อต ${shot.position}`} />}
-                {redoable && <form action={redoShotAction}><input type="hidden" name="seriesId" value={s.id} /><input type="hidden" name="shotId" value={shot.id} />
-                  <button className="drama-shot-redo" type="submit">ทำช็อตนี้ใหม่</button></form>}</li>; })}</ol>
-              {item.shots.some(shot => shot.hasVideo) && <p className="drama-meta">กดดูแต่ละช็อตได้ก่อนรวมคลิป ช็อตไหนไม่ดี กด “ทำช็อตนี้ใหม่” ระบบทำแค่ช็อตนั้น แล้วตัดต่อใหม่ให้เอง</p>}
-              {!item.queued && item.shots.some(shot => shot.waitingCredits) && <form action={continueAfterCreditsAction} className="drama-continue">
-                <input type="hidden" name="id" value={s.id} /><p className="drama-meta">เครดิตหมดระหว่างตอน ระบบจะทำต่อเองเมื่อเครดิตรอบใหม่มา ถ้าเครดิตกลับมาแล้ว กดทำต่อได้เลย</p>
-                <button className="manual-primary" type="submit">เครดิตมาแล้ว ทำต่อเลย</button></form>}
-            </>}
+            {covers.get(s.id) && <Link href={`/drama/${s.id}`} className="drama-cover"><img src={covers.get(s.id)!} alt={`ภาพปกตัวอย่างของ ${s.title}`} /></Link>}
+            {item.shotsOf && item.shots.length > 0 && <Link className="drama-more" href={`/drama/${s.id}`}>ช็อตของตอนที่ {item.shotsOf.number}: เสร็จ {item.shotsDone}/{item.shotsTotal} · ดูทีละช็อตและสั่งทำใหม่ →</Link>}
             {item.takes.length > 0 && <div className="drama-takes">
               <p className="drama-meta"><strong>ตอนที่ {item.takes[0].number} · {item.takes.length > 1 ? `เทียบ ${item.takes.length} เวอร์ชัน` : item.takes[0].review === "PENDING" ? "รอคุณตรวจ" : "เวอร์ชันที่ไม่ผ่าน"}</strong>
                 {" "}เลือกเวอร์ชันที่ชอบ ระบบจะใช้เวอร์ชันนั้นไปตอนถัดไป แล้วลบเวอร์ชันอื่นทิ้งทั้งหมด ไม่ถูกใจทุกเวอร์ชัน กด “ไม่ผ่าน ทำเวอร์ชันใหม่” ได้เรื่อยๆ</p>

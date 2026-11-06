@@ -4,16 +4,25 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { dramaGenreLabels, episodePhaseLabels, episodeStatusLabels, seriesStatusLabels, shotStatusLabels, type EpisodePhase, type ShotStatus } from "@/features/drama/contracts";
+import { dramaGenreLabels, episodePhaseLabels, episodeStatusLabels, seriesStatusLabels, type EpisodePhase } from "@/features/drama/contracts";
 import { seriesDetail, signedImage } from "@/features/drama/service";
-import { newStoryAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction, takeAction } from "../actions";
+import { continueAfterCreditsAction, newStoryAction, redoShotAction, remakeTakeAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction, takeAction } from "../actions";
+import { OneVideoAtATime } from "../one-video";
 import "../../post/post.css";
 import "../drama.css";
 export const metadata = { title: "ละครซีรีส์ · Viral Flow AI" };
 export const dynamic = "force-dynamic";
 
 const roleLabels = { LEAD: "ตัวเอก", ALLY: "คู่หู", RIVAL: "คู่ปรับ" } as const;
-const shotError = (error: string | null) => !error ? null : error === "NO_CREDIT" ? "เครดิต Flow หมด ทำต่อวันใหม่" : error;
+const shotError = (error: string | null) => !error ? null : error === "NO_CREDIT" ? "เครดิต Flow หมด รอเครดิตรอบใหม่" : error;
+/** What a shot is doing right now, in words. */
+function shotNow(shot: { status: string; retry_after: string | null; video_path: string | null }, generating: boolean) {
+  if (shot.status === "DONE") return shot.video_path ? "เสร็จแล้ว · กดดูได้" : "เสร็จแล้ว";
+  if (shot.status === "QUEUED") return generating ? "กำลังสร้างใน Flow" : "อยู่ในคิว รอเครื่องสร้างคลิปรับงาน";
+  if (shot.status === "PLANNED") return shot.retry_after ? "รอเครดิตรอบใหม่" : "รอคิว";
+  if (shot.status === "FAILED") return "สร้างไม่สำเร็จ ต้องตรวจ";
+  return "ข้ามช็อตนี้";
+}
 
 /** One series: its bible, story memory, season map, the episode in production shot by shot, and finished episodes. */
 export default async function DramaSeriesPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ msg?: string }> }) {
@@ -26,8 +35,15 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
   if (!detail) notFound();
   const { series, episodes, shots } = detail, bible = series.bible, memory = series.story_state;
   const keyStill = await signedImage(createAdminClient(), series.key_still_path).catch(() => null);
-  const current = episodes.find(e => e.status !== "READY") ?? null;
+  // The episode being made, or else its cut waiting for review: either way each shot can be watched and made again.
+  const current = episodes.find(e => e.status !== "READY") ?? episodes.find(e => e.status === "READY" && e.review === "PENDING" && e.number === series.next_episode_number) ?? null;
   const currentShots = current ? shots.filter(s => s.episode_id === current.id) : [];
+  const queuedClips = currentShots.filter(s => s.status === "QUEUED" && s.flow_clip_id).map(s => s.flow_clip_id as string);
+  const generating = new Set(queuedClips.length ? ((await client.from("flow_clips").select("id,status").eq("owner_id", data.user.id).in("id", queuedClips)).data ?? [])
+    .filter(c => c.status === "GENERATING").map(c => c.id as string) : []);
+  const busy = currentShots.some(s => s.status === "QUEUED");
+  const waitingCredits = !busy && currentShots.some(s => s.status === "PLANNED" && s.retry_after);
+  const canRedo = current && current.review === "PENDING" && current.status !== "ASSEMBLING";
   const clipIds = episodes.map(e => e.flow_clip_id).filter((v): v is string => Boolean(v));
   const clips = clipIds.length ? ((await client.from("flow_clips").select("id,status").eq("owner_id", data.user.id).in("id", clipIds)).data ?? []) as Array<{ id: string; status: string }> : [];
   const inLibrary = new Set(clips.filter(c => c.status === "READY" || c.status === "SCHEDULED").map(c => c.id));
@@ -69,20 +85,41 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
     </section>
 
     {current && <section className="manual-panel" aria-labelledby="current-title">
-      <div className="manual-section-head"><h2 id="current-title">ตอนที่ {current.number}: {current.title}</h2><span className="drama-status">{episodeStatusLabels[current.status]}</span></div>
+      <OneVideoAtATime />
+      <div className="manual-section-head"><h2 id="current-title">ตอนที่ {current.number}: {current.title}{current.take > 1 ? ` · เวอร์ชัน ${current.take}` : ""}</h2>
+        <span className="drama-status">{current.status === "READY" ? "ตัดต่อเสร็จ รอคุณตรวจ" : episodeStatusLabels[current.status]}</span></div>
       <p className="manual-muted">{episodePhaseLabels[current.phase as EpisodePhase] ?? current.phase} · {current.summary}</p>
       {current.error && <p className="manual-warning">{current.error}</p>}
-      <ol className="drama-shots">{currentShots.map(shot => <li key={shot.id} className={`drama-shot drama-shot-${shot.status.toLowerCase()}`}>
-        <div><strong>ช็อต {shot.position}</strong> <span className="drama-status">{shotStatusLabels[shot.status as ShotStatus]}</span>{shot.route === "REPAIR" && <span className="drama-status drama-repair">บัญชีซ่อม</span>}
+      <p className="drama-meta">ดูทีละช็อตได้ก่อนรวมคลิป ช็อตไหนไม่ดี กด “ทำช็อตนี้ใหม่” ระบบทำแค่ช็อตนั้นแล้วตัดต่อใหม่ให้เอง (1 เวอร์ชันใช้ได้ไม่เกิน 100 เครดิต)</p>
+      {waitingCredits && <form action={continueAfterCreditsAction} className="drama-continue"><input type="hidden" name="id" value={series.id} />
+        <p className="manual-warning">เครดิตหมดระหว่างตอน ระบบจะทำต่อเองเมื่อเครดิตรอบใหม่มา ถ้าเครดิตกลับมาแล้ว กดทำต่อได้เลย</p>
+        <button className="manual-primary" type="submit">เครดิตมาแล้ว ทำต่อเลย</button></form>}
+      <ol className="drama-shots">{currentShots.map(shot => {
+        const redoable = canRedo && (shot.status === "FAILED" || shot.status === "SKIPPED" || (shot.status === "DONE" && Boolean(shot.video_path)));
+        return <li key={shot.id} className={`drama-shot drama-shot-${shot.status.toLowerCase()}`}>
+        <div><strong>ช็อต {shot.position}</strong> <span className="drama-status">{shotNow(shot, Boolean(shot.flow_clip_id && generating.has(shot.flow_clip_id)))}</span>{shot.route === "REPAIR" && <span className="drama-status drama-repair">บัญชีซ่อม</span>}
           <small>{shot.reference_mode === "PREVIOUS_FRAME" ? "ต่อจากเฟรมสุดท้ายของช็อตก่อน" : shot.reference_mode === "KEY_STILL" ? "ใช้ภาพตัวละครหลักของเรื่อง" : "ช็อตเปิดตัวละคร (สร้างภาพหลักของเรื่อง)"}</small></div>
         {shot.subtitle && <p className="drama-line">“{shot.subtitle}”</p>}
-        {shotError(shot.error) && <p className="manual-warning">{shotError(shot.error)}{shot.attempts ? ` · ลองแล้ว ${shot.attempts} ครั้ง` : ""}</p>}
-        {(shot.status === "FAILED" || (shot.status === "PLANNED" && shot.attempts > 0)) && <form action={skipShotAction}><input type="hidden" name="seriesId" value={series.id} />
-          <input type="hidden" name="shotId" value={shot.id} /><button className="manual-secondary" type="submit">ข้ามช็อตนี้</button></form>}
+        {shot.video_path && <video className="drama-shot-player" controls playsInline preload="metadata" src={`/api/drama/shots/${shot.id}/video#t=0.1`} aria-label={`ช็อต ${shot.position}`} />}
+        {shotError(shot.error) && shot.status !== "DONE" && <p className="manual-warning">{shotError(shot.error)}{shot.attempts ? ` · ลองแล้ว ${shot.attempts} ครั้ง` : ""}</p>}
+        <div className="drama-review-buttons">
+          {redoable && <form action={redoShotAction}><input type="hidden" name="seriesId" value={series.id} /><input type="hidden" name="shotId" value={shot.id} />
+            <button className="manual-secondary" type="submit">ทำช็อตนี้ใหม่</button></form>}
+          {(shot.status === "FAILED" || (shot.status === "PLANNED" && shot.attempts > 0)) && <form action={skipShotAction}><input type="hidden" name="seriesId" value={series.id} />
+            <input type="hidden" name="shotId" value={shot.id} /><button className="manual-secondary" type="submit">ข้ามช็อตนี้</button></form>}
+        </div>
         <details><summary>คำสั่งที่ส่งให้ Flow</summary><pre className="drama-prompt">{shot.prompt}</pre></details>
-      </li>)}</ol>
-      {(current.status === "FAILED") && <form action={retryEpisodeAction}><input type="hidden" name="id" value={series.id} />
-        <button className="manual-primary" type="submit">ลองใหม่ (ใช้เครดิต Flow อีกครั้ง)</button></form>}
+      </li>; })}</ol>
+      <div className="drama-review-buttons">
+        {current.status === "FAILED" && <form action={retryEpisodeAction}><input type="hidden" name="id" value={series.id} />
+          <button className="manual-primary" type="submit">ลองใหม่ (ใช้เครดิต Flow อีกครั้ง)</button></form>}
+        {current.status === "READY" ? <form action={reviewEpisodeAction}><input type="hidden" name="seriesId" value={series.id} />
+          <input type="hidden" name="episodeId" value={current.id} /><input type="hidden" name="back" value="series" />
+          <button className="library-link danger" name="verdict" value="REJECT" type="submit">สร้างใหม่ทั้งตอน (เก็บเวอร์ชันนี้ไว้เทียบ)</button></form>
+          : current.status !== "ASSEMBLING" && <form action={remakeTakeAction}><input type="hidden" name="id" value={series.id} />
+          <button className="library-link danger" type="submit" disabled={busy}>สร้างใหม่ทั้งตอน (ทิ้งช็อตที่ทำไว้)</button></form>}
+      </div>
+      {busy && current.status !== "READY" && <p className="drama-meta">มีช็อตอยู่ใน Flow ตอนนี้ กด “สร้างใหม่ทั้งตอน” ได้เมื่อช็อตนั้นเสร็จ</p>}
     </section>}
 
     <div className="drama-two">

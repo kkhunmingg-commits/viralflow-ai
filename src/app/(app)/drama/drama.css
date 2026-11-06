@@ -67,3 +67,6 @@
 .drama-take video{width:100%;aspect-ratio:9/16;border-radius:8px;background:#000;object-fit:cover}
 .drama-take-label{display:flex;flex-direction:column;margin:0;font-size:13px;color:#e6eaf3}.drama-take-label span{font-size:12px;color:#9faec6}
 .drama-take .drama-review-buttons{display:flex;flex-direction:column;gap:6px}.drama-take .drama-review-buttons button{width:100%}
+.drama-cover{display:block;border-radius:10px;overflow:hidden;margin:4px 0;background:#000}
+.drama-cover img{display:block;width:100%;aspect-ratio:9/16;max-height:320px;object-fit:cover}
+.drama-shot-player{display:block;width:100%;max-width:220px;aspect-ratio:9/16;border-radius:8px;background:#000;margin:6px 0}
