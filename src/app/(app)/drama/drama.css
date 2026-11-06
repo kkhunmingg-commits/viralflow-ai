@@ -56,6 +56,10 @@
 .drama-shot-chip.is-live{background:#2b2550;border-color:#6d5cf0;color:#d3cbff}
 .drama-shot-chip.is-queued{background:#2a2a35;color:#c5c9da}
 .drama-shot-chip.is-failed{background:#3b2228;border-color:#7a3542;color:#ffb3bf}
+.drama-shot-video{width:100%;aspect-ratio:9/16;max-height:200px;border-radius:6px;background:#000;margin-top:4px;object-fit:contain}
+.drama-shot-redo{margin-top:4px;width:100%;border:1px solid #4a5670;background:transparent;color:#e6eaf3;border-radius:6px;padding:4px 2px;font-size:11px;cursor:pointer}
+.drama-shot-redo:hover{background:#2f3a4d}
+.drama-continue{display:flex;flex-direction:column;gap:6px;margin-top:6px}
 .drama-takes{display:flex;flex-direction:column;gap:8px;margin-top:4px;padding:12px;border-radius:14px;background:#1a2030;border:1px solid #2f3a4d}
 .drama-take-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
 .drama-take{display:flex;flex-direction:column;gap:6px;padding:8px;border-radius:12px;background:#232a38;border:1px solid #2f3a4d}

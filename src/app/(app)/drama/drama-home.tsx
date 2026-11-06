@@ -10,7 +10,7 @@ import { bangkokDate } from "@/features/flow-farm/contracts";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { flowLogins } from "@/features/flow-farm/service";
 import { addRepairAccountAction, flowAccountAction } from "../post/flow-actions";
-import { createSeriesAction, newStoryAction, reviewEpisodeAction, takeAction } from "./actions";
+import { continueAfterCreditsAction, createSeriesAction, newStoryAction, redoShotAction, reviewEpisodeAction, takeAction } from "./actions";
 import "../post/flow-studio.css";
 import "./drama.css";
 
@@ -23,7 +23,8 @@ function nextStep(item: SeriesSummary, today: string) {
   if (series.status === "PAUSED") return "พักไว้ กด “ผลิตต่อ” ในหน้าเรื่อง";
   if (current?.status === "FAILED") return `ตอนที่ ${current.number} ต้องตรวจ: ${current.error ?? "ช็อตสร้างไม่สำเร็จ"}`;
   if (current?.status === "ASSEMBLING") return `กำลังตัดต่อตอนที่ ${current.number}`;
-  if (current) return `กำลังถ่ายทำตอนที่ ${current.number} · ช็อต ${item.shotsDone}/${item.shotsTotal}${item.queued ? " · อยู่ในคิว Flow" : " · รอเครดิตวันใหม่"}`;
+  if (current) return `กำลังถ่ายทำตอนที่ ${current.number} · ช็อต ${item.shotsDone}/${item.shotsTotal}${item.queued ? " · อยู่ในคิว Flow"
+    : item.shots.some(shot => shot.waitingCredits) ? " · เครดิตหมด รอเครดิตรอบใหม่" : " · กำลังส่งช็อตถัดไป"}`;
   const done = latestReady ? `ตอนที่ ${latestReady.number} สำเร็จ ✓ ` : "";
   if (item.takes.length > 0) return `ตอนที่ ${series.next_episode_number} ไม่ผ่าน กำลังเริ่มถ่ายเวอร์ชันใหม่ (เครื่องสร้างคลิปจะรับงานภายใน 1–2 นาที) ระหว่างนี้เลือกเวอร์ชันเก่าด้านล่างได้`;
   if (latestReady?.started_on === today) return `${done}· ตอนที่ ${series.next_episode_number} เริ่มพรุ่งนี้`;
@@ -78,9 +79,20 @@ export async function DramaHome({ client, owner, library }: { client: SupabaseCl
             <p className="drama-meta">สำเร็จ {item.readyEpisodes}/{s.total_episodes} ตอน{item.current ? ` · ${episodeStatusLabels[item.current.status]}` : ""}</p>
             {main && <p className="drama-meta">บัญชีหลัก {main}{repair ? ` · บัญชีซ่อม ${repair}` : " · ไม่มีบัญชีซ่อม"}</p>}
             <p className="drama-next">{nextStep(item, today)}</p>
-            {item.current && item.shots.length > 0 && <ol className="drama-shot-strip" aria-label={`สถานะช็อตของตอนที่ ${item.current.number}`}>
-              {item.shots.map(shot => { const state = shotState(shot); return <li key={shot.position} className={`drama-shot-chip is-${state.tone}`}>
-                <strong>ช็อต {shot.position}</strong><small>{state.text}{shot.repair ? " · บัญชีซ่อม" : ""}</small></li>; })}</ol>}
+            {item.shotsOf && item.shots.length > 0 && <>
+              <ol className="drama-shot-strip" aria-label={`สถานะช็อตของตอนที่ ${item.shotsOf.number}`}>
+              {item.shots.map(shot => { const state = shotState(shot);
+                const redoable = item.shotsOf?.status !== "ASSEMBLING" && (shot.status === "FAILED" || shot.status === "SKIPPED" || (shot.status === "DONE" && shot.hasVideo));
+                return <li key={shot.position} className={`drama-shot-chip is-${state.tone}`}>
+                <strong>ช็อต {shot.position}</strong><small>{state.text}{shot.repair ? " · บัญชีซ่อม" : ""}</small>
+                {shot.hasVideo && <video className="drama-shot-video" controls playsInline preload="none" src={`/api/drama/shots/${shot.id}/video`} aria-label={`ช็อต ${shot.position}`} />}
+                {redoable && <form action={redoShotAction}><input type="hidden" name="seriesId" value={s.id} /><input type="hidden" name="shotId" value={shot.id} />
+                  <button className="drama-shot-redo" type="submit">ทำช็อตนี้ใหม่</button></form>}</li>; })}</ol>
+              {item.shots.some(shot => shot.hasVideo) && <p className="drama-meta">กดดูแต่ละช็อตได้ก่อนรวมคลิป ช็อตไหนไม่ดี กด “ทำช็อตนี้ใหม่” ระบบทำแค่ช็อตนั้น แล้วตัดต่อใหม่ให้เอง</p>}
+              {!item.queued && item.shots.some(shot => shot.waitingCredits) && <form action={continueAfterCreditsAction} className="drama-continue">
+                <input type="hidden" name="id" value={s.id} /><p className="drama-meta">เครดิตหมดระหว่างตอน ระบบจะทำต่อเองเมื่อเครดิตรอบใหม่มา ถ้าเครดิตกลับมาแล้ว กดทำต่อได้เลย</p>
+                <button className="manual-primary" type="submit">เครดิตมาแล้ว ทำต่อเลย</button></form>}
+            </>}
             {item.takes.length > 0 && <div className="drama-takes">
               <p className="drama-meta"><strong>ตอนที่ {item.takes[0].number} · {item.takes.length > 1 ? `เทียบ ${item.takes.length} เวอร์ชัน` : item.takes[0].review === "PENDING" ? "รอคุณตรวจ" : "เวอร์ชันที่ไม่ผ่าน"}</strong>
                 {" "}เลือกเวอร์ชันที่ชอบ ระบบจะใช้เวอร์ชันนั้นไปตอนถัดไป แล้วลบเวอร์ชันอื่นทิ้งทั้งหมด ไม่ถูกใจทุกเวอร์ชัน กด “ไม่ผ่าน ทำเวอร์ชันใหม่” ได้เรื่อยๆ</p>

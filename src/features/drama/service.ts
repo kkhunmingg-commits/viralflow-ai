@@ -121,6 +121,8 @@ export async function reviewEpisode(admin: SupabaseClient, owner: string, series
   const marked = check(await admin.from("drama_episodes").update({ review: "REJECTED", reviewed_at: now.toISOString(), updated_at: now.toISOString(),
     ...(ownsStill ? { key_still_path: series.key_still_path } : {}) }).eq("owner_id", owner).eq("id", episode.id).eq("review", "PENDING").select("id"), "episode_not_saved") as Array<{ id: string }>;
   if (!marked.length) throw new Error("EPISODE_NOT_REVIEWABLE");
+  // A rejected take is only kept to compare its cut: its shot files can go now (episode 1's key still stays).
+  await cleanupShots(admin, owner, series, await episodeShots(admin, owner, episode.id), now).catch(() => {});
   // The new take starts right away (the worker's next poll), not the next day.
   check(await admin.from("drama_series").update({ redo_on: null, ...(ownsStill ? { key_still_path: null } : {}), updated_at: now.toISOString() })
     .eq("owner_id", owner).eq("id", series.id), "series_not_saved");
@@ -135,14 +137,18 @@ export async function episodeTakes(client: SupabaseClient, owner: string, series
 }
 
 /** Deletes one take: its cut in the library, its shots' files and, for episode 1, its key still. */
+/** Removes an episode's cut from storage and the library. */
+async function discardCut(admin: SupabaseClient, owner: string, clipId: string | null, now: Date) {
+  if (!clipId) return;
+  const clip = (await admin.from("flow_clips").select("id,storage_path").eq("owner_id", owner).eq("id", clipId).maybeSingle()).data as
+    { id: string; storage_path: string | null } | null;
+  if (clip?.storage_path) await admin.storage.from(BUCKET).remove([clip.storage_path]).catch(() => {});
+  if (clip) await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, file_deleted_at: now.toISOString(), updated_at: now.toISOString() })
+    .eq("owner_id", owner).eq("id", clip.id).in("status", ["READY", "SCHEDULED"]);
+}
+
 async function deleteTake(admin: SupabaseClient, owner: string, episode: EpisodeRow, keepPath: string | null, now: Date) {
-  if (episode.flow_clip_id) {
-    const clip = (await admin.from("flow_clips").select("id,storage_path").eq("owner_id", owner).eq("id", episode.flow_clip_id).maybeSingle()).data as
-      { id: string; storage_path: string | null } | null;
-    if (clip?.storage_path) await admin.storage.from(BUCKET).remove([clip.storage_path]).catch(() => {});
-    if (clip) await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, file_deleted_at: now.toISOString(), updated_at: now.toISOString() })
-      .eq("owner_id", owner).eq("id", clip.id).in("status", ["READY", "SCHEDULED"]);
-  }
+  await discardCut(admin, owner, episode.flow_clip_id, now);
   const shots = await episodeShots(admin, owner, episode.id);
   const files = [...shots.map(s => s.video_path), ...shots.map(s => s.last_frame_path), episode.key_still_path]
     .filter((p): p is string => Boolean(p) && p !== keepPath);
@@ -184,6 +190,7 @@ export async function chooseTake(admin: SupabaseClient, owner: string, seriesId:
   check(await admin.from("drama_series").update({ story_state: chosen.state_after, next_episode_number: chosen.number + 1, redo_on: null,
     ...(chosen.number === 1 ? { key_still_path: keyStill } : {}),
     ...(finished && series.status === "ACTIVE" ? { status: "COMPLETED" } : {}), updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", series.id), "series_not_saved");
+  await cleanupShots(admin, owner, series, await episodeShots(admin, owner, chosen.id), now).catch(() => {});
   await tickSeriesById(admin, owner, series.id, now).catch(() => {});
   return { approved: true, finished, deleted: others.length };
 }
@@ -228,6 +235,62 @@ export async function skipShot(admin: SupabaseClient, owner: string, seriesId: s
   await tickSeries(admin, owner, series).catch(() => {});
 }
 
+/**
+ * Owner: make one shot of the episode being made (or waiting for review) again, without touching the others. A cut
+ * already made from the old shot leaves the library; the episode is cut again once the new shot is in.
+ */
+export async function redoShot(admin: SupabaseClient, owner: string, seriesId: string, shotId: string, now = new Date()) {
+  const series = await loadSeries(admin, owner, seriesId);
+  const shot = check(await admin.from("drama_shots").select(SHOT_COLUMNS).eq("owner_id", owner).eq("series_id", series.id).eq("id", shotId).maybeSingle(),
+    "drama_unavailable") as DramaShotRow | null;
+  if (!shot || !["DONE", "FAILED", "SKIPPED"].includes(shot.status)) throw new Error("SHOT_NOT_REDOABLE");
+  const episode = check(await admin.from("drama_episodes").select(EPISODE_COLUMNS).eq("owner_id", owner).eq("id", shot.episode_id).maybeSingle(),
+    "drama_unavailable") as EpisodeRow | null;
+  if (!episode || episode.review !== "PENDING" || episode.number !== series.next_episode_number || episode.status === "ASSEMBLING") throw new Error("SHOT_NOT_REDOABLE");
+  // Re-cutting needs every other shot's file; takes cut before shot files were kept cannot be redone shot by shot.
+  if ((await episodeShots(admin, owner, episode.id)).some(s => s.status === "DONE" && !s.video_path)) throw new Error("SHOT_FILES_GONE");
+  const reset = check(await admin.from("drama_shots").update({ status: "PLANNED", attempts: 0, route: "PRIMARY", retry_after: null, error: null, flow_clip_id: null,
+    video_path: null, duration_seconds: null, updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", shot.id).eq("status", shot.status).select("id"), "shot_not_saved") as Array<{ id: string }>;
+  if (!reset.length) throw new Error("SHOT_NOT_REDOABLE");
+  // The old take's file goes; its last frame is overwritten by the new one (it may also be episode 1's key still).
+  if (shot.video_path) await admin.storage.from(BUCKET).remove([shot.video_path]).catch(() => {});
+  if (shot.flow_clip_id) await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, file_deleted_at: now.toISOString(), updated_at: now.toISOString() })
+    .eq("owner_id", owner).eq("kind", "DRAMA_SHOT").eq("id", shot.flow_clip_id).in("status", ["READY", "SCHEDULED"]);
+  if (episode.status !== "PRODUCING") {
+    if (episode.status === "READY") await discardCut(admin, owner, episode.flow_clip_id, now);
+    check(await admin.from("drama_episodes").update({ status: "PRODUCING", flow_clip_id: null, ready_at: null, error: null, assemble_attempts: 0, updated_at: now.toISOString() })
+      .eq("owner_id", owner).eq("id", episode.id).eq("status", episode.status), "episode_not_saved");
+  }
+  await tickSeriesById(admin, owner, series.id, now).catch(() => {});
+}
+
+/**
+ * Owner: the episode is waiting for tomorrow's credits, but the owner knows an account has credits again (Flow renews
+ * on its own clock). Clears "out of credits today" on the series' accounts and lets the waiting shot go now. If Flow
+ * really is still out, the worker says so before clicking Generate, so this never costs credits by itself.
+ */
+export async function continueAfterCredits(admin: SupabaseClient, owner: string, seriesId: string, now = new Date()) {
+  const series = await loadSeries(admin, owner, seriesId);
+  const episode = await openEpisode(admin, owner, series.id);
+  if (!episode) throw new Error("NO_OPEN_EPISODE");
+  const waiting = check(await admin.from("drama_shots").update({ retry_after: null, route: "PRIMARY", updated_at: now.toISOString() }).eq("owner_id", owner)
+    .eq("episode_id", episode.id).eq("status", "PLANNED").not("retry_after", "is", null).select("id"), "shot_not_saved") as Array<{ id: string }>;
+  if (!waiting.length) throw new Error("NOTHING_WAITING_FOR_CREDITS");
+  const accounts = [series.flow_account_id, series.repair_flow_account_id].filter((id): id is string => Boolean(id));
+  if (accounts.length) check(await admin.from("flow_accounts").update({ exhausted_on: null, updated_at: now.toISOString() }).eq("owner_id", owner).in("id", accounts),
+    "flow_accounts_unavailable");
+  await tickSeriesById(admin, owner, series.id, now).catch(() => {});
+}
+
+/** A short private link to one finished shot's MP4, for watching it before the episode is cut. */
+export async function shotVideoUrl(admin: SupabaseClient, owner: string, shotId: string) {
+  const shot = (await admin.from("drama_shots").select("video_path").eq("owner_id", owner).eq("id", shotId).maybeSingle()).data as { video_path: string | null } | null;
+  if (!shot?.video_path) throw new Error("SHOT_VIDEO_MISSING");
+  const signed = await admin.storage.from(BUCKET).createSignedUrl(shot.video_path, 600);
+  if (signed.error || !signed.data) throw new Error("SHOT_VIDEO_MISSING");
+  return signed.data.signedUrl;
+}
+
 // ---------------------------------------------------------------- Reads for the pages
 
 export async function listSeries(client: SupabaseClient, owner: string) {
@@ -237,11 +300,11 @@ export async function listSeries(client: SupabaseClient, owner: string) {
   const ids = series.map(s => s.id);
   const [episodes, shots] = await Promise.all([
     client.from("drama_episodes").select("id,series_id,number,title,status,error,ready_at,started_on,review,flow_clip_id,take").eq("owner_id", owner).in("series_id", ids).order("number", { ascending: false }).limit(400),
-    client.from("drama_shots").select("series_id,episode_id,position,status,route,flow_clip_id").eq("owner_id", owner).in("series_id", ids).in("status", ["PLANNED", "QUEUED", "DONE", "FAILED", "SKIPPED"]).limit(2000),
+    client.from("drama_shots").select("id,series_id,episode_id,position,status,route,flow_clip_id,video_path,retry_after").eq("owner_id", owner).in("series_id", ids).in("status", ["PLANNED", "QUEUED", "DONE", "FAILED", "SKIPPED"]).limit(2000),
   ]);
   const episodeRows = (check(episodes, "drama_unavailable") ?? []) as Array<Pick<EpisodeRow, "id" | "series_id" | "number" | "title" | "status" | "error" | "ready_at" | "started_on" | "review" | "flow_clip_id" | "take">>;
-  const shotRows = (check(shots, "drama_unavailable") ?? []) as Array<{ series_id: string; episode_id: string; position: number; status: ShotStatus;
-    route: string | null; flow_clip_id: string | null }>;
+  const shotRows = (check(shots, "drama_unavailable") ?? []) as Array<{ id: string; series_id: string; episode_id: string; position: number; status: ShotStatus;
+    route: string | null; flow_clip_id: string | null; video_path: string | null; retry_after: string | null }>;
   // A queued shot is either waiting in Flow's queue or being generated right now: the clip says which.
   const clipIds = shotRows.filter(r => r.status === "QUEUED" && r.flow_clip_id).map(r => r.flow_clip_id as string);
   const generating = new Set(clipIds.length ? ((await client.from("flow_clips").select("id,status").eq("owner_id", owner).in("id", clipIds)).data ?? [])
@@ -249,15 +312,19 @@ export async function listSeries(client: SupabaseClient, owner: string) {
   return series.map(s => {
     const own = episodeRows.filter(e => e.series_id === s.id);
     const current = own.find(e => e.status !== "READY") ?? null;
-    const currentShots = current ? shotRows.filter(r => r.episode_id === current.id) : [];
+    const toReview = own.find(e => e.status === "READY" && e.review === "PENDING") ?? null;
+    // The shots shown on the card: the episode being made, else the cut waiting for review (each shot can be made again).
+    const working = current ?? toReview;
+    const currentShots = working ? shotRows.filter(r => r.episode_id === working.id) : [];
     return { series: s, readyEpisodes: own.filter(e => e.status === "READY" && e.review === "APPROVED").length, current,
-      toReview: own.find(e => e.status === "READY" && e.review === "PENDING") ?? null, hasNextStory: series.some(n => n.previous_series_id === s.id),
+      toReview, shotsOf: working, hasNextStory: series.some(n => n.previous_series_id === s.id),
       shotsDone: currentShots.filter(r => r.status === "DONE" || r.status === "SKIPPED").length, shotsTotal: currentShots.length,
       queued: currentShots.some(r => r.status === "QUEUED"),
       // Finished takes of the episode the series is on (rejected ones and the one to review), to compare side by side.
       takes: own.filter(e => e.number === s.next_episode_number && e.status === "READY" && e.review !== "APPROVED").toSorted((a, b) => a.take - b.take),
-      shots: currentShots.toSorted((a, b) => a.position - b.position).map(r => ({ position: r.position, status: r.status, repair: r.route === "REPAIR",
-        generating: Boolean(r.flow_clip_id && generating.has(r.flow_clip_id)) })),
+      shots: currentShots.toSorted((a, b) => a.position - b.position).map(r => ({ id: r.id, position: r.position, status: r.status, repair: r.route === "REPAIR",
+        generating: Boolean(r.flow_clip_id && generating.has(r.flow_clip_id)), hasVideo: Boolean(r.video_path),
+        waitingCredits: r.status === "PLANNED" && Boolean(r.retry_after) })),
       latestReady: own.find(e => e.status === "READY" && e.review === "APPROVED") ?? null };
   });
 }
@@ -528,7 +595,7 @@ async function assemble(admin: SupabaseClient, owner: string, series: SeriesRow,
     // The story moves on only once the owner approves this cut (reviewEpisode).
     check(await admin.from("drama_episodes").update({ status: "READY", review: "PENDING", flow_clip_id: clipId, ready_at: now.toISOString(), error: null,
       updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", episode.id), "episode_not_saved");
-    await cleanupShots(admin, owner, series, shots, now).catch(() => {});
+    // Shot files stay until the owner approves this take, so one bad shot can be made again and the episode re-cut.
   } catch (error) {
     await admin.storage.from(BUCKET).remove([path]).catch(() => {});
     const reason = error instanceof Error ? error.message.slice(0, 300) : "ASSEMBLY_FAILED";

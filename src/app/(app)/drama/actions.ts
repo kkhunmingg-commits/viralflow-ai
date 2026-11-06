@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { createSeriesSchema, seriesRefSchema, shotRefSchema } from "@/features/drama/contracts";
-import { MAX_TAKES, chooseTake, createSeries, deleteRejectedTake, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextStory } from "@/features/drama/service";
+import { MAX_TAKES, TAKE_CREDIT_BUDGET, chooseTake, continueAfterCredits, createSeries, deleteRejectedTake, redoShot, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextStory } from "@/features/drama/service";
 
 async function owner() {
   const client = await createClient(), { data, error } = await client.auth.getUser();
@@ -33,6 +33,9 @@ const KNOWN: Record<string, string> = {
   TAKE_IN_PRODUCTION: "เวอร์ชันใหม่กำลังสร้างช็อตอยู่ใน Flow ตอนนี้ รอช็อตนี้เสร็จสักครู่แล้วกดเลือกอีกครั้ง",
   SERIES_NOT_FINISHED: "เรื่องนี้ยังไม่จบซีซัน", NEXT_STORY_EXISTS: "สร้างเรื่องใหม่ต่อจากเรื่องนี้ไปแล้ว",
   SHOT_NOT_SKIPPABLE: "ข้ามได้เฉพาะช็อตที่ยังไม่ได้สร้างหรือสร้างไม่สำเร็จ",
+  SHOT_NOT_REDOABLE: "ทำใหม่ได้เฉพาะช็อตที่เสร็จแล้วของตอนที่ยังไม่ได้กดผ่าน (และไม่ได้กำลังตัดต่ออยู่)",
+  SHOT_FILES_GONE: "ไฟล์ช็อตของเวอร์ชันนี้ถูกลบไปแล้ว ทำใหม่ทีละช็อตไม่ได้ กด “ไม่ผ่าน ทำเวอร์ชันใหม่” แทน",
+  NOTHING_WAITING_FOR_CREDITS: "ตอนนี้ไม่มีช็อตที่รอเครดิตอยู่",
 };
 const known = (error: unknown) => error instanceof Error ? KNOWN[error.message] : undefined;
 
@@ -73,6 +76,26 @@ export async function skipShotAction(formData: FormData) {
   try { await skipShot(createAdminClient(), ownerId, parsed.data.seriesId, parsed.data.shotId); }
   catch (error) { const message = known(error); if (message) done(`/drama/${parsed.data.seriesId}`, message); throw error; }
   done(`/drama/${parsed.data.seriesId}`, "ข้ามช็อตนี้แล้ว ตอนนี้จะตัดต่อจากช็อตที่เหลือ");
+}
+
+/** Owner watched a finished shot and wants just that one made again; the episode is re-cut once it is in. */
+export async function redoShotAction(formData: FormData) {
+  const parsed = shotRefSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) done(HOME, "คำขอไม่ถูกต้อง");
+  const ownerId = await owner();
+  try { await redoShot(createAdminClient(), ownerId, parsed.data.seriesId, parsed.data.shotId); }
+  catch (error) { const message = known(error); if (message) done(HOME, message); throw error; }
+  done(HOME, `ส่งช็อตนี้ไปทำใหม่แล้ว ช็อตอื่นเก็บไว้เหมือนเดิม เสร็จแล้วระบบตัดต่อใหม่ให้เอง (1 เวอร์ชันใช้ได้ไม่เกิน ${TAKE_CREDIT_BUDGET} เครดิต)`);
+}
+
+/** Credits came back before the system's "tomorrow": carry on with the waiting shot now. */
+export async function continueAfterCreditsAction(formData: FormData) {
+  const parsed = seriesRefSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) done(HOME, "คำขอไม่ถูกต้อง");
+  const ownerId = await owner();
+  try { await continueAfterCredits(createAdminClient(), ownerId, parsed.data.id); }
+  catch (error) { const message = known(error); if (message) done(HOME, message); throw error; }
+  done(HOME, "ทำต่อแล้ว ช็อตที่รอเครดิตกลับเข้าคิว ถ้า Flow ยังบอกว่าเครดิตหมด ระบบจะรอต่อโดยไม่เสียเครดิต");
 }
 
 const reviewSchema = z.object({ seriesId: z.uuid(), episodeId: z.uuid(), verdict: z.enum(["APPROVE", "REJECT"]), back: z.enum(["home", "series"]).default("home") });
