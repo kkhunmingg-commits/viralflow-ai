@@ -73,3 +73,4 @@
 .drama-arc li a{display:block;color:inherit;text-decoration:none;margin:-6px -4px;padding:6px 4px;border-radius:10px}.drama-arc li a:hover,.drama-arc li a:focus-visible{background:#2a3c63}
 .drama-episode{scroll-margin-top:16px}.drama-episode:target{outline:2px solid #567de7;outline-offset:4px;border-radius:12px}
 .drama-restore{display:flex;flex-direction:column;gap:6px;margin-top:6px;font-size:13px}.drama-restore input{font-size:13px}
+.drama-pool{margin:6px 0 10px;font-size:14px}

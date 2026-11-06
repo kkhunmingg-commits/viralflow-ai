@@ -4,8 +4,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { bangkokDate } from "@/features/flow-farm/contracts";
 import { MAX_ASSEMBLE_ATTEMPTS, emptyStoryState, type DramaGenre, type EpisodeStatus, type SeriesBible, type SeriesStatus,
   type ShotStatus, type StoryState } from "./contracts";
-import { ASSEMBLY_STALE_MS, clipVerdict, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, planRetry, promptFor, referencePath, shotAccount,
-  type ShotRow } from "./engine";
+import { ASSEMBLY_STALE_MS, clipVerdict, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, pickRepairAccount, planRetry, promptFor, referencePath,
+  repairAccounts, repairShotsLeft, type RepairAccountRow, type ShotRow } from "./engine";
+import { flowLogins } from "@/features/flow-farm/service";
 import { SHOWRUNNER_WRITER, createBible, pickStory, planEpisode } from "./showrunner";
 
 const BUCKET = "video-assets";
@@ -293,7 +294,9 @@ export async function continueAfterCredits(admin: SupabaseClient, owner: string,
   const waiting = check(await admin.from("drama_shots").update({ retry_after: null, route: "PRIMARY", updated_at: now.toISOString() }).eq("owner_id", owner)
     .eq("episode_id", episode.id).eq("status", "PLANNED").not("retry_after", "is", null).select("id"), "shot_not_saved") as Array<{ id: string }>;
   if (!waiting.length) throw new Error("NOTHING_WAITING_FOR_CREDITS");
-  const accounts = [series.flow_account_id, series.repair_flow_account_id].filter((id): id is string => Boolean(id));
+  // Only the main account: if it is in fact still empty, the worker says so before Generate and the shot moves on to
+  // the repair pool by itself. Pool accounts each have their own "เติมเครดิตแล้ว" button.
+  const accounts = [series.flow_account_id].filter((id): id is string => Boolean(id));
   if (accounts.length) check(await admin.from("flow_accounts").update({ exhausted_on: null, updated_at: now.toISOString() }).eq("owner_id", owner).in("id", accounts),
     "flow_accounts_unavailable");
   await tickSeriesById(admin, owner, series.id, now).catch(() => {});
@@ -470,13 +473,23 @@ async function mainOutOfCreditsToday(admin: SupabaseClient, owner: string, serie
   return row?.exhausted_on === bangkokDate(now);
 }
 
-/** Whether the series has a repair account, and whether Flow already said it is out of credits today. */
-async function repairState(admin: SupabaseClient, owner: string, series: SeriesRow, now: Date) {
-  if (!series.repair_flow_account_id) return { exists: false, outOfCreditsToday: false };
-  const row = check(await admin.from("flow_accounts").select("active,exhausted_on").eq("owner_id", owner).eq("id", series.repair_flow_account_id).maybeSingle(),
-    "flow_accounts_unavailable") as { active: boolean; exhausted_on: string | null } | null;
-  if (!row?.active) return { exists: false, outOfCreditsToday: false };
-  return { exists: true, outOfCreditsToday: row.exhausted_on === bangkokDate(now) };
+/**
+ * The owner's repair accounts, as one shared pool for every series (Lucky, 7 Nov: five accounts = 25 repair shots).
+ * Only accounts that are switched on, signed in on the worker, not reported empty by Flow today, and under their daily
+ * allowance can take a shot.
+ */
+export async function repairPool(admin: SupabaseClient, owner: string, now = new Date()) {
+  const rows = check(await admin.from("flow_accounts").select("id,label,active,exhausted_on,clips_today,clips_today_on,clips_per_day_estimate,priority,created_at")
+    .eq("owner_id", owner).eq("purpose", "REPAIR"), "flow_accounts_unavailable") as RepairAccountRow[] | null;
+  if (!rows?.length) return [];
+  const logins = await flowLogins(admin, owner).catch(() => ({} as Awaited<ReturnType<typeof flowLogins>>));
+  return repairAccounts(rows, id => logins[id]?.state === "READY", bangkokDate(now));
+}
+
+/** Whether the owner has any repair account in use, and whether every one of them is out of credits today. */
+async function repairState(admin: SupabaseClient, owner: string, _series: SeriesRow, now: Date) {
+  const pool = (await repairPool(admin, owner, now)).filter(a => a.active && a.loggedIn);
+  return { exists: pool.length > 0, outOfCreditsToday: !pool.some(a => repairShotsLeft(a) > 0) };
 }
 
 /**
@@ -532,6 +545,18 @@ async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow
     const repair = await repairState(admin, owner, series, now);
     if (repair.exists && !repair.outOfCreditsToday) shot = { ...shot, route: "REPAIR" };
   }
+  // A repair shot goes to whichever pool account has the most shots left today.
+  let account = series.flow_account_id;
+  if (shot.route === "REPAIR") {
+    const picked = pickRepairAccount(await repairPool(admin, owner, now));
+    if (picked) account = picked.id;
+    else if (await mainOutOfCreditsToday(admin, owner, series, now)) {
+      // Every account is out today: the shot waits for new credits instead of asking empty accounts again.
+      await updateShot(admin, owner, shot.id, "PLANNED", { route: "PRIMARY", retry_after: nextBangkokMorning(now),
+        error: "เครดิตหมดทั้งบัญชีหลักและบัญชีซ่อมทุกบัญชี รอเครดิตรอบใหม่" }, now, null);
+      return;
+    } else shot = { ...shot, route: "PRIMARY" };
+  }
   const claimed = await admin.from("drama_shots").update({ status: "QUEUED", route: shot.route ?? "PRIMARY", retry_after: null, updated_at: now.toISOString() })
     .eq("owner_id", owner).eq("id", shot.id).eq("status", "PLANNED").is("flow_clip_id", null).select("id");
   if (claimed.error || !claimed.data?.length) return;
@@ -540,7 +565,7 @@ async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow
   const clip = await admin.from("flow_clips").insert({
     owner_id: owner, tiktok_account_id: series.tiktok_account_id, batch_id: episode.id, kind: "DRAMA_SHOT", title,
     prompt: promptFor(shot.prompt, image).slice(0, 12000), caption: title, hashtags: [], reference_image_path: image,
-    required_flow_account_id: shotAccount(shot.route ?? "PRIMARY", series),
+    required_flow_account_id: account,
   }).select("id").single();
   if (clip.error || !clip.data) {
     await admin.from("drama_shots").update({ status: "PLANNED", updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", shot.id).eq("status", "QUEUED");
@@ -654,19 +679,31 @@ export async function fallBackToMainAccount(admin: SupabaseClient, owner: string
     { id: string; episode_id: string; route: string; status: string } | null;
   if (!shot || shot.route !== "REPAIR" || shot.status !== "QUEUED") return false;
   const episode = (await admin.from("drama_episodes").select("series_id").eq("owner_id", owner).eq("id", shot.episode_id).maybeSingle()).data as { series_id: string } | null;
-  const series = episode ? (await admin.from("drama_series").select("flow_account_id,repair_flow_account_id").eq("owner_id", owner).eq("id", episode.series_id).maybeSingle()).data as
-    { flow_account_id: string | null; repair_flow_account_id: string | null } | null : null;
+  const series = episode ? (await admin.from("drama_series").select("flow_account_id").eq("owner_id", owner).eq("id", episode.series_id).maybeSingle()).data as
+    { flow_account_id: string | null } | null : null;
   if (!series?.flow_account_id) return false;
-  // The main account is already out of credits today (that is why the shot is on the repair account): handing it back
-  // would only bounce the shot between two empty accounts every two minutes (7 Nov). Both wait for new credits instead;
-  // "เครดิตมาแล้ว ทำต่อเลย" sends it sooner.
+  const clip = (await admin.from("flow_clips").select("required_flow_account_id").eq("owner_id", owner).eq("id", clipId).maybeSingle()).data as
+    { required_flow_account_id: string | null } | null;
+  const failed = clip?.required_flow_account_id ?? null;
+  // The pool account that could not even start (most often: no Generate button because its credits are gone) is
+  // set aside for today, so the shot cannot bounce back to it; "เติมเครดิตแล้ว" on the account brings it back.
+  if (failed && failed !== series.flow_account_id) await admin.from("flow_accounts").update({ exhausted_on: bangkokDate(now), updated_at: now.toISOString() })
+    .eq("owner_id", owner).eq("id", failed).eq("purpose", "REPAIR");
+  const next = pickRepairAccount(await repairPool(admin, owner, now), failed ? [failed] : []);
+  if (next) {
+    check(await admin.from("flow_clips").update({ required_flow_account_id: next.id, updated_at: now.toISOString() })
+      .eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED"), "flow_clip_not_saved");
+    await updateShot(admin, owner, shot.id, "QUEUED", { error: `บัญชีซ่อมทำไม่ได้ (${reason}) ส่งให้ ${next.label} ทำแทน`.slice(0, 400) }, now, clipId);
+    return true;
+  }
+  // No pool account left and the main account is already out of credits today (that is why the shot is on the repair
+  // pool): handing it back would only bounce the shot between empty accounts every two minutes (7 Nov). It waits for
+  // new credits instead; "เครดิตมาแล้ว ทำต่อเลย" sends it sooner.
   const main = (await admin.from("flow_accounts").select("exhausted_on").eq("owner_id", owner).eq("id", series.flow_account_id).maybeSingle()).data as { exhausted_on: string | null } | null;
   if (main?.exhausted_on === bangkokDate(now)) {
-    if (series.repair_flow_account_id) await admin.from("flow_accounts").update({ exhausted_on: bangkokDate(now), updated_at: now.toISOString() })
-      .eq("owner_id", owner).eq("id", series.repair_flow_account_id);
     await admin.from("flow_clips").update({ status: "SKIPPED_NO_CREDIT", updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED");
     await updateShot(admin, owner, shot.id, "QUEUED", { status: "PLANNED", route: "PRIMARY", flow_clip_id: null, retry_after: nextBangkokMorning(now),
-      error: `เครดิตหมดทั้งบัญชีหลักและบัญชีซ่อม (${reason}) รอเครดิตรอบใหม่`.slice(0, 400) }, now, clipId);
+      error: `เครดิตหมดทั้งบัญชีหลักและบัญชีซ่อมทุกบัญชี (${reason}) รอเครดิตรอบใหม่`.slice(0, 400) }, now, clipId);
     return true;
   }
   check(await admin.from("flow_clips").update({ required_flow_account_id: series.flow_account_id, updated_at: now.toISOString() })

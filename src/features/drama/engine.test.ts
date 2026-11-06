@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, promptFor, referencePath, clipVerdict, planRetry, shotAccount, type ShotRow } from "./engine";
+import { pickRepairAccount, repairAccounts, repairShotsLeft, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, promptFor, referencePath, clipVerdict, planRetry, shotAccount, type ShotRow } from "./engine";
 
 const shot = (position: number, patch: Partial<ShotRow> = {}): ShotRow => ({
   id: `s${position}`, episode_id: "e", position, status: "PLANNED", reference_mode: position === 1 ? "KEY_STILL" : "PREVIOUS_FRAME", attempts: 0,
@@ -33,7 +33,7 @@ describe("planRetry", () => {
     expect(planRetry({ attempts: 0, route: "PRIMARY" }, "NO_CREDIT", repair, now)).toEqual({ status: "PLANNED", route: "REPAIR", attempts: 0, retryAfter: null });
   });
   it("waits for tomorrow's credits when nobody has any left", () => {
-    const plan = planRetry({ attempts: 1, route: "REPAIR" }, "NO_CREDIT", repair, now);
+    const plan = planRetry({ attempts: 1, route: "REPAIR" }, "NO_CREDIT", { exists: true, outOfCreditsToday: true }, now);
     expect(plan).toMatchObject({ status: "PLANNED", route: "PRIMARY", attempts: 1 });
     expect(plan.retryAfter).toBe(nextBangkokMorning(now));
     expect(planRetry({ attempts: 0, route: "PRIMARY" }, "NO_CREDIT", { exists: true, outOfCreditsToday: true }, now).retryAfter).toBe(nextBangkokMorning(now));
@@ -96,4 +96,25 @@ it("mayStartEpisode", () => {
   expect(mayStartEpisode(s, 1, 0)).toBe(false);
   expect(mayStartEpisode(s, 0, 1)).toBe(false);
   expect(mayStartEpisode({ ...s, next_episode_number: 11 }, 0, 0)).toBe(false);
+});
+
+describe("repair pool", () => {
+  const row = (id: string, patch: Partial<Parameters<typeof repairAccounts>[0][number]> = {}) => ({ id, label: id, active: true, exhausted_on: null, clips_today: 0,
+    clips_today_on: null, clips_per_day_estimate: 5, priority: 100, created_at: `2026-11-0${id.length}`, ...patch });
+  const today = "2026-11-07";
+  it("adds up every account's shots and skips the empty ones", () => {
+    const pool = repairAccounts([row("a", { clips_today: 5, clips_today_on: today }), row("bb", { exhausted_on: today }), row("ccc", { clips_today: 2, clips_today_on: today }),
+      row("dddd", { clips_today: 5, clips_today_on: "2026-11-06" }), row("eeeee", { active: false })], id => id !== "x", today);
+    expect(pool.map(repairShotsLeft)).toEqual([0, 0, 3, 5, 0]);
+    expect(pickRepairAccount(pool)?.id).toBe("dddd");
+    expect(pickRepairAccount(pool, ["dddd"])?.id).toBe("ccc");
+    expect(pickRepairAccount(pool, ["dddd", "ccc"])).toBeNull();
+  });
+  it("never picks an account that is not signed in on the worker", () => {
+    expect(pickRepairAccount(repairAccounts([row("a")], () => false, today))).toBeNull();
+  });
+  it("keeps a shot in the pool when the repair account it was on runs out but another has credits", () => {
+    expect(planRetry({ attempts: 1, route: "REPAIR" }, "NO_CREDIT", { exists: true, outOfCreditsToday: false }, new Date("2026-11-04T05:00:00Z")))
+      .toEqual({ status: "PLANNED", route: "REPAIR", attempts: 1, retryAfter: null });
+  });
 });

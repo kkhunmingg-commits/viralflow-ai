@@ -31,7 +31,9 @@ export function planRetry(shot: Pick<ShotRow, "attempts" | "route">, reason: "BR
     if (attempts >= MAX_SHOT_ATTEMPTS) return { status: "FAILED", route: shot.route, attempts, retryAfter: null };
     return { status: "PLANNED", route: repair.exists ? "REPAIR" : "PRIMARY", attempts, retryAfter: null };
   }
-  if (shot.route === "PRIMARY" && repair.exists && !repair.outOfCreditsToday) return { status: "PLANNED", route: "REPAIR", attempts: shot.attempts, retryAfter: null };
+  // The repair accounts are one shared pool: while any of them still has credits today the shot goes there,
+  // whichever account it was on (the one that just ran out is no longer picked).
+  if (repair.exists && !repair.outOfCreditsToday) return { status: "PLANNED", route: "REPAIR", attempts: shot.attempts, retryAfter: null };
   return { status: "PLANNED", route: "PRIMARY", attempts: shot.attempts, retryAfter: nextBangkokMorning(now) };
 }
 
@@ -86,3 +88,21 @@ export function mayStartEpisode(series: { next_episode_number: number; total_epi
 
 /** An episode stuck in ASSEMBLING this long (the server stopped mid-cut) is cut again. */
 export const ASSEMBLY_STALE_MS = 10 * 60_000;
+
+/** One repair account as the shared pool sees it today. */
+export interface RepairAccount { id: string; label: string; active: boolean; loggedIn: boolean; exhaustedToday: boolean; usedToday: number; perDay: number }
+export interface RepairAccountRow { id: string; label: string; active: boolean; exhausted_on: string | null; clips_today: number; clips_today_on: string | null;
+  clips_per_day_estimate: number; priority: number; created_at: string }
+export function repairAccounts(rows: RepairAccountRow[], loggedIn: (id: string) => boolean, today: string): RepairAccount[] {
+  return rows.toSorted((a, b) => a.priority - b.priority || a.created_at.localeCompare(b.created_at) || a.id.localeCompare(b.id)).map(row => ({
+    id: row.id, label: row.label, active: row.active, loggedIn: loggedIn(row.id), exhaustedToday: row.exhausted_on === today,
+    usedToday: row.clips_today_on === today ? row.clips_today : 0, perDay: Math.max(1, row.clips_per_day_estimate) }));
+}
+/** Shots an account can still make today: none once Flow said it is out, or once its daily allowance is used up. */
+export function repairShotsLeft(account: RepairAccount) {
+  return !account.active || !account.loggedIn || account.exhaustedToday ? 0 : Math.max(0, account.perDay - account.usedToday);
+}
+/** The pool account to send the next repair shot to: the one with the most shots left (ties: the oldest). */
+export function pickRepairAccount(pool: RepairAccount[], exclude: string[] = []) {
+  return pool.filter(a => !exclude.includes(a.id) && repairShotsLeft(a) > 0).toSorted((a, b) => repairShotsLeft(b) - repairShotsLeft(a))[0] ?? null;
+}

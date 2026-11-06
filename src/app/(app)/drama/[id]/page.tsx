@@ -5,7 +5,8 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { dramaGenreLabels, episodePhaseLabels, episodeStatusLabels, seriesStatusLabels, type EpisodePhase } from "@/features/drama/contracts";
-import { seriesDetail, signedImage } from "@/features/drama/service";
+import { repairPool, seriesDetail, signedImage } from "@/features/drama/service";
+import { repairShotsLeft } from "@/features/drama/engine";
 import { continueAfterCreditsAction, newStoryAction, redoShotAction, remakeTakeAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction, takeAction } from "../actions";
 import { OneVideoAtATime } from "../one-video";
 import { RestoreCut } from "../restore-cut";
@@ -52,10 +53,11 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
   // Posted drama cuts keep their file, so finished episodes can be rewatched here.
   const watchable = new Set(clips.filter(c => c.storage_path && (inLibrary.has(c.id) || posted.has(c.id))).map(c => c.id));
   const byNumber = new Map(episodes.map(e => [e.number, e]));
-  const accountIds = [series.flow_account_id, series.repair_flow_account_id].filter((v): v is string => Boolean(v));
+  const accountIds = [series.flow_account_id].filter((v): v is string => Boolean(v));
+  const pool = await repairPool(createAdminClient(), data.user.id).catch(() => []), poolLeft = pool.reduce((sum, a) => sum + repairShotsLeft(a), 0);
   const google = accountIds.length ? ((await client.from("flow_accounts").select("id,label").eq("owner_id", data.user.id).in("id", accountIds)).data ?? []) as Array<{ id: string; label: string }> : [];
   const accountLabel = (id: string | null) => google.find(g => g.id === id)?.label ?? null;
-  const mainLabel = accountLabel(series.flow_account_id), repairLabel = accountLabel(series.repair_flow_account_id);
+  const mainLabel = accountLabel(series.flow_account_id);
 
   return <div className="manual-page drama-page">
     <header className="manual-hero"><div><p className="manual-eyebrow">Drama Studio · {dramaGenreLabels[series.genre]} · {seriesStatusLabels[series.status]}</p><h1>{series.title}</h1>
@@ -73,7 +75,7 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
       {series.status !== "ARCHIVED" && <form action={seriesStatusAction}><input type="hidden" name="id" value={series.id} /><input type="hidden" name="status" value="ARCHIVED" />
         <button className="manual-secondary" type="submit">เก็บเข้ากรุ</button></form>}
       <span className="manual-muted">ตอนละ {series.shots_per_episode} ช็อต · {series.episodes_per_day} ตอน/วัน · ตัวเขียนบท {series.writer}
-        {mainLabel && ` · บัญชีหลัก ${mainLabel}`}{series.flow_account_id && (repairLabel ? ` · บัญชีซ่อม ${repairLabel}` : " · ไม่มีบัญชีซ่อม")}
+        {mainLabel && ` · บัญชีหลัก ${mainLabel}`}{series.flow_account_id && (pool.length === 0 ? " · ไม่มีบัญชีซ่อม" : poolLeft > 0 ? ` · บัญชีซ่อมกองกลาง ${pool.length} บัญชี ซ่อมได้อีก ${poolLeft} ช็อตวันนี้` : ` · บัญชีซ่อม ${pool.length} บัญชี เครดิตหมดแล้ว`)}
         {series.auto_next && series.flow_account_id ? " · จบแล้วเริ่มเรื่องใหม่แนวเดิมให้เอง" : ""}</span>
     </div>
 
