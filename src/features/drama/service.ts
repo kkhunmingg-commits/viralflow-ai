@@ -430,6 +430,17 @@ async function startEpisode(admin: SupabaseClient, owner: string, series: Series
 }
 
 async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow, episode: EpisodeRow, shot: DramaShotRow, shots: DramaShotRow[], now: Date) {
+  // The owner's rule: one version of an episode may spend at most 100 credits (10 Flow clips at 10 credits each).
+  // Past that it stops and waits for the owner instead of spending more.
+  const spent = await admin.from("flow_clips").select("id", { count: "exact", head: true }).eq("owner_id", owner).eq("batch_id", episode.id)
+    .eq("kind", "DRAMA_SHOT").in("status", SPENDING_STATUSES);
+  if (spent.error) throw new Error("flow_clips_unavailable");
+  if ((spent.count ?? 0) * CREDITS_PER_SHOT >= TAKE_CREDIT_BUDGET) {
+    await admin.from("drama_episodes").update({ status: "FAILED", updated_at: now.toISOString(),
+      error: `เวอร์ชันนี้ใช้ครบ ${TAKE_CREDIT_BUDGET} เครดิตแล้ว (${spent.count} คลิป) แต่ยังไม่ครบทุกช็อต จึงหยุดไว้ก่อน ไม่ใช้เครดิตเพิ่ม` })
+      .eq("owner_id", owner).eq("id", episode.id).eq("status", "PRODUCING");
+    return;
+  }
   // Claim the shot first; the unique index allows one queued shot per series, so a parallel step cannot queue twice.
   // Flow already said the main account is out of credits today: go straight to the repair account instead of
   // asking the main one again for every shot.
@@ -453,6 +464,11 @@ async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow
   }
   check(await admin.from("drama_shots").update({ flow_clip_id: clip.data.id, updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", shot.id), "shot_not_saved");
 }
+
+/** Flow clips that reached Flow's Generate button and so may have cost credits (a refused-for-credit clip did not). */
+const SPENDING_STATUSES = ["GENERATING", "READY", "SCHEDULED", "POSTED", "FAILED", "DISCARDED"];
+const CREDITS_PER_SHOT = 10;
+export const TAKE_CREDIT_BUDGET = 100;
 
 /** Checks the finished take; a good one becomes part of the episode, a bad one is thrown away. Returns why it was bad. */
 async function absorbShot(admin: SupabaseClient, owner: string, series: SeriesRow, episode: EpisodeRow, shot: DramaShotRow,

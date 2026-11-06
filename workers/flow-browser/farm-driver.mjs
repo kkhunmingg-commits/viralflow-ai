@@ -316,7 +316,9 @@ export async function openFlowAccount(account, config) {
       let prompt;
       try { prompt = await openComposer(page, { flowUrl: config.flowUrl, selectors }); }
       catch (error) { return fail(error.message); }
-      if (appeared("", await bodyText(page), NO_CREDIT_PATTERNS)) return { status: "NO_CREDIT" };
+      // No early "out of credits" here: Flow keeps old credit notices on the page after the credits renew (6 Nov: the
+      // main account renewed at 23:09 and three shots were still turned away as out of credits). Only a Generate
+      // button Flow has disabled, or a notice that appears after the click, counts.
       if (clip.imageUrl) await step("ATTACHING_IMAGE");
       // A drama shot continues from a picture (the last frame, or the key still): Flow's "frames" mode, start slot.
       const frames = clip.kind === "DRAMA_SHOT" && Boolean(clip.imageUrl);
@@ -336,7 +338,9 @@ export async function openFlowAccount(account, config) {
       const button = await generateButton(page, selectors);
       if (!button) return fail("GENERATE_BUTTON_NOT_FOUND");
       if (await button.isDisabled().catch(() => false)) {
-        return appeared("", await bodyText(page), NO_CREDIT_PATTERNS) ? { status: "NO_CREDIT" } : fail("GENERATE_BUTTON_DISABLED");
+        const noCredit = appeared("", await bodyText(page), NO_CREDIT_PATTERNS);
+        await saveDebug(page, config.debugDir, clip.id, noCredit ? "no-credit-before" : "button-disabled");
+        return noCredit ? { status: "NO_CREDIT" } : fail("GENERATE_BUTTON_DISABLED");
       }
       if (config.dryRun) return { status: "DRY_RUN", detail: `ล็อกอินแล้ว เจอช่อง prompt และปุ่ม Generate ค่าเครดิต ${cost ?? "ไม่ทราบ"}` };
 
