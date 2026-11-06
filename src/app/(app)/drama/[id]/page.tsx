@@ -45,9 +45,11 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
   const waitingCredits = !busy && currentShots.some(s => s.status === "PLANNED" && s.retry_after);
   const canRedo = current && current.review === "PENDING" && current.status !== "ASSEMBLING";
   const clipIds = episodes.map(e => e.flow_clip_id).filter((v): v is string => Boolean(v));
-  const clips = clipIds.length ? ((await client.from("flow_clips").select("id,status").eq("owner_id", data.user.id).in("id", clipIds)).data ?? []) as Array<{ id: string; status: string }> : [];
+  const clips = clipIds.length ? ((await client.from("flow_clips").select("id,status,storage_path").eq("owner_id", data.user.id).in("id", clipIds)).data ?? []) as Array<{ id: string; status: string; storage_path: string | null }> : [];
   const inLibrary = new Set(clips.filter(c => c.status === "READY" || c.status === "SCHEDULED").map(c => c.id));
   const posted = new Set(clips.filter(c => c.status === "POSTED").map(c => c.id));
+  // Posted drama cuts keep their file, so finished episodes can be rewatched here.
+  const watchable = new Set(clips.filter(c => c.storage_path && (inLibrary.has(c.id) || posted.has(c.id))).map(c => c.id));
   const byNumber = new Map(episodes.map(e => [e.number, e]));
   const accountIds = [series.flow_account_id, series.repair_flow_account_id].filter((v): v is string => Boolean(v));
   const google = accountIds.length ? ((await client.from("flow_accounts").select("id,label").eq("owner_id", data.user.id).in("id", accountIds)).data ?? []) as Array<{ id: string; label: string }> : [];
@@ -78,8 +80,10 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
       <h2 id="arc-title">แผนทั้งซีซัน ({series.total_episodes} ตอน)</h2>
       <ol className="drama-arc">{bible.arc.map((phase: EpisodePhase, i: number) => {
         const episode = byNumber.get(i + 1), state = episode?.status ?? (i + 1 < series.next_episode_number ? "READY" : "PLANNED");
+        const target = episode?.status === "READY" ? `#ep-${i + 1}` : episode && episode.id === current?.id ? "#current-title" : null;
+        const tile = <><span>{i + 1}</span><small>{episodePhaseLabels[phase]}</small></>;
         return <li key={i} className={`drama-arc-${state.toLowerCase()}`} title={`ตอนที่ ${i + 1} · ${episodePhaseLabels[phase]}${episode ? ` · ${episode.title}` : ""}`}>
-          <span>{i + 1}</span><small>{episodePhaseLabels[phase]}</small></li>;
+          {target ? <a href={target} aria-label={`ดูตอนที่ ${i + 1}`}>{tile}</a> : tile}</li>;
       })}</ol>
       <p className="manual-muted">ตอนจบถูกล็อกไว้ตั้งแต่วันแรก: {bible.ending}</p>
     </section>
@@ -148,8 +152,8 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
     <section className="manual-panel" aria-labelledby="done-title">
       <h2 id="done-title">ตอนที่ตัดต่อเสร็จ</h2>
       {episodes.filter(e => e.status === "READY").length === 0 ? <p className="manual-muted">ตอนแรกจะตัดต่อเสร็จเมื่อครบ {series.shots_per_episode} ช็อต</p> :
-        <div className="drama-episodes">{episodes.filter(e => e.status === "READY").toReversed().map(e => <article key={e.id} className="drama-episode">
-          {e.flow_clip_id && inLibrary.has(e.flow_clip_id) && <video controls playsInline preload="metadata" src={`/api/library/${e.flow_clip_id}/video#t=0.1`} aria-label={e.title} />}
+        <div className="drama-episodes">{episodes.filter(e => e.status === "READY").toReversed().map(e => <article key={e.id} id={e.review === "REJECTED" ? undefined : `ep-${e.number}`} className="drama-episode">
+          {e.flow_clip_id && watchable.has(e.flow_clip_id) && <video controls playsInline preload="metadata" src={`/api/library/${e.flow_clip_id}/video#t=0.1`} aria-label={e.title} />}
           <h3>EP.{e.number} {e.title}{e.take > 1 || e.review === "REJECTED" ? ` · เวอร์ชัน ${e.take}` : ""}</h3>
           <p className="drama-meta">{e.review === "APPROVED" ? "✓ ผ่านแล้ว" : e.review === "REJECTED" ? "ไม่ผ่าน · เก็บไว้เทียบ" : "รอคุณตรวจ"}</p>
           {e.review === "REJECTED" && <form action={takeAction} className="drama-review-buttons"><input type="hidden" name="seriesId" value={series.id} />
@@ -161,7 +165,7 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
             <button className="manual-primary" name="verdict" value="APPROVE" type="submit">ผ่าน</button>
             <button className="manual-secondary" name="verdict" value="REJECT" type="submit">ไม่ผ่าน ทำเวอร์ชันใหม่</button></form>}
           <p className="manual-muted">{e.summary}</p>
-          <p className="drama-meta">{e.flow_clip_id && posted.has(e.flow_clip_id) ? "โพสต์แล้ว" : e.review === "REJECTED" ? "เทียบกับเวอร์ชันอื่นได้ที่การ์ดละคร" : e.flow_clip_id && inLibrary.has(e.flow_clip_id) ? <Link href="/drama#library">อยู่ในคลังละคร รอโพสต์ →</Link> : "ไฟล์ถูกลบจากคลังแล้ว"}</p>
+          <p className="drama-meta">{e.flow_clip_id && posted.has(e.flow_clip_id) ? (watchable.has(e.flow_clip_id) ? "โพสต์แล้ว · เก็บไฟล์ไว้ดูย้อนหลัง" : "โพสต์แล้ว · ไฟล์ถูกลบไปก่อนเปิดการเก็บย้อนหลัง") : e.review === "REJECTED" ? "เทียบกับเวอร์ชันอื่นได้ที่การ์ดละคร" : e.flow_clip_id && inLibrary.has(e.flow_clip_id) ? <Link href="/drama#library">อยู่ในคลังละคร รอโพสต์ →</Link> : "ไฟล์ถูกลบจากคลังแล้ว"}</p>
         </article>)}</div>}
     </section>
   </div>;

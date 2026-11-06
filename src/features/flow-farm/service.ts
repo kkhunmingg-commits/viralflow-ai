@@ -393,15 +393,17 @@ export async function listLibrary(client: SupabaseClient, owner: string, account
   return check(await query, "flow_clips_unavailable") as LibraryClip[];
 }
 
-async function libraryClip(admin: SupabaseClient, owner: string, id: string) {
-  const clip = check(await admin.from("flow_clips").select("id,status,storage_path").eq("owner_id", owner).eq("id", id).maybeSingle(), "flow_clips_unavailable") as
-    { id: string; status: FlowClipStatus; storage_path: string | null } | null;
-  if (!clip || !LIBRARY_STATUSES.includes(clip.status) || !clip.storage_path) throw new Error("CLIP_NOT_IN_LIBRARY");
-  return clip as { id: string; status: FlowClipStatus; storage_path: string };
+async function libraryClip(admin: SupabaseClient, owner: string, id: string, keptDrama = false) {
+  const clip = check(await admin.from("flow_clips").select("id,kind,status,storage_path").eq("owner_id", owner).eq("id", id).maybeSingle(), "flow_clips_unavailable") as
+    { id: string; kind: string; status: FlowClipStatus; storage_path: string | null } | null;
+  const kept = keptDrama && clip?.kind === "DRAMA" && clip.status === "POSTED";
+  if (!clip || !(kept || LIBRARY_STATUSES.includes(clip.status)) || !clip.storage_path) throw new Error("CLIP_NOT_IN_LIBRARY");
+  return clip as { id: string; kind: string; status: FlowClipStatus; storage_path: string };
 }
 
+/** A short-lived link for watching a library clip, or a posted drama episode (its cut is kept so the season can be rewatched). */
 export async function clipSignedUrl(admin: SupabaseClient, owner: string, id: string, download: boolean) {
-  const clip = await libraryClip(admin, owner, id);
+  const clip = await libraryClip(admin, owner, id, true);
   const signed = await admin.storage.from(BUCKET).createSignedUrl(clip.storage_path, 600, download ? { download: `viralflow-${id.slice(0, 8)}.mp4` } : undefined);
   if (signed.error || !signed.data) throw new Error("VIDEO_UNAVAILABLE");
   return signed.data.signedUrl;
@@ -423,9 +425,17 @@ export async function scheduleClip(admin: SupabaseClient, owner: string, id: str
     .eq("owner_id", owner).eq("id", id).in("status", LIBRARY_STATUSES), "flow_clip_not_saved");
 }
 
-/** Posted (or thrown away): the MP4 is deleted from Storage straight away; the row stays for counts and results. */
+/**
+ * Posted (or thrown away): the MP4 is deleted from Storage straight away; the row stays for counts and results.
+ * A posted drama episode is the exception: its cut (about 12 MB) is kept so the owner can rewatch the season.
+ */
 export async function closeClip(admin: SupabaseClient, owner: string, id: string, outcome: { posted: true; url: string | null } | { posted: false }, now = new Date()) {
   const clip = await libraryClip(admin, owner, id);
+  if (outcome.posted && clip.kind === "DRAMA") {
+    check(await admin.from("flow_clips").update({ status: "POSTED", posted_at: now.toISOString(), post_url: outcome.url, updated_at: now.toISOString() })
+      .eq("owner_id", owner).eq("id", id).in("status", LIBRARY_STATUSES), "flow_clip_not_saved");
+    return;
+  }
   const removed = await admin.storage.from(BUCKET).remove([clip.storage_path]);
   if (removed.error) throw new Error("VIDEO_NOT_DELETED");
   check(await admin.from("flow_clips").update({

@@ -70,3 +70,5 @@
 .drama-cover{display:block;border-radius:10px;overflow:hidden;margin:4px 0;background:#000}
 .drama-cover img{display:block;width:100%;aspect-ratio:9/16;max-height:320px;object-fit:cover}
 .drama-shot-player{display:block;width:100%;max-width:220px;aspect-ratio:9/16;border-radius:8px;background:#000;margin:6px 0}
+.drama-arc li a{display:block;color:inherit;text-decoration:none;margin:-6px -4px;padding:6px 4px;border-radius:10px}.drama-arc li a:hover,.drama-arc li a:focus-visible{background:#2a3c63}
+.drama-episode{scroll-margin-top:16px}.drama-episode:target{outline:2px solid #567de7;outline-offset:4px;border-radius:12px}
