@@ -77,6 +77,20 @@ describe("planEpisode", () => {
     expect(lines.every(s => /^(มิน|ต้น|ป้าแจ่ม): /.test(s.subtitle))).toBe(true);
   });
 
+  it("names the speaker by look, keeps everyone from the previous frame silent, and guards anatomy", () => {
+    const { episodes } = season("HORROR", 6, 5);
+    const [, key, night] = episodes[0].shots;
+    // Aunt Jaem hands over the key while Ton, still in the frame from shot 1, stays silent.
+    expect(key.referenceMode).toBe("PREVIOUS_FRAME");
+    expect(key.prompt).toContain("only Aunt Jaem speaks: Aunt Jaem (the elderly Thai woman in her sixties, silver hair in a tight bun");
+    expect(key.prompt).toMatch(/Ton \(the 26-year-old Thai man[^)]*\) stay silent/);
+    expect(key.prompt).toContain("Ton is still in the room from the moment before");
+    // Late at night is a jump in time: it starts fresh instead of continuing the daytime frame.
+    expect(night.referenceMode).toBe("NONE");
+    const prompts = episodes.flatMap(ep => ep.shots.map(s => s.prompt));
+    expect(prompts.every(p => p.includes("exactly two arms"))).toBe(true);
+  });
+
   it("picks up the previous cliffhanger and carries memory forward", () => {
     const { episodes } = season("MYSTERY", 8, 4);
     for (let i = 1; i < episodes.length; i++) {

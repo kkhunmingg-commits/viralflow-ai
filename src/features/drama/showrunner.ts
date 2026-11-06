@@ -93,32 +93,54 @@ const CROWD = /\b(crowd|customers?|class|students|children|kids|passengers|peopl
 const CONTINUITY = "One single continuous take: no cuts, no transitions, no flashes, no dissolves. The location, background and lighting stay exactly the same from the first frame to the last, and every person's hair and clothes never change.";
 const OLD = /elderly|(?<!-)\bold\b|sixties|seventies|eighties|grand(mother|father|ma|pa)|\b[6-9]\d-year/i;
 
-/** The spoken line with the speaker's age and voice next to it, so Veo gives each character their own voice. */
-export function dialogueLine(speaker: CastMember, line: string, visible: boolean) {
+/** Veo does not know who "Aunt Jaem" is: name each person by what the camera sees (age, hair, clothes). */
+export function tagOf(c: CastMember) {
+  const parts = c.look.split(/,\s*/);
+  const hair = parts.find(part => /hair|bald|bun/i.test(part)) ?? parts[0];
+  const clothes = c.outfit.split(/,| over | and /)[0].trim();
+  return `${c.nameEn} (the ${c.age.replace(/^an?\s+/i, "")}, ${hair}, in ${clothes})`;
+}
+
+/**
+ * The spoken line with the speaker's age, look and voice next to it, so Veo gives the line to the right person:
+ * the speaker stands nearest the camera with their lips moving, everyone else on screen is named and kept silent.
+ */
+export function dialogueLine(speaker: CastMember, line: string, visible: boolean, silent: CastMember[] = []) {
   const aged = OLD.test(`${speaker.age} ${speaker.look}`) ? "; unmistakably an old person's voice: aged, thin, slightly shaky and breathy, never young" : "";
   const voice = `${speaker.voice}${aged}`;
+  const quiet = silent.length ? ` ${silent.map(tagOf).join(" and ")} ${silent.length > 1 ? "stay" : "stays"} silent with ${silent.length > 1 ? "their mouths" : "mouth"} closed and never ${silent.length > 1 ? "speak" : "speaks"} this line.` : "";
   return visible
-    ? `Dialogue (Thai, lip-synced): only ${speaker.nameEn} (${speaker.age}) speaks, in a ${voice}. ${speaker.nameEn} says: "${line}". Everyone else stays silent with their mouth closed.`
-    : `Dialogue (Thai): an off-screen voice belonging to ${speaker.nameEn} (${speaker.age}), a ${voice}, says: "${line}". No one on screen speaks.`;
+    ? `Dialogue (Thai, lip-synced): only ${speaker.nameEn} speaks: ${tagOf(speaker)}, in a ${voice}. ${speaker.nameEn} is in the foreground nearest the camera, face and moving lips clearly visible and lit, and says: "${line}". The voice comes from ${speaker.nameEn}'s own mouth.${quiet || " Everyone else stays silent with their mouth closed."}`
+    : `Dialogue (Thai): an off-screen voice belonging to ${speaker.nameEn} (${speaker.age}), a ${voice}, says: "${line}". No one on screen speaks.${quiet}`;
 }
+
+/** Correct bodies: Veo sometimes grows a third arm or merges hands, most often in close two-shots. */
+const ANATOMY = "Correct human anatomy: every person has exactly two arms, two hands and five fingers on each hand; no extra, missing or merged limbs; hands never fuse with objects or with another person.";
+/** A move that jumps in time (night to morning) cannot continue from the last frame of the previous moment. */
+const TIME_JUMP = /\b(late at night|that night|at night|next morning|morning light|the next day|hours later|at dawn|midnight)\b/i;
 
 export interface ShotDraft { move: Move; place: PlaceKey; camera: string; hook?: boolean }
 
 /** The English prompt the Flow worker types. Character and place descriptions are repeated word for word every time. */
-export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<StoryState, "conditions">, mode: ReferenceMode, kit = kitFor(bible)) {
+export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<StoryState, "conditions">, mode: ReferenceMode, kit = kitFor(bible), carried: Role[] = []) {
   const place = placeOf(bible, draft.place), line = lineOf(draft.move.say, kit);
-  const present = rolesIn(draft.move.en);
+  const named = rolesIn(draft.move.en);
+  // Starting from the previous frame keeps whoever was in it; name them, or Veo gives one of them the line.
+  const stay = mode === "PREVIOUS_FRAME" ? carried.filter(role => !named.includes(role)) : [];
+  const present = [...named, ...stay];
   const speakerVisible = line ? present.includes(line.who) : false;
   const cast = present.map(role => {
     const c = castOf(bible, role), condition = state.conditions[role];
     return `- ${c.nameEn}: ${c.age}, ${c.look}; wearing ${c.outfit}${condition ? `; ${condition.en}` : ""}. Voice: ${c.voice}.`;
   });
   const speaker = line ? castOf(bible, line.who) : null;
-  const dialogue = line && speaker ? dialogueLine(speaker, fill(line.line, bible, "th"), speakerVisible) : "No dialogue; natural sound only.";
+  const silent = present.filter(role => role !== line?.who).map(role => castOf(bible, role));
+  const dialogue = line && speaker ? dialogueLine(speaker, fill(line.line, bible, "th"), speakerVisible, silent) : "No dialogue; natural sound only.";
   const names = present.map(role => castOf(bible, role).nameEn);
+  const background = stay.length ? ` ${stay.map(role => castOf(bible, role).nameEn).join(" and ")} ${stay.length > 1 ? "are" : "is"} still in the room from the moment before, in the background.` : "";
   const crowd = CROWD.test(draft.move.en);
   const people = names.length
-    ? `People on screen: ${names.join(", ")}. Each of them appears exactly once; never duplicate a person, never show a double or a look-alike, faces never blend or morph into each other${crowd ? "" : "; no other people"}.`
+    ? `People on screen: ${names.join(", ")}. Each of them appears exactly once; never duplicate a person, never show a double or a look-alike, faces never blend or morph into each other${crowd ? "" : "; no other people"}.${background}`
     : crowd ? "" : "No people on screen.";
   const reference = mode === "PREVIOUS_FRAME" ? "Begin exactly on the attached image (same people, same place, same light) and continue the action from there."
     : mode === "KEY_STILL" ? "Begin on the attached image of this same place and continue from there; keep every face, hair and outfit as shown." : "";
@@ -134,6 +156,7 @@ export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<Sto
     CONTINUITY,
     `Sound: ${bible.sound}.`,
     ...(reference ? [reference] : []),
+    ANATOMY,
     "No on-screen text, no captions, no subtitles, no watermark, no logo. Realistic human motion and expressions.",
   ].join("\n");
 }
@@ -215,10 +238,15 @@ export function planEpisode(input: { bible: SeriesBible; state: StoryState; numb
   // into the new one. Attach one only when it shows the same place: the previous shot's last frame, or the key still
   // (episode 1's first shot, in the opening place). A shot in a new place starts from its description alone.
   const stillPlace = kit.beats.OPENING?.at ?? "A";
+  // Who is visible at the end of each shot: the people it names, plus anyone it carried over from the frame before.
+  const seen: Role[][] = [];
   const planned: PlannedShot[] = drafts.map((draft, i) => {
     const mode: ReferenceMode = number === 1 && i === 0 ? "NONE"
+      : TIME_JUMP.test(draft.move.en) ? "NONE"
       : i > 0 && draft.place === drafts[i - 1].place ? "PREVIOUS_FRAME" : draft.place === stillPlace ? "KEY_STILL" : "NONE";
-    const prompt = shotPrompt(bible, draft, next, mode, kit);
+    const carried = mode === "PREVIOUS_FRAME" ? seen[i - 1] : [];
+    seen[i] = [...rolesIn(draft.move.en), ...carried.filter(role => !rolesIn(draft.move.en).includes(role))];
+    const prompt = shotPrompt(bible, draft, next, mode, kit, carried);
     if (draft.move.condition) next.conditions[draft.move.condition.who] = { en: draft.move.condition.en, th: draft.move.condition.th };
     if (draft.move.clue && !next.clues.includes(draft.move.clue)) next.clues.push(draft.move.clue);
     if (!draft.hook && !fixedKey && draft.move !== cliff) next.usedMoves.push(draft.move.id);

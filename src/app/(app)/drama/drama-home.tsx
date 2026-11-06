@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DRAMA_GENRES, dramaGenreLabels, episodeStatusLabels, seriesStatusLabels } from "@/features/drama/contracts";
 import { GENRE_STORIES } from "@/features/drama/genres";
+import { OneVideoAtATime } from "./one-video";
 import { pickStory } from "@/features/drama/showrunner";
 import { dramaAvailable, listSeries, type SeriesSummary } from "@/features/drama/service";
 import { bangkokDate } from "@/features/flow-farm/contracts";
@@ -61,6 +62,7 @@ export async function DramaHome({ client, owner, library }: { client: SupabaseCl
     <p className="manual-muted">ฐานข้อมูลยังไม่มีตาราง Drama Studio ต้องรัน migration ใน Supabase ก่อน (ไม่กระทบระบบเดิม)</p></section>;
 
   return <div className="drama-page">
+    <OneVideoAtATime />
     <section className="drama-series-list" aria-labelledby="series-title">
       <h2 id="series-title">ละครที่กำลังผลิต</h2>
       {series.length === 0 ? <p className="manual-muted">ยังไม่มีละคร เริ่มเรื่องแรกได้จากด้านล่าง</p>
