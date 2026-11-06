@@ -362,7 +362,7 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
       const repair = await repairState(admin, owner, series, now);
       const plan = planRetry(queued, verdict === "NO_CREDIT" ? "NO_CREDIT" : "BROKEN", repair, now);
       await updateShot(admin, owner, queued.id, "QUEUED", { status: plan.status, route: plan.route, attempts: plan.attempts, retry_after: plan.retryAfter,
-        flow_clip_id: plan.status === "FAILED" ? queued.flow_clip_id : null, error: verdict === "NO_CREDIT" ? "NO_CREDIT" : `${broken}`.slice(0, 400) }, now);
+        flow_clip_id: plan.status === "FAILED" ? queued.flow_clip_id : null, error: verdict === "NO_CREDIT" ? "NO_CREDIT" : `${broken}`.slice(0, 400) }, now, queued.flow_clip_id);
       if (plan.status === "FAILED") {
         await admin.from("drama_episodes").update({ status: "FAILED", error: `ช็อต ${queued.position} ใช้ไม่ได้ ${plan.attempts} ครั้ง (${broken})`.slice(0, 480), updated_at: now.toISOString() })
           .eq("owner_id", owner).eq("id", episode.id).eq("status", "PRODUCING");
@@ -379,6 +379,13 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
   if (next) await queueShot(admin, owner, series, episode, next, shots, now);
 }
 
+async function mainOutOfCreditsToday(admin: SupabaseClient, owner: string, series: SeriesRow, now: Date) {
+  if (!series.flow_account_id) return false;
+  const row = (await admin.from("flow_accounts").select("exhausted_on").eq("owner_id", owner).eq("id", series.flow_account_id).maybeSingle()).data as
+    { exhausted_on: string | null } | null;
+  return row?.exhausted_on === bangkokDate(now);
+}
+
 /** Whether the series has a repair account, and whether Flow already said it is out of credits today. */
 async function repairState(admin: SupabaseClient, owner: string, series: SeriesRow, now: Date) {
   if (!series.repair_flow_account_id) return { exists: false, outOfCreditsToday: false };
@@ -388,8 +395,15 @@ async function repairState(admin: SupabaseClient, owner: string, series: SeriesR
   return { exists: true, outOfCreditsToday: row.exhausted_on === bangkokDate(now) };
 }
 
-async function updateShot(admin: SupabaseClient, owner: string, id: string, from: string, patch: Record<string, unknown>, now: Date) {
-  check(await admin.from("drama_shots").update({ ...patch, updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", id).eq("status", from), "shot_not_saved");
+/**
+ * Moves a shot on only if it is still where this step saw it. `clip` pins the Flow clip too: two overlapping rounds
+ * could otherwise both act on one result, and the late one would re-queue a shot the first had already sent to Flow,
+ * paying for the same shot twice.
+ */
+async function updateShot(admin: SupabaseClient, owner: string, id: string, from: string, patch: Record<string, unknown>, now: Date, clip?: string | null) {
+  let query = admin.from("drama_shots").update({ ...patch, updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", id).eq("status", from);
+  if (clip !== undefined) query = clip === null ? query.is("flow_clip_id", null) : query.eq("flow_clip_id", clip);
+  check(await query, "shot_not_saved");
 }
 
 async function startEpisode(admin: SupabaseClient, owner: string, series: SeriesRow, now: Date) {
@@ -417,8 +431,14 @@ async function startEpisode(admin: SupabaseClient, owner: string, series: Series
 
 async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow, episode: EpisodeRow, shot: DramaShotRow, shots: DramaShotRow[], now: Date) {
   // Claim the shot first; the unique index allows one queued shot per series, so a parallel step cannot queue twice.
-  const claimed = await admin.from("drama_shots").update({ status: "QUEUED", retry_after: null, updated_at: now.toISOString() })
-    .eq("owner_id", owner).eq("id", shot.id).eq("status", "PLANNED").select("id");
+  // Flow already said the main account is out of credits today: go straight to the repair account instead of
+  // asking the main one again for every shot.
+  if ((shot.route ?? "PRIMARY") === "PRIMARY" && await mainOutOfCreditsToday(admin, owner, series, now)) {
+    const repair = await repairState(admin, owner, series, now);
+    if (repair.exists && !repair.outOfCreditsToday) shot = { ...shot, route: "REPAIR" };
+  }
+  const claimed = await admin.from("drama_shots").update({ status: "QUEUED", route: shot.route ?? "PRIMARY", retry_after: null, updated_at: now.toISOString() })
+    .eq("owner_id", owner).eq("id", shot.id).eq("status", "PLANNED").is("flow_clip_id", null).select("id");
   if (claimed.error || !claimed.data?.length) return;
   const image = referencePath(shot, shots, series.key_still_path);
   const title = `ละคร ${series.title} EP.${episode.number} ช็อต ${shot.position}/${shots.length}${shot.route === "REPAIR" ? " (ซ่อม)" : ""}`.slice(0, 200);
@@ -454,7 +474,7 @@ async function absorbShot(admin: SupabaseClient, owner: string, series: SeriesRo
   const upload = await admin.storage.from(BUCKET).upload(path, frame, { contentType: "image/jpeg", upsert: true });
   if (upload.error) throw new Error("FRAME_NOT_SAVED");
   await updateShot(admin, owner, shot.id, "QUEUED", { status: "DONE", last_frame_path: path, video_path: clip.storage_path,
-    duration_seconds: clip.duration_seconds ?? verdict.durationSeconds, error: null }, now);
+    duration_seconds: clip.duration_seconds ?? verdict.durationSeconds, error: null }, now, clip.id);
   // Episode 1's opening shot shows the whole cast: its last frame anchors every later episode.
   if (episode.number === 1 && shot.position === 1 && !series.key_still_path) {
     await admin.from("drama_series").update({ key_still_path: path, updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", series.id).is("key_still_path", null);
