@@ -124,7 +124,9 @@ export async function chooseSingleOutput(page, selectors) {
 const LITE_MODEL = /Veo\s*3\.1\s*[-–]?\s*Lite/i;
 /** The composer's settings chip: "วิดีโอ · 720p · 8 วินาที crop_9_16 x1" (or "Nano Banana … x2" on a fresh account). */
 async function settingsChip(page, selectors) {
-  return await firstVisible(page, selectors.settingsChip) ?? await firstVisible(page, 'button:has-text("crop_")');
+  // In a narrow window Flow folds the chip ("Nano Banana 2.1 crop x2" on a fresh account) into a "tune" icon button.
+  return await firstVisible(page, selectors.settingsChip) ?? await firstVisible(page, 'button:has-text("crop_")')
+    ?? await firstVisible(page, 'button:has-text("tune")');
 }
 async function pickRadio(page, name) {
   const radio = page.getByRole("radio", { name }).first();
