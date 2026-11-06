@@ -18,13 +18,13 @@ interface GoogleAccount { id: string; label: string; tiktok_account_id: string |
 function nextStep(item: SeriesSummary, today: string) {
   const { series, current, toReview, latestReady } = item;
   if (series.status === "COMPLETED") return `จบครบ ${series.total_episodes} ตอนแล้ว`;
-  if (toReview) return `ตอนที่ ${toReview.number} ตัดต่อเสร็จ รอคุณตรวจ ดูคลิปด้านล่างแล้วกด “ผ่าน” เพื่อไปตอนที่ ${toReview.number + 1} หรือ “ไม่ผ่าน” เพื่อทำเวอร์ชันใหม่พรุ่งนี้`;
+  if (toReview) return `ตอนที่ ${toReview.number} ตัดต่อเสร็จ รอคุณตรวจ ดูคลิปด้านล่างแล้วกด “ผ่าน” เพื่อไปตอนที่ ${toReview.number + 1} หรือ “ไม่ผ่าน” เพื่อทำเวอร์ชันใหม่ทันที`;
   if (series.status === "PAUSED") return "พักไว้ กด “ผลิตต่อ” ในหน้าเรื่อง";
   if (current?.status === "FAILED") return `ตอนที่ ${current.number} ต้องตรวจ: ${current.error ?? "ช็อตสร้างไม่สำเร็จ"}`;
   if (current?.status === "ASSEMBLING") return `กำลังตัดต่อตอนที่ ${current.number}`;
   if (current) return `กำลังถ่ายทำตอนที่ ${current.number} · ช็อต ${item.shotsDone}/${item.shotsTotal}${item.queued ? " · อยู่ในคิว Flow" : " · รอเครดิตวันใหม่"}`;
   const done = latestReady ? `ตอนที่ ${latestReady.number} สำเร็จ ✓ ` : "";
-  if (series.redo_on && today < series.redo_on) return `ตอนที่ ${series.next_episode_number} ไม่ผ่าน จะถ่ายเวอร์ชันใหม่พรุ่งนี้ ระหว่างนี้เลือกเวอร์ชันเก่าด้านล่างได้`;
+  if (item.takes.length > 0) return `ตอนที่ ${series.next_episode_number} ไม่ผ่าน กำลังเริ่มถ่ายเวอร์ชันใหม่ (เครื่องสร้างคลิปจะรับงานภายใน 1–2 นาที) ระหว่างนี้เลือกเวอร์ชันเก่าด้านล่างได้`;
   if (latestReady?.started_on === today) return `${done}· ตอนที่ ${series.next_episode_number} เริ่มพรุ่งนี้`;
   return `${done}· ตอนที่ ${series.next_episode_number} กำลังจะเริ่ม`;
 }
@@ -80,7 +80,7 @@ export async function DramaHome({ client, owner, library }: { client: SupabaseCl
               {item.shots.map(shot => { const state = shotState(shot); return <li key={shot.position} className={`drama-shot-chip is-${state.tone}`}>
                 <strong>ช็อต {shot.position}</strong><small>{state.text}{shot.repair ? " · บัญชีซ่อม" : ""}</small></li>; })}</ol>}
             {item.takes.length > 0 && <div className="drama-takes">
-              <p className="drama-meta"><strong>ตอนที่ {item.takes[0].number} · {item.takes.length > 1 ? `เทียบ ${item.takes.length} เวอร์ชัน` : "รอคุณตรวจ"}</strong>
+              <p className="drama-meta"><strong>ตอนที่ {item.takes[0].number} · {item.takes.length > 1 ? `เทียบ ${item.takes.length} เวอร์ชัน` : item.takes[0].review === "PENDING" ? "รอคุณตรวจ" : "เวอร์ชันที่ไม่ผ่าน"}</strong>
                 {" "}เลือกเวอร์ชันที่ชอบ ระบบจะใช้เวอร์ชันนั้นไปตอนถัดไป แล้วลบเวอร์ชันอื่นทิ้งทั้งหมด ไม่ถูกใจทุกเวอร์ชัน กด “ไม่ผ่าน ทำเวอร์ชันใหม่” ได้เรื่อยๆ</p>
               {item.current && <p className="drama-meta">กำลังถ่ายเวอร์ชัน {item.current.take} อยู่ เสร็จแล้วจะขึ้นมาให้เทียบตรงนี้</p>}
               <div className="drama-take-grid">{item.takes.map(take => {
@@ -111,7 +111,7 @@ export async function DramaHome({ client, owner, library }: { client: SupabaseCl
 
     <section className="manual-panel" aria-labelledby="new-title">
       <h2 id="new-title">เริ่มละครเรื่องใหม่</h2>
-      <p className="manual-muted">บัญชีหลักคือบัญชี Google ที่ผูกไว้ในเมนู “สร้างคลิปโปรโมท” 1 บัญชีล็อกกับละครได้ 1 เรื่อง (วันละ 1 ตอน 5 ช็อต ≈ 40 วินาที) และยังทำคลิปปกติได้เหมือนเดิม โดยระบบทำตอนละครของวันนั้นก่อนแล้วค่อยทำคลิป ช็อตไหนเสียหรือเครดิตหมดกลางตอน ระบบส่งไปบัญชีซ่อมจนได้ แล้วตัดต่อเป็นตอนพร้อมแคปชันและแฮชแท็กไปรอใน “คลังละคร” ด้านบน ทุกตอนรอคุณกด “ผ่าน” ก่อนจะไปตอนถัดไป ถ้า “ไม่ผ่าน” ระบบเก็บเวอร์ชันนั้นไว้ แล้วถ่ายเวอร์ชันใหม่ของตอนเดิมพรุ่งนี้ ให้เทียบแล้วเลือกเวอร์ชันที่ชอบ เมื่อครบซีซัน กด “สร้างเรื่องใหม่” ในการ์ดของเรื่องนั้นได้เลย</p>
+      <p className="manual-muted">บัญชีหลักคือบัญชี Google ที่ผูกไว้ในเมนู “สร้างคลิปโปรโมท” 1 บัญชีล็อกกับละครได้ 1 เรื่อง (วันละ 1 ตอน 5 ช็อต ≈ 40 วินาที) และยังทำคลิปปกติได้เหมือนเดิม โดยระบบทำตอนละครของวันนั้นก่อนแล้วค่อยทำคลิป ช็อตไหนเสียหรือเครดิตหมดกลางตอน ระบบส่งไปบัญชีซ่อมจนได้ แล้วตัดต่อเป็นตอนพร้อมแคปชันและแฮชแท็กไปรอใน “คลังละคร” ด้านบน ทุกตอนรอคุณกด “ผ่าน” ก่อนจะไปตอนถัดไป ถ้า “ไม่ผ่าน” ระบบเก็บเวอร์ชันนั้นไว้ แล้วเริ่มถ่ายเวอร์ชันใหม่ของตอนเดิมทันที ให้เทียบแล้วเลือกเวอร์ชันที่ชอบ เมื่อครบซีซัน กด “สร้างเรื่องใหม่” ในการ์ดของเรื่องนั้นได้เลย</p>
       {accounts.length === 0 ? <p className="manual-muted">เชื่อมบัญชี TikTok ก่อน <Link href="/accounts">ไปหน้าบัญชี</Link></p>
       : google.length === 0 ? <p className="manual-muted">ยังไม่มีบัญชี Google ผูกบัญชีในเมนู “สร้างคลิปโปรโมท” ก่อน <Link href="/post">ไปผูกบัญชี</Link></p>
       : <form action={createSeriesAction} className="drama-form">

@@ -85,7 +85,7 @@ export async function reviewEpisodeAction(formData: FormData) {
   let result: { approved: boolean; finished: boolean };
   try { result = await reviewEpisode(createAdminClient(), ownerId, seriesId, episodeId, verdict === "APPROVE"); }
   catch (error) { const message = known(error); if (message) done(path, message); throw error; }
-  done(path, !result.approved ? "บันทึกว่าไม่ผ่าน เก็บเวอร์ชันนี้ไว้ให้เทียบ แล้วจะถ่ายเวอร์ชันใหม่ของตอนเดิมตั้งแต่พรุ่งนี้"
+  done(path, !result.approved ? "บันทึกว่าไม่ผ่าน เก็บเวอร์ชันนี้ไว้ให้เทียบ แล้วเริ่มถ่ายเวอร์ชันใหม่ของตอนเดิมทันที"
     : result.finished ? "ผ่านแล้ว เรื่องนี้จบครบทุกตอน กด “สร้างเรื่องใหม่” ในการ์ดเพื่อเริ่มเรื่องต่อไปแนวเดิม"
     : "ผ่านแล้ว ตอนถัดไปจะเริ่มถ่ายในวันถัดไป (หรือทันทีถ้าวันนี้ยังทำได้อีกตอน)");
 }

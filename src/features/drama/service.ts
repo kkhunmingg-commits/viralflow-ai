@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { bangkokDate } from "@/features/flow-farm/contracts";
 import { MAX_ASSEMBLE_ATTEMPTS, emptyStoryState, type DramaGenre, type EpisodeStatus, type SeriesBible, type SeriesStatus,
   type ShotStatus, type StoryState } from "./contracts";
-import { ASSEMBLY_STALE_MS, clipVerdict, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, planRetry, promptFor, referencePath, shotAccount,
+import { ASSEMBLY_STALE_MS, clipVerdict, episodeShotsFinished, mayStartEpisode, nextShotToQueue, planRetry, promptFor, referencePath, shotAccount,
   type ShotRow } from "./engine";
 import { SHOWRUNNER_WRITER, createBible, pickStory, planEpisode } from "./showrunner";
 
@@ -121,9 +121,10 @@ export async function reviewEpisode(admin: SupabaseClient, owner: string, series
   const marked = check(await admin.from("drama_episodes").update({ review: "REJECTED", reviewed_at: now.toISOString(), updated_at: now.toISOString(),
     ...(ownsStill ? { key_still_path: series.key_still_path } : {}) }).eq("owner_id", owner).eq("id", episode.id).eq("review", "PENDING").select("id"), "episode_not_saved") as Array<{ id: string }>;
   if (!marked.length) throw new Error("EPISODE_NOT_REVIEWABLE");
-  const redoOn = bangkokDate(new Date(nextBangkokMorning(now)));
-  check(await admin.from("drama_series").update({ redo_on: redoOn, ...(ownsStill ? { key_still_path: null } : {}), updated_at: now.toISOString() })
+  // The new take starts right away (the worker's next poll), not the next day.
+  check(await admin.from("drama_series").update({ redo_on: null, ...(ownsStill ? { key_still_path: null } : {}), updated_at: now.toISOString() })
     .eq("owner_id", owner).eq("id", series.id), "series_not_saved");
+  await tickSeriesById(admin, owner, series.id, now).catch(() => {});
   return { approved: false, finished: false };
 }
 
@@ -311,14 +312,15 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
   let episode: EpisodeRow | null = await openEpisode(admin, owner, series.id);
   if (!episode) {
     const today = bangkokDate(now);
-    const started = await admin.from("drama_episodes").select("id", { count: "exact", head: true }).eq("owner_id", owner).eq("series_id", series.id).eq("started_on", today);
+    // A rejected take does not use up the day: its remake may start the same day.
+    const started = await admin.from("drama_episodes").select("id", { count: "exact", head: true }).eq("owner_id", owner).eq("series_id", series.id).eq("started_on", today)
+      .neq("review", "REJECTED");
     if (started.error) throw new Error("drama_unavailable");
     const count = started.count ?? 0;
     if (series.next_episode_number > series.total_episodes) {
       await admin.from("drama_series").update({ status: "COMPLETED", updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", series.id).eq("status", "ACTIVE");
       return;
     }
-    if (series.redo_on && today < series.redo_on) return; // a rejected episode is shot again from this day
     const waiting = await admin.from("drama_episodes").select("id", { count: "exact", head: true }).eq("owner_id", owner).eq("series_id", series.id)
       .eq("status", "READY").eq("review", "PENDING");
     if (waiting.error) throw new Error("drama_unavailable");
