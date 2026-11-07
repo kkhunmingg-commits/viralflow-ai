@@ -1,3 +1,4 @@
+import { ROMANCE_BALCONY_NOTES_SEASON } from "./seasons/romance-balcony-notes";
 import { COMEDY_CHICKEN_RICE_SEASON } from "./seasons/comedy-chicken-rice";
 import type { CastMember, DramaGenre, Line, Place, PlaceKey, Role } from "./contracts";
 import { MORE_STORIES } from "./more-stories";
@@ -328,6 +329,7 @@ const ROMANCE: GenreKit = {
     reveal2: say("ALLY", "โน้ตเพลงทุกคืนนั่น ผมเขียนให้คุณคนเดียว"),
     finalLine: say("LEAD", "หน้าสุดท้ายของสมุดเล่มนี้ เป็นของคุณมาตลอด"),
   },
+  season: ROMANCE_BALCONY_NOTES_SEASON,
   hooks: [say("LEAD", "เมื่อกี้... เขาหมายความว่ายังไง"), say("ALLY", "ขอโทษนะ ผมไม่ได้ตั้งใจ"), say("LEAD", "ใจเย็นๆ ใบเตย"), say("ALLY", "คุณโอเคไหม"), say("LEAD", "ทำไมใจเต้นแรงขนาดนี้")],
   moves: [
     m("note", "โน้ตเพลง", "{LEAD}พบโน้ตเพลงพับเป็นนกกระดาษวางบนระเบียง", "{LEAD} finds a paper crane folded from sheet music on her balcony railing, unfolds it and smiles", 1, { at: "A", say: say("LEAD", "คืนนี้ก็มาอีกแล้ว") }),
