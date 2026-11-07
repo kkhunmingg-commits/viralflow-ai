@@ -71,7 +71,7 @@ export const shotStatusLabels: Record<ShotStatus, string> = { PLANNED: "รอ�
 /** Tries per shot before the episode waits for the owner: one on the main account, then up to three repairs. */
 export const MAX_SHOT_ATTEMPTS = 4;
 /** Google's temporary "unusual activity" refusals a shot may take before the episode waits for the owner. */
-export const MAX_REFUSED_ATTEMPTS = 8;
+export const MAX_REFUSED_ATTEMPTS = 3;
 /**
  * How long an account Google refused is left out (Lucky, 7 Nov: do not ask the same account again, move the shot to
  * the next account, go round all of them, then come back).

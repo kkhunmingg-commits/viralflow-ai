@@ -8,6 +8,9 @@ export interface ShotRow {
   video_path: string | null; duration_seconds: number | null; error: string | null; route: ShotRoute;
 }
 
+/** How long a shot Google refused waits before any account tries it again. */
+export const REFUSED_COOLDOWN_MS = 15 * 60_000;
+
 export type ClipVerdict = "WAIT" | "CHECK" | "BROKEN" | "NO_CREDIT";
 /** What a queued shot's Flow clip status means: still being made, made (now check it), broken, or out of credits. */
 export function clipVerdict(clipStatus: string | null): ClipVerdict {
@@ -34,7 +37,8 @@ export function planRetry(shot: Pick<ShotRow, "attempts" | "route">, reason: "BR
   if (reason === "REFUSED") {
     const attempts = shot.attempts + 1;
     if (attempts >= MAX_REFUSED_ATTEMPTS) return { status: "FAILED", route: shot.route, attempts, retryAfter: null };
-    return { status: "PLANNED", route: repair.exists ? "REPAIR" : shot.route, attempts, retryAfter: null };
+    // 8 Nov: hopping straight to the next account from the same computer is what kept Google refusing; cool down first.
+    return { status: "PLANNED", route: repair.exists ? "REPAIR" : shot.route, attempts, retryAfter: new Date(now.getTime() + REFUSED_COOLDOWN_MS).toISOString() };
   }
   if (reason === "BROKEN") {
     const attempts = shot.attempts + 1;

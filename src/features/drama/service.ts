@@ -492,7 +492,9 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
       const kind = verdict === "NO_CREDIT" ? "NO_CREDIT" : verdict === "BROKEN" ? failureKind(clip?.error) : "BROKEN";
       // Google refused this account: leave it out for a while so the next try goes to another account.
       const refused = clip?.flow_account_id ?? clip?.required_flow_account_id ?? null;
-      if (kind === "REFUSED" && refused) await setAccountAside(admin, owner, refused, "Google ปฏิเสธชั่วคราว", now, REFUSED_ASIDE_MS);
+      // 8 Nov: the refused account rests for the rest of the day (Google's flag does not clear in half an hour).
+      if (kind === "REFUSED" && refused) await setAccountAside(admin, owner, refused, "Google ปฏิเสธ (กิจกรรมผิดปกติ) พักถึงพรุ่งนี้", now,
+        Math.max(REFUSED_ASIDE_MS, new Date(nextBangkokMorning(now)).getTime() - now.getTime()));
       const repair = await repairState(admin, owner, series, now);
       const plan = planRetry(queued, kind, repair, now);
       await updateShot(admin, owner, queued.id, "QUEUED", { status: plan.status, route: plan.route, attempts: plan.attempts, retry_after: plan.retryAfter,

@@ -31,10 +31,11 @@ describe("planRetry", () => {
     expect(failureKind("FLOW_REPORTED_FAILURE")).toBe("BROKEN");
     expect(failureKind(null)).toBe("BROKEN");
     expect(planRetry({ attempts: 3, route: "REPAIR" }, "REFUSED", repair, now))
-      .toEqual({ status: "PLANNED", route: "REPAIR", attempts: 4, retryAfter: null });
-    expect(planRetry({ attempts: 0, route: "PRIMARY" }, "REFUSED", repair, now)).toMatchObject({ route: "REPAIR", attempts: 1 });
+      .toMatchObject({ status: "FAILED", attempts: 4 });
+    expect(planRetry({ attempts: 0, route: "PRIMARY" }, "REFUSED", repair, now))
+      .toEqual({ status: "PLANNED", route: "REPAIR", attempts: 1, retryAfter: new Date(now.getTime() + 15 * 60_000).toISOString() });
     expect(planRetry({ attempts: 0, route: "PRIMARY" }, "REFUSED", { exists: false, outOfCreditsToday: false }, now)).toMatchObject({ route: "PRIMARY" });
-    expect(planRetry({ attempts: 7, route: "PRIMARY" }, "REFUSED", repair, now)).toMatchObject({ status: "FAILED", attempts: 8 });
+    expect(planRetry({ attempts: 2, route: "PRIMARY" }, "REFUSED", repair, now)).toMatchObject({ status: "FAILED", attempts: 3 });
   });
   it("finds when the first resting account comes back", () => {
     const aside = { a: { until: "2026-11-04T06:00:00.000Z" }, b: { until: "2026-11-04T05:30:00.000Z" } };
