@@ -1,3 +1,4 @@
+import { ROMANCE_JASMINE_GARLAND_SEASON } from "./seasons/romance-jasmine-garland";
 import { COMEDY_TEMPLE_FAIR_BAND_SEASON } from "./seasons/comedy-temple-fair-band";
 import { ACTION_DASHCAM_SEASON } from "./seasons/action-dashcam";
 import { HORROR_SCHOOL_BELL_SEASON } from "./seasons/horror-school-bell";
@@ -296,6 +297,7 @@ const ROMANCE_FLORIST: StoryPart = {
     reveal2: say("ALLY", "คนที่ร้อยพวงมาลัยให้เธอตอนเด็ก... คือผมเอง"),
     finalLine: say("ALLY", "ต่อจากนี้ ผมจะให้พวงมาลัยกับมือทุกเช้า"),
   },
+  season: ROMANCE_JASMINE_GARLAND_SEASON,
   hooks: [say("LEAD", "ใจเต้นแรงจัง"), say("ALLY", "คุณโอเคไหมครับ"), say("LEAD", "เมื่อกี้หมายความว่ายังไง"),
     say("ALLY", "ผมยังไม่พร้อมจะพูด"), say("LEAD", "ฉันต้องรู้ให้ได้วันนี้")],
   moves: [
