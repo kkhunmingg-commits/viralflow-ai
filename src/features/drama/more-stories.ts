@@ -1,3 +1,4 @@
+import { COMEDY_TEMPLE_FAIR_BAND_SEASON } from "./seasons/comedy-temple-fair-band";
 import { ACTION_DASHCAM_SEASON } from "./seasons/action-dashcam";
 import { HORROR_SCHOOL_BELL_SEASON } from "./seasons/horror-school-bell";
 import type { DramaGenre, Line, Role } from "./contracts";
@@ -210,6 +211,7 @@ const COMEDY_BAND: StoryPart = {
     reveal2: say("RIVAL", "ฉันฝึกร้องมายี่สิบปี เพื่อวันนี้วันเดียว"),
     finalLine: say("ALLY", "ไม่ต้องแข่งแล้ว ร้องด้วยกันเลยลูก!"),
   },
+  season: COMEDY_TEMPLE_FAIR_BAND_SEASON,
   hooks: [say("LEAD", "ใจเย็นๆ ตุ้มคนนี้ไม่ยอมแพ้"), say("ALLY", "เดี๋ยวนะ เมื่อกี้มันอะไรกัน"), say("LEAD", "ผมมีแผนครับป้า"),
     say("ALLY", "ป้าว่าแผนนี้ไม่รอดแน่"), say("LEAD", "เชื่อผมสักครั้งสิป้า")],
   moves: [
