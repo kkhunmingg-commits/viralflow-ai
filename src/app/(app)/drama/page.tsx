@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { listLibrary, workerLastSeen, type LibraryClip } from "@/features/flow-farm/service";
 import { ClipLibrary } from "../post/clip-library";
 import { DramaHome } from "./drama-home";
+import { ClipStudioTabs } from "@/components/clip-studio-tabs";
 import "../post/post.css";
 export const metadata = { title: "ละครซีรีส์ · Viral Flow AI" };
 export const dynamic = "force-dynamic";
@@ -37,8 +38,9 @@ export default async function DramaPage({ searchParams }: { searchParams: Promis
   const { library, lastSeen, publishable, now, online } = await loadDramaPage(client, owner);
 
   return <div className="manual-page">
+    <ClipStudioTabs />
     <header className="manual-hero"><div><p className="manual-eyebrow">Viral Flow AI · Drama Studio</p><h1>ละครซีรีส์</h1>
-      <p>เลือกแนวละครกับบัญชี Google แล้ว AI จะคิดเรื่อง ตัวละคร และตอนจบให้ทั้งซีซัน ทุกวันสร้างตอนใหม่ต่อจากตอนที่แล้ว ตรวจทุกช็อต ตัดต่อพร้อมซับไทย แคปชัน และแฮชแท็ก แล้วเก็บไว้ในคลังละครรอโพสต์ (คลิปโปรโมทอยู่ในเมนู “สร้างคลิปโปรโมท”)</p></div>
+      <p>เลือกแนวละครกับบัญชี Google แล้ว AI จะคิดเรื่อง ตัวละคร และตอนจบให้ทั้งซีซัน ทุกวันสร้างตอนใหม่ต่อจากตอนที่แล้ว ตรวจทุกช็อต ตัดต่อพร้อมซับไทย แคปชัน และแฮชแท็ก แล้วเก็บไว้ในคลังละครรอโพสต์ (คลิปโปรโมทอยู่ในแท็บ “สร้างคลิปโปรโมท” ด้านบน)</p></div>
       <Link className="manual-back" href="/auto">← กลับหน้าหลัก</Link></header>
     {msg && <p className="library-message" role="status">{msg.slice(0, 300)}</p>}
     <p className={online ? "flow-worker online" : "flow-worker"} role="status"><span aria-hidden="true">●</span>

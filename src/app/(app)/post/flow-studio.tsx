@@ -129,7 +129,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
     </section>
 
     <ClipLibrary library={library} now={now} back={account.id} publishable={publishScope ? [account.id] : []} eyebrow="ขั้นที่ 3 · รอโพสต์" title="คลังคลิปโปรโมท"
-      empty="คลิปที่สร้างเสร็จและผ่านการตรวจ (MP4 แนวตั้ง 9:16 ไม่ซ้ำ) จะมาอยู่ตรงนี้ ตอนละครอยู่ในเมนู “ละครซีรีส์”" />
+      empty="คลิปที่สร้างเสร็จและผ่านการตรวจ (MP4 แนวตั้ง 9:16 ไม่ซ้ำ) จะมาอยู่ตรงนี้ ตอนละครอยู่ในแท็บ “ละครซีรีส์”" />
 
     <LearningPanel owner={owner} accountId={account.id} scopes={scopes} />
   </>;

@@ -10,6 +10,7 @@ import { repairShotsLeft } from "@/features/drama/engine";
 import { continueAfterCreditsAction, newStoryAction, redoShotAction, remakeTakeAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction, takeAction } from "../actions";
 import { OneVideoAtATime } from "../one-video";
 import { RestoreCut } from "../restore-cut";
+import { ClipStudioTabs } from "@/components/clip-studio-tabs";
 import "../../post/post.css";
 import "../drama.css";
 export const metadata = { title: "ละครซีรีส์ · Viral Flow AI" };
@@ -60,6 +61,7 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
   const mainLabel = accountLabel(series.flow_account_id);
 
   return <div className="manual-page drama-page">
+    <ClipStudioTabs />
     <header className="manual-hero"><div><p className="manual-eyebrow">Drama Studio · {dramaGenreLabels[series.genre]} · {seriesStatusLabels[series.status]}</p><h1>{series.title}</h1>
       <p>{series.logline}</p></div>
       <Link className="manual-back" href="/drama">← ละครทั้งหมด</Link></header>
