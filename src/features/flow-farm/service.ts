@@ -10,7 +10,7 @@ import { planBatch, type FarmProduct } from "./planner";
 import { productsForNiche, type NicheKey } from "./niches";
 
 const BUCKET = "video-assets";
-const ACCOUNT_COLUMNS = "id,tiktok_account_id,label,priority,clips_per_day_estimate,active,exhausted_on,clips_today,clips_today_on,last_used_at,created_at";
+const ACCOUNT_COLUMNS = "id,tiktok_account_id,label,priority,clips_per_day_estimate,active,exhausted_on,clips_today,clips_today_on,last_used_at,created_at,purpose";
 export const LIBRARY_COLUMNS = "id,tiktok_account_id,video_sha256,product_id,kind,title,caption,hashtags,status,error,ready_at,scheduled_at,posted_at,post_url,duration_seconds,width,height,created_at,flow_account_id";
 
 function check<T>(result: { data: T; error: { message: string } | null }, code: string): T {
@@ -90,6 +90,13 @@ export async function addFlowAccount(admin: SupabaseClient, owner: string, input
   if (result.error?.message.includes("FLOW_ACCOUNT_LIMIT_5")) throw new Error("FLOW_ACCOUNT_LIMIT_5");
   check(result, "flow_account_not_saved");
   return { moved: false };
+}
+/** Adds a drama repair account: unlinked from any TikTok account, it makes only the drama shots sent to it. */
+export async function addRepairAccount(admin: SupabaseClient, owner: string, input: { label: string; clipsPerDay: number }) {
+  const result = await admin.from("flow_accounts").insert({ owner_id: owner, tiktok_account_id: null, label: input.label,
+    clips_per_day_estimate: input.clipsPerDay, priority: 100, purpose: "REPAIR" });
+  if (result.error?.code === "23505") throw new Error("FLOW_ACCOUNT_LABEL_TAKEN");
+  check(result, "flow_account_not_saved");
 }
 /** Moves a Google account one place earlier or later in its TikTok account's drain order. */
 export async function moveFlowAccount(admin: SupabaseClient, owner: string, id: string, direction: "UP" | "DOWN") {
@@ -172,7 +179,7 @@ export async function startBatch(admin: SupabaseClient, owner: string, accountId
   const results: BatchResult[] = [];
   for (const [position, account] of accounts.entries()) {
     const existing = await admin.from("flow_clips").select("id", { count: "exact", head: true }).eq("owner_id", owner)
-      .eq("tiktok_account_id", account.id).in("status", COUNTED_STATUSES).gte("created_at", start).lt("created_at", end);
+      .eq("tiktok_account_id", account.id).in("status", COUNTED_STATUSES).in("kind", ["GROWTH", "AFFILIATE"]).gte("created_at", start).lt("created_at", end);
     if (existing.error) throw new Error("flow_clips_unavailable");
     const add = clipsToAdd(count, existing.count ?? 0, MAX_CLIPS_PER_BATCH);
     const mode = account.effective_mode === "AFFILIATE" ? "AFFILIATE" : "GROWTH";
@@ -326,7 +333,8 @@ export async function reopenMissedClip(admin: SupabaseClient, owner: string, cli
 export async function failClip(admin: SupabaseClient, owner: string, input: { clipId: string; reason: string; notStarted: boolean }) {
   const now = new Date().toISOString();
   const patch = input.notStarted
-    ? { status: "QUEUED", flow_account_id: null, lease_until: null, error: null, updated_at: now }
+    // Back in the queue, but the reason stays visible until the clip is made (the worker log is on another computer).
+    ? { status: "QUEUED", flow_account_id: null, lease_until: null, error: input.reason === "NO_CREDIT" || input.reason === "DRY_RUN" ? null : `ยังไม่ได้สร้าง: ${input.reason}`.slice(0, 300), updated_at: now }
     : { status: "FAILED", lease_until: null, error: input.reason.slice(0, 300), updated_at: now };
   check(await admin.from("flow_clips").update(patch).eq("owner_id", owner).eq("id", input.clipId).eq("status", "GENERATING"), "flow_clip_not_saved");
 }
@@ -346,15 +354,19 @@ export async function finishWithoutCredits(admin: SupabaseClient, owner: string,
 // ---------------------------------------------------------------- Library (owner)
 
 export interface LibraryClip {
-  id: string; tiktok_account_id: string; product_id: string | null; kind: "GROWTH" | "AFFILIATE"; title: string; caption: string;
+  id: string; tiktok_account_id: string; product_id: string | null; kind: "GROWTH" | "AFFILIATE" | "DRAMA"; title: string; caption: string;
   hashtags: string[]; status: FlowClipStatus; error: string | null; ready_at: string | null; scheduled_at: string | null; posted_at: string | null;
   post_url: string | null; duration_seconds: number | null; width: number | null; height: number | null; created_at: string; flow_account_id: string | null;
   video_sha256: string | null;
 }
 
+/** Promo clips (the clip studio). Drama has its own menu: shots (DRAMA_SHOT) and cut episodes (DRAMA) never show here. */
+export const PROMO_KINDS = ["GROWTH", "AFFILIATE"] as const;
+export type LibraryKind = "GROWTH" | "AFFILIATE" | "DRAMA";
+
 export async function listTodayClips(client: SupabaseClient, owner: string, accountId?: string, now = new Date()) {
   const { start, end } = bangkokDayRange(bangkokDate(now));
-  let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).gte("created_at", start).lt("created_at", end)
+  let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).in("kind", PROMO_KINDS).gte("created_at", start).lt("created_at", end)
     .order("created_at", { ascending: true });
   if (accountId) query = query.eq("tiktok_account_id", accountId);
   return check(await query, "flow_clips_unavailable") as LibraryClip[];
@@ -366,30 +378,32 @@ export async function liveClipProgress(client: SupabaseClient, owner: string, ac
   const { start } = bangkokDayRange(bangkokDate(now));
   const columns = "id,title,status,error,created_at,updated_at,ready_at";
   const [today, open, worker] = await Promise.all([
-    client.from("flow_clips").select(columns).eq("owner_id", owner).eq("tiktok_account_id", accountId).gte("created_at", start).order("created_at", { ascending: true }).limit(60),
-    client.from("flow_clips").select(columns).eq("owner_id", owner).eq("tiktok_account_id", accountId).in("status", ["QUEUED", "GENERATING"]).lt("created_at", start)
+    client.from("flow_clips").select(columns).eq("owner_id", owner).eq("tiktok_account_id", accountId).in("kind", PROMO_KINDS).gte("created_at", start).order("created_at", { ascending: true }).limit(60),
+    client.from("flow_clips").select(columns).eq("owner_id", owner).eq("tiktok_account_id", accountId).in("kind", PROMO_KINDS).in("status", ["QUEUED", "GENERATING"]).lt("created_at", start)
       .order("created_at", { ascending: true }).limit(30),
     workerStatus(client, owner),
   ]);
   const clips = [...(check(open, "flow_clips_unavailable") ?? []), ...(check(today, "flow_clips_unavailable") ?? [])] as LiveClip[];
   return { clips, lastSeen: worker.lastSeen, progress: worker.progress, now: now.toISOString() };
 }
-export async function listLibrary(client: SupabaseClient, owner: string, accountId?: string) {
-  let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).in("status", LIBRARY_STATUSES)
+export async function listLibrary(client: SupabaseClient, owner: string, accountId?: string, kinds: readonly LibraryKind[] = PROMO_KINDS) {
+  let query = client.from("flow_clips").select(LIBRARY_COLUMNS).eq("owner_id", owner).in("status", LIBRARY_STATUSES).in("kind", kinds)
     .order("scheduled_at", { ascending: true, nullsFirst: false }).order("ready_at", { ascending: true }).limit(200);
   if (accountId) query = query.eq("tiktok_account_id", accountId);
   return check(await query, "flow_clips_unavailable") as LibraryClip[];
 }
 
-async function libraryClip(admin: SupabaseClient, owner: string, id: string) {
-  const clip = check(await admin.from("flow_clips").select("id,status,storage_path").eq("owner_id", owner).eq("id", id).maybeSingle(), "flow_clips_unavailable") as
-    { id: string; status: FlowClipStatus; storage_path: string | null } | null;
-  if (!clip || !LIBRARY_STATUSES.includes(clip.status) || !clip.storage_path) throw new Error("CLIP_NOT_IN_LIBRARY");
-  return clip as { id: string; status: FlowClipStatus; storage_path: string };
+async function libraryClip(admin: SupabaseClient, owner: string, id: string, keptDrama = false) {
+  const clip = check(await admin.from("flow_clips").select("id,kind,status,storage_path").eq("owner_id", owner).eq("id", id).maybeSingle(), "flow_clips_unavailable") as
+    { id: string; kind: string; status: FlowClipStatus; storage_path: string | null } | null;
+  const kept = keptDrama && clip?.kind === "DRAMA" && clip.status === "POSTED";
+  if (!clip || !(kept || LIBRARY_STATUSES.includes(clip.status)) || !clip.storage_path) throw new Error("CLIP_NOT_IN_LIBRARY");
+  return clip as { id: string; kind: string; status: FlowClipStatus; storage_path: string };
 }
 
+/** A short-lived link for watching a library clip, or a posted drama episode (its cut is kept so the season can be rewatched). */
 export async function clipSignedUrl(admin: SupabaseClient, owner: string, id: string, download: boolean) {
-  const clip = await libraryClip(admin, owner, id);
+  const clip = await libraryClip(admin, owner, id, true);
   const signed = await admin.storage.from(BUCKET).createSignedUrl(clip.storage_path, 600, download ? { download: `viralflow-${id.slice(0, 8)}.mp4` } : undefined);
   if (signed.error || !signed.data) throw new Error("VIDEO_UNAVAILABLE");
   return signed.data.signedUrl;
@@ -411,9 +425,17 @@ export async function scheduleClip(admin: SupabaseClient, owner: string, id: str
     .eq("owner_id", owner).eq("id", id).in("status", LIBRARY_STATUSES), "flow_clip_not_saved");
 }
 
-/** Posted (or thrown away): the MP4 is deleted from Storage straight away; the row stays for counts and results. */
+/**
+ * Posted (or thrown away): the MP4 is deleted from Storage straight away; the row stays for counts and results.
+ * A posted drama episode is the exception: its cut (about 12 MB) is kept so the owner can rewatch the season.
+ */
 export async function closeClip(admin: SupabaseClient, owner: string, id: string, outcome: { posted: true; url: string | null } | { posted: false }, now = new Date()) {
   const clip = await libraryClip(admin, owner, id);
+  if (outcome.posted && clip.kind === "DRAMA") {
+    check(await admin.from("flow_clips").update({ status: "POSTED", posted_at: now.toISOString(), post_url: outcome.url, updated_at: now.toISOString() })
+      .eq("owner_id", owner).eq("id", id).in("status", LIBRARY_STATUSES), "flow_clip_not_saved");
+    return;
+  }
   const removed = await admin.storage.from(BUCKET).remove([clip.storage_path]);
   if (removed.error) throw new Error("VIDEO_NOT_DELETED");
   check(await admin.from("flow_clips").update({

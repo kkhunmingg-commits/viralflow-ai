@@ -39,7 +39,7 @@ const toClip = (r: ClipRow): LearningClip => ({ id: r.id, kind: r.kind, title: r
 /** The account's clips the loop can learn from (everything planned except failed or skipped generations). */
 export async function learningClips(client: SupabaseClient, owner: string, accountId: string): Promise<LearningClip[]> {
   const result = await client.from("flow_clips").select(CLIP_COLUMNS).eq("owner_id", owner).eq("tiktok_account_id", accountId)
-    .in("status", ["QUEUED", "GENERATING", "READY", "SCHEDULED", "POSTED", "DISCARDED"]).order("created_at", { ascending: false }).limit(300);
+    .in("status", ["QUEUED", "GENERATING", "READY", "SCHEDULED", "POSTED", "DISCARDED"]).in("kind", ["GROWTH", "AFFILIATE"]).order("created_at", { ascending: false }).limit(300);
   if (result.error) throw new Error("flow_clips_unavailable");
   return (result.data as ClipRow[]).map(toClip);
 }

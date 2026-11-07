@@ -4,12 +4,10 @@ import { bangkokDate, MAX_FLOW_ACCOUNTS_PER_TIKTOK } from "@/features/flow-farm/
 import { closeDeliveredDraftClips, draftDelivered, flowLogins, listFlowAccounts, listLibrary, liveClipProgress, workerLastSeen } from "@/features/flow-farm/service";
 import { LiveClipProgressPanel } from "./live-clip-progress";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { addFlowAccountAction, discardClipAction, flowAccountAction, markPostedAction, scheduleClipAction, startBatchAction, unscheduleClipAction } from "./flow-actions";
+import { addFlowAccountAction, flowAccountAction, startBatchAction } from "./flow-actions";
 import type { DraftReceipt } from "./tiktok-draft-button";
-import { TikTokPrivatePostButton } from "./tiktok-private-post-button";
 import { LearningPanel } from "./learning-panel";
-import { ClipPhoneActions } from "./clip-phone-actions";
-import { LeaveOnSubmit } from "./leave-on-submit";
+import { ClipLibrary } from "./clip-library";
 import "./flow-studio.css";
 
 export interface StudioAccount { id: string; display_name: string; daily_post_target: number | null; effective_mode: string | null }
@@ -21,7 +19,7 @@ async function loadStudio(client: SupabaseClient, owner: string, accountId: stri
   const logins = await flowLogins(createAdminClient(), owner).catch(() => ({}));
   const settled = await Promise.allSettled([listFlowAccounts(client, owner, new Date(), logins), liveClipProgress(client, owner, accountId), listLibrary(client, owner, accountId), workerLastSeen(client, owner)]);
   const list = <T,>(result: PromiseSettledResult<T[]>) => result.status === "fulfilled" ? result.value : [];
-  return { flowAccounts: accountsFor(list(settled[0]), accountId), live: settled[1].status === "fulfilled" ? settled[1].value : null, library: list(settled[2]),
+  return { flowAccounts: accountsFor(list(settled[0]).filter(view => view.purpose !== "REPAIR"), accountId), live: settled[1].status === "fulfilled" ? settled[1].value : null, library: list(settled[2]),
     lastSeen: settled[3].status === "fulfilled" ? settled[3].value : null, unavailable: settled.some(result => result.status === "rejected"), now: Date.now(),
     ...await loadDrafts(client, owner, accountId, list(settled[2]).map(clip => clip.video_sha256).filter((hash): hash is string => !!hash)) };
 }
@@ -130,42 +128,8 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
       {live && <LiveClipProgressPanel key={account.id} accountId={account.id} initial={live} />}
     </section>
 
-    <section className="manual-panel library-section" id="library" aria-labelledby="library-title">
-      <div className="manual-section-head"><div><p className="manual-eyebrow">ขั้นที่ 3 · รอโพสต์</p><h2 id="library-title">คลังคลิป ({library.length})</h2></div></div>
-      {library.length === 0 ? <div className="manual-empty"><h3>ยังไม่มีคลิปรอโพสต์</h3><p>คลิปที่สร้างเสร็จและผ่านการตรวจ (MP4 แนวตั้ง 9:16 ไม่ซ้ำ) จะมาอยู่ตรงนี้</p></div>
-        : <><p className="library-phone-tip">โพสต์จากมือถือ: เปิดหน้านี้ในมือถือ กด <b>📲 แชร์/บันทึกคลิป</b> ระบบคัดลอกคำบรรยาย + แฮชแท็กให้ แล้วเลือก TikTok (หรือ “บันทึกวิดีโอ”) จากนั้นวางคำบรรยายตอนโพสต์</p>
-        <div className="library-grid">{library.map(clip => {
-          const due = clip.status === "SCHEDULED" && clip.scheduled_at && Date.parse(clip.scheduled_at) <= now;
-          const caption = [clip.caption, clip.hashtags.join(" ")].filter(Boolean).join("\n");
-          return <article key={clip.id} className="library-clip">
-            <video controls playsInline preload="metadata" src={`/api/library/${clip.id}/video#t=0.1`} aria-label={clip.title} />
-            <div className="library-clip-body">
-              <h3>{clip.title}</h3>
-              <p className="library-meta">{clip.kind === "AFFILIATE" ? "ขายของ" : "ปั้นช่อง"}{clip.duration_seconds ? ` · ${Number(clip.duration_seconds).toFixed(0)} วิ` : ""} · สร้างด้วย Google Flow</p>
-              {clip.status === "SCHEDULED" && clip.scheduled_at && <p className={due ? "library-due" : "library-scheduled"}>{due ? "ถึงเวลาโพสต์แล้ว · " : "ตั้งเวลาไว้ · "}{bangkokTime(clip.scheduled_at)}</p>}
-              <textarea className="library-caption" readOnly rows={3} defaultValue={caption} aria-label="คำบรรยายสำหรับคัดลอก" />
-              <ClipPhoneActions clipId={clip.id} caption={caption} />
-              <div className="library-actions">
-                {publishScope && clip.kind === "GROWTH" && <TikTokPrivatePostButton clipId={clip.id} caption={caption} />}
-                <form action={markPostedAction} className="library-inline"><input type="hidden" name="id" value={clip.id} />{back}
-                  <input name="url" type="url" placeholder="ลิงก์โพสต์ TikTok (ไม่บังคับ)" aria-label="ลิงก์โพสต์ TikTok" />
-                  <button className="manual-secondary" type="submit">โพสต์แล้ว · ลบไฟล์</button><LeaveOnSubmit /></form>
-                <details className="library-more"><summary>ดาวน์โหลด · ตั้งเวลา · ทิ้งคลิป</summary>
-                  <a className="manual-secondary" href={`/api/library/${clip.id}/video?download=1`}>ดาวน์โหลด MP4</a>
-                  <form action={scheduleClipAction} className="library-inline"><input type="hidden" name="id" value={clip.id} />{back}
-                    <input name="at" type="datetime-local" required aria-label="เวลาโพสต์ (เวลาไทย)" />
-                    <button className="manual-secondary" type="submit">ตั้งเวลา</button></form>
-                  <div className="library-inline">
-                    {clip.status === "SCHEDULED" && <form action={unscheduleClipAction}><input type="hidden" name="id" value={clip.id} />{back}<button className="library-link" type="submit">ยกเลิกเวลา</button></form>}
-                    <form action={discardClipAction}><input type="hidden" name="id" value={clip.id} />{back}<button className="library-link danger" type="submit">ทิ้งคลิปนี้</button><LeaveOnSubmit /></form>
-                  </div>
-                </details>
-              </div>
-            </div>
-          </article>;
-        })}</div></>}
-      <p className="manual-muted">โพสต์ใน TikTok แล้วเปิดป้าย “เนื้อหาที่สร้างด้วย AI” ทุกครั้ง กด “📲 แชร์/บันทึกคลิป + คัดลอกคำบรรยาย” แล้วเลือก TikTok วางคำบรรยายแล้วกดโพสต์ แชร์สำเร็จระบบลบคลิปออกจากคลังให้เอง หรือกด “โพสต์แบบส่วนตัว (มีคำบรรยาย)” คลิปจะขึ้นโปรไฟล์เป็น “เฉพาะฉัน” พร้อมคำบรรยาย แฮชแท็ก และป้าย AI แล้วเปลี่ยนเป็น “ทุกคน” ในแอป (คลิปขายของใช้ปุ่มแชร์) ถ้าโพสต์ด้วยวิธีอื่นให้กลับมากด “โพสต์แล้ว” ระบบลบไฟล์ออกจากคลังทันที การตั้งเวลาตอนนี้เป็นการเตือนในคลัง เมื่อ TikTok อนุมัติ API โพสต์อัตโนมัติ คลิปที่ตั้งเวลาไว้จะโพสต์เองแล้วลบไฟล์</p>
-    </section>
+    <ClipLibrary library={library} now={now} back={account.id} publishable={publishScope ? [account.id] : []} eyebrow="ขั้นที่ 3 · รอโพสต์" title="คลังคลิปโปรโมท"
+      empty="คลิปที่สร้างเสร็จและผ่านการตรวจ (MP4 แนวตั้ง 9:16 ไม่ซ้ำ) จะมาอยู่ตรงนี้ ตอนละครอยู่ในแท็บ “ละครซีรีส์”" />
 
     <LearningPanel owner={owner} accountId={account.id} scopes={scopes} />
   </>;

@@ -22,7 +22,10 @@ export interface FlowAccountRow {
   id: string; tiktok_account_id: string | null; label: string; priority: number; clips_per_day_estimate: number; active: boolean;
   exhausted_on: string | null; clips_today: number; clips_today_on: string | null; last_used_at: string | null; created_at: string;
   login_state?: FlowLoginState; login_note?: string | null;
+  /** CLIP: linked in the clip tab. REPAIR: added in the drama tab, remakes only drama shots sent to it. */
+  purpose?: FlowAccountPurpose;
 }
+export type FlowAccountPurpose = "CLIP" | "REPAIR";
 /** PENDING: the owner's computer will open a Google sign-in window for it. Only READY accounts make clips. */
 export const FLOW_LOGIN_STATES = ["PENDING", "READY", "FAILED"] as const;
 export type FlowLoginState = (typeof FLOW_LOGIN_STATES)[number];
@@ -33,6 +36,10 @@ export const startBatchSchema = z.object({
 });
 export const flowAccountSchema = z.object({
   tiktokAccountId: z.uuid(),
+  label: z.string().trim().min(1).max(60),
+  clipsPerDay: z.coerce.number().int().min(1).max(200).default(5),
+});
+export const repairAccountSchema = z.object({
   label: z.string().trim().min(1).max(60),
   clipsPerDay: z.coerce.number().int().min(1).max(200).default(5),
 });
