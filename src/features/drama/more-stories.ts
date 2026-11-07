@@ -1,3 +1,4 @@
+import { FANTASY_MOONFLOWER_SEASON } from "./seasons/fantasy-moonflower";
 import { MYSTERY_NIGHT_TRAIN_SEASON } from "./seasons/mystery-night-train";
 import { ROMANCE_JASMINE_GARLAND_SEASON } from "./seasons/romance-jasmine-garland";
 import { COMEDY_TEMPLE_FAIR_BAND_SEASON } from "./seasons/comedy-temple-fair-band";
@@ -470,6 +471,7 @@ const FANTASY_MOONFLOWER: StoryPart = {
     reveal2: say("RIVAL", "ฉันขโมยดอกไม้ไปเพราะอิจฉาพี่ และฉันก็ถูกสาปตั้งแต่คืนนั้น"),
     finalLine: say("LEAD", "ยายฝากดอกนี้ไว้ให้คุณค่ะ ไม่ใช่ให้ฉัน"),
   },
+  season: FANTASY_MOONFLOWER_SEASON,
   hooks: [say("LEAD", "ใจเย็นๆ ฝ้าย คิดสิ"), say("ALLY", "อย่าเพิ่งกลัว ฉันอยู่ตรงนี้"), say("LEAD", "ยายคะ ช่วยหนูด้วย"),
     say("ALLY", "ดวงจันทร์ใกล้จะตกแล้ว"), say("LEAD", "ฉันจะไม่ยอมให้ร้านของยายหายไป")],
   moves: [
