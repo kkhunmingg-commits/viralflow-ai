@@ -158,7 +158,7 @@ export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<Sto
   const reference = mode === "PREVIOUS_FRAME" ? "Begin exactly on the attached image (same people, same place, same light) and continue the action from there."
     : mode === "KEY_STILL" ? "Begin on the attached image of this same place and continue from there; keep every face, hair and outfit as shown." : "";
   return [
-    `${bible.style}. Vertical 9:16, one continuous 8-second shot.`,
+    `${bible.style}. Vertical 9:16, one continuous 10-second shot.`,
     `Setting: ${place.look}.`,
     ...(cast.length ? ["Characters (keep faces, hair, clothes and voices identical in every shot):", ...cast] : []),
     ...(people ? [people] : []),

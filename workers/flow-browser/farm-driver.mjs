@@ -18,7 +18,7 @@ export const DEFAULT_FARM_SELECTORS = Object.freeze({
   newProject: "",
   prompt: "textarea, [contenteditable=\"true\"][role=\"textbox\"]",
   generate: "button:has-text(\"arrow_forward\")",
-  settingsChip: "button:has-text(\"720p\"), button:has-text(\"1080p\")",
+  settingsChip: "button:has-text(\"360p\"), button:has-text(\"720p\"), button:has-text(\"1080p\")",
   imageInput: "input[type=\"file\"]",
 });
 const NEW_PROJECT_NAME = /new project|โปรเจกต์ใหม่|โปรเจ็กต์ใหม่|สร้างโปรเจ/i;
@@ -122,11 +122,30 @@ export async function chooseSingleOutput(page, selectors) {
 }
 
 const LITE_MODEL = /Veo\s*3\.1\s*[-–]?\s*Lite/i;
+// Drama shots (Lucky, 7 Nov): Omni 1.2 Flash, 360p, 10 seconds, 10 credits. It keeps shots continuous far better;
+// the lower picture quality is accepted. Promo clips stay on Veo 3.1 Lite.
+const OMNI_MODEL = /Omni\s*1\.2\s*Flash/i;
+/** Flow settings for a clip: what model, resolution and length every account must use for it. */
+export function videoPlan(kind) {
+  return kind === "DRAMA_SHOT" ? { model: OMNI_MODEL, resolution: /^\s*360p/, seconds: 10 } : { model: LITE_MODEL, resolution: null, seconds: null };
+}
 /** The composer's settings chip: "วิดีโอ · 720p · 8 วินาที crop_9_16 x1" (or "Nano Banana … x2" on a fresh account). */
 async function settingsChip(page, selectors) {
   // In a narrow window Flow folds the chip ("Nano Banana 2.1 crop x2" on a fresh account) into a "tune" icon button.
   return await firstVisible(page, selectors.settingsChip) ?? await firstVisible(page, 'button:has-text("crop_")')
     ?? await firstVisible(page, 'button:has-text("tune")');
+}
+/** Moves Flow's length slider ("ความยาว 10 วินาที") to `seconds` with the arrow keys. Never clicks Generate. */
+async function setLength(page, seconds) {
+  const slider = page.getByRole("slider").first();
+  if (!await slider.count()) return;
+  await slider.focus().catch(() => {});
+  for (let i = 0; i < 20; i++) {
+    const now = Number(await slider.getAttribute("aria-valuenow").catch(() => null));
+    if (!Number.isFinite(now) || now === seconds) break;
+    await page.keyboard.press(now < seconds ? "ArrowRight" : "ArrowLeft").catch(() => {});
+    await page.waitForTimeout(150);
+  }
 }
 async function pickRadio(page, name) {
   const radio = page.getByRole("radio", { name }).first();
@@ -150,7 +169,7 @@ export async function closeAgentPanel(page) {
   await page.waitForTimeout(1200);
   return true;
 }
-export async function chooseVideoSettings(page, selectors, { frames = false } = {}) {
+export async function chooseVideoSettings(page, selectors, { frames = false, plan = videoPlan() } = {}) {
   await closeAgentPanel(page);
   const chip = await settingsChip(page, selectors);
   if (!chip) return false;
@@ -169,12 +188,19 @@ export async function chooseVideoSettings(page, selectors, { frames = false } = 
     if (frames) await pickRadio(page, /เฟรม|frames?/i);
     await pickRadio(page, /9:16/);
     const model = page.locator('button:has-text("arrow_drop_down")').filter({ hasText: /Veo|Omni|Flash|Lite|Fast|Quality/i }).last();
-    if (await model.count() && !LITE_MODEL.test(await model.innerText().catch(() => ""))) {
+    if (await model.count() && !plan.model.test(await model.innerText().catch(() => ""))) {
       await model.click({ timeout: 10_000 }).catch(() => {});
       await page.waitForTimeout(600);
-      const lite = page.getByRole("menuitem", { name: LITE_MODEL }).or(page.getByRole("option", { name: LITE_MODEL })).first();
-      if (await lite.count()) { await lite.click({ timeout: 10_000 }).catch(() => {}); await page.waitForTimeout(600); }
+      const wanted = page.getByRole("menuitem", { name: plan.model }).or(page.getByRole("option", { name: plan.model })).first();
+      if (await wanted.count()) { await wanted.click({ timeout: 10_000 }).catch(() => {}); await page.waitForTimeout(800); }
     }
+    // Omni shows a resolution switch (360p / 720p) and a length slider under the model.
+    if (plan.resolution) {
+      await pickRadio(page, plan.resolution);
+      const button = page.getByRole("button", { name: plan.resolution }).first();
+      if (!await page.getByRole("radio", { name: plan.resolution }).count() && await button.count()) { await button.click({ timeout: 10_000 }).catch(() => {}); await page.waitForTimeout(400); }
+    }
+    if (plan.seconds) await setLength(page, plan.seconds);
     await pickRadio(page, /^x1$/);
   } finally {
     await page.keyboard.press("Escape").catch(() => {});
@@ -346,9 +372,10 @@ export async function openFlowAccount(account, config) {
       if (clip.imageUrl) await step("ATTACHING_IMAGE");
       // A drama shot continues from a picture (the last frame, or the key still): Flow's "frames" mode, start slot.
       const frames = clip.kind === "DRAMA_SHOT" && Boolean(clip.imageUrl);
+      const plan = videoPlan(clip.kind);
       // The prompt box found may be the Agent chat's: close that panel and take the composer's own box.
       if (await closeAgentPanel(page)) prompt = await firstVisible(page, selectors.prompt) ?? prompt;
-      await chooseVideoSettings(page, selectors, { frames });
+      await chooseVideoSettings(page, selectors, { frames, plan });
       try { await attachReference(page, selectors, clip.imageUrl, config.scratchDir, clip.id, { frames }); }
       catch (error) {
         // A newly added account opens on Flow's image model, and the switch to video + frames does not always take on
@@ -358,9 +385,9 @@ export async function openFlowAccount(account, config) {
           await page.keyboard.press("Escape").catch(() => {});
           prompt = await openComposer(page, { flowUrl: config.flowUrl, selectors });
           await page.waitForTimeout(1500);
-          await chooseVideoSettings(page, selectors, { frames });
+          await chooseVideoSettings(page, selectors, { frames, plan });
           await page.waitForTimeout(1500);
-          await chooseVideoSettings(page, selectors, { frames });
+          await chooseVideoSettings(page, selectors, { frames, plan });
           await attachReference(page, selectors, clip.imageUrl, config.scratchDir, clip.id, { frames });
         } catch (again) { await saveDebug(page, config.debugDir, clip.id, "image"); return fail(again.message); }
       }
@@ -368,10 +395,12 @@ export async function openFlowAccount(account, config) {
       await step("CHECKING_COST");
       await chooseSingleOutput(page, selectors);
       let cost = await readCost(page, selectors);
-      if (!costDecision(cost, config.costPolicy).ok && await chooseVideoSettings(page, selectors, { frames })) cost = await readCost(page, selectors);
+      if (!costDecision(cost, config.costPolicy).ok && await chooseVideoSettings(page, selectors, { frames, plan })) cost = await readCost(page, selectors);
       const decision = costDecision(cost, config.costPolicy);
       if (!decision.ok) { await saveDebug(page, config.debugDir, clip.id, "cost"); return fail(decision.reason); }
-      await step("TYPING_PROMPT", cost != null ? `${cost} เครดิต` : undefined);
+      // The settings Flow shows now ("วิดีโอ · 360p · 10 วินาที"), so the log tells which model and length a clip used.
+      const chipText = (await firstVisible(page, selectors.settingsChip).then(c => c?.innerText()).catch(() => "") ?? "").replace(/\s+/g, " ").trim();
+      await step("TYPING_PROMPT", [cost != null ? `${cost} เครดิต` : "", chipText.slice(0, 60)].filter(Boolean).join(" · ") || undefined);
       // Settings and the Agent panel may have redrawn the composer: type into the prompt box showing now.
       prompt = await firstVisible(page, selectors.prompt) ?? prompt;
       await prompt.click();

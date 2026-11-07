@@ -4,7 +4,7 @@ import { MORE_STORIES } from "./more-stories";
 /**
  * The built-in showrunner's writers' room: one premise per genre plus the story moves, cliffhangers and fixed beats
  * a season is built from. `{LEAD}`, `{ALLY}`, `{RIVAL}` and `{OBJ}` become the character names / key object
- * (English in prompts, Thai in subtitles). Lines are short on purpose: one sentence fits an 8-second shot.
+ * (English in prompts, Thai in subtitles). Lines are short on purpose: one sentence fits a 10-second shot (Omni 1.2 Flash, 360p).
  */
 export type Say = Line | "REVEAL1" | "REVEAL2" | "FINAL";
 export interface Move {

@@ -142,8 +142,8 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
               {g.label} · {channel(g.tiktok_account_id)}{busy.has(g.id) ? ` · ล็อกกับ “${busy.get(g.id)}” แล้ว` : !g.active ? " · พักไว้" : ""}</option>)}</select></label>
           <label className="manual-filter">จำนวนตอนทั้งซีซัน<select name="totalEpisodes" defaultValue="30">
             {[6, 10, 15, 20, 30].map(n => <option key={n} value={n}>{n} ตอน</option>)}</select></label>
-          <label className="manual-filter">ช็อตต่อตอน (ช็อตละ 8 วิ)<select name="shotsPerEpisode" defaultValue="5">
-            {[3, 4, 5].map(n => <option key={n} value={n}>{n} ช็อต ≈ {n * 8} วิ · {n * 10} เครดิต</option>)}</select></label>
+          <label className="manual-filter">ช็อตต่อตอน (ช็อตละ 10 วิ)<select name="shotsPerEpisode" defaultValue="5">
+            {[3, 4, 5].map(n => <option key={n} value={n}>{n} ช็อต ≈ {n * 10} วิ · {n * 10} เครดิต</option>)}</select></label>
           <label className="manual-filter">ตอนต่อวัน<select name="episodesPerDay" defaultValue="1">
             {[1, 2].map(n => <option key={n} value={n}>{n} ตอน/วัน</option>)}</select></label>
         </div>
