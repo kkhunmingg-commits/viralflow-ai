@@ -1,3 +1,4 @@
+import { HORROR_SCHOOL_BELL_SEASON } from "./seasons/horror-school-bell";
 import type { DramaGenre, Line, Role } from "./contracts";
 import type { GenreKit, Move } from "./genres";
 
@@ -38,6 +39,7 @@ const HORROR_BELL: StoryPart = {
     reveal2: say("RIVAL", "เธอคือน้องสาวผม วันนั้นผมไม่ได้สั่นกระดิ่งเรียกเธอ"),
     finalLine: say("RIVAL", "เลิกเรียนแล้วนะ กลับบ้านได้แล้ว"),
   },
+  season: HORROR_SCHOOL_BELL_SEASON,
   hooks: [say("LEAD", "ตั้งสติไว้ เรามาไกลขนาดนี้แล้ว"), say("ALLY", "ครูได้ยินเหมือนผมใช่ไหม"), say("LEAD", "คืนนี้เราต้องรู้ให้ได้"),
     say("ALLY", "ผมว่าเราควรไปจากที่นี่นะครู"), say("LEAD", "ไม่ เด็กคนนั้นต้องการความช่วยเหลือ")],
   moves: [
