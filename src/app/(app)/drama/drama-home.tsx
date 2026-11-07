@@ -21,7 +21,7 @@ interface GoogleAccount { id: string; label: string; tiktok_account_id: string |
 function nextStep(item: SeriesSummary, today: string) {
   const { series, current, toReview, latestReady } = item;
   if (series.status === "COMPLETED") return `จบครบ ${series.total_episodes} ตอนแล้ว`;
-  if (toReview) return `ตอนที่ ${toReview.number} ตัดต่อเสร็จ รอคุณตรวจ ดูคลิปในขั้นที่ 4 แล้วกด “ผ่าน” เพื่อไปตอนที่ ${toReview.number + 1} หรือ “ไม่ผ่าน” เพื่อทำเวอร์ชันใหม่ทันที`;
+  if (toReview) return `ตอนที่ ${toReview.number} ตัดต่อเสร็จ รอคุณตรวจ ดูคลิปในขั้นที่ 4 แล้วกด “ผ่าน” เพื่อไปตอนที่ ${toReview.number + 1} หรือ “ไม่ผ่าน” เพื่อทำเวอร์ชันใหม่ จากนั้นกด “สร้างตอนต่อไป” เมื่อพร้อม`;
   if (series.status === "PAUSED") return "รอคุณกด “สร้างตอนต่อไป” ในหน้าเรื่อง";
   if (current?.status === "FAILED") return `ตอนที่ ${current.number} ต้องตรวจ: ${current.error ?? "ช็อตสร้างไม่สำเร็จ"}`;
   if (current?.status === "ASSEMBLING") return `กำลังตัดต่อตอนที่ ${current.number}`;
@@ -180,7 +180,7 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
     </section>
 
     <section className="manual-panel drama-step" id="step-review" aria-labelledby="review-title">
-      {stepHead(4, "review-title", "ตรวจตอนที่เสร็จ", "ดูคลิปแล้วกด “ผ่าน” เพื่อไปตอนถัดไป หรือ “ไม่ผ่าน” ให้ระบบถ่ายเวอร์ชันใหม่ทันที แล้วเลือกเวอร์ชันที่ชอบ")}
+      {stepHead(4, "review-title", "ตรวจตอนที่เสร็จ", "ดูคลิปแล้วกด “ผ่าน” หรือ “ไม่ผ่าน” ระบบจะรอจนคุณกด “สร้างตอนต่อไป” ในหน้าเรื่องก่อนใช้เครดิต")}
       {reviewing.length === 0 ? <p className="manual-muted">ยังไม่มีตอนรอตรวจ ตอนที่ตัดต่อเสร็จจะขึ้นมาตรงนี้</p>
         : reviewing.map(item => {
           const s = item.series;
