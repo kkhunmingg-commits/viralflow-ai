@@ -1,5 +1,6 @@
 import type { CastMember, DramaGenre, Line, Place, PlaceKey, Role } from "./contracts";
 import { MORE_STORIES } from "./more-stories";
+import { ACTION_LAST_PARCEL_SEASON } from "./seasons/action-last-parcel";
 import { HORROR_MIRROR_HOUSE_SEASON } from "./seasons/horror-mirror-house";
 
 /**
@@ -152,6 +153,7 @@ const ACTION: GenreKit = {
     reveal2: say("RIVAL", "พี่ชายแกส่งมันมาเอง เพราะรู้ว่าแกไม่ยอมแพ้"),
     finalLine: say("LEAD", "พัสดุชิ้นสุดท้าย... ส่งถึงมือแล้วครับ"),
   },
+  season: ACTION_LAST_PARCEL_SEASON,
   hooks: [say("LEAD", "ไม่มีเวลาแล้ว ไปต่อ"), say("ALLY", "เจ! ทางนี้!"), say("LEAD", "ใครส่งพวกมันมา"), say("ALLY", "ฉันหาทางออกให้เอง"), say("LEAD", "จับไว้แน่นๆ")],
   moves: [
     m("chase", "วิ่งหนี", "{LEAD}วิ่งหนีลูกน้อง{RIVAL}ฝ่าแผงลอยในตลาด", "{LEAD} sprints through the crowded night market clutching {OBJ}, ducking under hanging lanterns as men in black jackets push through behind him", 2, { at: "A", say: say("LEAD", "หลบหน่อยครับ!") }),

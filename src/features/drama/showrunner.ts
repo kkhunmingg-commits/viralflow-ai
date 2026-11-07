@@ -87,8 +87,8 @@ const CAMERA = {
   intro: "medium-wide establishing shot, every face clearly visible and well lit",
 };
 
-/** Words in a move that mean other people (a crowd, customers) belong in the shot. */
-const CROWD = /\b(crowd|customers?|class|students|children|kids|passengers|people|guests|audience|villagers|everyone|strangers?|men|women)\b/i;
+/** Words in a move that mean other people (a crowd, customers, a one-off extra) belong in the shot. */
+const CROWD = /\b(crowd|customers?|class|students|children|kids|passengers|people|guests|audience|villagers|everyone|strangers?|men|women|man|woman|officers?|police|figure)\b/i;
 /** One take, one place: Veo otherwise flashes or morphs into a different room mid-shot. */
 const CONTINUITY = "One single continuous take: no cuts, no transitions, no flashes, no dissolves. The location, background and lighting stay exactly the same from the first frame to the last, and every person's hair and clothes never change.";
 const OLD = /elderly|(?<!-)\bold\b|sixties|seventies|eighties|grand(mother|father|ma|pa)|\b[6-9]\d-year/i;
