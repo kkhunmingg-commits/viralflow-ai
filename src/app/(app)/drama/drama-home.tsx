@@ -38,7 +38,7 @@ function nextStep(item: SeriesSummary, today: string) {
 function repairStatus(a: { active: boolean; loggedIn: boolean; exhaustedToday: boolean; usedToday: number; perDay: number; asideReason: string | null } | undefined) {
   if (!a) return "";
   if (!a.active) return "พักไว้";
-  if (a.asideReason && !a.exhaustedToday) return `ข้ามไว้ชั่วคราวไม่เกิน 2 ชม. เพราะเริ่มช็อตไม่ได้ (${a.asideReason}) ช็อตย้ายไปบัญชีอื่นเองแล้ว`;
+  if (a.asideReason && !a.exhaustedToday) return `พักไว้ชั่วคราว (${a.asideReason}) ช็อตย้ายไปบัญชีอื่นเองแล้ว เดี๋ยวกลับมาใช้ใหม่เอง`;
   if (a.exhaustedToday || a.usedToday >= a.perDay) return `หมดเครดิตแล้ว (ใช้ ${Math.min(a.usedToday, a.perDay)}/${a.perDay} ช็อต) รอเครดิตรอบใหม่`;
   if (!a.loggedIn) return `ยังใช้ไม่ได้จนกว่าจะล็อกอิน (${a.perDay} ช็อต)`;
   return `พร้อมซ่อม · เหลือ ${a.perDay - a.usedToday}/${a.perDay} ช็อตวันนี้`;

@@ -1,5 +1,5 @@
 import { bangkokDate } from "@/features/flow-farm/contracts";
-import { MAX_REFUSED_ATTEMPTS, MAX_SHOT_ATTEMPTS, REFUSED_RETRY_MS, type ReferenceMode, type ShotRoute, type ShotStatus } from "./contracts";
+import { MAX_REFUSED_ATTEMPTS, MAX_SHOT_ATTEMPTS, type ReferenceMode, type ShotRoute, type ShotStatus } from "./contracts";
 
 /** Pure production rules, kept apart from the database code so they can be tested on their own. */
 export interface ShotRow {
@@ -29,12 +29,12 @@ export interface RetryPlan { status: "PLANNED" | "FAILED"; route: ShotRoute; att
  */
 export function planRetry(shot: Pick<ShotRow, "attempts" | "route">, reason: "BROKEN" | "NO_CREDIT" | "REFUSED",
   repair: { exists: boolean; outOfCreditsToday: boolean }, now = new Date()): RetryPlan {
-  // Google refused the job for "unusual activity": nothing is wrong with the shot, so it is sent again on the same
-  // route after a short wait, and only many refusals in a row stop the episode.
+  // Google refused the job for "unusual activity": nothing is wrong with the shot. The refused account is set aside
+  // by the caller and the shot goes straight on to the next account in the pool; only many refusals stop the episode.
   if (reason === "REFUSED") {
     const attempts = shot.attempts + 1;
     if (attempts >= MAX_REFUSED_ATTEMPTS) return { status: "FAILED", route: shot.route, attempts, retryAfter: null };
-    return { status: "PLANNED", route: shot.route, attempts, retryAfter: new Date(now.getTime() + REFUSED_RETRY_MS).toISOString() };
+    return { status: "PLANNED", route: repair.exists ? "REPAIR" : shot.route, attempts, retryAfter: null };
   }
   if (reason === "BROKEN") {
     const attempts = shot.attempts + 1;
@@ -124,6 +124,11 @@ export const isCreditReason = (reason: string) => reason === "NO_CREDIT" || /^GE
 /** How long an account that could not start a shot for another reason (page changed, picture box missing…) is skipped. */
 export const SET_ASIDE_MS = 2 * 60 * 60_000;
 /** Accounts still set aside at `now`, from the saved { id: { until, reason } } map. */
+/** When the first account that is only set aside (not out of credits) comes back, or null if none is. */
+export function firstBackAt(aside: Record<string, { until: string }>, waiting: string[]) {
+  const times = waiting.map(id => aside[id]?.until).filter((t): t is string => Boolean(t)).toSorted();
+  return times[0] ?? null;
+}
 export function setAsideNow(saved: Record<string, { until: string; reason: string }> | null, now: Date) {
   return Object.fromEntries(Object.entries(saved ?? {}).filter(([, v]) => new Date(v.until).getTime() > now.getTime()));
 }

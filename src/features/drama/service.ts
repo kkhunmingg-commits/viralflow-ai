@@ -2,10 +2,10 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { bangkokDate } from "@/features/flow-farm/contracts";
-import { MAX_ASSEMBLE_ATTEMPTS, emptyStoryState, type DramaGenre, type EpisodeStatus, type SeriesBible, type SeriesStatus,
+import { REFUSED_ASIDE_MS, MAX_ASSEMBLE_ATTEMPTS, emptyStoryState, type DramaGenre, type EpisodeStatus, type SeriesBible, type SeriesStatus,
   type ShotStatus, type StoryState } from "./contracts";
 import { ASSEMBLY_STALE_MS, clipVerdict, failureKind, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, pickRepairAccount, planRetry, promptFor, referencePath,
-  repairAccounts, repairShotsLeft, isCreditReason, SET_ASIDE_MS, setAsideNow, type RepairAccountRow, type ShotRow } from "./engine";
+  repairAccounts, repairShotsLeft, isCreditReason, SET_ASIDE_MS, setAsideNow, firstBackAt, type RepairAccountRow, type ShotRow } from "./engine";
 import { flowLogins, readStateFile, saveStateFile } from "@/features/flow-farm/service";
 import { SHOWRUNNER_WRITER, createBible, pickStory, planEpisode } from "./showrunner";
 
@@ -428,8 +428,9 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
   // 1. A queued shot whose Flow clip finished, failed or ran out of credits.
   const queued = shots.find(shot => shot.status === "QUEUED");
   if (queued) {
-    const clip = queued.flow_clip_id ? check(await admin.from("flow_clips").select("id,status,storage_path,duration_seconds,error").eq("owner_id", owner)
-      .eq("id", queued.flow_clip_id).maybeSingle(), "flow_clips_unavailable") as { id: string; status: string; storage_path: string | null; duration_seconds: number | null; error: string | null } | null : null;
+    const clip = queued.flow_clip_id ? check(await admin.from("flow_clips").select("id,status,storage_path,duration_seconds,error,flow_account_id,required_flow_account_id").eq("owner_id", owner)
+      .eq("id", queued.flow_clip_id).maybeSingle(), "flow_clips_unavailable") as { id: string; status: string; storage_path: string | null; duration_seconds: number | null;
+        error: string | null; flow_account_id: string | null; required_flow_account_id: string | null } | null : null;
     const verdict = clipVerdict(clip?.status ?? null);
     if (verdict === "WAIT") return;
     let broken: string | null = null;
@@ -447,8 +448,12 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
     }
     if (verdict === "BROKEN") broken = (clip?.error ?? "CLIP_MISSING").slice(0, 300);
     if (broken !== null || verdict === "NO_CREDIT") {
+      const kind = verdict === "NO_CREDIT" ? "NO_CREDIT" : verdict === "BROKEN" ? failureKind(clip?.error) : "BROKEN";
+      // Google refused this account: leave it out for a while so the next try goes to another account.
+      const refused = clip?.flow_account_id ?? clip?.required_flow_account_id ?? null;
+      if (kind === "REFUSED" && refused) await setAccountAside(admin, owner, refused, "Google ปฏิเสธชั่วคราว", now, REFUSED_ASIDE_MS);
       const repair = await repairState(admin, owner, series, now);
-      const plan = planRetry(queued, verdict === "NO_CREDIT" ? "NO_CREDIT" : verdict === "BROKEN" ? failureKind(clip?.error) : "BROKEN", repair, now);
+      const plan = planRetry(queued, kind, repair, now);
       await updateShot(admin, owner, queued.id, "QUEUED", { status: plan.status, route: plan.route, attempts: plan.attempts, retry_after: plan.retryAfter,
         flow_clip_id: plan.status === "FAILED" ? queued.flow_clip_id : null, error: verdict === "NO_CREDIT" ? "NO_CREDIT" : `${broken}`.slice(0, 400) }, now, queued.flow_clip_id);
       if (plan.status === "FAILED") {
@@ -490,9 +495,9 @@ const setAsidePath = (owner: string) => {
 export async function accountsSetAside(admin: SupabaseClient, owner: string, now = new Date()): Promise<SetAside> {
   return setAsideNow(await readStateFile<SetAside>(admin, setAsidePath(owner)).catch(() => null), now);
 }
-async function setAccountAside(admin: SupabaseClient, owner: string, id: string, reason: string, now: Date) {
+async function setAccountAside(admin: SupabaseClient, owner: string, id: string, reason: string, now: Date, ms = SET_ASIDE_MS) {
   const aside = await accountsSetAside(admin, owner, now);
-  aside[id] = { until: new Date(now.getTime() + SET_ASIDE_MS).toISOString(), reason: reason.slice(0, 120) };
+  aside[id] = { until: new Date(now.getTime() + ms).toISOString(), reason: reason.slice(0, 120) };
   await saveStateFile(admin, setAsidePath(owner), aside, "set_aside_not_saved").catch(() => {});
 }
 async function clearSetAside(admin: SupabaseClient, owner: string) {
@@ -573,9 +578,16 @@ async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow
     const picked = pickRepairAccount(await repairPool(admin, owner, now));
     if (picked) account = picked.id;
     else if (!await mainUsable(admin, owner, series.flow_account_id, now)) {
-      // Every account is out today: the shot waits for new credits instead of asking empty accounts again.
-      await updateShot(admin, owner, shot.id, "PLANNED", { route: "PRIMARY", retry_after: nextBangkokMorning(now),
-        error: "เครดิตหมดทั้งบัญชีหลักและบัญชีซ่อมทุกบัญชี รอเครดิตรอบใหม่" }, now, null);
+      // No account can take it now. Accounts that are only set aside (refused, or could not start) come back soon:
+      // wait for the first of them; when every account is out of credits, wait for new credits.
+      const pool = await repairPool(admin, owner, now), aside = await accountsSetAside(admin, owner, now);
+      const resting = pool.filter(a => a.asideReason && a.active && a.loggedIn && !a.exhaustedToday && a.usedToday < a.perDay).map(a => a.id);
+      const main = series.flow_account_id ? (await admin.from("flow_accounts").select("active,exhausted_on").eq("owner_id", owner).eq("id", series.flow_account_id).maybeSingle()).data as
+        { active: boolean; exhausted_on: string | null } | null : null;
+      if (main?.active && main.exhausted_on !== bangkokDate(now) && series.flow_account_id && aside[series.flow_account_id]) resting.push(series.flow_account_id);
+      const back = firstBackAt(aside, resting);
+      await updateShot(admin, owner, shot.id, "PLANNED", { route: back ? "REPAIR" : "PRIMARY", retry_after: back ?? nextBangkokMorning(now),
+        error: back ? "ทุกบัญชีที่ยังมีเครดิตพักอยู่ จะกลับมาทำต่อเองเมื่อบัญชีแรกพ้นช่วงพัก" : "เครดิตหมดทั้งบัญชีหลักและบัญชีซ่อมทุกบัญชี รอเครดิตรอบใหม่" }, now, null);
       return;
     } else shot = { ...shot, route: "PRIMARY" };
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCreditReason, pickRepairAccount, repairAccounts, repairShotsLeft, setAsideNow, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, promptFor, referencePath, clipVerdict, failureKind, planRetry, shotAccount, type ShotRow } from "./engine";
+import { isCreditReason, pickRepairAccount, repairAccounts, repairShotsLeft, setAsideNow, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, promptFor, referencePath, clipVerdict, failureKind, firstBackAt, planRetry, shotAccount, type ShotRow } from "./engine";
 
 const shot = (position: number, patch: Partial<ShotRow> = {}): ShotRow => ({
   id: `s${position}`, episode_id: "e", position, status: "PLANNED", reference_mode: position === 1 ? "KEY_STILL" : "PREVIOUS_FRAME", attempts: 0,
@@ -26,13 +26,20 @@ describe("planRetry", () => {
     expect(planRetry({ attempts: 2, route: "REPAIR" }, "BROKEN", repair, now)).toMatchObject({ status: "PLANNED", route: "REPAIR", attempts: 3 });
     expect(planRetry({ attempts: 3, route: "REPAIR" }, "BROKEN", repair, now)).toMatchObject({ status: "FAILED", attempts: 4 });
   });
-  it("waits a few minutes and resends a shot Google refused for unusual activity, on the same route", () => {
+  it("moves a shot Google refused for unusual activity straight on to the pool", () => {
     expect(failureKind("FLOW_UNUSUAL_ACTIVITY")).toBe("REFUSED");
     expect(failureKind("FLOW_REPORTED_FAILURE")).toBe("BROKEN");
     expect(failureKind(null)).toBe("BROKEN");
     expect(planRetry({ attempts: 3, route: "REPAIR" }, "REFUSED", repair, now))
-      .toEqual({ status: "PLANNED", route: "REPAIR", attempts: 4, retryAfter: "2026-11-04T05:04:00.000Z" });
+      .toEqual({ status: "PLANNED", route: "REPAIR", attempts: 4, retryAfter: null });
+    expect(planRetry({ attempts: 0, route: "PRIMARY" }, "REFUSED", repair, now)).toMatchObject({ route: "REPAIR", attempts: 1 });
+    expect(planRetry({ attempts: 0, route: "PRIMARY" }, "REFUSED", { exists: false, outOfCreditsToday: false }, now)).toMatchObject({ route: "PRIMARY" });
     expect(planRetry({ attempts: 7, route: "PRIMARY" }, "REFUSED", repair, now)).toMatchObject({ status: "FAILED", attempts: 8 });
+  });
+  it("finds when the first resting account comes back", () => {
+    const aside = { a: { until: "2026-11-04T06:00:00.000Z" }, b: { until: "2026-11-04T05:30:00.000Z" } };
+    expect(firstBackAt(aside, ["a", "b"])).toBe("2026-11-04T05:30:00.000Z");
+    expect(firstBackAt(aside, ["c"])).toBeNull();
   });
   it("retries on the main account when there is no repair account", () => {
     expect(planRetry({ attempts: 0, route: "PRIMARY" }, "BROKEN", { exists: false, outOfCreditsToday: false }, now)).toMatchObject({ status: "PLANNED", route: "PRIMARY", attempts: 1 });
