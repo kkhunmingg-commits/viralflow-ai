@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { dramaGenreLabels, episodePhaseLabels, episodeStatusLabels, seriesStatusLabels, type EpisodePhase } from "@/features/drama/contracts";
 import { repairPool, seriesDetail, signedImage } from "@/features/drama/service";
 import { repairShotsLeft } from "@/features/drama/engine";
-import { continueAfterCreditsAction, newStoryAction, redoShotAction, remakeTakeAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction, takeAction } from "../actions";
+import { continueAfterCreditsAction, newStoryAction, redoShotAction, remakeTakeAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction, startNextEpisodeAction, takeAction } from "../actions";
 import { OneVideoAtATime } from "../one-video";
 import { RestoreCut } from "../restore-cut";
 import { ClipStudioTabs } from "@/components/clip-studio-tabs";
@@ -70,8 +70,8 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
     <div className="drama-controls">
       {series.status === "ACTIVE" && <form action={seriesStatusAction}><input type="hidden" name="id" value={series.id} /><input type="hidden" name="status" value="PAUSED" />
         <button className="manual-secondary" type="submit">พักการผลิต</button></form>}
-      {series.status === "PAUSED" && <form action={seriesStatusAction}><input type="hidden" name="id" value={series.id} /><input type="hidden" name="status" value="ACTIVE" />
-        <button className="manual-primary" type="submit">ผลิตต่อ</button></form>}
+      {series.status === "PAUSED" && <form action={startNextEpisodeAction}><input type="hidden" name="id" value={series.id} />
+        <button className="manual-primary" type="submit">สร้างตอนต่อไป</button></form>}
       {series.status === "COMPLETED" && <form action={newStoryAction}><input type="hidden" name="id" value={series.id} />
         <button className="manual-primary" type="submit">สร้างเรื่องใหม่ (แนวเดิม)</button></form>}
       {series.status !== "ARCHIVED" && <form action={seriesStatusAction}><input type="hidden" name="id" value={series.id} /><input type="hidden" name="status" value="ARCHIVED" />

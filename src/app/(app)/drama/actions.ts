@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { createSeriesSchema, seriesRefSchema, shotRefSchema } from "@/features/drama/contracts";
-import { MAX_TAKES, TAKE_CREDIT_BUDGET, beginCutRestore, chooseTake, finishCutRestore, continueAfterCredits, createSeries, deleteRejectedTake, redoShot, remakeOpenTake, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextStory } from "@/features/drama/service";
+import { MAX_TAKES, TAKE_CREDIT_BUDGET, beginCutRestore, chooseTake, finishCutRestore, continueAfterCredits, createSeries, deleteRejectedTake, redoShot, remakeOpenTake, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextEpisode, startNextStory } from "@/features/drama/service";
 
 async function owner() {
   const client = await createClient(), { data, error } = await client.auth.getUser();
@@ -58,6 +58,16 @@ export async function seriesStatusAction(formData: FormData) {
   catch (error) { const message = known(error); if (message) done(`/drama/${parsed.data.id}`, message); throw error; }
   if (parsed.data.status === "ARCHIVED") done(HOME, "เก็บเรื่องนี้เข้ากรุแล้ว ตอนที่ตัดเสร็จยังอยู่ในคลัง");
   done(`/drama/${parsed.data.id}`, parsed.data.status === "ACTIVE" ? "ผลิตต่อแล้ว" : "พักการผลิตไว้แล้ว ช็อตที่อยู่ในคิวจะสร้างให้เสร็จก่อน");
+}
+
+/** Owner: start the next episode (or continue the open one) now. */
+export async function startNextEpisodeAction(formData: FormData) {
+  const parsed = seriesRefSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) done(HOME, "คำขอไม่ถูกต้อง");
+  const ownerId = await owner();
+  try { await startNextEpisode(createAdminClient(), ownerId, parsed.data.id); }
+  catch (error) { const message = known(error); if (message) done(`/drama/${parsed.data.id}`, message); throw error; }
+  done(`/drama/${parsed.data.id}`, "เริ่มสร้างแล้ว เครื่องสร้างคลิปจะรับช็อตแรกในรอบถัดไป");
 }
 
 export async function retryEpisodeAction(formData: FormData) {
@@ -118,9 +128,9 @@ export async function reviewEpisodeAction(formData: FormData) {
   let result: { approved: boolean; finished: boolean };
   try { result = await reviewEpisode(createAdminClient(), ownerId, seriesId, episodeId, verdict === "APPROVE"); }
   catch (error) { const message = known(error); if (message) done(path, message); throw error; }
-  done(path, !result.approved ? "บันทึกว่าไม่ผ่าน เก็บเวอร์ชันนี้ไว้ให้เทียบ แล้วเริ่มถ่ายเวอร์ชันใหม่ของตอนเดิมทันที"
+  done(path, !result.approved ? "บันทึกว่าไม่ผ่าน เก็บเวอร์ชันนี้ไว้ให้เทียบ กด “สร้างตอนต่อไป” ในหน้าเรื่องเมื่อพร้อมถ่ายเวอร์ชันใหม่"
     : result.finished ? "ผ่านแล้ว เรื่องนี้จบครบทุกตอน กด “สร้างเรื่องใหม่” ในการ์ดเพื่อเริ่มเรื่องต่อไปแนวเดิม"
-    : "ผ่านแล้ว ตอนถัดไปจะเริ่มถ่ายในวันถัดไป (หรือทันทีถ้าวันนี้ยังทำได้อีกตอน)");
+    : "ผ่านแล้ว เรียงเข้าซีซันแล้ว กด “สร้างตอนต่อไป” ในหน้าเรื่องเมื่อพร้อม");
 }
 
 const takeSchema = z.object({ seriesId: z.uuid(), episodeId: z.uuid(), op: z.enum(["CHOOSE", "DELETE"]), back: z.enum(["home", "series"]).default("home") });

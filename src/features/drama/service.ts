@@ -124,10 +124,10 @@ export async function reviewEpisode(admin: SupabaseClient, owner: string, series
   if (!marked.length) throw new Error("EPISODE_NOT_REVIEWABLE");
   // A rejected take is only kept to compare its cut: its shot files can go now (episode 1's key still stays).
   await cleanupShots(admin, owner, series, await episodeShots(admin, owner, episode.id), now).catch(() => {});
-  // The new take starts right away (the worker's next poll), not the next day.
-  check(await admin.from("drama_series").update({ redo_on: null, ...(ownsStill ? { key_still_path: null } : {}), updated_at: now.toISOString() })
+  // The new take waits for the owner too: it starts when they press "สร้างตอนต่อไป".
+  check(await admin.from("drama_series").update({ redo_on: null, ...(ownsStill ? { key_still_path: null } : {}),
+    ...(series.status === "ACTIVE" ? { status: "PAUSED" } : {}), updated_at: now.toISOString() })
     .eq("owner_id", owner).eq("id", series.id), "series_not_saved");
-  await tickSeriesById(admin, owner, series.id, now).catch(() => {});
   return { approved: false, finished: false };
 }
 
@@ -190,9 +190,11 @@ export async function chooseTake(admin: SupabaseClient, owner: string, seriesId:
   const finished = chosen.number >= series.total_episodes;
   check(await admin.from("drama_series").update({ story_state: chosen.state_after, next_episode_number: chosen.number + 1, redo_on: null,
     ...(chosen.number === 1 ? { key_still_path: keyStill } : {}),
-    ...(finished && series.status === "ACTIVE" ? { status: "COMPLETED" } : {}), updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", series.id), "series_not_saved");
+    // Lucky, 7 Nov: an approved episode joins the season, and the next one waits until the owner presses
+    // "สร้างตอนต่อไป" (the series rests as PAUSED until then).
+    ...(finished && series.status !== "ARCHIVED" ? { status: "COMPLETED" } : series.status === "ACTIVE" ? { status: "PAUSED" } : {}),
+    updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", series.id), "series_not_saved");
   await cleanupShots(admin, owner, series, await episodeShots(admin, owner, chosen.id), now, true).catch(() => {});
-  await tickSeriesById(admin, owner, series.id, now).catch(() => {});
   return { approved: true, finished, deleted: others.length };
 }
 
@@ -210,6 +212,17 @@ export async function setSeriesStatus(admin: SupabaseClient, owner: string, id: 
   if (series.status === "COMPLETED" && status !== "ARCHIVED") throw new Error("SERIES_COMPLETED");
   check(await admin.from("drama_series").update({ status, updated_at: new Date().toISOString() }).eq("owner_id", owner).eq("id", id), "series_not_saved");
   if (status === "ACTIVE") await tickSeriesById(admin, owner, id).catch(() => {});
+}
+
+/**
+ * Owner pressed "สร้างตอนต่อไป": the series goes back to work and, if no episode is open, the next one (or the remake
+ * of a rejected one) starts now, whatever the per-day setting says. Nothing else starts episodes on its own.
+ */
+export async function startNextEpisode(admin: SupabaseClient, owner: string, id: string, now = new Date()) {
+  const series = await loadSeries(admin, owner, id);
+  if (series.status !== "PAUSED" && series.status !== "ACTIVE") throw new Error("SERIES_COMPLETED");
+  check(await admin.from("drama_series").update({ status: "ACTIVE", redo_on: null, updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", id), "series_not_saved");
+  await tickSeries(admin, owner, { ...series, status: "ACTIVE", redo_on: null }, now, { manual: true });
 }
 
 /** Owner: try a failed shot again (or the cut, when every shot is done). */
@@ -396,7 +409,7 @@ async function tickSeriesById(admin: SupabaseClient, owner: string, id: string, 
   if (series.status === "ACTIVE") await tickSeries(admin, owner, series, now);
 }
 
-export async function tickSeries(admin: SupabaseClient, owner: string, series: SeriesRow, now = new Date()) {
+export async function tickSeries(admin: SupabaseClient, owner: string, series: SeriesRow, now = new Date(), { manual = false } = {}) {
   let episode: EpisodeRow | null = await openEpisode(admin, owner, series.id);
   if (!episode) {
     const today = bangkokDate(now);
@@ -413,7 +426,7 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
       .eq("status", "READY").eq("review", "PENDING");
     if (waiting.error) throw new Error("drama_unavailable");
     if ((waiting.count ?? 0) > 0) return; // the owner has not reviewed the last episode yet
-    if (!mayStartEpisode(series, count, 0)) return;
+    if (!mayStartEpisode(manual ? { ...series, episodes_per_day: count + 1 } : series, count, 0)) return;
     episode = await startEpisode(admin, owner, series, now);
     if (!episode) return;
   }

@@ -22,7 +22,7 @@ function nextStep(item: SeriesSummary, today: string) {
   const { series, current, toReview, latestReady } = item;
   if (series.status === "COMPLETED") return `จบครบ ${series.total_episodes} ตอนแล้ว`;
   if (toReview) return `ตอนที่ ${toReview.number} ตัดต่อเสร็จ รอคุณตรวจ ดูคลิปในขั้นที่ 4 แล้วกด “ผ่าน” เพื่อไปตอนที่ ${toReview.number + 1} หรือ “ไม่ผ่าน” เพื่อทำเวอร์ชันใหม่ทันที`;
-  if (series.status === "PAUSED") return "พักไว้ กด “ผลิตต่อ” ในหน้าเรื่อง";
+  if (series.status === "PAUSED") return "รอคุณกด “สร้างตอนต่อไป” ในหน้าเรื่อง";
   if (current?.status === "FAILED") return `ตอนที่ ${current.number} ต้องตรวจ: ${current.error ?? "ช็อตสร้างไม่สำเร็จ"}`;
   if (current?.status === "ASSEMBLING") return `กำลังตัดต่อตอนที่ ${current.number}`;
   if (current) return `กำลังถ่ายทำตอนที่ ${current.number} · ช็อต ${item.shotsDone}/${item.shotsTotal}${item.queued ? " · อยู่ในคิว Flow"
