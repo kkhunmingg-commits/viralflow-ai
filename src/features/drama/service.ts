@@ -191,7 +191,7 @@ export async function chooseTake(admin: SupabaseClient, owner: string, seriesId:
   check(await admin.from("drama_series").update({ story_state: chosen.state_after, next_episode_number: chosen.number + 1, redo_on: null,
     ...(chosen.number === 1 ? { key_still_path: keyStill } : {}),
     ...(finished && series.status === "ACTIVE" ? { status: "COMPLETED" } : {}), updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", series.id), "series_not_saved");
-  await cleanupShots(admin, owner, series, await episodeShots(admin, owner, chosen.id), now).catch(() => {});
+  await cleanupShots(admin, owner, series, await episodeShots(admin, owner, chosen.id), now, true).catch(() => {});
   await tickSeriesById(admin, owner, series.id, now).catch(() => {});
   return { approved: true, finished, deleted: others.length };
 }
@@ -594,7 +594,10 @@ async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow
   const claimed = await admin.from("drama_shots").update({ status: "QUEUED", route: shot.route ?? "PRIMARY", retry_after: null, updated_at: now.toISOString() })
     .eq("owner_id", owner).eq("id", shot.id).eq("status", "PLANNED").is("flow_clip_id", null).select("id");
   if (claimed.error || !claimed.data?.length) return;
-  const image = referencePath(shot, shots, series.key_still_path);
+  // The first shot of an episode that continues in the same place starts from the previous episode's last frame.
+  const image = shot.position === 1 && shot.reference_mode === "PREVIOUS_FRAME"
+    ? await previousEpisodeFrame(admin, owner, series, episode)
+    : referencePath(shot, shots, series.key_still_path);
   const title = `ละคร ${series.title} EP.${episode.number} ช็อต ${shot.position}/${shots.length}${shot.route === "REPAIR" ? " (ซ่อม)" : ""}`.slice(0, 200);
   const clip = await admin.from("flow_clips").insert({
     owner_id: owner, tiktok_account_id: series.tiktok_account_id, batch_id: episode.id, kind: "DRAMA_SHOT", title,
@@ -681,9 +684,21 @@ async function assemble(admin: SupabaseClient, owner: string, series: SeriesRow,
 }
 
 /** The cut episode holds everything now: shot MP4s and frames are deleted (the series key still stays). */
-async function cleanupShots(admin: SupabaseClient, owner: string, series: SeriesRow, shots: DramaShotRow[], now: Date) {
+async function cleanupShots(admin: SupabaseClient, owner: string, series: SeriesRow, shots: DramaShotRow[], now: Date, keepLastFrame = false) {
   const keyStill = (await loadSeries(admin, owner, series.id)).key_still_path;
-  const files = [...shots.map(s => s.video_path), ...shots.map(s => s.last_frame_path)].filter((p): p is string => Boolean(p) && p !== keyStill);
+  // An approved episode keeps its last frame, so the next episode's first shot can start exactly where it ended;
+  // the one kept from the episode before is no longer needed.
+  const lastFrame = keepLastFrame ? shots.filter(s => s.status === "DONE" && s.last_frame_path).toSorted((a, b) => b.position - a.position)[0]?.last_frame_path ?? null : null;
+  if (lastFrame) {
+    const older = ((await admin.from("drama_shots").select("id,last_frame_path").eq("owner_id", owner).eq("series_id", series.id)
+      .neq("episode_id", shots[0].episode_id).not("last_frame_path", "is", null)).data ?? []) as Array<{ id: string; last_frame_path: string }>;
+    const stale = older.filter(o => o.last_frame_path !== keyStill);
+    if (stale.length) {
+      await admin.storage.from(BUCKET).remove(stale.map(o => o.last_frame_path)).catch(() => {});
+      await admin.from("drama_shots").update({ last_frame_path: null }).eq("owner_id", owner).in("id", stale.map(o => o.id));
+    }
+  }
+  const files = [...shots.map(s => s.video_path), ...shots.map(s => s.last_frame_path)].filter((p): p is string => Boolean(p) && p !== keyStill && p !== lastFrame);
   if (files.length) await admin.storage.from(BUCKET).remove(files);
   const clipIds = shots.map(s => s.flow_clip_id).filter((id): id is string => Boolean(id));
   if (clipIds.length) await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, file_deleted_at: now.toISOString(), updated_at: now.toISOString() })
@@ -691,7 +706,20 @@ async function cleanupShots(admin: SupabaseClient, owner: string, series: Series
   const episodeId = shots[0]?.episode_id;
   if (!episodeId) return;
   await admin.from("drama_shots").update({ video_path: null, updated_at: now.toISOString() }).eq("owner_id", owner).eq("episode_id", episodeId);
-  await admin.from("drama_shots").update({ last_frame_path: null }).eq("owner_id", owner).eq("episode_id", episodeId).neq("last_frame_path", keyStill ?? "");
+  let frames = admin.from("drama_shots").update({ last_frame_path: null }).eq("owner_id", owner).eq("episode_id", episodeId).neq("last_frame_path", keyStill ?? "");
+  if (lastFrame) frames = frames.neq("last_frame_path", lastFrame);
+  await frames;
+}
+
+/** The last frame kept from the approved episode before this one, for a first shot that continues it. */
+async function previousEpisodeFrame(admin: SupabaseClient, owner: string, series: SeriesRow, episode: EpisodeRow) {
+  if (episode.number <= 1) return null;
+  const before = ((await admin.from("drama_episodes").select("id").eq("owner_id", owner).eq("series_id", series.id).eq("number", episode.number - 1)
+    .eq("review", "APPROVED")).data ?? []) as Array<{ id: string }>;
+  if (!before.length) return null;
+  const shot = (await admin.from("drama_shots").select("last_frame_path").eq("owner_id", owner).in("episode_id", before.map(e => e.id))
+    .not("last_frame_path", "is", null).order("position", { ascending: false }).limit(1).maybeSingle()).data as { last_frame_path: string } | null;
+  return shot?.last_frame_path ?? null;
 }
 
 /** A small signed link to the key still or an episode, for the series page. */

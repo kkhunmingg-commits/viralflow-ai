@@ -58,9 +58,10 @@ describe("planEpisode", () => {
   it("attaches a start picture only when it shows the same place", () => {
     const { episodes } = season("HORROR", 6, 4);
     expect(episodes[0].shots[0].referenceMode).toBe("NONE");
-    for (const ep of episodes) for (const [i, shot] of ep.shots.entries()) {
+    for (const [e, ep] of episodes.entries()) for (const [i, shot] of ep.shots.entries()) {
       expect(["NONE", "KEY_STILL", "PREVIOUS_FRAME"]).toContain(shot.referenceMode);
-      if (shot.referenceMode === "PREVIOUS_FRAME") expect(i).toBeGreaterThan(0);
+      // The first shot of a later episode may pick up from the cliffhanger frame of the episode before.
+      if (shot.referenceMode === "PREVIOUS_FRAME") expect(i + e).toBeGreaterThan(0);
     }
     // Episode 1 of บ้านกระจกผ้าแดง: hall, hall, hall, hall, then the attic starts fresh instead of morphing from the hall.
     expect(episodes[0].shots.map(s => s.referenceMode)).toContain("NONE");
@@ -168,4 +169,32 @@ describe("stories", () => {
     expect(kitFor({ genre: "COMEDY", premiseKey: GENRE_STORIES.COMEDY[1].premise.key })).toBe(GENRE_STORIES.COMEDY[1]);
     expect(kitFor({ genre: "COMEDY", premiseKey: "gone" })).toBe(GENRE_STORIES.COMEDY[0]);
   });
+});
+
+describe("written seasons", () => {
+  const written = Object.values(GENRE_STORIES).flat().filter(kit => kit.season);
+  it("has a written season for at least one story", () => expect(written.length).toBeGreaterThan(0));
+  for (const kit of written) {
+    it(`${kit.premise.key}: 30 episodes, 5 shots each, continuous and within Flow's prompt size`, () => {
+      expect(kit.season).toHaveLength(30);
+      const ids = new Set<string>();
+      for (const script of kit.season!) {
+        expect(script).not.toBeNull();
+        expect(script!.shots).toHaveLength(5);
+        for (const move of script!.shots) { expect(ids.has(move.id)).toBe(false); ids.add(move.id); }
+      }
+      const bible = createBible(kit.genre, 30, kit.premise.key);
+      let state = emptyStoryState();
+      for (let n = 1; n <= 30; n++) {
+        const ep = planEpisode({ bible, state, number: n, shotsPerEpisode: 5, seed: "s" });
+        expect(ep.title).toBe(kit.season![n - 1]!.title);
+        expect(ep.shots).toHaveLength(5);
+        for (const shot of ep.shots) { expect(shot.prompt.length).toBeLessThan(12000); expect(shot.prompt).not.toMatch(/\{(LEAD|ALLY|RIVAL|OBJ)\}/); }
+        // Inside an episode every shot after the first continues from the last frame of the one before.
+        const script = kit.season![n - 1]!;
+        expect(ep.shots.slice(1).every((shot, i) => shot.referenceMode === "PREVIOUS_FRAME" || Boolean(script.shots[i + 1].at && script.shots[i + 1].at !== script.at))).toBe(true);
+        state = ep.stateAfter;
+      }
+    });
+  }
 });

@@ -1,6 +1,6 @@
 import { emptyStoryState, type CastMember, type DramaGenre, type EpisodePhase, type Line, type PlaceKey, type PlannedEpisode,
   type PlannedShot, type ReferenceMode, type Role, type SeriesBible, type StoryState } from "./contracts";
-import { GENRE_STORIES, type Beat, type FixedPhase, type GenreKit, type Move, type Say } from "./genres";
+import { GENRE_STORIES, type Beat, type EpisodeScript, type FixedPhase, type GenreKit, type Move, type Say } from "./genres";
 
 /**
  * The built-in showrunner: writes a whole season up front (cast, places, hidden truth, locked ending and the phase of
@@ -132,7 +132,7 @@ export function shotRoles(move: Move, kit: GenreKit) {
   return { named, joins, all: joins ? [...named, joins] : named };
 }
 
-export interface ShotDraft { move: Move; place: PlaceKey; camera: string; hook?: boolean }
+export interface ShotDraft { move: Move; place: PlaceKey; camera: string; hook?: boolean; from?: string }
 
 /** The English prompt the Flow worker types. Character and place descriptions are repeated word for word every time. */
 export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<StoryState, "conditions">, mode: ReferenceMode, kit = kitFor(bible), carried: Role[] = []) {
@@ -155,6 +155,10 @@ export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<Sto
   const people = names.length
     ? `People on screen: ${names.join(", ")}. Each of them appears exactly once; never duplicate a person, never show a double or a look-alike, faces never blend or morph into each other${crowd ? "" : "; no other people"}.${background}`
     : crowd ? "" : "No people on screen.";
+  // Omni makes one 10-second take: spell out where it starts, what happens when, and the frame it ends on, so the next
+  // shot (which starts from that last frame) continues the same moment instead of starting over.
+  const from = mode === "PREVIOUS_FRAME" && draft.from ? `Continues directly from the previous shot, which ended on: ${fill(draft.from, bible, "en")}.` : "";
+  const timeline = `Timeline (10 seconds): 0-2s the shot opens with everyone already in place; 2-8s the action happens${line ? " and the line is spoken once, clearly, around the middle of the shot" : ""}; 8-10s the movement settles and the camera holds still on the final frame, every face still in view, the same people in the same place.`;
   const reference = mode === "PREVIOUS_FRAME" ? "Begin exactly on the attached image (same people, same place, same light) and continue the action from there."
     : mode === "KEY_STILL" ? "Begin on the attached image of this same place and continue from there; keep every face, hair and outfit as shown." : "";
   return [
@@ -163,7 +167,9 @@ export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<Sto
     ...(cast.length ? ["Characters (keep faces, hair, clothes and voices identical in every shot):", ...cast] : []),
     ...(people ? [people] : []),
     ...(draft.move.en.includes("{OBJ}") ? [`Key object, always identical: ${bible.object.look}.`] : []),
+    ...(from ? [from] : []),
     `Action: ${fill(draft.move.en, bible, "en")}${joins ? `; ${castOf(bible, joins).nameEn} is right there in the shot, reacting, and says the line` : ""}.`,
+    timeline,
     dialogue,
     `Camera: ${draft.camera}.`,
     CONTINUITY,
@@ -204,11 +210,15 @@ export function planEpisode(input: { bible: SeriesBible; state: StoryState; numb
   const fixedKey = FIXED[phase], beat: Beat | null = fixedKey ? kit.beats[fixedKey] : null;
   const finale = phase === "FINALE";
 
+  // A season written episode by episode: its shots are used as they are, in order.
+  const script: EpisodeScript | null = kit.season && kit.season.length === bible.arc.length ? kit.season[number - 1] ?? null : null;
   // Shot 1: the cast introduction (episode 1) or the continuation of last episode's cliffhanger.
   let current: PlaceKey = state.place ?? beat?.at ?? "A";
   const drafts: ShotDraft[] = [];
   let body: Move[];
-  if (number === 1 && beat) {
+  if (script) {
+    body = [];
+  } else if (number === 1 && beat) {
     current = beat.at;
     drafts.push({ move: beat.shots[0], place: current, camera: CAMERA.intro });
     body = beat.shots.slice(1);
@@ -225,7 +235,20 @@ export function planEpisode(input: { bible: SeriesBible; state: StoryState; numb
   // Middle shots, then the cliffhanger (or, in the finale, the ending shot last).
   const middleCount = finale ? shots - 1 : shots - 2;
   let middle: Move[];
-  if (finale) {
+  let cliff: Move | null;
+  if (script) {
+    // Fewer shots than written: keep the opening, the cliffhanger and the shots right before it.
+    const written = script.shots, first = written[0], last = written[written.length - 1];
+    const inner = written.slice(1, -1).slice(-Math.max(0, shots - 2));
+    middle = inner;
+    cliff = finale ? null : last;
+    const order = finale ? [first, ...inner, last].slice(0, shots) : [first, ...inner, last];
+    order.forEach((move, i) => {
+      current = move.at ?? script.at;
+      drafts.push({ move, place: current, hook: i === 0 && number > 1,
+        camera: i === 0 ? (number === 1 ? CAMERA.intro : CAMERA.hook) : i === order.length - 1 && !finale ? CAMERA.cliff : CAMERA.body[(i - 1) % CAMERA.body.length] });
+    });
+  } else if (finale) {
     const last = body[body.length - 1], before = body.slice(0, -1);
     const extra = Math.max(0, middleCount - body.length);
     middle = middleCount <= 0 ? [] : middleCount === 1 ? [last]
@@ -235,15 +258,19 @@ export function planEpisode(input: { bible: SeriesBible; state: StoryState; numb
     if (middle.length < middleCount) middle.push(...pickMoves(kit, state, phase, middleCount - middle.length, rand, input.pulse ?? 0)
       .filter(move => !middle.some(m => m.id === move.id)));
   }
-  middle.forEach((move, i) => {
-    current = move.at ?? (beat ? beat.at : current);
-    drafts.push({ move, place: current, camera: CAMERA.body[i % CAMERA.body.length] });
-  });
-  const cliff = finale ? null : beat?.cliff ?? pickCliff(kit, state, rand);
-  if (cliff) {
-    current = cliff.at ?? current;
-    drafts.push({ move: cliff, place: current, camera: CAMERA.cliff });
-  }
+  if (!script) {
+    middle.forEach((move, i) => {
+      current = move.at ?? (beat ? beat.at : current);
+      drafts.push({ move, place: current, camera: CAMERA.body[i % CAMERA.body.length] });
+    });
+    cliff = finale ? null : beat?.cliff ?? pickCliff(kit, state, rand);
+    if (cliff) {
+      current = cliff.at ?? current;
+      drafts.push({ move: cliff, place: current, camera: CAMERA.cliff });
+    }
+  } else cliff = finale ? null : script.shots[script.shots.length - 1];
+  // Each shot knows how the one before it ended, for the prompt's "continues from".
+  drafts.forEach((draft, i) => { if (i > 0) draft.from = drafts[i - 1].move.en; else if (state.lastCliff) draft.from = state.lastCliff.en; });
 
   // Memory: lasting changes apply from the shot they happen in, so later shots (and episodes) keep them.
   const next: StoryState = { ...state, conditions: { ...state.conditions }, clues: [...state.clues], usedMoves: [...state.usedMoves], usedCliffs: [...state.usedCliffs] };
@@ -256,24 +283,26 @@ export function planEpisode(input: { bible: SeriesBible; state: StoryState; numb
   const planned: PlannedShot[] = drafts.map((draft, i) => {
     const mode: ReferenceMode = number === 1 && i === 0 ? "NONE"
       : TIME_JUMP.test(draft.move.en) ? "NONE"
+      // Episode 2 onward, in the place the last episode ended: start from that episode's last frame.
+      : i === 0 && state.place && draft.place === state.place && state.lastCliff ? "PREVIOUS_FRAME"
       : i > 0 && draft.place === drafts[i - 1].place ? "PREVIOUS_FRAME" : draft.place === stillPlace ? "KEY_STILL" : "NONE";
-    const carried = mode === "PREVIOUS_FRAME" ? seen[i - 1] : [];
+    const carried = mode === "PREVIOUS_FRAME" ? seen[i - 1] ?? [] : [];
     const own = shotRoles(draft.move, kit).all;
     seen[i] = [...own, ...carried.filter(role => !own.includes(role))];
     const prompt = shotPrompt(bible, draft, next, mode, kit, carried);
     if (draft.move.condition) next.conditions[draft.move.condition.who] = { en: draft.move.condition.en, th: draft.move.condition.th };
     if (draft.move.clue && !next.clues.includes(draft.move.clue)) next.clues.push(draft.move.clue);
-    if (!draft.hook && !fixedKey && draft.move !== cliff) next.usedMoves.push(draft.move.id);
+    if (!draft.hook && !fixedKey && !script && draft.move !== cliff) next.usedMoves.push(draft.move.id);
     const line = lineOf(draft.move.say, kit);
     // The subtitle names who speaks ("มิน: ..."); the cut colours each name.
     return { position: i + 1, summary: fill(draft.move.th, bible, "th"), prompt, subtitle: line ? `${castOf(bible, line.who).name}: ${fill(line.line, bible, "th")}` : "",
       speaker: line?.who ?? null, referenceMode: mode };
   });
-  if (cliff && !fixedKey) next.usedCliffs.push(cliff.id);
+  if (cliff && !fixedKey && !script) next.usedCliffs.push(cliff.id);
   // Fixed beats also use moves picked to pad them; remember those too.
   middle.filter(move => kit.moves.includes(move) && !next.usedMoves.includes(move.id)).forEach(move => next.usedMoves.push(move.id));
 
-  const title = beat?.title ?? middle[0]?.t ?? "ตอนใหม่";
+  const title = script?.title ?? beat?.title ?? middle[0]?.t ?? "ตอนใหม่";
   const summary = planned.map(shot => shot.summary).join(" ");
   next.episode = number;
   next.place = current;

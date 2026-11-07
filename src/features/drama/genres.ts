@@ -1,5 +1,6 @@
 import type { CastMember, DramaGenre, Line, Place, PlaceKey, Role } from "./contracts";
 import { MORE_STORIES } from "./more-stories";
+import { HORROR_MIRROR_HOUSE_SEASON } from "./seasons/horror-mirror-house";
 
 /**
  * The built-in showrunner's writers' room: one premise per genre plus the story moves, cliffhangers and fixed beats
@@ -17,9 +18,16 @@ export interface Premise {
   key: string; title: string; logline: string; cast: CastMember[]; places: Place[]; object: { name: string; look: string };
   truth: string; ending: string; reveal1: Line; reveal2: Line; finalLine: Line;
 }
+/**
+ * One written episode of a season: its title, its place and every shot in order (the first picks up the last
+ * episode's cliffhanger, the last is this episode's cliffhanger). Null keeps the built-in beat or the random moves.
+ */
+export interface EpisodeScript { title: string; at: PlaceKey; shots: Move[] }
 export interface GenreKit {
   genre: DramaGenre; style: string; sound: string; hashtags: string[]; premise: Premise;
   moves: Move[]; cliffs: Move[]; hooks: Line[]; beats: Record<FixedPhase, Beat>;
+  /** A whole season written episode by episode, used when the series has exactly this many episodes. */
+  season?: Array<EpisodeScript | null>;
 }
 
 const m = (id: string, t: string, th: string, en: string, level: 1 | 2 | 3, extra: Partial<Move> = {}): Move => ({ id, t, th, en, level, ...extra });
@@ -56,6 +64,7 @@ const HORROR: GenreKit = {
     reveal2: say("RIVAL", "เธอคือยายทวดของหนู ปล่อยเธอไปเถอะ"),
     finalLine: say("RIVAL", "ไปสงบเถอะนะ หลานเธอมารับแล้ว"),
   },
+  season: HORROR_MIRROR_HOUSE_SEASON,
   hooks: [say("LEAD", "ไม่เป็นไร... ใจเย็นไว้ก่อน"), say("ALLY", "เมื่อกี้เห็นเหมือนกันใช่ไหม"), say("LEAD", "เราต้องรู้ให้ได้ว่ามันคืออะไร"),
     say("ALLY", "ผมว่าเราออกไปจากบ้านนี้เถอะ"), say("LEAD", "ไม่ คืนนี้ฉันจะไม่หนี")],
   moves: [
