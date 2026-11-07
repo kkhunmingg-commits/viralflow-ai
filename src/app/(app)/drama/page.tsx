@@ -40,14 +40,14 @@ export default async function DramaPage({ searchParams }: { searchParams: Promis
   return <div className="manual-page">
     <ClipStudioTabs />
     <header className="manual-hero"><div><p className="manual-eyebrow">Viral Flow AI · Drama Studio</p><h1>ละครซีรีส์</h1>
-      <p>เลือกแนวละครกับบัญชี Google แล้ว AI จะคิดเรื่อง ตัวละคร และตอนจบให้ทั้งซีซัน ทุกวันสร้างตอนใหม่ต่อจากตอนที่แล้ว ตรวจทุกช็อต ตัดต่อพร้อมซับไทย แคปชัน และแฮชแท็ก แล้วเก็บไว้ในคลังละครรอโพสต์ (คลิปโปรโมทอยู่ในแท็บ “สร้างคลิปโปรโมท” ด้านบน)</p></div>
+      <p>ทำตามทีละขั้นด้านล่าง: เตรียมบัญชี → เริ่มเรื่อง → ระบบถ่ายทำและตัดต่อเองวันละตอน → คุณตรวจตอน → โพสต์จากคลังละคร</p></div>
       <Link className="manual-back" href="/auto">← กลับหน้าหลัก</Link></header>
     {msg && <p className="library-message" role="status">{msg.slice(0, 300)}</p>}
     <p className={online ? "flow-worker online" : "flow-worker"} role="status"><span aria-hidden="true">●</span>
       {online ? "เครื่องสร้างคลิปออนไลน์ กำลังรอ/ทำงานเบื้องหลัง"
         : lastSeen ? `เครื่องสร้างคลิปไม่ได้ทำงาน (เห็นล่าสุด ${bangkokTime(lastSeen)}) เปิดคอมเครื่องที่ติดตั้งไว้`
           : <>ยังไม่ได้ติดตั้งเครื่องสร้างคลิป ติดตั้งได้ที่ <Link href="/post">สร้างคลิปโปรโมท</Link></>}</p>
-    <DramaHome client={client} owner={owner} library={<ClipLibrary library={library} now={now} studio="drama" publishable={publishable}
-      eyebrow="ตอนที่ตัดต่อเสร็จ · รอโพสต์" title="คลังละคร" empty="ตอนที่ตัดต่อเสร็จจะมาอยู่ตรงนี้ กด “ผ่าน” ที่การ์ดละครด้านบนเพื่อไปตอนถัดไป แล้วโพสต์จากคลังนี้" />} />
+    <DramaHome client={client} owner={owner} libraryCount={library.length} library={<ClipLibrary library={library} now={now} studio="drama" publishable={publishable}
+      eyebrow="ขั้นที่ 5 · โพสต์" title="คลังละคร" empty="ตอนที่คุณกด “ผ่าน” ในขั้นที่ 4 จะมารอโพสต์ตรงนี้" />} />
   </div>;
 }

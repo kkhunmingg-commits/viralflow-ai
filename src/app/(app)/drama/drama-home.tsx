@@ -21,14 +21,14 @@ interface GoogleAccount { id: string; label: string; tiktok_account_id: string |
 function nextStep(item: SeriesSummary, today: string) {
   const { series, current, toReview, latestReady } = item;
   if (series.status === "COMPLETED") return `จบครบ ${series.total_episodes} ตอนแล้ว`;
-  if (toReview) return `ตอนที่ ${toReview.number} ตัดต่อเสร็จ รอคุณตรวจ ดูคลิปด้านล่างแล้วกด “ผ่าน” เพื่อไปตอนที่ ${toReview.number + 1} หรือ “ไม่ผ่าน” เพื่อทำเวอร์ชันใหม่ทันที`;
+  if (toReview) return `ตอนที่ ${toReview.number} ตัดต่อเสร็จ รอคุณตรวจ ดูคลิปในขั้นที่ 4 แล้วกด “ผ่าน” เพื่อไปตอนที่ ${toReview.number + 1} หรือ “ไม่ผ่าน” เพื่อทำเวอร์ชันใหม่ทันที`;
   if (series.status === "PAUSED") return "พักไว้ กด “ผลิตต่อ” ในหน้าเรื่อง";
   if (current?.status === "FAILED") return `ตอนที่ ${current.number} ต้องตรวจ: ${current.error ?? "ช็อตสร้างไม่สำเร็จ"}`;
   if (current?.status === "ASSEMBLING") return `กำลังตัดต่อตอนที่ ${current.number}`;
   if (current) return `กำลังถ่ายทำตอนที่ ${current.number} · ช็อต ${item.shotsDone}/${item.shotsTotal}${item.queued ? " · อยู่ในคิว Flow"
     : item.shots.some(shot => shot.waitingCredits) ? " · เครดิตหมด รอเครดิตรอบใหม่" : " · กำลังส่งช็อตถัดไป"}`;
   const done = latestReady ? `ตอนที่ ${latestReady.number} สำเร็จ ✓ ` : "";
-  if (item.takes.length > 0) return `ตอนที่ ${series.next_episode_number} ไม่ผ่าน กำลังเริ่มถ่ายเวอร์ชันใหม่ (เครื่องสร้างคลิปจะรับงานภายใน 1–2 นาที) ระหว่างนี้เลือกเวอร์ชันเก่าด้านล่างได้`;
+  if (item.takes.length > 0) return `ตอนที่ ${series.next_episode_number} ไม่ผ่าน กำลังเริ่มถ่ายเวอร์ชันใหม่ (เครื่องสร้างคลิปจะรับงานภายใน 1–2 นาที) ระหว่างนี้เลือกเวอร์ชันเก่าในขั้นที่ 4 ได้`;
   if (latestReady?.started_on === today) return `${done}· ตอนที่ ${series.next_episode_number} เริ่มพรุ่งนี้`;
   return `${done}· ตอนที่ ${series.next_episode_number} กำลังจะเริ่ม`;
 }
@@ -44,7 +44,7 @@ function repairStatus(a: { active: boolean; loggedIn: boolean; exhaustedToday: b
   return `พร้อมซ่อม · เหลือ ${a.perDay - a.usedToday}/${a.perDay} ช็อตวันนี้`;
 }
 
-export async function DramaHome({ client, owner, library }: { client: SupabaseClient; owner: string; library?: ReactNode }) {
+export async function DramaHome({ client, owner, library, libraryCount = 0 }: { client: SupabaseClient; owner: string; library?: ReactNode; libraryCount?: number }) {
   const available = await dramaAvailable(client);
   const accountsResult = await client.from("tiktok_accounts").select("id,display_name,is_mock").eq("owner_id", owner).is("hidden_at", null).order("created_at", { ascending: true });
   const accounts = ((accountsResult.data ?? []) as Array<{ id: string; display_name: string; is_mock: boolean | null }>)
@@ -72,58 +72,54 @@ export async function DramaHome({ client, owner, library }: { client: SupabaseCl
   if (!available) return <section className="manual-panel"><h2>ยังเปิดใช้ไม่ได้</h2>
     <p className="manual-muted">ฐานข้อมูลยังไม่มีตาราง Drama Studio ต้องรัน migration ใน Supabase ก่อน (ไม่กระทบระบบเดิม)</p></section>;
 
+  const reviewing = series.filter(item => item.takes.length > 0);
+  const waiting = reviewing.filter(item => item.takes.some(t => t.review === "PENDING")).length;
+  const producing = series.filter(item => item.series.status === "ACTIVE").length;
+  const ready = accounts.length > 0 && google.length > 0;
+  const steps = [
+    { href: "#step-accounts", title: "เตรียมบัญชี", note: ready ? `บัญชีหลัก ${google.length} · ซ่อม ${repairs.length}` : "ต้องทำก่อน", todo: !ready },
+    { href: "#step-new", title: "เริ่มเรื่องใหม่", note: free.length > 0 ? `ว่าง ${free.length} บัญชี` : "บัญชีเต็มแล้ว", todo: false },
+    { href: "#step-production", title: "ติดตามการผลิต", note: `${producing} เรื่องกำลังผลิต`, todo: false },
+    { href: "#step-review", title: "ตรวจตอนที่เสร็จ", note: waiting > 0 ? `รอคุณตรวจ ${waiting} ตอน` : "ยังไม่มีตอนรอตรวจ", todo: waiting > 0 },
+    { href: "#library", title: "โพสต์จากคลังละคร", note: libraryCount ? `รอโพสต์ ${libraryCount} ตอน` : "ยังไม่มีตอนรอโพสต์", todo: Boolean(libraryCount) },
+  ];
+  const stepHead = (n: number, id: string, title: string, hint: string) => <div className="drama-step-head">
+    <span className="drama-step-no" aria-hidden="true">{n}</span><div><h2 id={id}>ขั้นที่ {n} · {title}</h2><p className="manual-muted">{hint}</p></div></div>;
+
   return <div className="drama-page">
     <OneVideoAtATime />
-    <section className="drama-series-list" aria-labelledby="series-title">
-      <h2 id="series-title">ละครที่กำลังผลิต</h2>
-      {series.length === 0 ? <p className="manual-muted">ยังไม่มีละคร เริ่มเรื่องแรกได้จากด้านล่าง</p>
-        : series.map(item => {
-          const s = item.series, percent = Math.round(item.readyEpisodes / s.total_episodes * 100);
-          const main = label(s.flow_account_id);
-          return <article key={s.id} className="drama-card">
-            <div className="drama-card-head"><span className={`drama-genre drama-genre-${s.genre.toLowerCase()}`}>{dramaGenreLabels[s.genre]}</span>
-              <span className="drama-status">{seriesStatusLabels[s.status]}</span></div>
-            <h3><Link href={`/drama/${s.id}`}>{s.title}</Link></h3>
-            <p className="drama-logline">{s.logline}</p>
-            <div className="drama-progress" role="img" aria-label={`สำเร็จ ${item.readyEpisodes} จาก ${s.total_episodes} ตอน`}><span style={{ width: `${percent}%` }} /></div>
-            <p className="drama-meta">สำเร็จ {item.readyEpisodes}/{s.total_episodes} ตอน{item.current ? ` · ${episodeStatusLabels[item.current.status]}` : ""}</p>
-            {main && <p className="drama-meta">บัญชีหลัก {main} · {poolText}</p>}
-            <p className="drama-next">{nextStep(item, today)}</p>
-            {covers.get(s.id) && <Link href={`/drama/${s.id}`} className="drama-cover"><img src={covers.get(s.id)!} alt={`ภาพปกตัวอย่างของ ${s.title}`} /></Link>}
-            {item.shotsOf && item.shots.length > 0 && <Link className="drama-more" href={`/drama/${s.id}`}>ช็อตของตอนที่ {item.shotsOf.number}: เสร็จ {item.shotsDone}/{item.shotsTotal} · ดูทีละช็อตและสั่งทำใหม่ →</Link>}
-            {item.takes.length > 0 && <div className="drama-takes">
-              <p className="drama-meta"><strong>ตอนที่ {item.takes[0].number} · {item.takes.length > 1 ? `เทียบ ${item.takes.length} เวอร์ชัน` : item.takes[0].review === "PENDING" ? "รอคุณตรวจ" : "เวอร์ชันที่ไม่ผ่าน"}</strong>
-                {" "}เลือกเวอร์ชันที่ชอบ ระบบจะใช้เวอร์ชันนั้นไปตอนถัดไป แล้วลบเวอร์ชันอื่นทิ้งทั้งหมด ไม่ถูกใจทุกเวอร์ชัน กด “ไม่ผ่าน ทำเวอร์ชันใหม่” ได้เรื่อยๆ</p>
-              {item.current && <p className="drama-meta">กำลังถ่ายเวอร์ชัน {item.current.take} อยู่ เสร็จแล้วจะขึ้นมาให้เทียบตรงนี้</p>}
-              <div className="drama-take-grid">{item.takes.map(take => {
-                const pending = take.review === "PENDING";
-                const hidden = <><input type="hidden" name="seriesId" value={s.id} /><input type="hidden" name="episodeId" value={take.id} /></>;
-                return <article key={take.id} className={pending ? "drama-take is-pending" : "drama-take"}>
-                  {take.flow_clip_id && <video controls playsInline preload="metadata" src={`/api/library/${take.flow_clip_id}/video#t=0.1`} aria-label={`ตอนที่ ${take.number} เวอร์ชัน ${take.take}`} />}
-                  <p className="drama-take-label"><strong>เวอร์ชัน {take.take}</strong><span>{pending ? "ใหม่ล่าสุด · รอตรวจ" : "ไม่ผ่าน · เก็บไว้เทียบ"}</span></p>
-                  {pending ? <form action={reviewEpisodeAction} className="drama-review-buttons">{hidden}
-                    <button className="manual-primary" name="verdict" value="APPROVE" type="submit">{item.takes.length > 1 ? "เลือกเวอร์ชันนี้" : "ผ่าน"} ไปตอนที่ {take.number + 1 > s.total_episodes ? "จบ" : take.number + 1}</button>
-                    <button className="manual-secondary" name="verdict" value="REJECT" type="submit">ไม่ผ่าน ทำเวอร์ชันใหม่</button></form>
-                    : <form action={takeAction} className="drama-review-buttons">{hidden}
-                      <button className="manual-primary" name="op" value="CHOOSE" type="submit" disabled={Boolean(item.current && item.queued)}>เลือกเวอร์ชันนี้</button>
-                      <button className="library-link danger" name="op" value="DELETE" type="submit">ลบเวอร์ชันนี้</button></form>}
-                </article>;
-              })}</div>
-              {item.current && item.queued && <p className="drama-meta">ช็อตของเวอร์ชันใหม่อยู่ใน Flow ตอนนี้ เลือกเวอร์ชันเก่าได้เมื่อช็อตนั้นเสร็จ (ระบบจะหยุดถ่ายเวอร์ชันใหม่ให้)</p>}
-            </div>}
-            {s.status === "COMPLETED" && (item.hasNextStory ? <p className="drama-meta">สร้างเรื่องใหม่ต่อจากเรื่องนี้แล้ว</p>
-              : <form action={newStoryAction}><input type="hidden" name="id" value={s.id} />
-                <button className="manual-primary" type="submit">สร้างเรื่องใหม่ ({dramaGenreLabels[s.genre]})</button></form>)}
-            <Link className="drama-more" href={`/drama/${s.id}`}>ดูรายละเอียดเรื่อง →</Link>
-          </article>;
-        })}
+    <ol className="drama-steps" aria-label="ขั้นตอนทำละคร">{steps.map((step, i) => <li key={step.href} className={step.todo ? "is-todo" : undefined}>
+      <a href={step.href}><span aria-hidden="true">{i + 1}</span><strong>{step.title}</strong><small>{step.note}</small></a></li>)}</ol>
+
+    <section className="manual-panel drama-step" id="step-accounts" aria-labelledby="accounts-title">
+      {stepHead(1, "accounts-title", "เตรียมบัญชี", "บัญชีหลัก 1 บัญชีทำละครได้ 1 เรื่อง ส่วนบัญชีซ่อมเป็นกองกลาง ใช้ซ่อมช็อตที่เสียหรือเครดิตหมดให้ทุกเรื่อง")}
+      <h3>บัญชี Google หลัก ({google.length})</h3>
+      {accounts.length === 0 ? <p className="manual-muted">เชื่อมบัญชี TikTok ก่อน <Link href="/accounts">ไปหน้าบัญชี</Link></p>
+        : google.length === 0 ? <p className="manual-muted">ยังไม่มีบัญชี Google <Link href="/post">ไปผูกบัญชีในแท็บสร้างคลิปโปรโมท</Link></p>
+        : <ol className="library-flow-list">{google.map(g => <li key={g.id} className={g.active ? undefined : "paused"}>
+          <div><strong>{g.label}</strong><small>{loginText(g.id)} · {busy.has(g.id) ? `ทำเรื่อง “${busy.get(g.id)}”` : g.active ? "ว่าง เริ่มเรื่องใหม่ได้" : "พักไว้"}{g.exhausted_on === today ? " · เครดิตวันนี้หมดแล้ว" : ""}</small></div>
+        </li>)}</ol>}
+      {google.length > 0 && <p className="manual-muted drama-note">เพิ่มหรือแก้บัญชีหลักได้ที่ <Link href="/post">แท็บสร้างคลิปโปรโมท</Link></p>}
+      <h3>บัญชีซ่อมกองกลาง ({repairs.length})</h3>
+      {pool.length > 0 && <p className="drama-pool"><strong>{poolLeft > 0 ? `วันนี้ซ่อมได้อีก ${poolLeft} จาก ${poolTotal} ช็อต` : `เครดิตหมดทุกบัญชีแล้ว (${poolTotal} ช็อต)`}</strong> · ช็อตละ 10 เครดิต · บัญชีไหนหมดระบบข้ามไปบัญชีถัดไปเอง</p>}
+      {repairs.length > 0 && <ol className="library-flow-list">{repairs.map(g => <li key={g.id} className={g.active ? undefined : "paused"}>
+        <div><strong>{g.label}</strong><small>{loginText(g.id)} · {repairStatus(poolOf(g.id))}</small></div>
+        <form action={flowAccountAction} className="library-inline"><input type="hidden" name="id" value={g.id} />{drama}
+          {(g.exhausted_on === today || (poolOf(g.id)?.usedToday ?? 0) >= (poolOf(g.id)?.perDay ?? Infinity)) && <button className="library-link" name="op" value="RESET" type="submit">เติมเครดิตแล้ว</button>}
+          {logins[g.id]?.state !== "PENDING" && <button className="library-link" name="op" value="RELOGIN" type="submit">ล็อกอินใหม่</button>}
+          <button className="library-link" name="op" value={g.active ? "PAUSE" : "RESUME"} type="submit">{g.active ? "พัก" : "ใช้งาน"}</button>
+          <button className="library-link danger" name="op" value="REMOVE" type="submit">เลิกผูก</button></form>
+      </li>)}</ol>}
+      <form action={addRepairAccountAction} className="library-start">{drama}
+        <label className="manual-filter">อีเมล Google ของบัญชีซ่อม<input name="label" required maxLength={60} placeholder="name@gmail.com" /></label>
+        <label className="manual-filter">คลิปฟรีต่อวันโดยประมาณ<input name="clipsPerDay" type="number" min={1} max={200} defaultValue={5} /></label>
+        <button className="manual-secondary" type="submit">+ เพิ่มบัญชีซ่อม</button></form>
+      <p className="manual-muted drama-note">เพิ่มแล้ว คอมที่ติดตั้งเครื่องสร้างคลิปจะเปิดหน้าล็อกอิน Google ของบัญชีนี้ให้ครั้งเดียว ใช้บัญชีที่ไม่ได้ผูกเป็นบัญชีหลัก</p>
     </section>
 
-    {library}
-
-    <section className="manual-panel" aria-labelledby="new-title">
-      <h2 id="new-title">เริ่มละครเรื่องใหม่</h2>
-      <p className="manual-muted">บัญชีหลักคือบัญชี Google ที่ผูกไว้ในแท็บ “สร้างคลิปโปรโมท” 1 บัญชีล็อกกับละครได้ 1 เรื่อง (วันละ 1 ตอน 5 ช็อต ≈ 40 วินาที) และยังทำคลิปปกติได้เหมือนเดิม โดยระบบทำตอนละครของวันนั้นก่อนแล้วค่อยทำคลิป ช็อตไหนเสียหรือเครดิตหมดกลางตอน ระบบส่งไปบัญชีซ่อมจนได้ แล้วตัดต่อเป็นตอนพร้อมแคปชันและแฮชแท็กไปรอใน “คลังละคร” ด้านบน ทุกตอนรอคุณกด “ผ่าน” ก่อนจะไปตอนถัดไป ถ้า “ไม่ผ่าน” ระบบเก็บเวอร์ชันนั้นไว้ แล้วเริ่มถ่ายเวอร์ชันใหม่ของตอนเดิมทันที ให้เทียบแล้วเลือกเวอร์ชันที่ชอบ เมื่อครบซีซัน กด “สร้างเรื่องใหม่” ในการ์ดของเรื่องนั้นได้เลย</p>
+    <section className="manual-panel drama-step" id="step-new" aria-labelledby="new-title">
+      {stepHead(2, "new-title", "เริ่มละครเรื่องใหม่", "เลือกแนว ช่อง และบัญชีหลัก แล้ว AI เขียนทั้งซีซันและเริ่มถ่ายทำวันละตอนเอง")}
+      <details className="drama-step-body" open={series.length === 0}><summary>{series.length === 0 ? "ตั้งค่าเรื่องแรก" : "เปิดฟอร์มเริ่มเรื่องใหม่"}</summary>
       {accounts.length === 0 ? <p className="manual-muted">เชื่อมบัญชี TikTok ก่อน <Link href="/accounts">ไปหน้าบัญชี</Link></p>
       : google.length === 0 ? <p className="manual-muted">ยังไม่มีบัญชี Google ผูกบัญชีในแท็บ “สร้างคลิปโปรโมท” ก่อน <Link href="/post">ไปผูกบัญชี</Link></p>
       : <form action={createSeriesAction} className="drama-form">
@@ -151,28 +147,69 @@ export async function DramaHome({ client, owner, library }: { client: SupabaseCl
           <label className="manual-filter">ตอนต่อวัน<select name="episodesPerDay" defaultValue="1">
             {[1, 2].map(n => <option key={n} value={n}>{n} ตอน/วัน</option>)}</select></label>
         </div>
-        <p className="manual-muted drama-note">ใช้เครดิตฟรีของบัญชี Google เท่านั้น ไม่มีค่าใช้จ่ายเพิ่ม และไม่โพสต์ TikTok เอง ตอนที่ตัดเสร็จไปรอในคลังละครให้คุณตรวจและโพสต์เอง{repairs.length === 0 ? " ยังไม่มีบัญชีซ่อม เพิ่มได้ด้านล่าง" : ` ช็อตที่ต้องซ่อมใช้บัญชีซ่อมกองกลาง (${poolText})`}</p>
+        <p className="manual-muted drama-note">ใช้เครดิตฟรีของบัญชี Google เท่านั้น ไม่โพสต์ TikTok เอง{repairs.length === 0 ? " · ยังไม่มีบัญชีซ่อม เพิ่มได้ในขั้นที่ 1" : ` · ช็อตที่ต้องซ่อมใช้${poolText}`}</p>
         <button className="manual-primary" type="submit" disabled={free.length === 0}>{free.length === 0 ? "บัญชี Google ทุกบัญชีล็อกกับละครแล้ว" : "ให้ AI เขียนซีซันและเริ่มผลิต"}</button>
       </form>}
+      </details>
     </section>
 
-    <section className="manual-panel" aria-labelledby="repair-title">
-      <h2 id="repair-title">บัญชีซ่อมกองกลาง ({repairs.length})</h2>
-      <p className="manual-muted">ทุกบัญชีรวมเป็นกองเดียว ใช้ได้ทุกเรื่อง ไม่ต้องผูกกับเรื่องไหน ช็อตที่ต้องซ่อมจะไปบัญชีที่เหลือเครดิตมากที่สุด บัญชีไหนหมดจะข้ามไปบัญชีถัดไปเอง และไม่ถูกดึงไปทำคลิปปกติ</p>
-      {pool.length > 0 && <p className="drama-pool"><strong>{poolLeft > 0 ? `วันนี้ซ่อมได้อีก ${poolLeft} จาก ${poolTotal} ช็อต` : `เครดิตหมดทุกบัญชีแล้ว (${poolTotal} ช็อต)`}</strong> · ช็อตละ 10 เครดิต</p>}
-      {repairs.length > 0 && <ol className="library-flow-list">{repairs.map(g => <li key={g.id} className={g.active ? undefined : "paused"}>
-        <div><strong>{g.label}</strong><small>{loginText(g.id)} · {repairStatus(poolOf(g.id))}</small></div>
-        <form action={flowAccountAction} className="library-inline"><input type="hidden" name="id" value={g.id} />{drama}
-          {(g.exhausted_on === today || (poolOf(g.id)?.usedToday ?? 0) >= (poolOf(g.id)?.perDay ?? Infinity)) && <button className="library-link" name="op" value="RESET" type="submit">เติมเครดิตแล้ว</button>}
-          {logins[g.id]?.state !== "PENDING" && <button className="library-link" name="op" value="RELOGIN" type="submit">ล็อกอินใหม่</button>}
-          <button className="library-link" name="op" value={g.active ? "PAUSE" : "RESUME"} type="submit">{g.active ? "พัก" : "ใช้งาน"}</button>
-          <button className="library-link danger" name="op" value="REMOVE" type="submit">เลิกผูก</button></form>
-      </li>)}</ol>}
-      <form action={addRepairAccountAction} className="library-start">{drama}
-        <label className="manual-filter">อีเมล Google ของบัญชีซ่อม<input name="label" required maxLength={60} placeholder="name@gmail.com" /></label>
-        <label className="manual-filter">คลิปฟรีต่อวันโดยประมาณ<input name="clipsPerDay" type="number" min={1} max={200} defaultValue={5} /></label>
-        <button className="manual-secondary" type="submit">+ เพิ่มบัญชีซ่อม</button></form>
-      <p className="manual-muted">เพิ่มแล้ว คอมพิวเตอร์ที่ติดตั้งเครื่องสร้างคลิปจะเปิดหน้าล็อกอิน Google ของบัญชีนี้ให้ครั้งเดียว ใช้บัญชีที่ไม่ได้ผูกในเมนูสร้างคลิปโปรโมท</p>
+    <section className="manual-panel drama-step" id="step-production" aria-labelledby="series-title">
+      {stepHead(3, "series-title", "ติดตามการผลิต", "ดูว่าแต่ละเรื่องถึงตอนไหน ช็อตไหนเสร็จแล้ว ระบบถ่ายทำ ซ่อม และตัดต่อเองทั้งหมด")}
+      {series.length === 0 ? <p className="manual-muted">ยังไม่มีละคร เริ่มเรื่องแรกได้ที่ขั้นที่ 2</p>
+        : <div className="drama-series-list">{series.map(item => {
+          const s = item.series, percent = Math.round(item.readyEpisodes / s.total_episodes * 100);
+          const main = label(s.flow_account_id);
+          return <article key={s.id} className="drama-card">
+            <div className="drama-card-head"><span className={`drama-genre drama-genre-${s.genre.toLowerCase()}`}>{dramaGenreLabels[s.genre]}</span>
+              <span className="drama-status">{seriesStatusLabels[s.status]}</span></div>
+            <h3><Link href={`/drama/${s.id}`}>{s.title}</Link></h3>
+            <p className="drama-logline">{s.logline}</p>
+            <div className="drama-progress" role="img" aria-label={`สำเร็จ ${item.readyEpisodes} จาก ${s.total_episodes} ตอน`}><span style={{ width: `${percent}%` }} /></div>
+            <p className="drama-meta">สำเร็จ {item.readyEpisodes}/{s.total_episodes} ตอน{item.current ? ` · ${episodeStatusLabels[item.current.status]}` : ""}</p>
+            {main && <p className="drama-meta">บัญชีหลัก {main} · {poolText}</p>}
+            <p className="drama-next">{nextStep(item, today)}</p>
+            {covers.get(s.id) && <Link href={`/drama/${s.id}`} className="drama-cover"><img src={covers.get(s.id)!} alt={`ภาพปกตัวอย่างของ ${s.title}`} /></Link>}
+            {item.shotsOf && item.shots.length > 0 && <Link className="drama-more" href={`/drama/${s.id}`}>ช็อตของตอนที่ {item.shotsOf.number}: เสร็จ {item.shotsDone}/{item.shotsTotal} · ดูทีละช็อตและสั่งทำใหม่ →</Link>}
+            {item.takes.length > 0 && <a className="drama-more" href="#step-review">{item.takes.some(t => t.review === "PENDING") ? "มีตอนรอคุณตรวจ ไปขั้นที่ 4 →" : "มีเวอร์ชันให้เลือก ไปขั้นที่ 4 →"}</a>}
+            {s.status === "COMPLETED" && (item.hasNextStory ? <p className="drama-meta">สร้างเรื่องใหม่ต่อจากเรื่องนี้แล้ว</p>
+              : <form action={newStoryAction}><input type="hidden" name="id" value={s.id} />
+                <button className="manual-primary" type="submit">สร้างเรื่องใหม่ ({dramaGenreLabels[s.genre]})</button></form>)}
+            <Link className="drama-more" href={`/drama/${s.id}`}>ดูรายละเอียดเรื่อง →</Link>
+          </article>;
+        })}</div>}
     </section>
+
+    <section className="manual-panel drama-step" id="step-review" aria-labelledby="review-title">
+      {stepHead(4, "review-title", "ตรวจตอนที่เสร็จ", "ดูคลิปแล้วกด “ผ่าน” เพื่อไปตอนถัดไป หรือ “ไม่ผ่าน” ให้ระบบถ่ายเวอร์ชันใหม่ทันที แล้วเลือกเวอร์ชันที่ชอบ")}
+      {reviewing.length === 0 ? <p className="manual-muted">ยังไม่มีตอนรอตรวจ ตอนที่ตัดต่อเสร็จจะขึ้นมาตรงนี้</p>
+        : reviewing.map(item => {
+          const s = item.series;
+          return <div key={s.id} className="drama-review-series"><h3><Link href={`/drama/${s.id}`}>{s.title}</Link></h3>
+            <div className="drama-takes">
+              <p className="drama-meta"><strong>ตอนที่ {item.takes[0].number} · {item.takes.length > 1 ? `เทียบ ${item.takes.length} เวอร์ชัน` : item.takes[0].review === "PENDING" ? "รอคุณตรวจ" : "เวอร์ชันที่ไม่ผ่าน"}</strong>
+                {" "}เวอร์ชันที่เลือกจะใช้ต่อตอนถัดไป เวอร์ชันอื่นถูกลบทิ้ง</p>
+              {item.current && <p className="drama-meta">กำลังถ่ายเวอร์ชัน {item.current.take} อยู่ เสร็จแล้วจะขึ้นมาให้เทียบตรงนี้</p>}
+              <div className="drama-take-grid">{item.takes.map(take => {
+                const pending = take.review === "PENDING";
+                const hidden = <><input type="hidden" name="seriesId" value={s.id} /><input type="hidden" name="episodeId" value={take.id} /></>;
+                return <article key={take.id} className={pending ? "drama-take is-pending" : "drama-take"}>
+                  {take.flow_clip_id && <video controls playsInline preload="metadata" src={`/api/library/${take.flow_clip_id}/video#t=0.1`} aria-label={`ตอนที่ ${take.number} เวอร์ชัน ${take.take}`} />}
+                  <p className="drama-take-label"><strong>เวอร์ชัน {take.take}</strong><span>{pending ? "ใหม่ล่าสุด · รอตรวจ" : "ไม่ผ่าน · เก็บไว้เทียบ"}</span></p>
+                  {pending ? <form action={reviewEpisodeAction} className="drama-review-buttons">{hidden}
+                    <button className="manual-primary" name="verdict" value="APPROVE" type="submit">{item.takes.length > 1 ? "เลือกเวอร์ชันนี้" : "ผ่าน"} ไปตอนที่ {take.number + 1 > s.total_episodes ? "จบ" : take.number + 1}</button>
+                    <button className="manual-secondary" name="verdict" value="REJECT" type="submit">ไม่ผ่าน ทำเวอร์ชันใหม่</button></form>
+                    : <form action={takeAction} className="drama-review-buttons">{hidden}
+                      <button className="manual-primary" name="op" value="CHOOSE" type="submit" disabled={Boolean(item.current && item.queued)}>เลือกเวอร์ชันนี้</button>
+                      <button className="library-link danger" name="op" value="DELETE" type="submit">ลบเวอร์ชันนี้</button></form>}
+                </article>;
+              })}</div>
+              {item.current && item.queued && <p className="drama-meta">ช็อตของเวอร์ชันใหม่อยู่ใน Flow ตอนนี้ เลือกเวอร์ชันเก่าได้เมื่อช็อตนั้นเสร็จ (ระบบจะหยุดถ่ายเวอร์ชันใหม่ให้)</p>}
+            </div>
+          </div>;
+        })}
+    </section>
+
+    {library}
+
   </div>;
 }

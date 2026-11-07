@@ -74,3 +74,20 @@
 .drama-episode{scroll-margin-top:16px}.drama-episode:target{outline:2px solid #567de7;outline-offset:4px;border-radius:12px}
 .drama-restore{display:flex;flex-direction:column;gap:6px;margin-top:6px;font-size:13px}.drama-restore input{font-size:13px}
 .drama-pool{margin:6px 0 10px;font-size:14px}
+/* Step-by-step layout of the drama menu. */
+.drama-steps{list-style:none;padding:0;margin:0 0 20px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;counter-reset:none}
+.drama-steps a{display:flex;flex-direction:column;gap:3px;height:100%;box-sizing:border-box;padding:12px;border:1px solid #2b3549;border-radius:14px;background:#181e2a;color:#dfe6f5;text-decoration:none}
+.drama-steps a:hover{border-color:#7d6be6}
+.drama-steps span{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#302957;color:#c5b9ff;font-weight:800;font-size:13px}
+.drama-steps strong{font-size:14px}.drama-steps small{font-size:12px;color:#9faec6}
+.drama-steps li.is-todo a{border-color:#f4cb93;background:#2a2418}.drama-steps li.is-todo span{background:#f4cb93;color:#2a2418}.drama-steps li.is-todo small{color:#f4cb93}
+.drama-step{scroll-margin-top:16px}
+.drama-step-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:12px}
+.drama-step-head h2{margin:0 0 4px!important;font-size:21px}.drama-step-head p{margin:0;font-size:14px}
+.drama-step-no{flex:none;display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:#8165ed;color:#fff;font-weight:800}
+.drama-step h3{margin:18px 0 8px}
+.drama-step-body>summary{margin:4px 0 14px;font-size:14px!important;font-weight:700}
+.drama-step .drama-series-list{margin-bottom:0}
+.drama-review-series+.drama-review-series{margin-top:22px;padding-top:18px;border-top:1px solid #2b3549}
+.drama-review-series h3 a{color:inherit}
+@media (max-width:760px){.drama-steps{grid-template-columns:repeat(2,minmax(0,1fr))}.drama-steps li:last-child{grid-column:1/-1}}
