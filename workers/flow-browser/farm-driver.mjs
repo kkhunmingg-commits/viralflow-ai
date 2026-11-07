@@ -10,7 +10,7 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { appeared, costDecision, FAILED_PATTERNS, newVideoSources, NO_CREDIT_PATTERNS, parseCreditCost, SIGN_IN_HOSTS } from "./farm-core.mjs";
+import { appeared, costDecision, FAILED_PATTERNS, newVideoSources, NO_CREDIT_PATTERNS, parseCreditCost, SIGN_IN_HOSTS, UNUSUAL_ACTIVITY_PATTERNS } from "./farm-core.mjs";
 import { inspectMp4, isFlowLocation } from "./core.mjs";
 import { inspectVideo } from "./media.mjs";
 
@@ -137,11 +137,31 @@ async function pickRadio(page, name) {
  * frames (a start picture) or ingredients mode. A newly added account starts on the image model, whose cost is not a
  * video's. Never clicks Generate. True when the panel was found.
  */
+// Flow's Agent (chat) side panel, seen on newly added accounts (7 Nov, ninokuniman2/3): "สวัสดี คุณ nino / คุณต้องการสร้างอะไร"
+// in an untitled session, with its own "tune" button that opens the Agent's settings instead of the video composer's.
+const AGENT_PANEL = /เซสชันที่ไม่มีชื่อ|untitled session/i, AGENT_SETTINGS = /การตั้งค่า\s*Agent|Agent settings/i;
+/** Closes the Agent chat panel when it is open, so the video composer (frames, 720p chip) is what the worker uses. */
+export async function closeAgentPanel(page) {
+  if (!AGENT_PANEL.test(await bodyText(page))) return false;
+  const title = page.getByText(AGENT_PANEL).first();
+  const close = title.locator("xpath=ancestor::*[.//button][1]").locator('button:has-text("close")').first();
+  if (!await close.count()) return false;
+  await close.click({ timeout: 10_000 }).catch(() => {});
+  await page.waitForTimeout(1200);
+  return true;
+}
 export async function chooseVideoSettings(page, selectors, { frames = false } = {}) {
+  await closeAgentPanel(page);
   const chip = await settingsChip(page, selectors);
   if (!chip) return false;
   await chip.click({ timeout: 10_000 }).catch(() => {});
   await page.waitForTimeout(800);
+  // The folded "tune" button can belong to the Agent: its settings are not the video composer's, so leave them alone.
+  if (AGENT_SETTINGS.test(await bodyText(page))) {
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(400);
+    return false;
+  }
   try {
     await pickRadio(page, /วิดีโอ|video/i);
     // Switching from the image model redraws the panel; the frames choice only appears after it.
@@ -326,6 +346,8 @@ export async function openFlowAccount(account, config) {
       if (clip.imageUrl) await step("ATTACHING_IMAGE");
       // A drama shot continues from a picture (the last frame, or the key still): Flow's "frames" mode, start slot.
       const frames = clip.kind === "DRAMA_SHOT" && Boolean(clip.imageUrl);
+      // The prompt box found may be the Agent chat's: close that panel and take the composer's own box.
+      if (await closeAgentPanel(page)) prompt = await firstVisible(page, selectors.prompt) ?? prompt;
       await chooseVideoSettings(page, selectors, { frames });
       try { await attachReference(page, selectors, clip.imageUrl, config.scratchDir, clip.id, { frames }); }
       catch (error) {
@@ -350,6 +372,8 @@ export async function openFlowAccount(account, config) {
       const decision = costDecision(cost, config.costPolicy);
       if (!decision.ok) { await saveDebug(page, config.debugDir, clip.id, "cost"); return fail(decision.reason); }
       await step("TYPING_PROMPT", cost != null ? `${cost} เครดิต` : undefined);
+      // Settings and the Agent panel may have redrawn the composer: type into the prompt box showing now.
+      prompt = await firstVisible(page, selectors.prompt) ?? prompt;
       await prompt.click();
       await prompt.fill(clip.prompt);
       const button = await generateButton(page, selectors);
@@ -423,7 +447,7 @@ export async function openFlowAccount(account, config) {
         }
         if (appeared(beforeText, text, FAILED_PATTERNS)) {
           await saveDebug(page, config.debugDir, clip.id, "failed");
-          return fail("FLOW_REPORTED_FAILURE", true);
+          return fail(appeared(beforeText, text, UNUSUAL_ACTIVITY_PATTERNS) ? "FLOW_UNUSUAL_ACTIVITY" : "FLOW_REPORTED_FAILURE", true);
         }
       }
       // Keep what Flow showed, so the next fix is based on the real page rather than a guess.
@@ -452,6 +476,11 @@ async function saveDebug(page, dir, clipId, label) {
       url: location.href,
       images: [...document.querySelectorAll("img")].map(img => ({ src: img.src.slice(0, 200), w: img.naturalWidth, h: img.naturalHeight })).slice(-60),
       videos: [...document.querySelectorAll("video")].map(v => ({ src: v.currentSrc || v.getAttribute("src"), poster: v.poster })),
+      // What can be clicked, so the next fix to a changed Flow page is based on its real controls.
+      buttons: [...document.querySelectorAll("button,[role=button],[role=radio],[role=tab],textarea,[contenteditable=true]")].map(el => ({
+        tag: el.tagName.toLowerCase(), role: el.getAttribute("role"), text: (el.innerText || "").replace(/\s+/g, " ").slice(0, 80),
+        aria: el.getAttribute("aria-label"), cls: String(el.className || "").slice(0, 80), visible: el.getClientRects().length > 0,
+      })).slice(0, 200),
     })).catch(() => ({}));
     await writeFile(`${base}.json`, JSON.stringify({ ...media, text: (await bodyText(page)).slice(-20_000) }, null, 2));
   } catch { /* diagnostics must never break the run */ }

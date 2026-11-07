@@ -1,5 +1,5 @@
 import { bangkokDate } from "@/features/flow-farm/contracts";
-import { MAX_SHOT_ATTEMPTS, type ReferenceMode, type ShotRoute, type ShotStatus } from "./contracts";
+import { MAX_REFUSED_ATTEMPTS, MAX_SHOT_ATTEMPTS, REFUSED_RETRY_MS, type ReferenceMode, type ShotRoute, type ShotStatus } from "./contracts";
 
 /** Pure production rules, kept apart from the database code so they can be tested on their own. */
 export interface ShotRow {
@@ -18,14 +18,24 @@ export function clipVerdict(clipStatus: string | null): ClipVerdict {
   return "BROKEN";
 }
 
+/** Why a clip that failed failed, for planRetry: Google's temporary refusal, or a real broken take. */
+export const failureKind = (error: string | null | undefined): "REFUSED" | "BROKEN" => /^FLOW_UNUSUAL_ACTIVITY/.test(error ?? "") ? "REFUSED" : "BROKEN";
+
 export interface RetryPlan { status: "PLANNED" | "FAILED"; route: ShotRoute; attempts: number; retryAfter: string | null }
 /**
  * Where a shot goes next. A broken take (Flow failed, or the server's check rejected the file) is remade on the repair
  * account, up to MAX_SHOT_ATTEMPTS tries in all. Running out of credits is not a try: the shot moves to the repair
  * account if it still has credits today, otherwise it waits for tomorrow's credits on the main account.
  */
-export function planRetry(shot: Pick<ShotRow, "attempts" | "route">, reason: "BROKEN" | "NO_CREDIT",
+export function planRetry(shot: Pick<ShotRow, "attempts" | "route">, reason: "BROKEN" | "NO_CREDIT" | "REFUSED",
   repair: { exists: boolean; outOfCreditsToday: boolean }, now = new Date()): RetryPlan {
+  // Google refused the job for "unusual activity": nothing is wrong with the shot, so it is sent again on the same
+  // route after a short wait, and only many refusals in a row stop the episode.
+  if (reason === "REFUSED") {
+    const attempts = shot.attempts + 1;
+    if (attempts >= MAX_REFUSED_ATTEMPTS) return { status: "FAILED", route: shot.route, attempts, retryAfter: null };
+    return { status: "PLANNED", route: shot.route, attempts, retryAfter: new Date(now.getTime() + REFUSED_RETRY_MS).toISOString() };
+  }
   if (reason === "BROKEN") {
     const attempts = shot.attempts + 1;
     if (attempts >= MAX_SHOT_ATTEMPTS) return { status: "FAILED", route: shot.route, attempts, retryAfter: null };

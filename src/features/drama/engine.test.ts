@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCreditReason, pickRepairAccount, repairAccounts, repairShotsLeft, setAsideNow, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, promptFor, referencePath, clipVerdict, planRetry, shotAccount, type ShotRow } from "./engine";
+import { isCreditReason, pickRepairAccount, repairAccounts, repairShotsLeft, setAsideNow, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, promptFor, referencePath, clipVerdict, failureKind, planRetry, shotAccount, type ShotRow } from "./engine";
 
 const shot = (position: number, patch: Partial<ShotRow> = {}): ShotRow => ({
   id: `s${position}`, episode_id: "e", position, status: "PLANNED", reference_mode: position === 1 ? "KEY_STILL" : "PREVIOUS_FRAME", attempts: 0,
@@ -25,6 +25,14 @@ describe("planRetry", () => {
     expect(planRetry({ attempts: 0, route: "PRIMARY" }, "BROKEN", repair, now)).toEqual({ status: "PLANNED", route: "REPAIR", attempts: 1, retryAfter: null });
     expect(planRetry({ attempts: 2, route: "REPAIR" }, "BROKEN", repair, now)).toMatchObject({ status: "PLANNED", route: "REPAIR", attempts: 3 });
     expect(planRetry({ attempts: 3, route: "REPAIR" }, "BROKEN", repair, now)).toMatchObject({ status: "FAILED", attempts: 4 });
+  });
+  it("waits a few minutes and resends a shot Google refused for unusual activity, on the same route", () => {
+    expect(failureKind("FLOW_UNUSUAL_ACTIVITY")).toBe("REFUSED");
+    expect(failureKind("FLOW_REPORTED_FAILURE")).toBe("BROKEN");
+    expect(failureKind(null)).toBe("BROKEN");
+    expect(planRetry({ attempts: 3, route: "REPAIR" }, "REFUSED", repair, now))
+      .toEqual({ status: "PLANNED", route: "REPAIR", attempts: 4, retryAfter: "2026-11-04T05:04:00.000Z" });
+    expect(planRetry({ attempts: 7, route: "PRIMARY" }, "REFUSED", repair, now)).toMatchObject({ status: "FAILED", attempts: 8 });
   });
   it("retries on the main account when there is no repair account", () => {
     expect(planRetry({ attempts: 0, route: "PRIMARY" }, "BROKEN", { exists: false, outOfCreditsToday: false }, now)).toMatchObject({ status: "PLANNED", route: "PRIMARY", attempts: 1 });

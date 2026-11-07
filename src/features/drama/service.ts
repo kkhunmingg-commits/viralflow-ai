@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { bangkokDate } from "@/features/flow-farm/contracts";
 import { MAX_ASSEMBLE_ATTEMPTS, emptyStoryState, type DramaGenre, type EpisodeStatus, type SeriesBible, type SeriesStatus,
   type ShotStatus, type StoryState } from "./contracts";
-import { ASSEMBLY_STALE_MS, clipVerdict, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, pickRepairAccount, planRetry, promptFor, referencePath,
+import { ASSEMBLY_STALE_MS, clipVerdict, failureKind, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, pickRepairAccount, planRetry, promptFor, referencePath,
   repairAccounts, repairShotsLeft, isCreditReason, SET_ASIDE_MS, setAsideNow, type RepairAccountRow, type ShotRow } from "./engine";
 import { flowLogins, readStateFile, saveStateFile } from "@/features/flow-farm/service";
 import { SHOWRUNNER_WRITER, createBible, pickStory, planEpisode } from "./showrunner";
@@ -448,7 +448,7 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
     if (verdict === "BROKEN") broken = (clip?.error ?? "CLIP_MISSING").slice(0, 300);
     if (broken !== null || verdict === "NO_CREDIT") {
       const repair = await repairState(admin, owner, series, now);
-      const plan = planRetry(queued, verdict === "NO_CREDIT" ? "NO_CREDIT" : "BROKEN", repair, now);
+      const plan = planRetry(queued, verdict === "NO_CREDIT" ? "NO_CREDIT" : verdict === "BROKEN" ? failureKind(clip?.error) : "BROKEN", repair, now);
       await updateShot(admin, owner, queued.id, "QUEUED", { status: plan.status, route: plan.route, attempts: plan.attempts, retry_after: plan.retryAfter,
         flow_clip_id: plan.status === "FAILED" ? queued.flow_clip_id : null, error: verdict === "NO_CREDIT" ? "NO_CREDIT" : `${broken}`.slice(0, 400) }, now, queued.flow_clip_id);
       if (plan.status === "FAILED") {

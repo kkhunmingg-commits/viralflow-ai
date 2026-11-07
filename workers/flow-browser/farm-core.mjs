@@ -20,6 +20,9 @@ export const FAILED_PATTERNS = [
   /สร้างไม่สำเร็จ/, /สร้าง(?:วิดีโอ)?ไม่ได้/, /เกิดข้อผิดพลาด/, /ล้มเหลว/, /ละเมิดนโยบาย/,
   /generation failed/i, /couldn['’]t generate/i, /could not generate/i, /something went wrong/i, /violat\w* (?:our )?(?:policies|policy)/i,
 ];
+// Flow refusing a job for "unusual activity" (seen 7 Nov, Thai UI): a temporary refusal, the same account made the
+// same shot a few minutes later. Not a content problem, so it is reported apart from other failures.
+export const UNUSUAL_ACTIVITY_PATTERNS = [/กิจกรรม(?:ที่)?ผิดปกติ/, /unusual activity/i];
 export const SIGN_IN_HOSTS = ["accounts.google.com"];
 
 export function countMatches(text, patterns) {

@@ -70,6 +70,10 @@ export const shotStatusLabels: Record<ShotStatus, string> = { PLANNED: "รอ�
 
 /** Tries per shot before the episode waits for the owner: one on the main account, then up to three repairs. */
 export const MAX_SHOT_ATTEMPTS = 4;
+/** Google's temporary "unusual activity" refusals a shot may take before the episode waits for the owner. */
+export const MAX_REFUSED_ATTEMPTS = 8;
+/** Wait after such a refusal before the shot is sent again (the next try a few minutes later went through, 7 Nov). */
+export const REFUSED_RETRY_MS = 4 * 60_000;
 /** Which Google account a shot is queued on: the series' own account, or its repair account after a broken take. */
 export type ShotRoute = "PRIMARY" | "REPAIR";
 export const MAX_ASSEMBLE_ATTEMPTS = 3;

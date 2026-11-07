@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { appeared, costDecision, NO_CREDIT_PATTERNS, newVideoSources, parseCreditCost, runFarmPass, runLoginPass } from "./farm-core.mjs";
+import { appeared, costDecision, FAILED_PATTERNS, NO_CREDIT_PATTERNS, UNUSUAL_ACTIVITY_PATTERNS, newVideoSources, parseCreditCost, runFarmPass, runLoginPass } from "./farm-core.mjs";
 
 test("reads Flow's credit cost in Thai and English", () => {
   assert.equal(parseCreditCost("x1 x2\nการสร้างจะใช้ 10 เครดิต"), 10);
@@ -18,6 +18,11 @@ test("never spends above the per-clip ceiling and stops when the cost cannot be 
 test("only counts credit notices that appear after the click", () => {
   assert.equal(appeared("เครดิตไม่พอ", "เครดิตไม่พอ", NO_CREDIT_PATTERNS), false);
   assert.equal(appeared("", "Not enough credits to generate", NO_CREDIT_PATTERNS), true);
+  // Flow's refusal tile, 7 Nov: counts as a failure and is told apart as "unusual activity".
+  const refusal = "warning ล้มเหลว เราพบกิจกรรมที่ผิดปกติบางอย่าง โปรดทราบว่าส่วนขยายของเบราว์เซอร์ที่แก้ไขหน้าเว็บอาจทำให้เกิดปัญหาได้";
+  assert.equal(appeared("", refusal, FAILED_PATTERNS), true);
+  assert.equal(appeared("", refusal, UNUSUAL_ACTIVITY_PATTERNS), true);
+  assert.equal(appeared("", "warning ล้มเหลว", UNUSUAL_ACTIVITY_PATTERNS), false);
   assert.deepEqual(newVideoSources(["a"], ["a", "b", "b"]), ["b"]);
 });
 
