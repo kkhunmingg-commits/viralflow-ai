@@ -166,3 +166,17 @@ test("a clip that took the account's last credits is kept, then the account coun
   assert.equal(queue.length, 1);
   assert.equal(summary.stoppedBy, "ALL_CREDITS_USED");
 });
+
+test("waits clipGapMs between two clips (Lucky, 8 Nov)", async () => {
+  const { runFarmPass, resetClipGap } = await import("./farm-core.mjs");
+  resetClipGap();
+  const queue = [{ id: "c1", title: "a" }, { id: "c2", title: "b" }];
+  const waits = [];
+  const api = { accounts: async () => [{ id: "g1", label: "g1" }], claim: async () => queue.shift() ?? null, upload: async () => {}, fail: async () => {},
+    exhausted: async () => {}, progress: async () => {}, finish: async () => {} };
+  const summary = await runFarmPass({ api, openAccount: async () => ({ generate: async () => ({ status: "OK" }), close: async () => {} }),
+    sleep: async ms => { waits.push(ms); } }, { clipGapMs: 60_000 });
+  assert.equal(summary.made, 2);
+  assert.equal(waits.length, 1);
+  assert.ok(waits[0] > 59_000 && waits[0] <= 60_000);
+});

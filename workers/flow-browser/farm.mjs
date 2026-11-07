@@ -177,7 +177,8 @@ async function pass(settings, dryRun) {
   // Newly linked Google accounts are signed in first, one at a time; clips only start once that is done.
   const hasProfile = account => access(join(dirs.profiles, account.id, "Default")).then(() => true, () => false);
   await runLoginPass({ api, signIn: account => signInFlowAccount(account, driverConfig), hasProfile, log: stamp });
-  const summary = await runFarmPass({ api, openAccount: account => openFlowAccount(account, driverConfig), log: stamp });
+  const summary = await runFarmPass({ api, openAccount: account => openFlowAccount(account, driverConfig), log: stamp },
+    { clipGapMs: Number(process.env.FLOW_CLIP_GAP_SECONDS || 60) * 1000 });
   // An idle pass (nothing queued, or every account used up) logs only when its outcome changes.
   const line = JSON.stringify(summary);
   if (summary.made || summary.failed || line !== lastSummary) stamp(line);

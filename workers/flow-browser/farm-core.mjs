@@ -61,6 +61,9 @@ export function newVideoSources(before, after) {
  * deps.openAccount(account) → { generate(clip) → {status:"OK", ...} | {status:"NO_CREDIT"} | {status:"FAILED", reason, started}, close() }
  * Returns a summary. `dryRun` stops after preparing one clip without clicking Generate.
  */
+// Lucky, 8 Nov: leave at least a minute between two clips (across passes too), so jobs are not sent back to back.
+let lastClipStartedAt = 0;
+export function resetClipGap() { lastClipStartedAt = 0; }
 export async function runFarmPass(deps, options = {}) {
   const { api, openAccount, log = () => {} } = deps;
   const progress = (clipId, stage, detail) => api.progress?.(clipId, stage, detail)?.catch?.(() => {});
@@ -89,6 +92,12 @@ export async function runFarmPass(deps, options = {}) {
             break;
           }
         }
+        const gapMs = options.clipGapMs ?? 0, wait = lastClipStartedAt + gapMs - Date.now();
+        if (gapMs > 0 && wait > 0) {
+          await progress(clip.id, "WAITING_FLOW", `เว้นระยะ ${Math.ceil(wait / 1000)} วินาทีก่อนคลิปถัดไป`);
+          await (deps.sleep ?? (ms => new Promise(done => setTimeout(done, ms))))(wait);
+        }
+        lastClipStartedAt = Date.now();
         log(`[${account.label}] กำลังสร้าง: ${clip.title}`);
         let result;
         try { result = await session.generate(clip); }
