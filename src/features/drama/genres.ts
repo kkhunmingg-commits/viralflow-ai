@@ -1,3 +1,4 @@
+import { FANTASY_NAGA_PEARL_SEASON } from "./seasons/fantasy-naga-pearl";
 import { MYSTERY_ROOM_709_SEASON } from "./seasons/mystery-room-709";
 import { ROMANCE_BALCONY_NOTES_SEASON } from "./seasons/romance-balcony-notes";
 import { COMEDY_CHICKEN_RICE_SEASON } from "./seasons/comedy-chicken-rice";
@@ -504,6 +505,7 @@ const FANTASY: GenreKit = {
     reveal2: say("RIVAL", "ข้าก็เคยถือไข่มุกนั่นเหมือนเจ้า ก่อนที่ความกลัวจะกินข้า"),
     finalLine: say("LEAD", "ป่ากลับมามีแสงแล้ว และข้าจะดูแลมันเอง"),
   },
+  season: FANTASY_NAGA_PEARL_SEASON,
   hooks: [say("ALLY", "ข้าบอกแล้วไง อย่าแตะ!"), say("LEAD", "ปีกทอง เจ้าโอเคไหม"), say("LEAD", "ข้าไม่กลัวหรอก"), say("ALLY", "ทางนี้ เร็วเข้า"), say("LEAD", "ไข่มุก... มันกำลังบอกอะไรเรา")],
   moves: [
     m("glow-path", "ทางเรืองแสง", "ไข่มุกส่องแสงนำทางผ่านป่า", "{OBJ} in {LEAD}'s hands glows brighter and a trail of light appears on the forest floor ahead", 1, { at: "B", say: say("ALLY", "มันพาเราไปทางนั้น") }),
