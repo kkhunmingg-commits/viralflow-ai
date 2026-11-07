@@ -262,6 +262,7 @@ export async function claimClip(admin: SupabaseClient, owner: string, flowAccoun
   if (result.error) throw new Error(result.error.message.includes("FLOW_ACCOUNT_UNAVAILABLE") ? "FLOW_ACCOUNT_UNAVAILABLE" : "claim_failed");
   const clip = (result.data as Array<{ id: string; title: string; prompt: string; reference_image_path: string | null; kind: string }> | null)?.[0];
   if (!clip) return null;
+  if (clip.kind === "DRAMA_SHOT" && !(await dramaShotStillWanted(admin, owner, clip.id))) return null;
   let imageUrl: string | null = null;
   if (clip.reference_image_path) {
     const signed = await admin.storage.from(BUCKET).createSignedUrl(clip.reference_image_path, 900);
@@ -272,6 +273,22 @@ export async function claimClip(admin: SupabaseClient, owner: string, flowAccoun
     imageUrl = signed.data.signedUrl;
   }
   return { id: clip.id, title: clip.title, prompt: clip.prompt, kind: clip.kind, imageUrl };
+}
+
+/**
+ * A shot queued before its series was paused or archived must not spend credits: the clip is discarded and the shot
+ * goes back to PLANNED, so a paused series picks it up again when the owner presses "ผลิตต่อ".
+ */
+async function dramaShotStillWanted(admin: SupabaseClient, owner: string, clipId: string) {
+  const shot = check(await admin.from("drama_shots").select("id,series_id").eq("owner_id", owner).eq("flow_clip_id", clipId).maybeSingle(), "drama_unavailable") as
+    { id: string; series_id: string } | null;
+  const series = shot ? check(await admin.from("drama_series").select("status").eq("owner_id", owner).eq("id", shot.series_id).maybeSingle(), "drama_unavailable") as
+    { status: string } | null : null;
+  if (series?.status === "ACTIVE") return true;
+  const now = new Date().toISOString();
+  await admin.from("flow_clips").update({ status: "DISCARDED", flow_account_id: null, lease_until: null, updated_at: now }).eq("owner_id", owner).eq("id", clipId);
+  if (shot) await admin.from("drama_shots").update({ status: "PLANNED", flow_clip_id: null, updated_at: now }).eq("owner_id", owner).eq("id", shot.id).eq("status", "QUEUED");
+  return false;
 }
 
 async function generatingClip(admin: SupabaseClient, owner: string, clipId: string) {
