@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { dramaGenreLabels, episodePhaseLabels, episodeStatusLabels, seriesStatusLabels, type EpisodePhase } from "@/features/drama/contracts";
 import { repairPool, seriesDetail, signedImage } from "@/features/drama/service";
 import { repairShotsLeft } from "@/features/drama/engine";
-import { continueAfterCreditsAction, newStoryAction, redoShotAction, remakeTakeAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction, startNextEpisodeAction, takeAction } from "../actions";
+import { continueAfterCreditsAction, deleteSeriesAction, newStoryAction, redoShotAction, remakeTakeAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction, startNextEpisodeAction, takeAction } from "../actions";
 import { OneVideoAtATime } from "../one-video";
 import { RestoreCut } from "../restore-cut";
 import { ClipStudioTabs } from "@/components/clip-studio-tabs";
@@ -76,6 +76,9 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
         <button className="manual-primary" type="submit">สร้างเรื่องใหม่ (แนวเดิม)</button></form>}
       {series.status !== "ARCHIVED" && <form action={seriesStatusAction}><input type="hidden" name="id" value={series.id} /><input type="hidden" name="status" value="ARCHIVED" />
         <button className="manual-secondary" type="submit">เก็บเข้ากรุ</button></form>}
+      <form action={deleteSeriesAction} className="drama-delete"><input type="hidden" name="id" value={series.id} />
+        <label className="manual-muted"><input type="checkbox" name="confirm" value="yes" required /> ยืนยันลบทั้งเรื่อง (ลบคลิปและไฟล์ทุกตอน กู้คืนไม่ได้)</label>
+        <button className="manual-secondary" type="submit">ลบทั้งเรื่อง</button></form>
       <span className="manual-muted">ตอนละ {series.shots_per_episode} ช็อต · {series.episodes_per_day} ตอน/วัน · ตัวเขียนบท {series.writer}
         {mainLabel && ` · บัญชีหลัก ${mainLabel}`}{series.flow_account_id && (pool.length === 0 ? " · ไม่มีบัญชีซ่อม" : poolLeft > 0 ? ` · บัญชีซ่อมกองกลาง ${pool.length} บัญชี ซ่อมได้อีก ${poolLeft} ช็อตวันนี้` : ` · บัญชีซ่อม ${pool.length} บัญชี เครดิตหมดแล้ว`)}
         {series.auto_next && series.flow_account_id ? " · จบแล้วเริ่มเรื่องใหม่แนวเดิมให้เอง" : ""}</span>

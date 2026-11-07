@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { createSeriesSchema, seriesRefSchema, shotRefSchema } from "@/features/drama/contracts";
-import { MAX_TAKES, TAKE_CREDIT_BUDGET, beginCutRestore, chooseTake, finishCutRestore, continueAfterCredits, createSeries, deleteRejectedTake, redoShot, remakeOpenTake, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextEpisode, startNextStory } from "@/features/drama/service";
+import { MAX_TAKES, TAKE_CREDIT_BUDGET, beginCutRestore, chooseTake, finishCutRestore, continueAfterCredits, createSeries, deleteRejectedTake, redoShot, remakeOpenTake, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextEpisode, deleteSeries, startNextStory } from "@/features/drama/service";
 
 async function owner() {
   const client = await createClient(), { data, error } = await client.auth.getUser();
@@ -58,6 +58,16 @@ export async function seriesStatusAction(formData: FormData) {
   catch (error) { const message = known(error); if (message) done(`/drama/${parsed.data.id}`, message); throw error; }
   if (parsed.data.status === "ARCHIVED") done(HOME, "เก็บเรื่องนี้เข้ากรุแล้ว ตอนที่ตัดเสร็จยังอยู่ในคลัง");
   done(`/drama/${parsed.data.id}`, parsed.data.status === "ACTIVE" ? "ผลิตต่อแล้ว" : "พักการผลิตไว้แล้ว ช็อตที่อยู่ในคิวจะสร้างให้เสร็จก่อน");
+}
+
+/** Owner: delete a whole story and its files for good (the form needs the confirm box ticked). */
+export async function deleteSeriesAction(formData: FormData) {
+  const parsed = seriesRefSchema.extend({ confirm: z.literal("yes") }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) done(HOME, "ติ๊กช่องยืนยันก่อนลบ");
+  const ownerId = await owner();
+  try { await deleteSeries(createAdminClient(), ownerId, parsed.data.id); }
+  catch (error) { const message = known(error); if (message) done(HOME, message); throw error; }
+  done(HOME, "ลบเรื่องนี้และไฟล์ทั้งหมดแล้ว");
 }
 
 /** Owner: start the next episode (or continue the open one) now. */

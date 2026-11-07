@@ -215,6 +215,34 @@ export async function setSeriesStatus(admin: SupabaseClient, owner: string, id: 
 }
 
 /**
+ * Lucky, 8 Nov: "ลบได้เลย". Deletes a whole story for good: every episode's cut (posted ones too), every shot's file and
+ * frame, the key stills, and the series with its episodes and shots. Queued or running Flow jobs are discarded first so
+ * no credit is spent on a story that is gone.
+ */
+export async function deleteSeries(admin: SupabaseClient, owner: string, id: string, now = new Date()) {
+  const series = await loadSeries(admin, owner, id);
+  const at = now.toISOString();
+  const episodes = check(await admin.from("drama_episodes").select("id,flow_clip_id,key_still_path").eq("owner_id", owner).eq("series_id", series.id),
+    "drama_unavailable") as Array<{ id: string; flow_clip_id: string | null; key_still_path: string | null }>;
+  const shots = check(await admin.from("drama_shots").select("id,flow_clip_id,video_path,last_frame_path").eq("owner_id", owner).eq("series_id", series.id),
+    "drama_unavailable") as Array<{ id: string; flow_clip_id: string | null; video_path: string | null; last_frame_path: string | null }>;
+  const shotClips = shots.map(s => s.flow_clip_id).filter((c): c is string => Boolean(c));
+  if (shotClips.length) check(await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, file_deleted_at: at, updated_at: at })
+    .eq("owner_id", owner).eq("kind", "DRAMA_SHOT").in("id", shotClips).neq("status", "DISCARDED"), "series_not_saved");
+  const cutIds = episodes.map(e => e.flow_clip_id).filter((c): c is string => Boolean(c));
+  const cuts = cutIds.length ? (check(await admin.from("flow_clips").select("id,storage_path,status").eq("owner_id", owner).in("id", cutIds), "drama_unavailable") as
+    Array<{ id: string; storage_path: string | null; status: string }>) : [];
+  const files = [...shots.flatMap(s => [s.video_path, s.last_frame_path]), ...episodes.map(e => e.key_still_path), series.key_still_path,
+    ...cuts.map(c => c.storage_path)].filter((p): p is string => Boolean(p));
+  const unique = [...new Set(files)];
+  for (let i = 0; i < unique.length; i += 100) await admin.storage.from(BUCKET).remove(unique.slice(i, i + 100)).catch(() => {});
+  // Posted cuts keep their row (without the file) so the channel's view stats still count; the rest leave the library.
+  for (const cut of cuts) check(await admin.from("flow_clips").update({ ...(cut.status === "POSTED" ? {} : { status: "DISCARDED" }), storage_path: null,
+    file_deleted_at: at, updated_at: at }).eq("owner_id", owner).eq("id", cut.id), "series_not_saved");
+  check(await admin.from("drama_series").delete().eq("owner_id", owner).eq("id", series.id), "series_not_saved");
+}
+
+/**
  * Owner pressed "สร้างตอนต่อไป": the series goes back to work and, if no episode is open, the next one (or the remake
  * of a rejected one) starts now, whatever the per-day setting says. Nothing else starts episodes on its own.
  */
