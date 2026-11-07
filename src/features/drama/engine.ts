@@ -119,6 +119,19 @@ export function pickRepairAccount(pool: RepairAccount[], exclude: string[] = [])
   return pool.filter(a => !exclude.includes(a.id) && repairShotsLeft(a) > 0).toSorted((a, b) => repairShotsLeft(b) - repairShotsLeft(a))[0] ?? null;
 }
 
+/**
+ * Lucky, 7 Nov: one account makes an episode from its first shot to its last, in one Flow project, so the shots match.
+ * Only an account with room for every shot still to make counts (5/5 for a five-shot episode). The account that made
+ * the episode's earlier shots keeps it while it has room; otherwise the main account, then the repair account with the
+ * most shots left. Null: no account can finish the episode today, so it waits rather than start on a half-empty one.
+ */
+export function pickEpisodeAccount(accounts: RepairAccount[], needed: number,
+  { sticky = null, main = null, exclude = [] }: { sticky?: string | null; main?: string | null; exclude?: string[] } = {}) {
+  const fits = accounts.filter(a => !exclude.includes(a.id) && repairShotsLeft(a) >= Math.max(1, needed));
+  return fits.find(a => a.id === sticky) ?? fits.find(a => a.id === main)
+    ?? fits.toSorted((a, b) => repairShotsLeft(b) - repairShotsLeft(a))[0] ?? null;
+}
+
 /** A worker reason that means the account has no credits (Flow said so, or shows no usable Generate button). */
 export const isCreditReason = (reason: string) => reason === "NO_CREDIT" || /^GENERATE_BUTTON/.test(reason);
 /** How long an account that could not start a shot for another reason (page changed, picture box missing…) is skipped. */

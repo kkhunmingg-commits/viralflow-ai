@@ -78,6 +78,22 @@ async function generateButton(page, selectors) {
     ?? (await page.getByRole("button", { name: GENERATE_NAME }).count() ? page.getByRole("button", { name: GENERATE_NAME }).last() : null);
 }
 
+/** Flow project pages ("…/project/<id>"), as opposed to Flow's home page. */
+export const isProjectUrl = url => /\/project\/[A-Za-z0-9_-]+/.test(url);
+const projectsFile = dir => join(dir, "episode-projects.json");
+/** { "<account id>:<episode id>": "<Flow project URL>" }, kept for the last 200 episodes. */
+async function readProjects(dir) {
+  if (!dir) return {};
+  try { const saved = JSON.parse(await readFile(projectsFile(dir), "utf8")); return saved && typeof saved === "object" ? saved : {}; }
+  catch { return {}; }
+}
+async function saveProjects(dir, projects) {
+  if (!dir) return;
+  const keep = Object.fromEntries(Object.entries(projects).slice(-200));
+  await mkdir(dir, { recursive: true });
+  await writeFile(projectsFile(dir), JSON.stringify(keep));
+}
+
 /** Opens Flow and makes sure a prompt box is on screen (creating a project if Flow shows its home page). */
 export async function openComposer(page, { flowUrl, selectors, timeout = 45_000 }) {
   await page.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
@@ -364,8 +380,19 @@ export async function openFlowAccount(account, config) {
     async generate(clip) {
       const step = (stage, detail) => config.progress?.(clip.id, stage, detail);
       let prompt;
-      try { prompt = await openComposer(page, { flowUrl: config.flowUrl, selectors }); }
-      catch (error) { return fail(error.message); }
+      // Lucky, 7 Nov: every shot of an episode goes into the same Flow project of this account, so the shots match.
+      // The project of the episode's first shot is remembered and opened again for the next ones.
+      const projects = clip.projectKey ? await readProjects(config.scratchDir) : {};
+      const projectKey = clip.projectKey ? `${account.id}:${clip.projectKey}` : null;
+      const known = projectKey ? projects[projectKey] : null;
+      try {
+        prompt = known ? await openComposer(page, { flowUrl: known, selectors }).catch(() => null) : null;
+        prompt ??= await openComposer(page, { flowUrl: config.flowUrl, selectors });
+      } catch (error) { return fail(error.message); }
+      if (projectKey && isProjectUrl(page.url()) && projects[projectKey] !== page.url()) {
+        projects[projectKey] = page.url().split("?")[0];
+        await saveProjects(config.scratchDir, projects).catch(() => {});
+      }
       // No early "out of credits" here: Flow keeps old credit notices on the page after the credits renew (6 Nov: the
       // main account renewed at 23:09 and three shots were still turned away as out of credits). Only a Generate
       // button Flow has disabled, or a notice that appears after the click, counts.

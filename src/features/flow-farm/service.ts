@@ -260,7 +260,7 @@ export async function claimClip(admin: SupabaseClient, owner: string, flowAccoun
   if ((await flowLogins(admin, owner))[flowAccountId]?.state !== "READY") throw new Error("FLOW_ACCOUNT_UNAVAILABLE");
   const result = await admin.rpc("claim_flow_clip", { p_owner: owner, p_flow_account: flowAccountId, p_lease_seconds: 1200 });
   if (result.error) throw new Error(result.error.message.includes("FLOW_ACCOUNT_UNAVAILABLE") ? "FLOW_ACCOUNT_UNAVAILABLE" : "claim_failed");
-  const clip = (result.data as Array<{ id: string; title: string; prompt: string; reference_image_path: string | null; kind: string }> | null)?.[0];
+  const clip = (result.data as Array<{ id: string; title: string; prompt: string; reference_image_path: string | null; kind: string; batch_id: string | null }> | null)?.[0];
   if (!clip) return null;
   if (clip.kind === "DRAMA_SHOT" && !(await dramaShotStillWanted(admin, owner, clip.id))) return null;
   let imageUrl: string | null = null;
@@ -272,7 +272,9 @@ export async function claimClip(admin: SupabaseClient, owner: string, flowAccoun
     }
     imageUrl = signed.data.signedUrl;
   }
-  return { id: clip.id, title: clip.title, prompt: clip.prompt, kind: clip.kind, imageUrl };
+  // Every shot of one drama episode goes into the same Flow project of the account (the worker remembers it by this key).
+  const projectKey = clip.kind === "DRAMA_SHOT" ? clip.batch_id : null;
+  return { id: clip.id, title: clip.title, prompt: clip.prompt, kind: clip.kind, imageUrl, projectKey };
 }
 
 /**

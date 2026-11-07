@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isCreditReason, pickRepairAccount, repairAccounts, repairShotsLeft, setAsideNow, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, promptFor, referencePath, clipVerdict, failureKind, firstBackAt, planRetry, shotAccount, type ShotRow } from "./engine";
+import { isCreditReason, pickEpisodeAccount, pickRepairAccount, repairAccounts, repairShotsLeft, setAsideNow, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, promptFor, referencePath, clipVerdict, failureKind, firstBackAt, planRetry, shotAccount, type ShotRow } from "./engine";
 
 const shot = (position: number, patch: Partial<ShotRow> = {}): ShotRow => ({
   id: `s${position}`, episode_id: "e", position, status: "PLANNED", reference_mode: position === 1 ? "KEY_STILL" : "PREVIOUS_FRAME", attempts: 0,
@@ -136,6 +136,20 @@ describe("repair pool", () => {
     expect(isCreditReason("GENERATE_BUTTON_NOT_FOUND")).toBe(true);
     expect(isCreditReason("NO_CREDIT")).toBe(true);
     expect(isCreditReason("IMAGE_INPUT_NOT_FOUND")).toBe(false);
+  });
+  it("gives a whole episode to one account that has room for every shot left", () => {
+    const pool = repairAccounts([row("main", { clips_today: 1, clips_today_on: today }), row("a", { clips_today: 2, clips_today_on: today }), row("bb"), row("ccc")], () => true, today);
+    // 5 shots to make: the main account has 4 left, so a full 5/5 repair account takes the episode.
+    expect(pickEpisodeAccount(pool, 5, { main: "main" })?.id).toBe("bb");
+    // Once it made shot 1, the episode stays with it (4 shots left, it has 4).
+    const after = repairAccounts([row("main", { clips_today: 1, clips_today_on: today }), row("a", { clips_today: 2, clips_today_on: today }), row("bb", { clips_today: 1, clips_today_on: today }), row("ccc")], () => true, today);
+    expect(pickEpisodeAccount(after, 4, { sticky: "bb", main: "main" })?.id).toBe("bb");
+    // The main account is preferred when it has room.
+    expect(pickEpisodeAccount(pool, 3, { main: "main" })?.id).toBe("main");
+    // Nobody can finish 6 shots in one account: wait.
+    expect(pickEpisodeAccount(pool, 6, { main: "main" })).toBeNull();
+    // A failed account is never picked again for the same shot.
+    expect(pickEpisodeAccount(pool, 5, { main: "main", exclude: ["bb"] })?.id).toBe("ccc");
   });
   it("never picks an account that is not signed in on the worker", () => {
     expect(pickRepairAccount(repairAccounts([row("a")], () => false, today))).toBeNull();

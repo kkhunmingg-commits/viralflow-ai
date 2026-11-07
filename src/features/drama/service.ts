@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { bangkokDate } from "@/features/flow-farm/contracts";
 import { REFUSED_ASIDE_MS, MAX_ASSEMBLE_ATTEMPTS, emptyStoryState, type DramaGenre, type EpisodeStatus, type SeriesBible, type SeriesStatus,
   type ShotStatus, type StoryState } from "./contracts";
-import { ASSEMBLY_STALE_MS, clipVerdict, failureKind, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, pickRepairAccount, planRetry, promptFor, referencePath,
+import { ASSEMBLY_STALE_MS, clipVerdict, failureKind, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, pickEpisodeAccount, planRetry, promptFor, referencePath,
   repairAccounts, repairShotsLeft, isCreditReason, SET_ASIDE_MS, setAsideNow, firstBackAt, type RepairAccountRow, type ShotRow } from "./engine";
 import { flowLogins, readStateFile, saveStateFile } from "@/features/flow-farm/service";
 import { SHOWRUNNER_WRITER, createBible, pickStory, planEpisode } from "./showrunner";
@@ -472,6 +472,30 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
   if (next) await queueShot(admin, owner, series, episode, next, shots, now);
 }
 
+/** The main account and every repair account, as the episode picker sees them today. */
+async function episodeAccounts(admin: SupabaseClient, owner: string, mainId: string | null, now: Date) {
+  const pool = await repairPool(admin, owner, now);
+  if (!mainId) return pool;
+  const row = (await admin.from("flow_accounts").select("id,label,active,exhausted_on,clips_today,clips_today_on,clips_per_day_estimate,priority,created_at")
+    .eq("owner_id", owner).eq("id", mainId).maybeSingle()).data as RepairAccountRow | null;
+  if (!row) return pool;
+  const logins = await flowLogins(admin, owner).catch(() => ({} as Awaited<ReturnType<typeof flowLogins>>));
+  const aside = await accountsSetAside(admin, owner, now);
+  // The main account is used only for its own series, so a missing login record does not rule it out.
+  const [main] = repairAccounts([row], id => (logins[id]?.state ?? "READY") === "READY", bangkokDate(now), id => aside[id]?.reason ?? null);
+  return [main, ...pool.filter(a => a.id !== mainId)];
+}
+
+/** The Google account that made this episode's latest finished shot, so the rest of the episode stays with it. */
+async function episodeAccountSoFar(admin: SupabaseClient, owner: string, episodeId: string) {
+  const done = (await admin.from("drama_shots").select("flow_clip_id,position").eq("owner_id", owner).eq("episode_id", episodeId).eq("status", "DONE")
+    .not("flow_clip_id", "is", null).order("position", { ascending: false }).limit(1)).data as Array<{ flow_clip_id: string }> | null;
+  if (!done?.length) return null;
+  const clip = (await admin.from("flow_clips").select("flow_account_id").eq("owner_id", owner).eq("id", done[0].flow_clip_id).maybeSingle()).data as
+    { flow_account_id: string | null } | null;
+  return clip?.flow_account_id ?? null;
+}
+
 /**
  * The owner's repair accounts, as one shared pool for every series (Lucky, 7 Nov: five accounts = 25 repair shots).
  * Only accounts that are switched on, signed in on the worker, not reported empty by Flow today, and under their daily
@@ -502,15 +526,6 @@ async function setAccountAside(admin: SupabaseClient, owner: string, id: string,
 }
 async function clearSetAside(admin: SupabaseClient, owner: string) {
   await saveStateFile(admin, setAsidePath(owner), {}, "set_aside_not_saved").catch(() => {});
-}
-
-/** Whether the main account can take a shot now: switched on, not out of credits today, not set aside. */
-async function mainUsable(admin: SupabaseClient, owner: string, mainId: string | null, now: Date) {
-  if (!mainId) return false;
-  const row = (await admin.from("flow_accounts").select("active,exhausted_on").eq("owner_id", owner).eq("id", mainId).maybeSingle()).data as
-    { active: boolean; exhausted_on: string | null } | null;
-  if (!row?.active || row.exhausted_on === bangkokDate(now)) return false;
-  return !(await accountsSetAside(admin, owner, now))[mainId];
 }
 
 /** Whether the owner has any repair account in use, and whether every one of them is out of credits today. */
@@ -565,32 +580,25 @@ async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow
       .eq("owner_id", owner).eq("id", episode.id).eq("status", "PRODUCING");
     return;
   }
-  // Claim the shot first; the unique index allows one queued shot per series, so a parallel step cannot queue twice.
-  // Flow already said the main account is out of credits today: go straight to the repair account instead of
-  // asking the main one again for every shot.
-  if ((shot.route ?? "PRIMARY") === "PRIMARY" && !await mainUsable(admin, owner, series.flow_account_id, now)) {
-    const repair = await repairState(admin, owner, series, now);
-    if (repair.exists && !repair.outOfCreditsToday) shot = { ...shot, route: "REPAIR" };
+  // One account makes the whole episode (Lucky, 7 Nov): the one that made its earlier shots while it still has room
+  // for every shot left, else the main account, else the repair account with the most shots left, and only an account
+  // with room for all of them. If none has, the episode waits for new credits instead of starting half-way somewhere.
+  const needed = shots.filter(s => s.status !== "DONE" && s.status !== "SKIPPED").length;
+  const accounts = await episodeAccounts(admin, owner, series.flow_account_id, now);
+  const picked = pickEpisodeAccount(accounts, needed, { sticky: await episodeAccountSoFar(admin, owner, episode.id), main: series.flow_account_id });
+  if (!picked) {
+    // Accounts only set aside (refused, or could not start) come back soon: wait for the first of them that would have
+    // room; when every account is short of credits, wait for the next day's credits.
+    const aside = await accountsSetAside(admin, owner, now);
+    const resting = accounts.filter(a => a.asideReason && a.active && a.loggedIn && !a.exhaustedToday && a.perDay - a.usedToday >= needed).map(a => a.id);
+    const back = firstBackAt(aside, resting);
+    await updateShot(admin, owner, shot.id, "PLANNED", { route: "PRIMARY", retry_after: back ?? nextBangkokMorning(now),
+      error: (back ? "บัญชีที่มีเครดิตพอทำครบตอนพักอยู่ จะกลับมาทำต่อเองเมื่อพ้นช่วงพัก"
+        : `ยังไม่มีบัญชีไหนเหลือเครดิตพอทำครบ ${needed} ช็อตของตอนนี้ในบัญชีเดียว รอเครดิตรอบใหม่`).slice(0, 400) }, now, null);
+    return;
   }
-  // A repair shot goes to whichever pool account has the most shots left today.
-  let account = series.flow_account_id;
-  if (shot.route === "REPAIR") {
-    const picked = pickRepairAccount(await repairPool(admin, owner, now));
-    if (picked) account = picked.id;
-    else if (!await mainUsable(admin, owner, series.flow_account_id, now)) {
-      // No account can take it now. Accounts that are only set aside (refused, or could not start) come back soon:
-      // wait for the first of them; when every account is out of credits, wait for new credits.
-      const pool = await repairPool(admin, owner, now), aside = await accountsSetAside(admin, owner, now);
-      const resting = pool.filter(a => a.asideReason && a.active && a.loggedIn && !a.exhaustedToday && a.usedToday < a.perDay).map(a => a.id);
-      const main = series.flow_account_id ? (await admin.from("flow_accounts").select("active,exhausted_on").eq("owner_id", owner).eq("id", series.flow_account_id).maybeSingle()).data as
-        { active: boolean; exhausted_on: string | null } | null : null;
-      if (main?.active && main.exhausted_on !== bangkokDate(now) && series.flow_account_id && aside[series.flow_account_id]) resting.push(series.flow_account_id);
-      const back = firstBackAt(aside, resting);
-      await updateShot(admin, owner, shot.id, "PLANNED", { route: back ? "REPAIR" : "PRIMARY", retry_after: back ?? nextBangkokMorning(now),
-        error: back ? "ทุกบัญชีที่ยังมีเครดิตพักอยู่ จะกลับมาทำต่อเองเมื่อบัญชีแรกพ้นช่วงพัก" : "เครดิตหมดทั้งบัญชีหลักและบัญชีซ่อมทุกบัญชี รอเครดิตรอบใหม่" }, now, null);
-      return;
-    } else shot = { ...shot, route: "PRIMARY" };
-  }
+  const account = picked.id;
+  shot = { ...shot, route: account === series.flow_account_id ? "PRIMARY" : "REPAIR" };
   const claimed = await admin.from("drama_shots").update({ status: "QUEUED", route: shot.route ?? "PRIMARY", retry_after: null, updated_at: now.toISOString() })
     .eq("owner_id", owner).eq("id", shot.id).eq("status", "PLANNED").is("flow_clip_id", null).select("id");
   if (claimed.error || !claimed.data?.length) return;
@@ -753,13 +761,18 @@ export async function fallBackToMainAccount(admin: SupabaseClient, owner: string
   if (credit) await admin.from("flow_accounts").update({ exhausted_on: bangkokDate(now), updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", failed);
   else await setAccountAside(admin, owner, failed, reason, now);
 
-  const next = pickRepairAccount(await repairPool(admin, owner, now), [failed]);
-  const target = next?.id ?? (main && main !== failed && await mainUsable(admin, owner, main, now) ? main : null);
-  if (target) {
+  // The rest of the episode moves with it, to one account with room for every shot still to make; the picture it
+  // starts from (the previous shot's last frame) and the full prompt travel with the clip.
+  const left = (await admin.from("drama_shots").select("id", { count: "exact", head: true }).eq("owner_id", owner).eq("episode_id", shot.episode_id)
+    .not("status", "in", "(DONE,SKIPPED)")).count ?? 1;
+  const next = pickEpisodeAccount(await episodeAccounts(admin, owner, main, now), left, { main, exclude: [failed] });
+  const target = next?.id ?? null;
+  if (next && target) {
     check(await admin.from("flow_clips").update({ required_flow_account_id: target, error: null, updated_at: now.toISOString() })
       .eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED"), "flow_clip_not_saved");
-    const who = next ? `บัญชีซ่อม ${next.label}` : "บัญชีหลัก";
-    await updateShot(admin, owner, shot.id, "QUEUED", { route: next ? "REPAIR" : "PRIMARY",
+    const repair = target !== main;
+    const who = repair ? `บัญชีซ่อม ${next.label}` : "บัญชีหลัก";
+    await updateShot(admin, owner, shot.id, "QUEUED", { route: repair ? "REPAIR" : "PRIMARY",
       error: `บัญชีก่อนหน้าทำไม่ได้ (${credit ? "เครดิตหมด" : reason}) ย้ายให้${who}ทำแทนอัตโนมัติ ไม่เสียเครดิต`.slice(0, 400) }, now, clipId);
     return true;
   }
