@@ -16,7 +16,8 @@ import { createSeriesAction, newStoryAction, reviewEpisodeAction, takeAction } f
 import "../post/flow-studio.css";
 import "./drama.css";
 
-interface GoogleAccount { id: string; label: string; tiktok_account_id: string | null; active: boolean; exhausted_on: string | null; purpose: "CLIP" | "REPAIR" }
+interface GoogleAccount { id: string; label: string; tiktok_account_id: string | null; active: boolean; exhausted_on: string | null; purpose: "CLIP" | "REPAIR";
+  clips_today: number; clips_today_on: string | null; clips_per_day_estimate: number }
 
 function nextStep(item: SeriesSummary, today: string) {
   const { series, current, toReview, latestReady } = item;
@@ -49,7 +50,7 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
   const accountsResult = await client.from("tiktok_accounts").select("id,display_name,is_mock").eq("owner_id", owner).is("hidden_at", null).order("created_at", { ascending: true });
   const accounts = ((accountsResult.data ?? []) as Array<{ id: string; display_name: string; is_mock: boolean | null }>)
     .filter(a => process.env.NODE_ENV !== "production" || !a.is_mock);
-  const all = ((await client.from("flow_accounts").select("id,label,tiktok_account_id,active,exhausted_on,purpose").eq("owner_id", owner).order("priority").order("created_at")).data ?? []) as GoogleAccount[];
+  const all = ((await client.from("flow_accounts").select("id,label,tiktok_account_id,active,exhausted_on,purpose,clips_today,clips_today_on,clips_per_day_estimate").eq("owner_id", owner).order("priority").order("created_at")).data ?? []) as GoogleAccount[];
   const google = all.filter(g => g.purpose !== "REPAIR"), repairs = all.filter(g => g.purpose === "REPAIR");
   const logins = await flowLogins(createAdminClient(), owner).catch(() => ({} as Awaited<ReturnType<typeof flowLogins>>));
   const series = available ? await listSeries(client, owner).catch(() => []) : [];
@@ -62,6 +63,12 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
   const poolOf = (id: string) => pool.find(a => a.id === id);
   const poolText = pool.length === 0 ? "ไม่มีบัญชีซ่อม" : poolLeft === 0 ? `บัญชีซ่อม ${pool.length} บัญชี · เครดิตหมดทุกบัญชีแล้ว` : `บัญชีซ่อมกองกลาง ${pool.length} บัญชี · ซ่อมได้อีก ${poolLeft} ช็อตวันนี้`;
   const loginText = (id: string) => { const l = logins[id]; return l?.state === "READY" ? "✓ ล็อกอินแล้ว" : l?.state === "FAILED" ? `⚠ ล็อกอินไม่สำเร็จ${l.note ? ` (${l.note})` : ""}` : "⏳ รอล็อกอิน (เปิดคอมที่ติดตั้งเครื่องสร้างคลิปไว้)"; };
+  // Lucky, 8 Nov: show how many clips each main account still has today, like the repair pool does.
+  const mainLeft = (g: GoogleAccount) => {
+    const perDay = Math.max(1, g.clips_per_day_estimate ?? 5), used = g.clips_today_on === today ? g.clips_today : 0;
+    if (g.exhausted_on === today || used >= perDay) return `เครดิตวันนี้หมดแล้ว (ใช้ ${Math.min(used, perDay)}/${perDay} คลิป)`;
+    return `เหลือ ${perDay - used}/${perDay} คลิปวันนี้`;
+  };
   const drama = <input type="hidden" name="studio" value="drama" />;
   const channel = (id: string | null) => id ? accounts.find(a => a.id === id)?.display_name ?? "ช่องอื่น" : "ใช้ได้ทุกช่อง";
   const today = bangkokDate();
@@ -97,7 +104,7 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
       {accounts.length === 0 ? <p className="manual-muted">เชื่อมบัญชี TikTok ก่อน <Link href="/accounts">ไปหน้าบัญชี</Link></p>
         : google.length === 0 ? <p className="manual-muted">ยังไม่มีบัญชี Google <Link href="/post">ไปผูกบัญชีในแท็บสร้างคลิปโปรโมท</Link></p>
         : <ol className="library-flow-list">{google.map(g => <li key={g.id} className={g.active ? undefined : "paused"}>
-          <div><strong>{g.label}</strong><small>{loginText(g.id)} · {busy.has(g.id) ? `ทำเรื่อง “${busy.get(g.id)}”` : g.active ? "ว่าง เริ่มเรื่องใหม่ได้" : "พักไว้"}{g.exhausted_on === today ? " · เครดิตวันนี้หมดแล้ว" : ""}</small></div>
+          <div><strong>{g.label}</strong><small>{loginText(g.id)} · {busy.has(g.id) ? `ทำเรื่อง “${busy.get(g.id)}”` : g.active ? "ว่าง เริ่มเรื่องใหม่ได้" : "พักไว้"}{" · "}{mainLeft(g)}</small></div>
         </li>)}</ol>}
       {google.length > 0 && <p className="manual-muted drama-note">เพิ่มหรือแก้บัญชีหลักได้ที่ <Link href="/post">แท็บสร้างคลิปโปรโมท</Link></p>}
       <h3>บัญชีซ่อมกองกลาง ({repairs.length})</h3>
