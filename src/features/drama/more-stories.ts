@@ -1,3 +1,4 @@
+import { ACTION_DASHCAM_SEASON } from "./seasons/action-dashcam";
 import { HORROR_SCHOOL_BELL_SEASON } from "./seasons/horror-school-bell";
 import type { DramaGenre, Line, Role } from "./contracts";
 import type { GenreKit, Move } from "./genres";
@@ -124,6 +125,7 @@ const ACTION_DASHCAM: StoryPart = {
     reveal2: say("RIVAL", "ใช่ ฉันจัดฉากคืนนั้น และครูแกก็ยอมรับผิดแทนแกเอง"),
     finalLine: say("ALLY", "นี่คือรายการจราจรกลางคืน และคืนนี้ความจริงออกอากาศแล้ว"),
   },
+  season: ACTION_DASHCAM_SEASON,
   hooks: [say("LEAD", "ตั้งสติ ทางยังไม่ตัน"), say("ALLY", "พวกมันตามมาอีกแล้ว"), say("LEAD", "จับไว้แน่นๆ"),
     say("ALLY", "เราต้องไปให้ถึงสถานีก่อนตีห้า"), say("LEAD", "ฉันไม่ทิ้งเมมนี้แน่")],
   moves: [
