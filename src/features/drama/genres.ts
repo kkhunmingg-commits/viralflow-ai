@@ -1,3 +1,4 @@
+import { COMEDY_CHICKEN_RICE_SEASON } from "./seasons/comedy-chicken-rice";
 import type { CastMember, DramaGenre, Line, Place, PlaceKey, Role } from "./contracts";
 import { MORE_STORIES } from "./more-stories";
 import { ACTION_LAST_PARCEL_SEASON } from "./seasons/action-last-parcel";
@@ -240,6 +241,7 @@ const COMEDY: GenreKit = {
     reveal2: say("RIVAL", "ยายครับ ผมก็แค่อยากให้ยายภูมิใจ"),
     finalLine: say("ALLY", "จานนี้ ยายให้เต็มสิบ"),
   },
+  season: COMEDY_CHICKEN_RICE_SEASON,
   hooks: [say("LEAD", "เดี๋ยวๆๆ ใจเย็นก่อน"), say("ALLY", "โบ้! ยืนเซ่ออยู่ทำไม"), say("LEAD", "แผนนี้ต้องรอด รอดแน่นอน"), say("ALLY", "ยายบอกแล้วไม่เชื่อ"), say("LEAD", "โอเค... แผนสอง")],
   moves: [
     m("spy", "สายลับข้าวมันไก่", "{LEAD}ปลอมตัวไปสอดแนมร้านของ{RIVAL}", "{LEAD} sneaks into the franchise restaurant wearing a fake moustache and sunglasses, hiding badly behind a menu", 1, { at: "B", say: say("LEAD", "ไม่มีใครจำผมได้แน่นอน") }),
