@@ -1,3 +1,4 @@
+import { MYSTERY_NIGHT_TRAIN_SEASON } from "./seasons/mystery-night-train";
 import { ROMANCE_JASMINE_GARLAND_SEASON } from "./seasons/romance-jasmine-garland";
 import { COMEDY_TEMPLE_FAIR_BAND_SEASON } from "./seasons/comedy-temple-fair-band";
 import { ACTION_DASHCAM_SEASON } from "./seasons/action-dashcam";
@@ -384,6 +385,7 @@ const MYSTERY_TRAIN: StoryPart = {
     reveal2: say("RIVAL", "เขาเป็นลูกเขยฉัน ฉันช่วยเขาหนีคนที่จะทำร้ายเขา"),
     finalLine: say("LEAD", "ถึงเชียงใหม่แล้วค่ะ ทุกคนปลอดภัย"),
   },
+  season: MYSTERY_NIGHT_TRAIN_SEASON,
   hooks: [say("LEAD", "ทุกคนอยู่ในที่ของตัวเอง ห้ามขยับ"), say("ALLY", "จ่าครับ ผมเห็นอะไรบางอย่าง"), say("LEAD", "เรามีเวลาถึงสถานีสุดท้าย"),
     say("ALLY", "แบบนี้แปลว่าคนร้ายยังอยู่บนรถไฟ"), say("LEAD", "ไม่มีใครลงจากรถไฟได้")],
   moves: [
