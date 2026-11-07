@@ -1,3 +1,4 @@
+import { MYSTERY_ROOM_709_SEASON } from "./seasons/mystery-room-709";
 import { ROMANCE_BALCONY_NOTES_SEASON } from "./seasons/romance-balcony-notes";
 import { COMEDY_CHICKEN_RICE_SEASON } from "./seasons/comedy-chicken-rice";
 import type { CastMember, DramaGenre, Line, Place, PlaceKey, Role } from "./contracts";
@@ -416,6 +417,7 @@ const MYSTERY: GenreKit = {
     reveal2: say("RIVAL", "ผมไม่ได้ทำร้ายเธอ ผมแค่ไม่ยอมให้เธอไปจากผม"),
     finalLine: say("LEAD", "ตีสามสิบเจ็ดนาที เวลาที่ทุกอย่างเริ่ม และจบลงตรงนี้"),
   },
+  season: MYSTERY_ROOM_709_SEASON,
   hooks: [say("LEAD", "อย่าเพิ่งแตะอะไรทั้งนั้น"), say("ALLY", "สารวัตรครับ ดูนี่สิครับ"), say("LEAD", "ทุกอย่างมีเหตุผลเสมอ"), say("ALLY", "ผมจดไว้หมดแล้วครับ"), say("LEAD", "มีคนโกหกเรา")],
   moves: [
     m("dust", "ฝุ่นบนขอบหน้าต่าง", "{LEAD}พบรอยนิ้วบนฝุ่นขอบหน้าต่าง", "{LEAD} crouches by the open window and shines a small torch on the dusty sill, revealing four fingertip marks", 1, { at: "A", say: say("LEAD", "มีคนปีนออกทางนี้... หรือปีนเข้า"), clue: "มีรอยนิ้วบนขอบหน้าต่างห้อง 709" }),
