@@ -61,7 +61,12 @@ function random(seed: string) {
 }
 
 const castOf = (bible: SeriesBible, role: Role) => bible.cast.find(c => c.role === role) as CastMember;
-const placeOf = (bible: SeriesBible, key: PlaceKey) => bible.places.find(p => p.key === key) ?? bible.places[0];
+// A series keeps the places it was created with; places added to its story later are read from the story itself.
+const placeOf = (bible: SeriesBible, key: PlaceKey, kit?: GenreKit) =>
+  bible.places.find(p => p.key === key) ?? kit?.premise.places.find(p => p.key === key) ?? bible.places[0];
+/** Every place the series can visit: the ones it was created with, then any added to its story later. */
+export const seriesPlaces = (bible: SeriesBible, kit = kitFor(bible)) =>
+  [...bible.places, ...kit.premise.places.filter(p => !bible.places.some(b => b.key === p.key))];
 const objectNoun = (look: string) => look.replace(/^(an?|the)\s+/i, "the ");
 
 /** Fills {LEAD}/{ALLY}/{RIVAL}/{OBJ} with English (prompts) or Thai (subtitles, summaries). */
@@ -136,7 +141,7 @@ export interface ShotDraft { move: Move; place: PlaceKey; camera: string; hook?:
 
 /** The English prompt the Flow worker types. Character and place descriptions are repeated word for word every time. */
 export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<StoryState, "conditions">, mode: ReferenceMode, kit = kitFor(bible), carried: Role[] = []) {
-  const place = placeOf(bible, draft.place), line = lineOf(draft.move.say, kit);
+  const place = placeOf(bible, draft.place, kit), line = lineOf(draft.move.say, kit);
   const { all: named, joins } = shotRoles(draft.move, kit);
   // Starting from the previous frame keeps whoever was in it; name them, or Veo gives one of them the line.
   const stay = mode === "PREVIOUS_FRAME" ? carried.filter(role => !named.includes(role)) : [];

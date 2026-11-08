@@ -146,7 +146,9 @@ describe("stories", () => {
         expect(keys.has(kit.premise.key)).toBe(false);
         keys.add(kit.premise.key);
         expect(kit.premise.cast.map(c => c.role).toSorted()).toEqual(["ALLY", "LEAD", "RIVAL"]);
-        expect(kit.premise.places.map(p => p.key)).toEqual(["A", "B", "C"]);
+        const places = kit.premise.places.map(p => p.key);
+        expect(places.slice(0, 3)).toEqual(["A", "B", "C"]);
+        expect(new Set(places).size).toBe(places.length);
         expect(kit.moves.length).toBeGreaterThanOrEqual(8);
         expect(kit.cliffs.length).toBeGreaterThanOrEqual(5);
         expect(kit.beats.FINALE.cliff).toBeUndefined();
@@ -178,8 +180,11 @@ describe("written seasons", () => {
     it(`${kit.premise.key}: 30 episodes, 5 shots each, continuous and within Flow's prompt size`, () => {
       expect(kit.season).toHaveLength(30);
       const ids = new Set<string>();
+      const places = new Set(kit.premise.places.map(p => p.key));
       for (const script of kit.season!) {
         expect(script).not.toBeNull();
+        expect(places.has(script!.at)).toBe(true);
+        for (const move of script!.shots) if (move.at) expect(places.has(move.at)).toBe(true);
         expect(script!.shots).toHaveLength(5);
         for (const move of script!.shots) { expect(ids.has(move.id)).toBe(false); ids.add(move.id); }
       }

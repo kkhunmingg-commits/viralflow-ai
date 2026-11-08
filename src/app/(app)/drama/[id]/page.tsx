@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { dramaGenreLabels, episodePhaseLabels, episodeStatusLabels, seriesStatusLabels, type EpisodePhase } from "@/features/drama/contracts";
 import { repairPool, seriesDetail, signedImage } from "@/features/drama/service";
 import { repairShotsLeft } from "@/features/drama/engine";
+import { seriesPlaces } from "@/features/drama/showrunner";
 import { continueAfterCreditsAction, deleteSeriesAction, newStoryAction, redoShotAction, remakeTakeAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction, startNextEpisodeAction, takeAction } from "../actions";
 import { OneVideoAtATime } from "../one-video";
 import { RestoreCut } from "../restore-cut";
@@ -145,7 +146,7 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
           <details><summary>ความลับ (ผู้ชมยังไม่รู้)</summary><p>{c.secret}</p></details>
         </li>)}</ul>
         <h3>สถานที่</h3>
-        <ul className="drama-places">{bible.places.map(p => <li key={p.key}>{p.name}</li>)}<li>สิ่งของสำคัญ: {bible.object.name}</li></ul>
+        <ul className="drama-places">{seriesPlaces(bible).map(p => <li key={p.key}>{p.name}</li>)}<li>สิ่งของสำคัญ: {bible.object.name}</li></ul>
       </section>
       <section className="manual-panel" aria-labelledby="memory-title">
         <h2 id="memory-title">ความทรงจำของเรื่อง</h2>

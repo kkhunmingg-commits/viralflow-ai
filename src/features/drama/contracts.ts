@@ -8,7 +8,8 @@ export const dramaGenreLabels: Record<DramaGenre, string> = {
 };
 
 export type Role = "LEAD" | "ALLY" | "RIVAL";
-export type PlaceKey = "A" | "B" | "C";
+/** A season's places. 8 Nov: up to eight, so episodes and half-episodes can move to somewhere new. */
+export type PlaceKey = "A" | "B" | "C" | "D" | "E" | "F" | "G" | "H" | "I" | "J";
 
 /** One of the three main characters. English fields go into every Flow prompt word for word, so faces, clothes and
  * voices stay the same in every shot; Thai fields are for the owner and the subtitles. */
