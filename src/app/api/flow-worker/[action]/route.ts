@@ -5,6 +5,8 @@ import { claimSchema, clipRefSchema, completeSchema, exhaustedSchema, failSchema
 import { claimClip, clipUploadUrl, completeClip, failClip, finishWithoutCredits, markExhausted, reopenMissedClip, reportProgress, setLoginState, workerAccounts } from "@/features/flow-farm/service";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+// Drama Studio cuts episodes (ffmpeg) in the background of the worker's poll.
+export const maxDuration = 300;
 
 const headers = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
 const KNOWN = new Set(["FLOW_ACCOUNT_UNAVAILABLE", "PRODUCT_IMAGE_UNAVAILABLE", "CLIP_NOT_GENERATING", "UPLOADED_VIDEO_MISSING", "INVALID_MP4",
@@ -24,6 +26,10 @@ export async function GET(request: Request, context: { params: Promise<{ action:
   const admin = createAdminClient();
   // The worker polls every minute, which makes it a free clock for pulling clip stats from TikTok (hourly per account).
   after(() => import("@/features/flow-farm/learning-store").then(m => m.syncStaleAccounts(admin, auth.owner)).catch(() => {}));
+  // The same poll drives Drama Studio: queue each series' next shot, take finished shots' last frames, cut episodes.
+  after(() => import("@/features/drama/service").then(m => m.tickOwner(admin, auth.owner)).catch(() => {}));
+  // And product clips from pasted Shopee/Lazada links: requeue failed takes, cut finished ones, advance posting.
+  after(() => import("@/features/product-links/service").then(m => m.tickProductClips(admin, auth.owner)).catch(() => {}));
   return reply({ accounts: await workerAccounts(admin, auth.owner) });
 }
 
@@ -45,8 +51,20 @@ export async function POST(request: Request, context: { params: Promise<{ action
         }
         return reply({ clip: await claimClip(admin, owner, claimSchema.parse(body).flowAccountId) });
       case "upload-url": return reply(await clipUploadUrl(admin, owner, clipRefSchema.parse(body).clipId));
-      case "complete": return reply(await completeClip(admin, owner, completeSchema.parse(body)));
-      case "fail": await failClip(admin, owner, failSchema.parse(body)); return reply({ ok: true });
+      case "complete": {
+        const done = await completeClip(admin, owner, completeSchema.parse(body));
+        // A finished drama shot lets the series queue its next shot straight away.
+        after(() => import("@/features/drama/service").then(m => m.tickOwner(admin, owner)).catch(() => {}));
+        after(() => import("@/features/product-links/service").then(m => m.tickProductClips(admin, owner)).catch(() => {}));
+        return reply(done);
+      }
+      case "fail": {
+        const input = failSchema.parse(body);
+        await failClip(admin, owner, input);
+        // A drama shot the repair account cannot make goes back to the series' main account.
+        if (input.notStarted) await import("@/features/drama/service").then(m => m.fallBackToMainAccount(admin, owner, input.clipId, input.reason)).catch(() => {});
+        return reply({ ok: true });
+      }
       case "exhausted": await markExhausted(admin, owner, exhaustedSchema.parse(body).flowAccountId); return reply({ ok: true });
       case "login": await setLoginState(admin, owner, loginStateSchema.parse(body)); return reply({ ok: true });
       case "reopen": await reopenMissedClip(admin, owner, clipRefSchema.parse(body).clipId); return reply({ ok: true });

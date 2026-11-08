@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { appeared, costDecision, NO_CREDIT_PATTERNS, newVideoSources, parseCreditCost, runFarmPass, runLoginPass } from "./farm-core.mjs";
+import { appeared, costDecision, FAILED_PATTERNS, NO_CREDIT_PATTERNS, UNUSUAL_ACTIVITY_PATTERNS, newVideoSources, parseCreditCost, runFarmPass, runLoginPass } from "./farm-core.mjs";
 
 test("reads Flow's credit cost in Thai and English", () => {
   assert.equal(parseCreditCost("x1 x2\nการสร้างจะใช้ 10 เครดิต"), 10);
@@ -18,6 +18,11 @@ test("never spends above the per-clip ceiling and stops when the cost cannot be 
 test("only counts credit notices that appear after the click", () => {
   assert.equal(appeared("เครดิตไม่พอ", "เครดิตไม่พอ", NO_CREDIT_PATTERNS), false);
   assert.equal(appeared("", "Not enough credits to generate", NO_CREDIT_PATTERNS), true);
+  // Flow's refusal tile, 7 Nov: counts as a failure and is told apart as "unusual activity".
+  const refusal = "warning ล้มเหลว เราพบกิจกรรมที่ผิดปกติบางอย่าง โปรดทราบว่าส่วนขยายของเบราว์เซอร์ที่แก้ไขหน้าเว็บอาจทำให้เกิดปัญหาได้";
+  assert.equal(appeared("", refusal, FAILED_PATTERNS), true);
+  assert.equal(appeared("", refusal, UNUSUAL_ACTIVITY_PATTERNS), true);
+  assert.equal(appeared("", "warning ล้มเหลว", UNUSUAL_ACTIVITY_PATTERNS), false);
   assert.deepEqual(newVideoSources(["a"], ["a", "b", "b"]), ["b"]);
 });
 
@@ -160,4 +165,18 @@ test("a clip that took the account's last credits is kept, then the account coun
   assert.deepEqual(exhausted, ["a"]);
   assert.equal(queue.length, 1);
   assert.equal(summary.stoppedBy, "ALL_CREDITS_USED");
+});
+
+test("waits clipGapMs between two clips (Lucky, 8 Nov)", async () => {
+  const { runFarmPass, resetClipGap } = await import("./farm-core.mjs");
+  resetClipGap();
+  const queue = [{ id: "c1", title: "a" }, { id: "c2", title: "b" }];
+  const waits = [];
+  const api = { accounts: async () => [{ id: "g1", label: "g1" }], claim: async () => queue.shift() ?? null, upload: async () => {}, fail: async () => {},
+    exhausted: async () => {}, progress: async () => {}, finish: async () => {} };
+  const summary = await runFarmPass({ api, openAccount: async () => ({ generate: async () => ({ status: "OK" }), close: async () => {} }),
+    sleep: async ms => { waits.push(ms); } }, { clipGapMs: 60_000 });
+  assert.equal(summary.made, 2);
+  assert.equal(waits.length, 1);
+  assert.ok(waits[0] > 59_000 && waits[0] <= 60_000);
 });

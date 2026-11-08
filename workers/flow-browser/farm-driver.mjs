@@ -10,7 +10,7 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { access, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { appeared, costDecision, FAILED_PATTERNS, newVideoSources, NO_CREDIT_PATTERNS, parseCreditCost, SIGN_IN_HOSTS } from "./farm-core.mjs";
+import { appeared, costDecision, FAILED_PATTERNS, newVideoSources, NO_CREDIT_PATTERNS, parseCreditCost, SIGN_IN_HOSTS, UNUSUAL_ACTIVITY_PATTERNS } from "./farm-core.mjs";
 import { inspectMp4, isFlowLocation } from "./core.mjs";
 import { inspectVideo } from "./media.mjs";
 
@@ -18,7 +18,7 @@ export const DEFAULT_FARM_SELECTORS = Object.freeze({
   newProject: "",
   prompt: "textarea, [contenteditable=\"true\"][role=\"textbox\"]",
   generate: "button:has-text(\"arrow_forward\")",
-  settingsChip: "button:has-text(\"720p\"), button:has-text(\"1080p\")",
+  settingsChip: "button:has-text(\"360p\"), button:has-text(\"720p\"), button:has-text(\"1080p\")",
   imageInput: "input[type=\"file\"]",
 });
 const NEW_PROJECT_NAME = /new project|โปรเจกต์ใหม่|โปรเจ็กต์ใหม่|สร้างโปรเจ/i;
@@ -78,6 +78,22 @@ async function generateButton(page, selectors) {
     ?? (await page.getByRole("button", { name: GENERATE_NAME }).count() ? page.getByRole("button", { name: GENERATE_NAME }).last() : null);
 }
 
+/** Flow project pages ("…/project/<id>"), as opposed to Flow's home page. */
+export const isProjectUrl = url => /\/project\/[A-Za-z0-9_-]+/.test(url);
+const projectsFile = dir => join(dir, "episode-projects.json");
+/** { "<account id>:<episode id>": "<Flow project URL>" }, kept for the last 200 episodes. */
+async function readProjects(dir) {
+  if (!dir) return {};
+  try { const saved = JSON.parse(await readFile(projectsFile(dir), "utf8")); return saved && typeof saved === "object" ? saved : {}; }
+  catch { return {}; }
+}
+async function saveProjects(dir, projects) {
+  if (!dir) return;
+  const keep = Object.fromEntries(Object.entries(projects).slice(-200));
+  await mkdir(dir, { recursive: true });
+  await writeFile(projectsFile(dir), JSON.stringify(keep));
+}
+
 /** Opens Flow and makes sure a prompt box is on screen (creating a project if Flow shows its home page). */
 export async function openComposer(page, { flowUrl, selectors, timeout = 45_000 }) {
   await page.goto(flowUrl, { waitUntil: "domcontentloaded", timeout: 60_000 });
@@ -121,7 +137,95 @@ export async function chooseSingleOutput(page, selectors) {
   await page.waitForTimeout(300);
 }
 
-async function attachReference(page, selectors, imageUrl, scratchDir, clipId) {
+const LITE_MODEL = /Veo\s*3\.1\s*[-–]?\s*Lite/i;
+// Drama shots (Lucky, 7 Nov): Omni 1.2 Flash, 360p, 10 seconds, 10 credits. It keeps shots continuous far better;
+// the lower picture quality is accepted. Promo clips stay on Veo 3.1 Lite.
+const OMNI_MODEL = /Omni\s*1\.2\s*Flash/i;
+/** Flow settings for a clip: what model, resolution and length every account must use for it. */
+export function videoPlan(kind) {
+  return kind === "DRAMA_SHOT" ? { model: OMNI_MODEL, resolution: /^\s*360p/, seconds: 10 } : { model: LITE_MODEL, resolution: null, seconds: null };
+}
+/** The composer's settings chip: "วิดีโอ · 720p · 8 วินาที crop_9_16 x1" (or "Nano Banana … x2" on a fresh account). */
+async function settingsChip(page, selectors) {
+  // In a narrow window Flow folds the chip ("Nano Banana 2.1 crop x2" on a fresh account) into a "tune" icon button.
+  return await firstVisible(page, selectors.settingsChip) ?? await firstVisible(page, 'button:has-text("crop_")')
+    ?? await firstVisible(page, 'button:has-text("tune")');
+}
+/** Moves Flow's length slider ("ความยาว 10 วินาที") to `seconds` with the arrow keys. Never clicks Generate. */
+async function setLength(page, seconds) {
+  const slider = page.getByRole("slider").first();
+  if (!await slider.count()) return;
+  await slider.focus().catch(() => {});
+  for (let i = 0; i < 20; i++) {
+    const now = Number(await slider.getAttribute("aria-valuenow").catch(() => null));
+    if (!Number.isFinite(now) || now === seconds) break;
+    await page.keyboard.press(now < seconds ? "ArrowRight" : "ArrowLeft").catch(() => {});
+    await page.waitForTimeout(150);
+  }
+}
+async function pickRadio(page, name) {
+  const radio = page.getByRole("radio", { name }).first();
+  if (await radio.count() && await radio.getAttribute("aria-checked") !== "true") { await radio.click({ timeout: 10_000 }).catch(() => {}); await page.waitForTimeout(400); }
+}
+/**
+ * Sets what every account must use, whatever Flow last remembered for it: video, 9:16, Veo 3.1 Lite, one output, and
+ * frames (a start picture) or ingredients mode. A newly added account starts on the image model, whose cost is not a
+ * video's. Never clicks Generate. True when the panel was found.
+ */
+// Flow's Agent (chat) side panel, seen on newly added accounts (7 Nov, ninokuniman2/3): "สวัสดี คุณ nino / คุณต้องการสร้างอะไร"
+// in an untitled session, with its own "tune" button that opens the Agent's settings instead of the video composer's.
+const AGENT_PANEL = /เซสชันที่ไม่มีชื่อ|untitled session/i, AGENT_SETTINGS = /การตั้งค่า\s*Agent|Agent settings/i;
+/** Closes the Agent chat panel when it is open, so the video composer (frames, 720p chip) is what the worker uses. */
+export async function closeAgentPanel(page) {
+  if (!AGENT_PANEL.test(await bodyText(page))) return false;
+  const title = page.getByText(AGENT_PANEL).first();
+  const close = title.locator("xpath=ancestor::*[.//button][1]").locator('button:has-text("close")').first();
+  if (!await close.count()) return false;
+  await close.click({ timeout: 10_000 }).catch(() => {});
+  await page.waitForTimeout(1200);
+  return true;
+}
+export async function chooseVideoSettings(page, selectors, { frames = false, plan = videoPlan() } = {}) {
+  await closeAgentPanel(page);
+  const chip = await settingsChip(page, selectors);
+  if (!chip) return false;
+  await chip.click({ timeout: 10_000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  // The folded "tune" button can belong to the Agent: its settings are not the video composer's, so leave them alone.
+  if (AGENT_SETTINGS.test(await bodyText(page))) {
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(400);
+    return false;
+  }
+  try {
+    await pickRadio(page, /วิดีโอ|video/i);
+    // Switching from the image model redraws the panel; the frames choice only appears after it.
+    await page.waitForTimeout(600);
+    if (frames) await pickRadio(page, /เฟรม|frames?/i);
+    await pickRadio(page, /9:16/);
+    const model = page.locator('button:has-text("arrow_drop_down")').filter({ hasText: /Veo|Omni|Flash|Lite|Fast|Quality/i }).last();
+    if (await model.count() && !plan.model.test(await model.innerText().catch(() => ""))) {
+      await model.click({ timeout: 10_000 }).catch(() => {});
+      await page.waitForTimeout(600);
+      const wanted = page.getByRole("menuitem", { name: plan.model }).or(page.getByRole("option", { name: plan.model })).first();
+      if (await wanted.count()) { await wanted.click({ timeout: 10_000 }).catch(() => {}); await page.waitForTimeout(800); }
+    }
+    // Omni shows a resolution switch (360p / 720p) and a length slider under the model.
+    if (plan.resolution) {
+      await pickRadio(page, plan.resolution);
+      const button = page.getByRole("button", { name: plan.resolution }).first();
+      if (!await page.getByRole("radio", { name: plan.resolution }).count() && await button.count()) { await button.click({ timeout: 10_000 }).catch(() => {}); await page.waitForTimeout(400); }
+    }
+    if (plan.seconds) await setLength(page, plan.seconds);
+    await pickRadio(page, /^x1$/);
+  } finally {
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(400);
+  }
+  return true;
+}
+
+async function attachReference(page, selectors, imageUrl, scratchDir, clipId, { frames = false } = {}) {
   if (!imageUrl) return;
   const response = await page.request.get(imageUrl, { timeout: 20_000, maxRedirects: 0 });
   if (!response.ok()) throw new Error("PRODUCT_IMAGE_LINK_EXPIRED");
@@ -131,9 +235,35 @@ async function attachReference(page, selectors, imageUrl, scratchDir, clipId) {
   await writeFile(path, bytes);
   try {
     const input = page.locator(selectors.imageInput).first();
-    if (!await input.count()) throw new Error("IMAGE_INPUT_NOT_FOUND");
-    await input.setInputFiles(path);
-    await page.waitForTimeout(4000);
+    if (selectors.imageInput && await input.count()) { await input.setInputFiles(path); await page.waitForTimeout(4000); return; }
+    // Flow (Nov 2026): frames mode has a "เริ่ม" (start) slot, ingredients mode an "add" button; either opens a picker
+    // whose "อัปโหลดสื่อ" button asks for a file.
+    const startSlot = () => page.locator("button.empty-chip").filter({ hasText: /^\s*(เริ่ม|start)\s*$/i }).first();
+    const slot = frames ? startSlot() : page.getByRole("button", { name: /^add$/ }).last();
+    if (!await slot.count()) throw new Error("IMAGE_INPUT_NOT_FOUND");
+    await slot.click({ timeout: 10_000 });
+    await page.waitForTimeout(1000);
+    const upload = page.getByRole("button", { name: /อัปโหลดสื่อ|upload/i }).last();
+    if (!await upload.count()) throw new Error("IMAGE_INPUT_NOT_FOUND");
+    const [chooser] = await Promise.all([page.waitForEvent("filechooser", { timeout: 15_000 }), upload.click({ timeout: 10_000 })]);
+    await chooser.setFiles(path);
+    // The picture uploads into the picker; when the picker stays open, pick the newest picture in it.
+    const deadline = Date.now() + 40_000;
+    let picked = false;
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(2000);
+      if (frames && !await startSlot().isVisible().catch(() => false)) return;
+      const picker = page.locator(':text("เลือกรูปภาพ"), :text("Select")').first();
+      if (!await picker.isVisible().catch(() => false)) { if (!frames) return; continue; }
+      // The uploaded picture shows in the picker's preview with "เพิ่มไปยังพรอมต์" (add to prompt) under it.
+      const add = page.getByRole("button", { name: /เพิ่มไปยังพรอมต์|add to prompt/i }).last();
+      if (await add.isVisible().catch(() => false)) { await add.click({ timeout: 5_000 }).catch(() => {}); continue; }
+      if (!picked) {
+        const image = picker.locator("xpath=ancestor::*[.//img][1]").locator("img").first();
+        if (await image.count()) { await image.click({ timeout: 5_000 }).catch(() => {}); picked = true; }
+      }
+    }
+    throw new Error("IMAGE_NOT_ATTACHED");
   } finally { await rm(path, { force: true }); }
 }
 
@@ -250,25 +380,70 @@ export async function openFlowAccount(account, config) {
     async generate(clip) {
       const step = (stage, detail) => config.progress?.(clip.id, stage, detail);
       let prompt;
-      try { prompt = await openComposer(page, { flowUrl: config.flowUrl, selectors }); }
-      catch (error) { return fail(error.message); }
-      if (appeared("", await bodyText(page), NO_CREDIT_PATTERNS)) return { status: "NO_CREDIT" };
+      // Lucky, 7 Nov: every shot of an episode goes into the same Flow project of this account, so the shots match.
+      // The project of the episode's first shot is remembered and opened again for the next ones.
+      const projects = clip.projectKey ? await readProjects(config.scratchDir) : {};
+      const projectKey = clip.projectKey ? `${account.id}:${clip.projectKey}` : null;
+      const known = projectKey ? projects[projectKey] : null;
+      try {
+        prompt = known ? await openComposer(page, { flowUrl: known, selectors }).catch(() => null) : null;
+        prompt ??= await openComposer(page, { flowUrl: config.flowUrl, selectors });
+      } catch (error) { return fail(error.message); }
+      if (projectKey && isProjectUrl(page.url()) && projects[projectKey] !== page.url()) {
+        projects[projectKey] = page.url().split("?")[0];
+        await saveProjects(config.scratchDir, projects).catch(() => {});
+      }
+      // No early "out of credits" here: Flow keeps old credit notices on the page after the credits renew (6 Nov: the
+      // main account renewed at 23:09 and three shots were still turned away as out of credits). Only a Generate
+      // button Flow has disabled, or a notice that appears after the click, counts.
       if (clip.imageUrl) await step("ATTACHING_IMAGE");
-      try { await attachReference(page, selectors, clip.imageUrl, config.scratchDir, clip.id); }
-      catch (error) { return fail(error.message); }
+      // A drama shot continues from a picture (the last frame, or the key still): Flow's "frames" mode, start slot.
+      const frames = clip.kind === "DRAMA_SHOT" && Boolean(clip.imageUrl);
+      const plan = videoPlan(clip.kind);
+      // The prompt box found may be the Agent chat's: close that panel and take the composer's own box.
+      if (await closeAgentPanel(page)) prompt = await firstVisible(page, selectors.prompt) ?? prompt;
+      await chooseVideoSettings(page, selectors, { frames, plan });
+      try { await attachReference(page, selectors, clip.imageUrl, config.scratchDir, clip.id, { frames }); }
+      catch (error) {
+        // A newly added account opens on Flow's image model, and the switch to video + frames does not always take on
+        // the first try (7 Nov, ninokuniman2: no start slot). Open the composer again, set it once more, then retry.
+        if (error.message !== "IMAGE_INPUT_NOT_FOUND") { await saveDebug(page, config.debugDir, clip.id, "image"); return fail(error.message); }
+        try {
+          await page.keyboard.press("Escape").catch(() => {});
+          prompt = await openComposer(page, { flowUrl: config.flowUrl, selectors });
+          await page.waitForTimeout(1500);
+          await chooseVideoSettings(page, selectors, { frames, plan });
+          await page.waitForTimeout(1500);
+          await chooseVideoSettings(page, selectors, { frames, plan });
+          await attachReference(page, selectors, clip.imageUrl, config.scratchDir, clip.id, { frames });
+        } catch (again) { await saveDebug(page, config.debugDir, clip.id, "image"); return fail(again.message); }
+      }
       // Cost depends on the saved model/outputs, not the prompt: check it before typing anything.
       await step("CHECKING_COST");
       await chooseSingleOutput(page, selectors);
-      const cost = await readCost(page, selectors);
+      let cost = await readCost(page, selectors);
+      if (!costDecision(cost, config.costPolicy).ok && await chooseVideoSettings(page, selectors, { frames, plan })) cost = await readCost(page, selectors);
       const decision = costDecision(cost, config.costPolicy);
-      if (!decision.ok) return fail(decision.reason);
-      await step("TYPING_PROMPT", cost != null ? `${cost} เครดิต` : undefined);
+      if (!decision.ok) { await saveDebug(page, config.debugDir, clip.id, "cost"); return fail(decision.reason); }
+      // The settings Flow shows now ("วิดีโอ · 360p · 10 วินาที"), so the log tells which model and length a clip used.
+      const chipText = (await firstVisible(page, selectors.settingsChip).then(c => c?.innerText()).catch(() => "") ?? "").replace(/\s+/g, " ").trim();
+      await step("TYPING_PROMPT", [cost != null ? `${cost} เครดิต` : "", chipText.slice(0, 60)].filter(Boolean).join(" · ") || undefined);
+      // Settings and the Agent panel may have redrawn the composer: type into the prompt box showing now.
+      prompt = await firstVisible(page, selectors.prompt) ?? prompt;
       await prompt.click();
       await prompt.fill(clip.prompt);
       const button = await generateButton(page, selectors);
-      if (!button) return fail("GENERATE_BUTTON_NOT_FOUND");
+      // An account with no credits left may show no Generate button at all: that is out of credits, not a broken page
+      // (7 Nov, a shot bounced between two empty accounts every two minutes as GENERATE_BUTTON_NOT_FOUND).
+      if (!button) {
+        const noCredit = appeared("", await bodyText(page), NO_CREDIT_PATTERNS);
+        await saveDebug(page, config.debugDir, clip.id, noCredit ? "no-credit-no-button" : "no-button");
+        return noCredit ? { status: "NO_CREDIT" } : fail("GENERATE_BUTTON_NOT_FOUND");
+      }
       if (await button.isDisabled().catch(() => false)) {
-        return appeared("", await bodyText(page), NO_CREDIT_PATTERNS) ? { status: "NO_CREDIT" } : fail("GENERATE_BUTTON_DISABLED");
+        const noCredit = appeared("", await bodyText(page), NO_CREDIT_PATTERNS);
+        await saveDebug(page, config.debugDir, clip.id, noCredit ? "no-credit-before" : "button-disabled");
+        return noCredit ? { status: "NO_CREDIT" } : fail("GENERATE_BUTTON_DISABLED");
       }
       if (config.dryRun) return { status: "DRY_RUN", detail: `ล็อกอินแล้ว เจอช่อง prompt และปุ่ม Generate ค่าเครดิต ${cost ?? "ไม่ทราบ"}` };
 
@@ -328,7 +503,7 @@ export async function openFlowAccount(account, config) {
         }
         if (appeared(beforeText, text, FAILED_PATTERNS)) {
           await saveDebug(page, config.debugDir, clip.id, "failed");
-          return fail("FLOW_REPORTED_FAILURE", true);
+          return fail(appeared(beforeText, text, UNUSUAL_ACTIVITY_PATTERNS) ? "FLOW_UNUSUAL_ACTIVITY" : "FLOW_REPORTED_FAILURE", true);
         }
       }
       // Keep what Flow showed, so the next fix is based on the real page rather than a guess.
@@ -357,6 +532,11 @@ async function saveDebug(page, dir, clipId, label) {
       url: location.href,
       images: [...document.querySelectorAll("img")].map(img => ({ src: img.src.slice(0, 200), w: img.naturalWidth, h: img.naturalHeight })).slice(-60),
       videos: [...document.querySelectorAll("video")].map(v => ({ src: v.currentSrc || v.getAttribute("src"), poster: v.poster })),
+      // What can be clicked, so the next fix to a changed Flow page is based on its real controls.
+      buttons: [...document.querySelectorAll("button,[role=button],[role=radio],[role=tab],textarea,[contenteditable=true]")].map(el => ({
+        tag: el.tagName.toLowerCase(), role: el.getAttribute("role"), text: (el.innerText || "").replace(/\s+/g, " ").slice(0, 80),
+        aria: el.getAttribute("aria-label"), cls: String(el.className || "").slice(0, 80), visible: el.getClientRects().length > 0,
+      })).slice(0, 200),
     })).catch(() => ({}));
     await writeFile(`${base}.json`, JSON.stringify({ ...media, text: (await bodyText(page)).slice(-20_000) }, null, 2));
   } catch { /* diagnostics must never break the run */ }

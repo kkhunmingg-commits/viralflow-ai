@@ -8,16 +8,19 @@ import { ContentStudio } from "./content-studio";
 import { FlowStudio, type StudioAccount } from "./flow-studio";
 import { contentExportConfig } from "@/features/content-export/config";
 import { listContentRuns } from "@/features/content-export/service";
+import { ClipStudioTabs } from "@/components/clip-studio-tabs";
 import "./post.css";
-export const metadata = { title: "สร้างคลิปฟรี · Viral Flow AI" };
+export const metadata = { title: "สร้างคลิปโปรโมท · Viral Flow AI" };
 export const dynamic = "force-dynamic";
 
 /** Main path is free Google Flow clips (FlowStudio). The paid API path stays below, folded, as a backup only. */
-export default async function ManualPostPage({ searchParams }: { searchParams: Promise<{ account?: string; mode?: string; msg?: string }> }) {
+export default async function ManualPostPage({ searchParams }: { searchParams: Promise<{ account?: string; mode?: string; msg?: string; studio?: string }> }) {
   const client = await createClient();
   const { data, error } = await client.auth.getUser();
   if (error || !data.user) redirect("/login?next=/post");
-  const { account, mode, msg } = await searchParams;
+  const { account, mode, msg, studio } = await searchParams;
+  // Drama has its own menu now; old links land there.
+  if (studio === "drama") redirect(`/drama${msg ? `?msg=${encodeURIComponent(msg.slice(0, 300))}` : ""}`);
   const accountsResult = await client.from("tiktok_accounts").select("id,display_name,username,daily_post_target,effective_mode,is_mock")
     .eq("owner_id", data.user.id).is("hidden_at", null).order("created_at", { ascending: true });
   // Mock/test accounts exist only for local development; never offer them in production.
@@ -31,8 +34,9 @@ export default async function ManualPostPage({ searchParams }: { searchParams: P
   let clips: ManualClip[] = [], unavailable = false;
   try { clips = await listManualClips(client, data.user.id, accountId); } catch { unavailable = true; }
   return <div className="manual-page">
-    <header className="manual-hero"><div><p className="manual-eyebrow">Viral Flow AI · Google Flow</p><h1>สร้างคลิปฟรี</h1>
-      <p>ไม่เสียเงินต่อคลิป ใช้เครดิตฟรีของบัญชี Google ที่ผูกไว้ หมุนเวียนทุกวัน ระบบสร้างอยู่เบื้องหลังในคอมพิวเตอร์ของคุณ แล้วเก็บคลิปไว้ในคลังรอโพสต์</p></div>
+    <ClipStudioTabs />
+    <header className="manual-hero"><div><p className="manual-eyebrow">Viral Flow AI · Google Flow · คลิปโปรโมท</p><h1>สร้างคลิปโปรโมท</h1>
+      <p>ไม่เสียเงินต่อคลิป ใช้เครดิตฟรีของบัญชี Google ที่ผูกไว้ หมุนเวียนทุกวัน ระบบสร้างอยู่เบื้องหลังในคอมพิวเตอร์ของคุณ แล้วเก็บคลิปไว้ในคลังรอโพสต์ (ละครซีรีส์อยู่ในแท็บ “ละครซีรีส์” ด้านบน)</p></div>
       <Link className="manual-back" href="/auto">← กลับหน้าหลัก</Link></header>
     <ol className="manual-steps" aria-label="ขั้นตอน"><li><span>1</span>ผูกบัญชี Google (สูงสุด 5)</li><li><span>2</span>กดสร้างคลิปฟรี</li><li><span>3</span>ดาวน์โหลด/ตั้งเวลา แล้วโพสต์ (ลบไฟล์ให้เอง)</li></ol>
     {msg && <p className="library-message" role="status">{msg.slice(0, 300)}</p>}

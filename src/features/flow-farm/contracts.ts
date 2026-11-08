@@ -22,7 +22,10 @@ export interface FlowAccountRow {
   id: string; tiktok_account_id: string | null; label: string; priority: number; clips_per_day_estimate: number; active: boolean;
   exhausted_on: string | null; clips_today: number; clips_today_on: string | null; last_used_at: string | null; created_at: string;
   login_state?: FlowLoginState; login_note?: string | null;
+  /** CLIP: linked in the clip tab. REPAIR: added in the drama tab, remakes only drama shots sent to it. */
+  purpose?: FlowAccountPurpose;
 }
+export type FlowAccountPurpose = "CLIP" | "REPAIR";
 /** PENDING: the owner's computer will open a Google sign-in window for it. Only READY accounts make clips. */
 export const FLOW_LOGIN_STATES = ["PENDING", "READY", "FAILED"] as const;
 export type FlowLoginState = (typeof FLOW_LOGIN_STATES)[number];
@@ -33,6 +36,10 @@ export const startBatchSchema = z.object({
 });
 export const flowAccountSchema = z.object({
   tiktokAccountId: z.uuid(),
+  label: z.string().trim().min(1).max(60),
+  clipsPerDay: z.coerce.number().int().min(1).max(200).default(5),
+});
+export const repairAccountSchema = z.object({
   label: z.string().trim().min(1).max(60),
   clipsPerDay: z.coerce.number().int().min(1).max(200).default(5),
 });
@@ -108,7 +115,7 @@ export function flowErrorLabel(error: string | null | undefined) {
     [/^NO_CREDIT/, "เครดิต Flow หมด"], [/LOGIN/, "บัญชี Google หลุดล็อกอิน กด “ล็อกอินใหม่”"],
     [/^COST_UNREADABLE/, "อ่านค่าเครดิตใน Flow ไม่ได้ (หน้า Flow อาจเปลี่ยน)"], [/^COST_(\d+)_ABOVE/, "คลิปนี้ใช้เครดิตเกินที่ตั้งไว้ (ตรวจว่าเลือก Veo 3.1 Lite และ x1)"],
     [/PROMPT_BOX/, "หาช่องพิมพ์คำสั่งใน Flow ไม่เจอ (หน้า Flow อาจเปลี่ยน)"], [/GENERATE_BUTTON/, "หาปุ่มสร้างใน Flow ไม่เจอหรือกดไม่ได้"],
-    [/^NEW_VIDEO_TIMEOUT/, "รอวิดีโอนานเกินกำหนด ตรวจในคลัง Flow ว่าสร้างเสร็จหรือไม่"], [/^FLOW_REPORTED_FAILURE/, "Flow แจ้งว่าสร้างไม่สำเร็จ (อาจติดนโยบายเนื้อหา)"],
+    [/^NEW_VIDEO_TIMEOUT/, "รอวิดีโอนานเกินกำหนด ตรวจในคลัง Flow ว่าสร้างเสร็จหรือไม่"], [/^FLOW_UNUSUAL_ACTIVITY/, "Google ปฏิเสธชั่วคราว (แจ้งว่าพบกิจกรรมผิดปกติ) พักบัญชีนี้ 30 นาที แล้วย้ายช็อตไปบัญชีถัดไปเอง"], [/^FLOW_REPORTED_FAILURE/, "Flow แจ้งว่าสร้างไม่สำเร็จ (อาจติดนโยบายเนื้อหา)"],
     [/^WORKER_LOST/, "เครื่องสร้างคลิปหยุดกลางคัน ตรวจในคลัง Flow ว่ามีวิดีโอหรือไม่"], [/^BROWSER_UNAVAILABLE/, "เปิด Chrome ไม่ได้"],
     [/^UPLOAD_FAILED/, "ส่งไฟล์เข้าคลังไม่สำเร็จ (ไฟล์ยังอยู่ในเครื่อง)"], [/PRODUCT_IMAGE/, "รูปสินค้าใช้ไม่ได้"],
     [/NOT_PORTRAIT/, "วิดีโอไม่ใช่แนวตั้ง 9:16"], [/DUPLICATE_VIDEO/, "วิดีโอซ้ำกับที่มีในคลัง"], [/INVALID_MP4|CHECKSUM/, "ไฟล์วิดีโอเสีย"],

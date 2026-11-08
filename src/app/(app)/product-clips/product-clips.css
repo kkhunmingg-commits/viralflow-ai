@@ -1,0 +1,31 @@
+.pl-form{display:grid;gap:16px;min-width:0}
+.pl-link-row{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+.pl-link{flex:1 1 320px;min-width:0}
+.pl-link input{width:100%}
+.pl-details{display:grid;gap:16px;border-top:1px solid #1f2937;padding-top:16px;min-width:0}
+.pl-details textarea{background:#111827;color:#eef2ff;border:1px solid #334155;border-radius:12px;padding:12px;width:100%;font:inherit;resize:vertical}
+.pl-details fieldset{border:1px solid #1f2937;border-radius:14px;padding:12px 14px;display:grid;gap:10px;min-width:0}
+.pl-details legend{padding:0 6px;color:#c7d2fe;font-weight:600}
+.pl-image-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:10px}
+.pl-image{position:relative;display:block;border-radius:12px;overflow:hidden;border:2px solid transparent;cursor:pointer;aspect-ratio:1;background:#0b1020}
+.pl-image:has(input:checked){border-color:#8771ff}
+.pl-image img{width:100%;height:100%;object-fit:cover;display:block}
+.pl-image input{position:absolute;top:6px;left:6px;width:18px;height:18px;accent-color:#8771ff;z-index:1}
+.pl-lengths{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.pl-length{display:flex;flex-direction:column;gap:2px;border:1px solid #334155;border-radius:12px;padding:10px 12px;cursor:pointer}
+.pl-length:has(input:checked){border-color:#8771ff;background:rgba(135,113,255,.08)}
+.pl-length input{accent-color:#8771ff;width:16px;height:16px}
+.pl-length small{color:#94a3b8}
+.pl-cards{display:grid;gap:16px}
+.pl-card{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:16px}
+.pl-card video{width:100%;max-height:460px;border-radius:12px;background:#000}
+.pl-script summary{cursor:pointer;color:#c7d2fe}
+.pl-script ol{margin:8px 0;padding-left:20px;display:grid;gap:4px}
+.pl-review{display:grid;gap:10px;margin-top:10px}
+.pl-review fieldset{border:1px solid #1f2937;border-radius:12px;padding:8px 12px;display:flex;flex-wrap:wrap;gap:6px 16px}
+.pl-row{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border:1px solid #1f2937;border-radius:14px;padding:12px 14px;min-width:0;flex-wrap:wrap}
+.pl-row>div:first-child{min-width:0;flex:1 1 260px;overflow-wrap:anywhere}
+.pl-shots{margin:6px 0 0;padding-left:20px;color:#cbd5e1;display:grid;gap:2px}
+.pl-tiktok{display:grid;gap:8px;margin-top:10px}
+.pl-setup{display:grid;gap:6px;padding-left:20px;overflow-wrap:anywhere}
+@media(max-width:640px){.pl-card{grid-template-columns:1fr}.pl-link-row .manual-primary{width:100%}}

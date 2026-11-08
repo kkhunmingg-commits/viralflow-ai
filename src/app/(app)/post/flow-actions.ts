@@ -5,8 +5,8 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
-import { bangkokLocalToIso, flowAccountSchema, postedSchema, scheduleSchema, startBatchSchema } from "@/features/flow-farm/contracts";
-import { addFlowAccount, closeClip, moveFlowAccount, removeFlowAccount, requestFlowLogin, scheduleClip, startBatch, updateFlowAccount } from "@/features/flow-farm/service";
+import { bangkokLocalToIso, flowAccountSchema, repairAccountSchema, postedSchema, scheduleSchema, startBatchSchema } from "@/features/flow-farm/contracts";
+import { addFlowAccount, addRepairAccount, closeClip, moveFlowAccount, removeFlowAccount, requestFlowLogin, scheduleClip, startBatch, updateFlowAccount } from "@/features/flow-farm/service";
 
 async function owner() {
   const client = await createClient(), { data, error } = await client.auth.getUser();
@@ -18,6 +18,8 @@ async function owner() {
 function done(formData: FormData, message: string): never {
   const back = z.uuid().safeParse(formData.get("back"));
   revalidatePath("/post");
+  revalidatePath("/drama");
+  if (formData.get("studio") === "drama") redirect(`/drama?msg=${encodeURIComponent(message)}`);
   redirect(`/post?${back.success ? `account=${back.data}&` : ""}msg=${encodeURIComponent(message)}`);
 }
 
@@ -60,6 +62,19 @@ export async function addFlowAccountAction(formData: FormData) {
   done(formData, `ผูกบัญชี Google “${parsed.data.label}” แล้ว คอมพิวเตอร์จะเปิดหน้าล็อกอิน Google ของบัญชีนี้ให้ภายใน 1 นาที ล็อกอินให้เสร็จแล้วหน้าต่างจะปิดเอง`);
 }
 
+/** A repair account is added in the drama tab: shared by every series, it remakes only the shots sent to it. */
+export async function addRepairAccountAction(formData: FormData) {
+  const parsed = repairAccountSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) done(formData, "ใส่อีเมลหรือชื่อบัญชี Google (ไม่เกิน 60 ตัวอักษร)");
+  const ownerId = await owner();
+  try { await addRepairAccount(createAdminClient(), ownerId, parsed.data); }
+  catch (error) {
+    if (error instanceof Error && error.message === "FLOW_ACCOUNT_LABEL_TAKEN") done(formData, "บัญชี Google นี้ผูกไว้แล้ว (ในแท็บคลิปหรือเป็นบัญชีซ่อมอยู่แล้ว) บัญชีซ่อมต้องเป็นบัญชีที่ไม่ได้ใช้ทำคลิป");
+    throw error;
+  }
+  done(formData, `เพิ่มบัญชีซ่อม “${parsed.data.label}” แล้ว คอมพิวเตอร์จะเปิดหน้าล็อกอิน Google ของบัญชีนี้ให้ภายใน 1 นาที ล็อกอินให้เสร็จแล้วหน้าต่างจะปิดเอง`);
+}
+
 const accountAction = z.object({ id: z.uuid(), op: z.enum(["UP", "DOWN", "PAUSE", "RESUME", "RESET", "RELOGIN", "REMOVE"]) });
 export async function flowAccountAction(formData: FormData) {
   const parsed = accountAction.safeParse(Object.fromEntries(formData));
@@ -99,6 +114,7 @@ export async function closeSharedClipAction(clipId: string) {
   if (!id.success) return false;
   await closeClip(createAdminClient(), await owner(), id.data, { posted: true, url: null });
   revalidatePath("/post");
+  revalidatePath("/drama");
   return true;
 }
 export async function discardClipAction(formData: FormData) {

@@ -1,8 +1,9 @@
-import type { FlowAccountRow, FlowLoginState } from "./contracts";
+import type { FlowAccountPurpose, FlowAccountRow, FlowLoginState } from "./contracts";
 
 export interface FlowAccountView {
   id: string; tiktokAccountId: string | null; label: string; priority: number; active: boolean; clipsPerDayEstimate: number;
   exhaustedToday: boolean; clipsToday: number; remainingEstimate: number; loginState: FlowLoginState; loginNote: string | null;
+  purpose: FlowAccountPurpose;
 }
 
 /** Accounts in drain order (priority, then oldest) with today's usage; counters from earlier days read as zero. */
@@ -13,7 +14,7 @@ export function flowAccountViews(rows: FlowAccountRow[], today: string): FlowAcc
       const exhaustedToday = row.exhausted_on === today;
       const loginState = row.login_state ?? "PENDING", usable = row.active && loginState === "READY" && !exhaustedToday;
       return { id: row.id, tiktokAccountId: row.tiktok_account_id, label: row.label, priority: row.priority, active: row.active, clipsPerDayEstimate: row.clips_per_day_estimate,
-        exhaustedToday, clipsToday, remainingEstimate: usable ? Math.max(0, row.clips_per_day_estimate - clipsToday) : 0, loginState, loginNote: row.login_note ?? null };
+        exhaustedToday, clipsToday, remainingEstimate: usable ? Math.max(0, row.clips_per_day_estimate - clipsToday) : 0, loginState, loginNote: row.login_note ?? null, purpose: row.purpose ?? "CLIP" };
     });
 }
 

@@ -202,3 +202,21 @@
 .app-frame .nav-icon { font-size: 13px; font-weight: 700; }
 .app-frame .nav-link { font-size: 14px; }
 @media (max-width: 580px) { .app-frame .sidebar nav + nav { margin-top: 0; } }
+
+/* In-page switch between the clip studios (promo clips / drama series). */
+.clip-studio-tabs {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px;
+  width: min(100%, 440px); margin: 0 0 22px; padding: 4px;
+  border: 1px solid #2b3244; border-radius: 14px; background: rgba(17, 22, 32, .9);
+}
+.clip-studio-tab {
+  display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 8px 10px;
+  border-radius: 10px; color: #9aa7bc; font-size: 14px; font-weight: 700; text-align: center; transition: .15s;
+}
+.clip-studio-tab:hover { color: #fff; background: rgba(255, 255, 255, .045); }
+.clip-studio-tab.active {
+  color: #fff; background: linear-gradient(90deg, rgba(113, 100, 245, .32), rgba(66, 142, 232, .14));
+  box-shadow: inset 0 0 0 1px #5b5494;
+}
+.clip-studio-tab:focus-visible { outline: 2px solid #ae9cff; outline-offset: 2px; }
+@media (max-width: 420px) { .clip-studio-tab { font-size: 13px; gap: 6px; padding-inline: 6px; } }
