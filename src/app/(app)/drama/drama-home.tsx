@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DRAMA_GENRES, dramaGenreLabels, episodeStatusLabels, seriesStatusLabels } from "@/features/drama/contracts";
 import { GENRE_STORIES } from "@/features/drama/genres";
 import { OneVideoAtATime } from "./one-video";
+import { AccountPoolPanel } from "@/components/account-pool-panel";
 import { pickStory } from "@/features/drama/showrunner";
 import { dramaAvailable, listSeries, repairPool, signedImage, type SeriesSummary } from "@/features/drama/service";
 import { repairShotsLeft } from "@/features/drama/engine";
@@ -61,12 +62,6 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
   const poolOf = (id: string) => pool.find(a => a.id === id);
   const poolText = pool.length === 0 ? "ไม่มีบัญชีซ่อม" : poolLeft === 0 ? `บัญชีซ่อม ${pool.length} บัญชี · เครดิตหมดทุกบัญชีแล้ว` : `บัญชีซ่อมกองกลาง ${pool.length} บัญชี · ซ่อมได้อีก ${poolLeft} ช็อตวันนี้`;
   const loginText = (id: string) => { const l = logins[id]; return l?.state === "READY" ? "✓ ล็อกอินแล้ว" : l?.state === "FAILED" ? `⚠ ล็อกอินไม่สำเร็จ${l.note ? ` (${l.note})` : ""}` : "⏳ รอล็อกอิน (เปิดคอมที่ติดตั้งเครื่องสร้างคลิปไว้)"; };
-  // Lucky, 8 Nov: show how many clips each main account still has today, like the repair pool does.
-  const mainLeft = (g: GoogleAccount) => {
-    const perDay = Math.max(1, g.clips_per_day_estimate ?? 5), used = g.clips_today_on === today ? g.clips_today : 0;
-    if (g.exhausted_on === today || used >= perDay) return `เครดิตวันนี้หมดแล้ว (ใช้ ${Math.min(used, perDay)}/${perDay} คลิป)`;
-    return `เหลือ ${perDay - used}/${perDay} คลิปวันนี้`;
-  };
   const drama = <input type="hidden" name="studio" value="drama" />;
   const today = bangkokDate();
   // One cover picture per series (episode 1's key still: the cast in the opening scene).
@@ -97,14 +92,11 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
 
     <section className="manual-panel drama-step" id="step-accounts" aria-labelledby="accounts-title">
       {stepHead(1, "accounts-title", "เตรียมบัญชี", "ไม่ล็อกบัญชีกับเรื่องแล้ว ทุกบัญชีเป็นกองกลาง ตอนใหม่ใช้บัญชีที่เหลือเต็ม 5/5 ช็อตที่ต้องซ่อมใช้บัญชีที่เหลือไม่เต็ม ระบบเลือกให้เอง")}
-      <h3>บัญชี Google หลัก ({google.length})</h3>
-      {accounts.length === 0 ? <p className="manual-muted">เชื่อมบัญชี TikTok ก่อน <Link href="/accounts">ไปหน้าบัญชี</Link></p>
-        : google.length === 0 ? <p className="manual-muted">ยังไม่มีบัญชี Google <Link href="/post">ไปผูกบัญชีในแท็บสร้างคลิปโปรโมท</Link></p>
-        : <ol className="library-flow-list">{google.map(g => <li key={g.id} className={g.active ? undefined : "paused"}>
-          <div><strong>{g.label}</strong><small>{loginText(g.id)} · {g.active ? "ใช้ได้" : "พักไว้"}{" · "}{mainLeft(g)}</small></div>
-        </li>)}</ol>}
+      {accounts.length === 0 && <p className="manual-muted">เชื่อมบัญชี TikTok ก่อน <Link href="/accounts">ไปหน้าบัญชี</Link></p>}
+      {/* Lucky, 8 Nov: the same pool list as the promo and product-clip tabs: every signed-in account, clips left today. */}
+      <AccountPoolPanel owner={owner} mode="DRAMA" channelNames={Object.fromEntries(accounts.map(a => [a.id, a.display_name]))} />
       {google.length > 0 && <p className="manual-muted drama-note">เพิ่มหรือแก้บัญชีหลักได้ที่ <Link href="/post">แท็บสร้างคลิปโปรโมท</Link></p>}
-      <h3>บัญชีซ่อมกองกลาง ({repairs.length})</h3>
+      <h3>จัดการบัญชีซ่อม ({repairs.length})</h3>
       {pool.length > 0 && <p className="drama-pool"><strong>{poolLeft > 0 ? `วันนี้ซ่อมได้อีก ${poolLeft} จาก ${poolTotal} ช็อต` : `เครดิตหมดทุกบัญชีแล้ว (${poolTotal} ช็อต)`}</strong> · ช็อตละ 10 เครดิต · บัญชีไหนหมดระบบข้ามไปบัญชีถัดไปเอง</p>}
       {repairs.length > 0 && <ol className="library-flow-list">{repairs.map(g => <li key={g.id} className={g.active ? undefined : "paused"}>
         <div><strong>{g.label}</strong><small>{loginText(g.id)} · {repairStatus(poolOf(g.id))}</small></div>

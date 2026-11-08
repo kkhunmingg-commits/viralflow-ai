@@ -91,7 +91,7 @@ export async function addFlowAccount(admin: SupabaseClient, owner: string, input
   check(result, "flow_account_not_saved");
   return { moved: false };
 }
-/** Adds a drama repair account: unlinked from any TikTok account, it makes only the drama shots sent to it. */
+/** Adds a repair account: unlinked from any TikTok account. Since 8 Nov it is part of the shared pool for every clip mode. */
 export async function addRepairAccount(admin: SupabaseClient, owner: string, input: { label: string; clipsPerDay: number }) {
   const result = await admin.from("flow_accounts").insert({ owner_id: owner, tiktok_account_id: null, label: input.label,
     clips_per_day_estimate: input.clipsPerDay, priority: 100, purpose: "REPAIR" });

@@ -6,6 +6,7 @@
  * exact look: shape, colours, logo, printed text and any display digits must match the reference and must not
  * animate. Hands may hold, turn, point to and rest a product; they never operate a feature the evidence does
  * not support, and nothing claims to be a customer review. Output is AI-generated and is disclosed as such. */
+import { PRODUCT_VIRAL_DIRECTION, VIRAL_VOICE_STYLE, type ProductAngle } from "./viral-engine";
 import { categoryPlaybook, type CategoryFamily } from "./category-insight";
 import type { DirectorInput } from "./ad-director";
 import { OWNER_STYLE_VERDICTS, rejectedTags } from "./owner-taste";
@@ -81,7 +82,8 @@ function fidelity(family: CategoryFamily, action: HandAction) {
 }
 
 export function flowNativePrompt(input: Pick<DirectorInput, "product" | "facts">, style: SetStyle, action: HandAction, camera: string, narrationTh: string | null,
-  trend?: { format: TrendFormat; setTouch?: string }) {
+  trend?: { format: TrendFormat; setTouch?: string; viral?: ProductAngle }) {
+  const viral = trend?.viral;
   const negative = ["any change to the product's shape, colours, strap, logo, model name or printed text versus the reference image",
     "changing, animating or flickering digits or screen content", "extra buttons, extra text, extra logos or a different product",
     "gloves, mittens or covered hands", "faces, testimonials, captions, subtitles, watermarks or on-screen text", "the product being used to perform a feature it is not shown performing in the reference", "cuts or scene changes",
@@ -90,15 +92,19 @@ export function flowNativePrompt(input: Pick<DirectorInput, "product" | "facts">
     `Use the attached reference image as the exact product (${input.product.title}). Photoreal vertical 9:16 video, 8 seconds, one continuous take.`,
     `SET: ${style.set}; props: ${style.props}${trend?.setTouch ? `; ${trend.setTouch}` : ""}. Styled like a premium product advert, uncluttered, product is the hero in the middle third.`,
     ...(trend ? [`HOOK (first second, ${trend.format.format.toLowerCase().replaceAll("_", " ")} style that stops the scroll on TikTok): ${trend.format.opening}.`] : []),
+    // Lucky, 8 Nov: auto promo ads aim for viral reach (energy, a hero moment, a loop), still showing only what is true.
+    ...(viral ? [PRODUCT_VIRAL_DIRECTION, `RETENTION ANGLE: ${viral.direction}`] : []),
     `ACTION: ${ACTIONS[action].en}. Hands: ${style.hands}.`,
     // Same continuity rule as the warm-up clips: one object, one place, change only through what the hand does.
     `CONTINUITY: there is exactly one product, the same single object from the moment it is in frame to the last frame; it is either resting in the set or carried in by the hand, and never appears, multiplies or changes on its own. The set, props and their positions stay fixed for the whole take.`,
     `CAMERA: ${trend ? trend.format.camera : camera}. Shallow depth of field, product always in sharp focus.`,
     // Take 2 of the Casio pilot sat still for 3.5 s before the hand arrived; the hook has to start at once.
-    `TIMING: the hand is already moving in frame within the first half second; the product is lifted and facing the camera by second 3; hold it steady and sharp from second 3 to second 8.`,
+    `TIMING: the hand is already moving in frame within the first half second; the product is lifted and facing the camera by second 3; ${viral ? "keep it sharp and fully in frame from second 3 to second 8 while the camera and light keep moving" : "hold it steady and sharp from second 3 to second 8"}.`,
     `LIGHT & COLOUR: ${style.lighting}; palette ${style.palette}; mood ${style.mood}.`,
     `PRODUCT FIDELITY: keep the product identical to the reference — same shape, proportions, colours, strap, logo and every printed word; any display shows exactly the same characters as the reference and stays perfectly still.`,
-    `AUDIO: ${narrationTh ? `a warm, natural Thai voice says only: "${narrationTh}" — nothing else; ` : ""}soft room ambience and subtle handling sounds${trend ? `; ${trend.format.audio}` : ""}, no music.`,
+    viral
+      ? `AUDIO: ${narrationTh ? `${VIRAL_VOICE_STYLE} says only: "${narrationTh}" — nothing else; ` : ""}crisp handling sounds with a punchy whoosh into the reveal and an impact accent on the hero moment, no music.`
+      : `AUDIO: ${narrationTh ? `a warm, natural Thai voice says only: "${narrationTh}" — nothing else; ` : ""}soft room ambience and subtle handling sounds${trend ? `; ${trend.format.audio}` : ""}, no music.`,
     `AVOID: ${negative.join("; ")}.`,
   ].join("\n");
   return { prompt, negative };
@@ -108,7 +114,7 @@ export function flowNativePrompt(input: Pick<DirectorInput, "product" | "facts">
 export function planFlowNative(input: Pick<DirectorInput, "product" | "facts" | "assets"> & { history?: { styleIds?: string[]; actions?: HandAction[] } },
   options: { durationSeconds?: 8 | 16 | 24; creditsPerGeneration?: number | null; model?: string;
     /** A trend format for the take (hook beat, camera, spoken hook) and an optional seasonal set touch. */
-    trend?: { format: TrendFormat; setTouch?: string; variant?: number } } = {}): FlowNativePlan {
+    trend?: { format: TrendFormat; setTouch?: string; variant?: number; viral?: ProductAngle } } = {}): FlowNativePlan {
   const reference = input.assets.find(a => a.rightsCleared && a.kind === "REAL_IMAGE");
   if (!reference) throw new Error("FLOW_NATIVE_REQUIRES_CLEARED_PRODUCT_IMAGE");
   const family = categoryPlaybook(input.product.categoryKey, input.product.title).family;

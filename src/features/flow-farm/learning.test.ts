@@ -96,7 +96,7 @@ describe("learning-guided warm-up batch", () => {
       expect(clips.some(c => c.title === "แมวบาริสต้า")).toBe(false);
       cats += series.filter(s => s === "แมวทำงาน").length; cuts += series.filter(s => s === "ตัดแล้วเพลิน").length;
       const cat = clips.find(c => seriesOfTitle(c.title) === "แมวทำงาน");
-      if (cat) expect(cat.caption).toMatch(/^แมวทำงาน EP\.5 · /);
+      if (cat) expect(cat.caption).toMatch(/(^| · )แมวทำงาน EP\.5 · /);
       const kitchen = clips.find(c => seriesOfTitle(c.title) === "ครัวจิ๋ว");
       if (kitchen) expect(kitchen.prompt).toContain("EXTRA CARE");
     }

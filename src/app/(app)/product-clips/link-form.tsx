@@ -83,7 +83,7 @@ export function ProductLinkForm({ accounts, initialAccount }: { accounts: Accoun
           <strong>{l.label}</strong><small>{l.note}</small></label>)}
       </fieldset>
 
-      {accounts.length > 1 ? <label className="manual-filter">ใช้บัญชี Google Flow ของช่อง<select name="tiktokAccountId" defaultValue={initialAccount}>
+      {accounts.length > 1 ? <label className="manual-filter">ทำคลิปให้ช่อง<select name="tiktokAccountId" defaultValue={initialAccount}>
         {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
         : <input type="hidden" name="tiktokAccountId" value={initialAccount} />}
 

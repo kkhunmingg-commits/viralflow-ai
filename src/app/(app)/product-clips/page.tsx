@@ -13,7 +13,9 @@ import { postErrorLabel } from "@/features/social-publish/publishers";
 import { ClipPhoneActions } from "../post/clip-phone-actions";
 import { ProductLinkForm } from "./link-form";
 import { deleteProductClipAction, remakeProductClipAction, reviewProductClipAction } from "./actions";
+import { AccountPoolPanel } from "@/components/account-pool-panel";
 import "../post/post.css";
+import "../post/flow-studio.css";
 import "./product-clips.css";
 
 export const metadata = { title: "คลิปสินค้าจากลิงก์ · Viral Flow AI" };
@@ -65,7 +67,8 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
     <section className="manual-panel" aria-labelledby="pl-new">
       <div className="manual-section-head"><div><p className="manual-eyebrow">ขั้นที่ 1</p><h2 id="pl-new">ทำคลิปจากลิงก์สินค้า</h2></div></div>
       {accounts.length ? <ProductLinkForm accounts={accounts} initialAccount={initialAccount} />
-        : <p className="manual-warning">ต้องมีบัญชี TikTok ที่ผูกบัญชี Google Flow ไว้ก่อน (ใช้คิวเดียวกับคลิปโปรโมท) <Link href="/accounts">เชื่อมบัญชี →</Link></p>}
+        : <p className="manual-warning">ต้องมีบัญชี TikTok ก่อน (ช็อตใช้บัญชี Google กองกลางเดียวกับคลิปโปรโมทและละคร) <Link href="/accounts">เชื่อมบัญชี →</Link></p>}
+      <AccountPoolPanel owner={owner} mode="PRODUCT" channelNames={Object.fromEntries(accounts.map(a => [a.id, a.name]))} />
     </section>
 
     <section className="manual-panel" aria-labelledby="pl-review">

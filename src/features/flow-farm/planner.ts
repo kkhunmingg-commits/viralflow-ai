@@ -5,6 +5,7 @@ import { shoppingMoment, trendCaption, trendFormatsFor } from "@/features/creati
 import type { FlowClipKind } from "./contracts";
 import { CTA_VARIANTS, type CtaId, type PlanGuide } from "./learning";
 import { NICHE_KEYS, NICHES, nicheOfSeries, type NicheKey } from "./niches";
+import { productAngle, viralAngle, viralVoice, VIRAL_DIRECTION, VIRAL_SAFETY, VIRAL_VOICE_STYLE, type ViralAngle } from "@/features/creative/viral-engine";
 
 /** A product the one-click search found: best-selling (by stored score) with a cleared photograph. */
 export interface FarmProduct {
@@ -20,6 +21,8 @@ export interface PlannedClip {
  * to loop back into the first. Each belongs to a `series`, because people follow a channel for the next episode. */
 interface GrowthConcept {
   series: string; title: string; hashtags: readonly string[]; line: string; hook: string; twist: string; payoff: string; follow: string;
+  /** Built from the start around a big surprise or escalation (Lucky, 8 Nov: clips must aim for viral); picked first. */
+  energy?: "HIGH";
 }
 
 /** The owner found calm, slow scenes (a tidy desk) boring and not follow-worthy. These are the faceless AI formats
@@ -424,6 +427,92 @@ const GROWTH_CONCEPTS: readonly GrowthConcept[] = [
     twist: "the camera rises to follow the runner's shadow stretching long across the path past a lake",
     payoff: "the shoes slow to a stop at a bench as the sun lights up the mist over the lake",
     follow: "ติดตามไว้ พรุ่งนี้ใครออกกำลังกายต่อ" },
+  // Fourth wave (Lucky, 8 Nov: "our program is called Viral, these clips are too chill"): every idea is built around a
+  // big surprise, an escalation or a reaction people send to friends, and is picked before the calmer ideas.
+  { series: "แมวทำงาน", title: "แมวเชฟกระทะไฟลุก", energy: "HIGH", hashtags: ["#แมว", "#แมวทำงาน", "#catsoftiktok"],
+    line: "เชฟแมวโชว์ไฟ ลูกค้าหนีหมดร้าน",
+    hook: "a chubby orange cat in a tiny chef hat stands on a stool at a street-food wok, already tossing rice high into the air as a tall burst of orange flame leaps up from the wok",
+    twist: "the cat flips the wok harder and the rice flies in a huge golden arc, the cat's eyes going wide as it tracks it",
+    payoff: "the rice lands perfectly back in the same wok and the cat turns to the camera with a smug slow blink, flames still dancing",
+    follow: "ติดตามไว้ พรุ่งนี้แมวไปทำงานอะไรต่อ ทายกันมา" },
+  { series: "แมวทำงาน", title: "แมวพนักงานส่งของ", energy: "HIGH", hashtags: ["#แมว", "#แมวทำงาน", "#catsoftiktok"],
+    line: "ไรเดอร์แมว ส่งไวกว่าคนอีก",
+    hook: "a black cat in a tiny delivery jacket is already speeding toward the camera on a small scooter down a Bangkok soi, a delivery box strapped on the back",
+    twist: "the scooter skids to a stylish stop sideways right in front of the camera, a little puff of dust rising",
+    payoff: "the cat pops the box open and pushes a tiny steaming bowl of noodles toward the camera, then salutes with one paw",
+    follow: "ติดตามไว้ พรุ่งนี้แมวไปทำงานอะไรต่อ ทายกันมา" },
+  { series: "หมาดราม่า", title: "หมาดราม่า: โดนจับได้คาหนังคาเขา", energy: "HIGH", hashtags: ["#หมา", "#หมาดราม่า", "#dogsoftiktok"],
+    line: "ใครกินขนมบนโต๊ะ หมาบอกไม่ใช่หนู",
+    hook: "a golden retriever puppy is already halfway onto a kitchen chair, nose deep in a plate of cookies, crumbs flying",
+    twist: "the kitchen light flicks on and the puppy freezes mid-chew, a cookie still sticking out of its mouth, eyes darting to the camera",
+    payoff: "the puppy slowly slides off the chair and sits up perfectly straight, cheeks puffed, pretending nothing happened",
+    follow: "ติดตามไว้ พรุ่งนี้หมาดราม่าเรื่องอะไรอีก ทายกันมา" },
+  { series: "หมาดราม่า", title: "หมาดราม่า: แข่งกับแมว", energy: "HIGH", hashtags: ["#หมา", "#หมาแมว", "#dogsoftiktok"],
+    line: "แข่งวิ่งรอบนี้ หมามั่นใจมาก แต่…",
+    hook: "a corgi and a grey cat crouch side by side at a chalk start line in a sunny living room, both already wiggling, ready to sprint",
+    twist: "they burst off together, the corgi's short legs blurring, and the cat simply leaps over it in one huge slow-motion jump",
+    payoff: "the cat lands first on the sofa at the finish and the corgi skids into the cushion, ears flopping, tail still wagging",
+    follow: "ติดตามไว้ พรุ่งนี้หมาดราม่าเรื่องอะไรอีก ทายกันมา" },
+  { series: "ครัวจิ๋ว", title: "ครัวจิ๋ว: ไข่เจียวยักษ์ในกระทะจิ๋ว", energy: "HIGH", hashtags: ["#ครัวจิ๋ว", "#ไข่เจียว", "#miniaturecooking"],
+    line: "ไข่เจียวฟูขนาดนี้ กระทะจิ๋วรับไหวไหม",
+    hook: "beaten egg is already pouring into a thumb-sized wok of roaring hot oil, and it instantly erupts into a crackling, puffing golden cloud",
+    twist: "the omelette keeps puffing up bigger and bigger, towering over the tiny wok while oil bubbles loudly around its lacy edges",
+    payoff: "a toy-sized spatula flips the giant fluffy omelette over in the same wok, a real coin beside the stove for scale",
+    follow: "ติดตามไว้ พรุ่งนี้ครัวจิ๋วทำเมนูอะไรดี คอมเมนต์มาเลย" },
+  { series: "สตรีทฟู้ดไทย", title: "ชาไทยดึงสูงสามเมตร", energy: "HIGH", hashtags: ["#ชาไทย", "#สตรีทฟู้ด", "#asmrfood"],
+    line: "ชงชาแบบนี้ ร้านนี้ไม่ธรรมดา",
+    hook: "at a busy night-market stall, a vendor's hands are already pulling a stream of orange Thai tea from one steel jug down into another held far below",
+    twist: "the hands pull the jugs further apart until the glossy orange stream is impossibly long, arcing through the warm market lights without spilling a drop",
+    payoff: "the stream lands perfectly into a tall glass of crushed ice, foam rising to the rim in slow motion",
+    follow: "ติดตามไว้ พาตะลุยสตรีทฟู้ดไทยทุกวัน" },
+  { series: "ผลไม้ปากแจ๋ว", title: "ผลไม้ปากแจ๋ว: พริกท้าดวล", energy: "HIGH", hashtags: ["#ตลก", "#ผลไม้ปากแจ๋ว", "#ฮาๆ"],
+    line: "พริกขี้หนูท้าทุกคน ใครกล้าสู้",
+    hook: "photoreal fruits and vegetables with small cartoon eyes on a kitchen board; a tiny red chilli is already puffing itself up and glaring at a big calm cucumber",
+    twist: "the chilli lets out a tiny burst of steam from its top and the cucumber's eyes go huge as it starts to sweat little droplets",
+    payoff: "the cucumber faints backwards onto the board and the chilli does a tiny victory hop as the other fruits gasp",
+    follow: "ติดตามไว้ พรุ่งนี้ผลไม้ตัวไหนโดนแซวต่อ" },
+  { series: "ครัวป่วน", title: "ครัวป่วน: ข้าวโพดคั่วแตกตื่น", energy: "HIGH", hashtags: ["#ตลก", "#ครัวป่วน", "#ฮาๆ"],
+    line: "ป๊อปคอร์นหม้อนี้ คุมไม่อยู่แล้ว",
+    hook: "a small pot with cartoon eyes sits on a stove, its lid already rattling and jumping as popcorn starts popping inside",
+    twist: "the lid shoots up and popcorn bursts out in a huge slow-motion fountain, the pot's eyes going wide in panic",
+    payoff: "the popcorn rains down around the stove and the pot catches its own lid back on its head, looking embarrassed",
+    follow: "ติดตามไว้ พรุ่งนี้ของในครัวชิ้นไหนป่วนต่อ" },
+  { series: "ตัดแล้วเพลิน", title: "ผ่าลูกบอลน้ำผึ้ง", energy: "HIGH", hashtags: ["#asmr", "#oddlysatisfying", "#ตัดแล้วเพลิน"],
+    line: "ผ่าลูกนี้แล้ว ข้างในทำเอาอึ้ง",
+    hook: "a sharp knife is already pressing into a glossy amber sphere on a black marble board, the surface bending under the blade",
+    twist: "the sphere splits open and thick golden honey cascades out in slow motion, glowing in a beam of light",
+    payoff: "a honeycomb core is revealed, honey still flowing down the board as the knife lifts away",
+    follow: "ติดตามไว้ พรุ่งนี้จะหั่นอะไรต่อ คอมเมนต์สั่งได้" },
+  { series: "โลกจิ๋ว", title: "โลกจิ๋ว: พายุในแก้วน้ำ", energy: "HIGH", hashtags: ["#โลกจิ๋ว", "#miniatureworld", "#พายุ"],
+    line: "ในแก้วน้ำใบนี้ มีพายุทั้งลูก",
+    hook: "extreme macro of a clear glass of water on a table where a tiny storm cloud is already swirling above a miniature sailboat",
+    twist: "tiny lightning flashes inside the glass and the waves rise high, the little boat climbing a giant wave in slow motion",
+    payoff: "the sun breaks through the tiny cloud and a mini rainbow appears over the calm water as the boat sails on",
+    follow: "ติดตามไว้ ตอนหน้าจะพาไปโลกจิ๋วในอะไรดี" },
+  { series: "ลี้ลับยามดึก", title: "ลี้ลับยามดึก: ไฟดับทีละดวง", energy: "HIGH", hashtags: ["#เรื่องลี้ลับ", "#ลี้ลับยามดึก", "#หลอน"],
+    line: "ไฟทางเดินดับทีละดวง แล้วมันกำลังมาทางนี้",
+    hook: "a long empty apartment corridor at night, lit by a row of ceiling lamps; the farthest lamp is already flickering out",
+    twist: "the lamps go dark one after another, faster and faster, the darkness racing down the corridor toward the camera with a low hum",
+    payoff: "the lamp right above the camera buzzes, flickers, and holds on by a thread as the corridor behind it sits in total darkness",
+    follow: "ติดตามไว้ คืนพรุ่งนี้มีเรื่องลี้ลับเรื่องใหม่" },
+  { series: "แกดเจ็ตล้ำ", title: "แกดเจ็ตล้ำ: โดรนจิ๋วเสิร์ฟกาแฟ", energy: "HIGH", hashtags: ["#แกดเจ็ต", "#แกดเจ็ตล้ำ", "#tech"],
+    line: "สั่งกาแฟปุ๊บ โดรนเสิร์ฟปั๊บ",
+    hook: "a palm-sized unbranded drone is already zipping across a modern cafe counter, carrying a small paper coffee cup in its claw",
+    twist: "it banks sharply around a stack of cups and drops into a perfect slow-motion hover right in front of the camera",
+    payoff: "the claw opens and sets the cup down gently on the table without spilling, then the drone zips away out of frame",
+    follow: "ติดตามไว้ พรุ่งนี้มีแกดเจ็ตอะไรอีก" },
+  { series: "เที่ยววิวสวย", title: "เที่ยววิวสวย: ทะเลหมอกพุ่งขึ้นฟ้า", energy: "HIGH", hashtags: ["#ทะเลหมอก", "#เที่ยวไทย", "#วิวสวย"],
+    line: "ยืนตรงนี้ตอนเช้า แล้วจะรู้ว่าคุ้ม",
+    hook: "a fast drone shot already racing low over a sea of white mist between dark mountain ridges at sunrise",
+    twist: "the drone shoots straight up through the mist and bursts out into blazing golden sunlight above the clouds",
+    payoff: "it spins slowly to reveal a lone mountain peak with a tiny temple glowing above the endless mist",
+    follow: "ติดตามไว้ พรุ่งนี้พาไปวิวไหนต่อ" },
+  { series: "แต่งห้องฟิน", title: "แต่งห้องฟิน: กดทีเดียวห้องเปลี่ยนโหมด", energy: "HIGH", hashtags: ["#แต่งห้อง", "#แต่งห้องฟิน", "#roomtour"],
+    line: "กดสวิตช์เดียว ห้องนี้เปลี่ยนโหมดทันที",
+    hook: "in a dim, plain bedroom a finger is already pressing a wall switch, close to the camera",
+    twist: "a wave of warm LED light races along the ceiling edge, the bed's headboard glows and a projector throws a starry sky across the ceiling",
+    payoff: "the camera swoops back to show the whole cosy room glowing, stars slowly drifting across the ceiling",
+    follow: "ติดตามไว้ พรุ่งนี้แต่งห้องแบบไหนต่อ" },
 ];
 /** The series a warm-up title belongs to (current and past concepts), for the learning loop. */
 export function seriesOfTitle(title: string): string | null {
@@ -498,16 +587,20 @@ const COOKING_CONTINUITY = "COOKING: show only one cooking stage, as if filmed o
   "and changes only through what the hands and utensils visibly do (press, flip, fold, toss, cut, pour, sprinkle). Every ingredient that is added is already visible in a bowl or a hand before it goes in. " +
   "The food never turns into a plate, bowl or different dish, never jumps ahead to a finished state, and only moves to other dishware if a hand is shown carrying it there.";
 
-export function growthPrompt(concept: Pick<GrowthConcept, "hook" | "twist" | "payoff" | "line"> & { series?: string }, options: { strict?: boolean } = {}) {
+export function growthPrompt(concept: Pick<GrowthConcept, "hook" | "twist" | "payoff" | "line"> & { series?: string }, options: { strict?: boolean; angle?: ViralAngle } = {}) {
   const series = concept.series ? SERIES_REALISM[concept.series] : undefined;
   const food = concept.series ? FOOD_SERIES.has(concept.series) : false;
+  // Lucky, 8 Nov: every warm-up clip is built to go viral (retention angle, escalation, energetic voice), not to relax.
+  const angle = options.angle ?? viralAngle(0);
   return [
-    "Photoreal, cinematic vertical 9:16 video, a full 8 seconds, one continuous take in one location, made to stop people scrolling on TikTok.",
+    "Photoreal, cinematic vertical 9:16 video, a full 8 seconds, one continuous take in one location, made to stop people scrolling on TikTok and make them follow for the next one.",
     `0–1 s HOOK: the very first frame is already mid-action, never an empty or static opening: ${concept.hook}.`,
     "1–3 s: the hook action keeps going smoothly and leads straight into the next beat, with no jump in time.",
     `3–5 s TWIST: ${concept.twist}.`,
     // "Mirror the opening" made Flow rewind the subject to its first state (dough back to a plate); only the camera returns.
-    `6–8 s PAYOFF: ${concept.payoff}. Keep moving gently until the last frame. For a seamless loop the camera ends near its opening angle, but every subject keeps the state it has reached; nothing rewinds, resets or swaps back to look like the first frame.`,
+    `6–8 s PAYOFF: ${concept.payoff}. Keep the energy up and end on motion. For a seamless loop the camera ends near its opening angle, but every subject keeps the state it has reached; nothing rewinds, resets or swaps back to look like the first frame.`,
+    VIRAL_DIRECTION,
+    `RETENTION ANGLE: ${angle.direction}`,
     CONTINUITY,
     ...(food ? [COOKING_CONTINUITY] : []),
     "CAMERA: dynamic and intentional: a fast push-in on the hook, then smooth macro or tracking motion that keeps the main subject in frame; crisp focus, rich colour, high detail, appetising or magical lighting.",
@@ -515,8 +608,9 @@ export function growthPrompt(concept: Pick<GrowthConcept, "hook" | "twist" | "pa
     "REALISM: smooth, steady motion with natural weight and momentum, like real footage shot at 24 fps with soft motion blur; lighting, colours and object shapes stay consistent from the first frame to the last; no morphing, warping, flicker, melting, extra limbs or fingers, or objects appearing from nowhere.",
     ...(series ? [`DETAIL: ${series}`] : []),
     ...(options.strict ? ["EXTRA CARE: earlier clips like this looked artificial. Prefer fewer, slower, simpler movements over complex action; keep every subject fully in frame and in focus; nothing changes shape."] : []),
-    `AUDIO: crisp, exaggerated foley that matches every action (sizzle, crunch, pour, clink), plus a lively, playful Thai voice that says only: "${concept.line}" in the first 3 seconds — nothing else; no music.`,
-    `AVOID: on-screen text, captions, subtitles, logos, brand names, watermarks, human faces, celebrities, slow or empty openings, cuts or scene changes, time jumps, ` +
+    `AUDIO: crisp, exaggerated, punchy foley that matches every action (sizzle, crunch, pour, clink) with an impact hit on the twist and a whoosh into the peak, plus ${VIRAL_VOICE_STYLE} that says only: "${viralVoice(angle, concept.line)}" in the first 3 seconds — nothing else; no music.`,
+    VIRAL_SAFETY,
+    `AVOID: on-screen text, captions, subtitles, logos, brand names, watermarks, human faces, celebrities, slow, calm or empty openings, idle moments, cuts or scene changes, time jumps, ` +
       `one object morphing into another${food ? ", food turning into a plate or a different dish, finished food appearing without being cooked" : ""}, ending early.`,
   ].join("\n");
 }
@@ -573,9 +667,11 @@ function chooseGrowth(count: number, guide: PlanGuide | undefined, seasonal: Gro
     if (!pool.length) pool = NICHES[niche].series.filter(sr => open(sr).length);
     const series = weightedPick(pool, sr => guide?.seriesWeights[sr] ?? 1, random);
     const options = open(series), fresh = options.filter(c => !recent.has(c.title));
-    // Fresh ideas first; otherwise the one made longest ago.
-    const order = guide?.recentTitles ?? [];
-    picked.push(fresh.length ? fresh[Math.floor(random() * fresh.length)]
+    // Fresh ideas first, the high-energy ones (built around a big surprise) about three times in four; otherwise the
+    // one made longest ago.
+    const order = guide?.recentTitles ?? [], hot = fresh.filter(c => c.energy === "HIGH");
+    picked.push(hot.length && random() < 0.75 ? hot[Math.floor(random() * hot.length)]
+      : fresh.length ? fresh[Math.floor(random() * fresh.length)]
       : options.toSorted((a, b) => order.indexOf(b.title) - order.indexOf(a.title))[0]);
   }
   return picked;
@@ -590,13 +686,16 @@ export function planBatch(input: { mode: FlowClipKind; count: number; products: 
   const used = new Map<string, { styleIds: string[]; actions: HandAction[] }>();
   if (!affiliate) {
     const random = seeded((input.offset ?? 0) + 1), guide = input.learning, episodes = { ...guide?.episodes };
-    for (const concept of chooseGrowth(input.count, guide, seasonal, random)) {
+    for (const [index, concept] of chooseGrowth(input.count, guide, seasonal, random).entries()) {
       const episode = (episodes[concept.series] ?? 0) + 1; episodes[concept.series] = episode;
       const cta = weightedPick(CTA_VARIANTS.map(v => v.id), id => guide?.ctaWeights[id] ?? 1, random);
-      // "EP.n" turns single clips into a series people follow for the next episode.
+      const angle = viralAngle(index, input.offset ?? 0);
+      // Caption: a curiosity hook people read first, "EP.n" so they follow for the next episode, the follow prompt,
+      // and one real question that gets comments. The first line stays unique (it ends with the concept's own line),
+      // because the learning loop pairs posted TikTok videos with clips by it.
       clips.push({ kind: "GROWTH", productId: null, title: concept.title,
-        prompt: growthPrompt(concept, { strict: guide?.strictSeries.includes(concept.series) }),
-        caption: `${concept.series} EP.${episode} · ${concept.line}\n${ctaText(cta, concept)}`,
+        prompt: growthPrompt(concept, { strict: guide?.strictSeries.includes(concept.series), angle }),
+        caption: `${angle.captionHook} · ${concept.series} EP.${episode} · ${concept.line}\n${ctaText(cta, concept)}\n${angle.engage}`,
         hashtags: [...concept.hashtags, "#AIart", "#fyp", "#ฟีดดดシ"], referenceImagePath: null });
     }
     return clips;
@@ -609,10 +708,12 @@ export function planBatch(input: { mode: FlowClipKind; count: number; products: 
     const format = formats[(round + (input.offset ?? 0)) % formats.length], variant = round + (input.offset ?? 0);
     const plan = planFlowNative({ product: { id: product.id, title: product.title, categoryKey: product.categoryKey },
       facts: product.facts, assets: [{ id: product.imageAssetId, kind: "REAL_IMAGE", rightsCleared: true }], history },
-      { trend: { format, variant, setTouch: moment?.setTouch || undefined } });
+      { trend: { format, variant, setTouch: moment?.setTouch || undefined, viral: productAngle(index, input.offset ?? 0) } });
     const shot = plan.selected[0];
     history.styleIds.push(shot.style.id); history.actions.push(shot.action); used.set(product.id, history);
-    const { caption, hashtags } = trendCaption(product, format, variant, now);
+    const { caption: base, hashtags } = trendCaption(product, format, variant, now), angle = productAngle(index, input.offset ?? 0);
+    // A hook people read first and a real question at the end; the product line and facts stay as written.
+    const caption = `${angle.captionHook}\n${base}\n${angle.engage}`;
     clips.push({ kind: "AFFILIATE", productId: product.id, title: `${product.title} · ${format.nameTh} · ${shot.style.nameTh}`, prompt: shot.prompt,
       caption, hashtags, referenceImagePath: product.imagePath });
   }

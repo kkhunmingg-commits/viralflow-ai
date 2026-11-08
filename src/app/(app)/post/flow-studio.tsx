@@ -8,6 +8,8 @@ import { addFlowAccountAction, flowAccountAction, startBatchAction } from "./flo
 import type { DraftReceipt } from "./tiktok-draft-button";
 import { LearningPanel } from "./learning-panel";
 import { ClipLibrary } from "./clip-library";
+import { AccountPoolPanel } from "@/components/account-pool-panel";
+import { flowPool } from "@/features/flow-farm/pool";
 import "./flow-studio.css";
 
 export interface StudioAccount { id: string; display_name: string; daily_post_target: number | null; effective_mode: string | null }
@@ -54,13 +56,20 @@ function loginLabel(f: FlowAccountView) {
 
 export async function FlowStudio({ client, owner, account }: { client: SupabaseClient; owner: string; account: StudioAccount }) {
   const { flowAccounts, live, library, lastSeen, unavailable, now, publishScope, scopes } = await dropDeliveredDrafts(owner, account.id, await loadStudio(client, owner, account.id));
-  const own = flowAccounts.filter(f => f.tiktokAccountId === account.id), shared = flowAccounts.filter(f => f.tiktokAccountId === null);
-  const capacity = remainingCapacity(flowAccounts);
+  const own = flowAccounts.filter(f => f.tiktokAccountId === account.id);
+  // Lucky, 8 Nov: every signed-in Google account (any channel, repair accounts too) makes promo clips; drama keeps its share.
+  const admin = createAdminClient();
+  const pool = await flowPool(admin, owner).catch(() => null);
+  const channels = ((await client.from("tiktok_accounts").select("id,display_name").eq("owner_id", owner)).data ?? []) as Array<{ id: string; display_name: string }>;
+  const channelNames = Object.fromEntries(channels.map(c => [c.id, c.display_name]));
+  const capacity = pool ? pool.openClips : remainingCapacity(flowAccounts);
   const defaultCount = Math.min(30, Math.max(1, account.daily_post_target ?? 5));
   const online = lastSeen !== null && now - Date.parse(lastSeen) < 3 * 60_000;
   const selling = account.effective_mode === "AFFILIATE";
-  const waitingLogin = flowAccounts.some(f => f.active && f.loginState === "PENDING");
-  const ready = flowAccounts.some(f => f.active && f.loginState === "READY");
+  const signedIn = pool ? pool.accounts.some(a => a.active && a.loginState === "READY") : flowAccounts.some(f => f.active && f.loginState === "READY");
+  // Only this channel's own new accounts hold the button: an account of another channel signing in does not.
+  const waitingLogin = !signedIn && own.some(f => f.active && f.loginState === "PENDING");
+  const ready = signedIn;
   const back = <input type="hidden" name="back" value={account.id} />;
   // Each web account downloads its own installer; the file carries a token that serves only this account.
   const installer = <form method="post" action="/api/flow-installer" className="library-start">
@@ -101,8 +110,9 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
           {f.loginState !== "PENDING" && <button className="library-link" name="op" value="RELOGIN" type="submit">ล็อกอินใหม่</button>}
           <button className="library-link" name="op" value={f.active ? "PAUSE" : "RESUME"} type="submit">{f.active ? "พัก" : "ใช้งาน"}</button>
           <button className="library-link danger" name="op" value="REMOVE" type="submit">เลิกผูก</button></form>
-      </li>)}</ol> : <p className="manual-warning">ยังไม่ได้ผูกบัญชี Google ผูกอย่างน้อย 1 บัญชีก่อนสร้างคลิป</p>}
-      {shared.length > 0 && <p className="manual-muted">บัญชีกลางที่ใช้ร่วมทุกบัญชี TikTok (ใช้หลังบัญชีของตัวเองหมด): {shared.map(f => f.label).join(", ")}</p>}
+      </li>)}</ol> : signedIn ? <p className="manual-muted">ช่องนี้ยังไม่ได้ผูกบัญชี Google ของตัวเอง ไม่เป็นไร ระบบใช้บัญชีกองกลางด้านล่างทำคลิปให้ได้เลย</p>
+        : <p className="manual-warning">ยังไม่ได้ผูกบัญชี Google ผูกอย่างน้อย 1 บัญชีก่อนสร้างคลิป</p>}
+      <AccountPoolPanel owner={owner} mode="PROMO" channelNames={channelNames} pool={pool ?? undefined} />
       {own.length < MAX_FLOW_ACCOUNTS_PER_TIKTOK && <form action={addFlowAccountAction} className="library-start">
         <input type="hidden" name="tiktokAccountId" value={account.id} />{back}
         <label className="manual-filter">อีเมล Google (หรือชื่อเรียก)<input name="label" required maxLength={60} placeholder="name@gmail.com" /></label>
@@ -114,7 +124,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
 
     <section className="manual-panel" aria-labelledby="make-title">
       <div className="manual-section-head"><div><p className="manual-eyebrow">ขั้นที่ 2 · วันนี้ {bangkokDate()}</p><h2 id="make-title">สร้างคลิปฟรี</h2></div>
-        <span className="manual-private">เครดิตฟรีวันนี้ทำได้อีกประมาณ {capacity} คลิป</span></div>
+        <span className="manual-private">เครดิตฟรีวันนี้ทำคลิปโปรโมทได้อีกประมาณ {capacity} คลิป (ทุกบัญชีรวมกัน)</span></div>
       <form action={startBatchAction} className="library-start">
         <input type="hidden" name="accountId" value={account.id} />{back}
         <label className="manual-filter">จำนวนคลิปวันนี้<input name="count" type="number" min={1} max={30} defaultValue={defaultCount} /></label>

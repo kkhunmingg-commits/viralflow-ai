@@ -67,3 +67,8 @@
 .niche-scores b{text-align:right;color:#ecf1fa}
 
 .library-clip.is-leaving{display:none}
+/* Shared Google account pool (all three clip modes) */
+.account-pool{margin:12px 0}.account-pool-head{margin:0 0 4px;color:#cbd5e1}
+.account-pool-list li{align-items:center}
+.account-pool-left{font-variant-numeric:tabular-nums;font-weight:700;border-radius:999px;padding:4px 10px;background:#1f2937;color:#93a3bd;white-space:nowrap}
+.account-pool-left.ok{background:#064e3b;color:#a7f3d0}.account-pool-left.hold{background:#78350f;color:#fde68a}
