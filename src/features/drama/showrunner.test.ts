@@ -201,5 +201,12 @@ describe("written seasons", () => {
         state = ep.stateAfter;
       }
     });
+    it(`${kit.premise.key}: every episode moves to a new place, 6 to 10 places in all`, () => {
+      const at = kit.season!.map(script => script!.at);
+      for (let i = 1; i < at.length; i++) expect(at[i], `episode ${i + 1}`).not.toBe(at[i - 1]);
+      const used = new Set(at);
+      expect(used.size).toBeGreaterThanOrEqual(6);
+      expect(used.size).toBeLessThanOrEqual(10);
+    });
   }
 });

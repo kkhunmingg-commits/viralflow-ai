@@ -3,8 +3,9 @@ import type { EpisodeScript, Move } from "../genres";
 
 /**
  * "พวงมาลัยไร้ชื่อ", written episode by episode for a 30-episode season: one month on a Bangkok street, from the first
- * garland on the door to the sunrise at the flower market. Each episode stays in one place so every shot starts from the
- * last frame of the one before.
+ * garland on the door to the sunrise at the flower market. Each episode stays in one place (never the same place as the
+ * episode before) so every shot starts from the last frame of the one before; each move to a new place is walked on
+ * screen in that episode's first shot.
  */
 const say = (who: Role, line: string): Line => ({ who, line });
 const s = (id: string, t: string, th: string, en: string, level: 1 | 2 | 3, extra: Partial<Move> = {}): Move => ({ id: `jg-${id}`, t, th, en, level, ...extra });
@@ -65,15 +66,15 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       { say: say("RIVAL", "ไม่ขายก็ได้ แต่ตอนนี้ฉันเป็นเจ้าของตึกแล้วนะ ค่าเช่าเดือนหน้าขึ้นสองเท่า") }),
   ]),
   // 4: the card.
-  ep("การ์ดใบแรก", "A", [
-    s("4-1", "จดหมายค่าเช่า", "{LEAD}นั่งอ่านจดหมายขึ้นค่าเช่า",
-      "the next day {LEAD} sits on a stool in the florist reading a rent letter, chewing her lip; the jasmine garland hangs on the door behind her", 2,
+  ep("การ์ดใบแรก", "D", [
+    s("4-1", "จดหมายค่าเช่า", "{LEAD}ยกถังดอกไม้ออกมาวางหน้าร้าน นั่งอ่านจดหมายขึ้นค่าเช่าบนทางเท้า",
+      "the next day {LEAD} carries buckets of flowers out onto the pavement in front of her florist and sits on an upturned crate among them reading a rent letter, chewing her lip; the jasmine garland hangs on the shop door handle behind her", 2,
       { say: say("LEAD", "สองเท่า... จะไหวไหมเนี่ย") }),
     s("4-2", "ข้าวมา", "{ALLY}เข้ามาพร้อมกาแฟ",
-      "{ALLY} comes in with a coffee, sees the letter and her face, and sets the cup down gently beside her", 1,
+      "{ALLY} crosses the street from his coffee shop with a coffee, sees the letter and her face, and sets the cup down gently beside her", 1,
       { say: say("ALLY", "ดื่มก่อนครับ ปัญหารอได้") }),
     s("4-3", "คุยกัน", "{ALLY}ช่วยจัดดอกไม้ใส่ถัง",
-      "{ALLY} rolls up his sleeves and quietly helps her sort roses into buckets; she laughs when he does it all wrong", 1,
+      "{ALLY} rolls up his sleeves and quietly helps her sort roses into the buckets on the pavement; she laughs when he does it all wrong", 1,
       { say: say("LEAD", "ไม่ใช่แบบนั้น! กุหลาบต้องตัดเฉียง") }),
     s("4-4", "พวงมาลัยใหม่", "{LEAD}ไปหยิบพวงมาลัยที่ประตู เห็นมีอะไรเหน็บอยู่",
       "{LEAD} goes to take the garland off the door handle and notices something tucked between the jasmine flowers; {ALLY} goes very still", 2),
@@ -98,26 +99,26 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       "{LEAD} glances at the receipt, then lays it next to the little card; slow push-in on her face as she compares the two handwritings", 2),
   ]),
   // 6: the kiss on the cheek.
-  ep("เบลล่าจูบแก้ม", "B", [
-    s("6-1", "ถาม", "{LEAD}ถามตรงๆ ว่าเขาเขียนใช่ไหม",
-      "{LEAD} looks up from the two pieces of paper at {ALLY}, eyes wide", 2,
+  ep("เบลล่าจูบแก้ม", "D", [
+    s("6-1", "ถาม", "{ALLY}ยกป้ายกระดานออกมาตั้งหน้าร้าน {LEAD}ตามออกมาถามตรงๆ ว่าเขาเขียนใช่ไหม",
+      "{ALLY} carries the chalkboard sign out of the coffee shop onto the pavement; {LEAD} follows him out holding up the receipt and the little card, eyes wide", 2,
       { say: say("LEAD", "คุณเขียนใช่ไหม") }),
     s("6-2", "ปฏิเสธ", "{ALLY}ยิ้มเลี่ยง",
-      "{ALLY} smiles awkwardly and turns to the grinder", 1,
+      "{ALLY} smiles awkwardly and busies himself setting up the chalkboard sign", 1,
       { say: say("ALLY", "ลายมือคนไทยก็คล้ายๆ กันครับ") }),
-    s("6-3", "เบลล่าเข้ามา", "{RIVAL}เดินเข้ามาในร้าน",
-      "the door bell rings and {RIVAL} sweeps in, puts her bag on the counter right beside {LEAD}'s card and leans toward {ALLY}", 1,
+    s("6-3", "เบลล่าเข้ามา", "{RIVAL}ลงจากรถหรูที่จอดข้างทาง",
+      "a luxury car pulls up at the curb and {RIVAL} sweeps out of it, steps right between them and leans toward {ALLY}", 1,
       { say: say("RIVAL", "ข้าว เย็นนี้ว่างไหม") }),
     s("6-4", "จูบแก้ม", "{RIVAL}จูบแก้ม{ALLY}ต่อหน้า{LEAD}",
       "{RIVAL} kisses {ALLY} on the cheek; he flinches; {LEAD} stares", 2),
     s("6-5", "ดอกไม้ร่วง", "{LEAD}ทำช่อดอกไม้ในมือหล่น เดินออกจากร้าน",
-      "the little bunch of roses {LEAD} brought slips from her hands to the floor; she picks up the card and walks out; slow push-in on {ALLY}'s stricken face", 2,
+      "the little bunch of roses {LEAD} brought slips from her hands onto the pavement; she clutches the card and walks back across the street to her florist; slow push-in on {ALLY}'s stricken face", 2,
       { say: say("ALLY", "ใหม่ เดี๋ยวก่อน...") }),
   ]),
   // 7: what Bella is to him.
   ep("คนสำคัญ", "A", [
     s("7-1", "ใหม่จัดดอกไม้", "{LEAD}กลับมาตัดดอกไม้แรงๆ",
-      "back in the florist {LEAD} snips rose stems far too hard, petals flying; the shop bell rings as {ALLY} comes in behind her", 2,
+      "back in her florist {LEAD} snips rose stems far too hard, petals flying; the shop bell rings as {ALLY} follows her in", 2,
       { say: say("LEAD", "ไม่ต้องอธิบายค่ะ ไม่ใช่เรื่องของฉัน") }),
     s("7-2", "ข้าวยืนรอ", "{ALLY}ยืนรอ ไม่กล้าเข้าใกล้",
       "{ALLY} stands by the door among the buckets, turning his apron strings in his fingers", 1,
@@ -144,19 +145,19 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       { say: say("LEAD", "แบบนี้ค่ะ สูดช้าๆ") }),
     s("8-4", "ถือของให้", "{ALLY}ถือถุงดาวเรืองให้เธอทั้งหมด",
       "{ALLY} quietly takes every one of her heavy bags of marigolds; she laughs at him buried in orange flowers", 1),
-    s("8-5", "ฝนตก", "ฝนตกหนักกะทันหัน ทั้งสองหลบใต้กันสาดเดียวกัน",
-      "sudden heavy rain pours over the market; {LEAD} and {ALLY} duck under the same narrow awning, shoulders almost touching; slow push-in on their faces", 2,
+    s("8-5", "ฝนตก", "ฝนตกหนักกะทันหัน {ALLY}กางร่มคันเดียวให้",
+      "sudden heavy rain pours over the market; {ALLY} opens a single small umbrella over them both, shoulders almost touching; slow push-in on their faces", 2,
       { say: say("ALLY", "ผม... มีร่มคันเดียว") }),
   ]),
   // 9: under the awning.
-  ep("ใต้กันสาด", "C", [
-    s("9-1", "ใกล้กัน", "ทั้งสองยืนชิดกันใต้กันสาด",
-      "{LEAD} and {ALLY} stand pressed close under the dripping awning, the rain roaring; he opens his umbrella over her side only", 2),
+  ep("ใต้กันสาด", "F", [
+    s("9-1", "ใกล้กัน", "ทั้งสองหลบฝนออกมายืนชิดกันใต้หลังคาท่าน้ำข้างตลาด",
+      "under the one umbrella {LEAD} and {ALLY} hurry out of the market to the covered riverside pier beside it and stand pressed close under its dripping tin roof, the rain roaring on the river; he still holds the umbrella over her side only", 2),
     s("9-2", "ใหม่เล่า", "{LEAD}เล่าเรื่องเพื่อนตอนเด็กที่ย้ายไปไม่บอกลา",
       "{LEAD} watches the rain and speaks softly, her shoulder against his", 2,
       { say: say("LEAD", "ตอนเด็กมีเพื่อนคนหนึ่ง ร้อยพวงมาลัยให้ทุกเช้า แล้ววันหนึ่งก็หายไป ไม่บอกลาเลย"), clue: "เพื่อนตอนเด็กของใหม่เคยร้อยพวงมาลัยมะลิให้ทุกเช้า" }),
     s("9-3", "ข้าวเงียบ", "{ALLY}เงียบไป มองตะกร้ามะลิ",
-      "{ALLY} goes very quiet, looking down at the basket of jasmine at their feet, his jaw tight", 2),
+      "{ALLY} goes very quiet, looking down at the basket of jasmine at their feet on the wet boards, his jaw tight", 2),
     s("9-4", "ข้าวจะบอก", "{ALLY}หันมามองตา เกือบบอกความในใจ",
       "{ALLY} turns and looks into {LEAD}'s eyes, takes a breath, about to speak", 3,
       { say: say("ALLY", "ใหม่ ผมอยากบอกว่า...") }),
@@ -182,9 +183,9 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       { say: say("LEAD", "คุณจะไปญี่ปุ่นเหรอ") }),
   ]),
   // 11: the ticket.
-  ep("ตั๋วไปโตเกียว", "B", [
-    s("11-1", "ข้าวอธิบาย", "{ALLY}เก็บตั๋ว บอกว่ามีงานรออยู่",
-      "{ALLY} slides the plane ticket into his apron pocket with his bandaged hand and nods slowly", 2,
+  ep("ตั๋วไปโตเกียว", "D", [
+    s("11-1", "ข้าวอธิบาย", "{LEAD}ถือลาเต้เดินออกจากร้าน {ALLY}เก็บตั๋วแล้วตามออกมา บอกว่ามีงานรออยู่",
+      "{LEAD} picks up her latte and walks out of the coffee shop onto the pavement; {ALLY} follows her out, sliding the plane ticket into his apron pocket with his bandaged hand, and nods slowly", 2,
       { say: say("ALLY", "มีร้านที่โตเกียวชวนไปทำงาน อีกเดือนเดียว") }),
     s("11-2", "ใหม่ฝืนยิ้ม", "{LEAD}ฝืนยิ้มแสดงความยินดี",
       "{LEAD} forces a bright smile and claps her hands once, too loudly", 2,
@@ -193,10 +194,10 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       "{ALLY} watches her, seeing straight through the smile", 1,
       { say: say("ALLY", "ถ้ามีเหตุผลให้อยู่... ผมก็อาจจะอยู่") }),
     s("11-4", "ใหม่ใจเต้น", "{LEAD}ชะงัก ใจเต้นแรง",
-      "{LEAD} freezes with the latte halfway to her lips, her cheeks going pink", 2,
+      "{LEAD} stops on the pavement with the latte halfway to her lips, her cheeks going pink", 2,
       { say: say("LEAD", "เหตุผลแบบไหนคะ") }),
-    s("11-5", "เบลล่าโผล่", "{RIVAL}เปิดประตูเข้ามาพูดแทรก",
-      "the door bell rings and {RIVAL} walks in, waving an identical plane ticket; slow push-in on {LEAD}'s face falling", 2,
+    s("11-5", "เบลล่าโผล่", "{RIVAL}ลงจากรถที่จอดข้างทางพูดแทรก",
+      "a luxury car pulls up at the curb and {RIVAL} steps out, waving an identical plane ticket; slow push-in on {LEAD}'s face falling", 2,
       { say: say("RIVAL", "ไฟลต์เดียวกับฉันนะ ข้าว") }),
   ]),
   // 12: dancing in the shop.
@@ -217,17 +218,17 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       { say: say("RIVAL", "ขอโทษนะ มาผิดจังหวะเหรอ") }),
   ]),
   // 13: Bella's bouquet.
-  ep("ช่อดอกไม้แพงที่สุด", "A", [
+  ep("ช่อดอกไม้แพงที่สุด", "D", [
     s("13-1", "เบลล่าสั่งช่อ", "{RIVAL}ชี้ช่อดอกไม้ราคาแพงที่สุด",
-      "{RIVAL} strides into the florist, removes her sunglasses and taps the most expensive bouquet in the shop; {ALLY} steps back from {LEAD}", 1,
+      "{RIVAL} turns and walks back out to the flower display stand on the pavement, removes her sunglasses and taps the most expensive bouquet on it; {LEAD} and {ALLY} follow her out", 1,
       { say: say("RIVAL", "เอาช่อนี้ ส่งไปให้ข้าวฝั่งตรงข้ามนะ") }),
     s("13-2", "ข้าวออกไป", "{ALLY}ส่ายหน้าแล้วเดินออกจากร้าน",
-      "{ALLY} shakes his head and walks out of the florist without a word; {RIVAL} watches him go, still smiling", 2),
+      "{ALLY} shakes his head and walks back across the street to his coffee shop without a word; {RIVAL} watches him go, still smiling", 2),
     s("13-3", "ใหม่ห่อช่อ", "{LEAD}ห่อช่อดอกไม้ให้อย่างมืออาชีพ",
-      "{LEAD} wraps the bouquet with steady professional hands, though her eyes are shining", 2,
+      "{LEAD} wraps the bouquet on the display table with steady professional hands, though her eyes are shining", 2,
       { say: say("LEAD", "ลูกค้าคือลูกค้าค่ะ") }),
     s("13-4", "เบลล่าจ่ายเงิน", "{RIVAL}จ่ายเงินแล้วเอนตัวมาใกล้",
-      "{RIVAL} lays the cash on the counter and leans close to {LEAD} across the roses", 2),
+      "{RIVAL} lays the cash on the display table and leans close to {LEAD} across the roses", 2),
     s("13-5", "รู้ไหม", "{RIVAL}ถามว่ารู้ไหมทำไมข้าวกลับเมืองไทย",
       "{RIVAL} whispers, her red lips curving; slow push-in on {LEAD}'s face", 2,
       { say: say("RIVAL", "รู้ไหมว่าทำไมเขากลับเมืองไทย") }),
@@ -235,7 +236,7 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
   // 14: the delivery.
   ep("ส่งดอกไม้", "B", [
     s("14-1", "ใหม่ส่งช่อ", "{LEAD}เอาช่อดอกไม้มาส่งให้{ALLY}เอง",
-      "{LEAD} walks into the coffee shop holding the huge expensive bouquet and sets it on the counter in front of {ALLY}", 2,
+      "{LEAD} crosses the street and walks into the coffee shop holding the huge expensive bouquet and sets it on the counter in front of {ALLY}", 2,
       { say: say("LEAD", "จากคุณเบลล่าค่ะ") }),
     s("14-2", "ข้าวไม่รับ", "{ALLY}เลื่อนช่อคืน",
       "{ALLY} pushes the bouquet back across the counter with his bandaged hand", 2,
@@ -250,12 +251,12 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       { say: say("ALLY", "ถ้าผมบอก... คุณจะเกลียดผม") }),
   ]),
   // 15: midpoint: the ex-fiancée.
-  ep("อดีตคู่หมั้น", "B", [
-    s("15-1", "เบลล่าคุย", "{RIVAL}นั่งคุยกับ{LEAD}ที่โต๊ะริมหน้าต่างตอนข้าวไม่อยู่",
-      "the next day {RIVAL} sits across from {LEAD} at a window table in the empty coffee shop, stirring her coffee slowly", 2,
+  ep("อดีตคู่หมั้น", "A", [
+    s("15-1", "เบลล่าคุย", "{RIVAL}มานั่งคุยกับ{LEAD}ในร้านดอกไม้ตอนข้าวไม่อยู่",
+      "the next day {RIVAL} walks into the florist and sits on a stool across the counter from {LEAD}, stirring a takeaway coffee slowly", 2,
       { say: say("LEAD", "คุณกับข้าวเป็นอะไรกันคะ") }),
     s("15-2", "เบลล่าเล่า", "{RIVAL}เล่าความจริงครึ่งหนึ่ง",
-      "{RIVAL} smiles sadly, looking out of the window at the florist across the street", 1,
+      "{RIVAL} smiles sadly, looking out through the glass door at the coffee shop across the street", 1,
       { say: "REVEAL1" }),
     s("15-3", "ใหม่สับสน", "{LEAD}มองพวงมาลัยในมือแล้วสับสน",
       "{LEAD} looks down at the jasmine garland in her hands, confused and blushing", 1,
@@ -264,29 +265,29 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       "{RIVAL} studies {LEAD}'s face and gives a small bitter laugh", 1,
       { say: say("RIVAL", "คุณยังไม่รู้ตัวจริงๆ สินะ") }),
     s("15-5", "ข้าวกลับมา", "{ALLY}เดินเข้ามาเห็นทั้งสองนั่งด้วยกัน",
-      "the shop door bell rings; {ALLY} walks in and stops dead, seeing the two women together; slow push-in on his face", 2),
+      "the bell over the glass door rings; {ALLY} walks in with a coffee and stops dead, seeing the two women together; slow push-in on his face", 2),
   ]),
   // 16: don't go yet.
-  ep("อย่าเพิ่งไป", "B", [
-    s("16-1", "เบลล่าลุก", "{RIVAL}ลุกขึ้น เดินผ่าน{ALLY}",
-      "{RIVAL} stands, picks up her bag and pauses beside {ALLY} at the door", 2,
+  ep("อย่าเพิ่งไป", "D", [
+    s("16-1", "เบลล่าลุก", "{RIVAL}ลุกเดินออกไปที่รถ {ALLY}ตามออกมาหน้าร้าน",
+      "{RIVAL} stands, picks up her bag and walks out to her car at the curb; {ALLY} follows her out onto the pavement and she pauses beside him", 2,
       { say: say("RIVAL", "ถึงเวลาพูดแล้วนะ ข้าว") }),
     s("16-2", "ข้าวนิ่ง", "{ALLY}ยืนนิ่ง ไม่พูด",
-      "{RIVAL} leaves; {ALLY} stays frozen by the door, staring at {LEAD} and saying nothing", 2),
-    s("16-3", "ใหม่ลุก", "{LEAD}ลุกเดินผ่านเขาจะกลับร้าน",
-      "{LEAD} waits, then gets up and walks past him toward the door, eyes down", 2,
+      "{RIVAL} drives off; {ALLY} stays frozen on the pavement, staring at {LEAD} through the glass door and saying nothing", 2),
+    s("16-3", "ใหม่ลุก", "{LEAD}ออกมายกถังดอกไม้เดินผ่านเขา",
+      "{LEAD} waits, then comes out and walks past him to carry the flower buckets in from the pavement, eyes down", 2,
       { say: say("LEAD", "ถ้าไม่พูด ฉันก็ไม่ถามแล้ว") }),
     s("16-4", "จับมือ", "{ALLY}จับมือ{LEAD}ไว้ก่อนเธอจะเดินจากไป",
-      "as {LEAD} reaches the door {ALLY} catches her hand; both freeze, looking down at their fingers", 1,
+      "as {LEAD} bends to the buckets {ALLY} catches her hand; both freeze, looking down at their fingers", 1,
       { say: say("ALLY", "อย่าเพิ่งไป") }),
     s("16-5", "ขอเวลา", "{ALLY}ขอเวลาอีกนิด",
       "{ALLY} holds her hand a moment longer, then lets go; slow push-in on {LEAD}'s eyes searching his face", 2,
       { say: say("ALLY", "ขอเวลาอีกนิด ผมจะบอกทุกอย่าง") }),
   ]),
   // 17: the photo tin.
-  ep("กล่องรูปเก่า", "A", [
+  ep("กล่องรูปเก่า", "E", [
     s("17-1", "กล่องขนม", "{LEAD}เปิดกล่องขนมปังกรอบเก่าใส่รูปวัยเด็ก",
-      "late at night in the closed florist {LEAD} sits on the floor among the buckets and opens an old biscuit tin full of childhood photos", 2),
+      "late at night in her small room above the florist {LEAD} sits on the floor beside her bed and opens an old biscuit tin full of childhood photos", 2),
     s("17-2", "รูปเด็กชาย", "{LEAD}หยิบรูปเด็กชายถือพวงมาลัย",
       "{LEAD} lifts out a faded photo of a little boy holding up a jasmine garland, a little girl with a ribbon beside him", 2,
       { say: say("LEAD", "เด็กคนนี้... ฉันจำหน้าไม่ได้แล้ว") }),
@@ -294,30 +295,30 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       "{LEAD} smiles at the photo, touching the ribbon in her own hair", 1,
       { say: say("LEAD", "เธอร้อยให้ฉันทุกเช้า แล้วก็หายไป") }),
     s("17-4", "ส่องใกล้", "{LEAD}ยกรูปขึ้นส่องกับโคมไฟ",
-      "{LEAD} holds the photo close under the shop lamp and squints at the little boy's hands", 2),
+      "{LEAD} holds the photo close under the bedside lamp and squints at the little boy's hands", 2),
     s("17-5", "มือซ้ายของเด็ก", "หลังมือซ้ายของเด็กชายมีรอยแผล",
       "tight close-up on the photo: a small burn mark on the back of the little boy's left hand; slow push-in on {LEAD}'s widening eyes", 3,
       { clue: "เด็กชายในรูปวัยเด็กมีแผลไฟไหม้ที่หลังมือซ้าย" }),
   ]),
   // 18: the sign.
-  ep("ป้ายขายตึก", "A", [
+  ep("ป้ายขายตึก", "D", [
     s("18-1", "มองข้ามถนน", "{LEAD}มองข้ามถนนไปที่ร้านกาแฟ",
-      "in the morning {LEAD} stands at the florist's glass door holding the old photo, looking across the street at the coffee shop", 2),
+      "in the morning {LEAD} comes down from upstairs and out onto the pavement in front of the florist holding the old photo, looking across the street at the coffee shop", 2),
     s("18-2", "ข้าวโบกมือ", "{ALLY}โบกมือมาด้วยมือซ้ายที่พันผ้า",
       "across the street {ALLY} unlocks his shop and waves at her with his bandaged left hand; she slowly raises hers back", 1),
     s("18-3", "เสียงตอก", "มีเสียงตอกค้อนเหนือประตูร้าน",
-      "loud hammering bangs above her head; {LEAD} steps out onto the pavement to look up, the photo still in her hand", 2),
+      "loud hammering bangs above her head; {LEAD} turns and looks up, the photo still in her hand", 2),
     s("18-4", "ป้ายขาย", "ป้ายขายตึกถูกติดเหนือประตูร้านดอกไม้",
       "a large 'for sale' sign is nailed up above the florist's door by two workmen; {LEAD} stares up at it", 2,
       { say: say("LEAD", "ร้านของฉัน...") }),
     s("18-5", "เบลล่ามาดู", "{RIVAL}ลงจากรถมายืนดูป้ายข้างๆ",
-      "{RIVAL} steps out of her luxury car and stands beside {LEAD}, looking up at the sign with satisfaction; slow push-in on {LEAD}", 2,
+      "{RIVAL} steps out of her luxury car and stands beside {LEAD}, looking up at the sign with satisfaction; across the street {ALLY} drops his keys and starts running over; slow push-in on {LEAD}", 2,
       { say: say("RIVAL", "หมดสัญญาเช่าสิ้นเดือนนะคะ") }),
   ]),
   // 19: the deal.
   ep("ข้อแลกเปลี่ยน", "A", [
     s("19-1", "ข้าววิ่งมา", "{ALLY}วิ่งข้ามถนนเข้ามา",
-      "{ALLY} runs across the street and stops between {LEAD} and {RIVAL} in front of the florist, out of breath", 2,
+      "{LEAD} turns and goes back into the florist and {RIVAL} follows her in; {ALLY} runs in right behind them and stops between {LEAD} and {RIVAL} among the buckets, out of breath", 2,
       { say: say("ALLY", "เบลล่า พอได้แล้ว") }),
     s("19-2", "เถียงกัน", "{RIVAL}เถียงกลับ",
       "{RIVAL} folds her arms in her white blazer and faces him", 2,
@@ -328,7 +329,7 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       "{RIVAL} steps close to {ALLY} and lowers her voice, but {LEAD} hears every word", 2,
       { say: say("RIVAL", "ถ้าข้าวไปญี่ปุ่นกับฉัน ฉันจะยกเลิกขายตึก") }),
     s("19-5", "ข้าวชะงัก", "{ALLY}ชะงัก หันมามอง{LEAD}",
-      "{ALLY} freezes and turns to look at {LEAD} and the sign above her shop; slow push-in on his torn face", 3),
+      "{ALLY} freezes and turns to look at {LEAD} standing among her flowers; slow push-in on his torn face", 3),
   ]),
   // 20: Khao decides.
   ep("ข้าวตัดสินใจ", "B", [
@@ -361,9 +362,9 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       "{ALLY} stands in the doorway with no coffee, holding the plane ticket; her smile slowly disappears; slow push-in on {LEAD}", 3),
   ]),
   // 22: crisis: the goodbye.
-  ep("วันก่อนบินไป", "A", [
+  ep("วันก่อนบินไป", "D", [
     s("22-1", "บอกลา", "{ALLY}บอกว่าพรุ่งนี้จะบิน",
-      "{ALLY} stands awkwardly among the flowers holding the plane ticket while {LEAD} turns her back", 3,
+      "{LEAD} comes out to him; they stand facing each other on the pavement between the flower buckets, {ALLY} holding the plane ticket, until she turns her back", 3,
       { say: say("ALLY", "พรุ่งนี้ผมบินแล้วนะครับ") }),
     s("22-2", "ไม่ต้องส่งอีก", "{LEAD}หันมาด้วยน้ำตา",
       "{LEAD} turns around with tears in her eyes, holding the jasmine garland", 3,
@@ -372,14 +373,14 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       "{ALLY} flinches as if struck, opens his mouth, and stops", 3,
       { say: say("ALLY", "ใหม่... ผม...") }),
     s("22-4", "ฝนตก", "{ALLY}เดินออกจากร้านไปกลางสายฝน",
-      "rain starts pouring outside; {ALLY} turns and walks out of the florist into it without an umbrella", 2),
-    s("22-5", "กระเป๋าเงิน", "{LEAD}เห็นกระเป๋าเงินที่เขาลืมไว้ รูปเก่าหล่นออกมา",
-      "{LEAD} sees the wallet he left on the counter and picks it up; an old photo slides out: the same little boy with a jasmine garland; slow push-in on her face", 3),
+      "rain starts pouring; {ALLY} turns and walks away across the street into it without an umbrella", 2),
+    s("22-5", "กระเป๋าเงิน", "{LEAD}เห็นกระเป๋าเงินที่เขาทำตกไว้บนทางเท้า รูปเก่าหล่นออกมา",
+      "{LEAD} sees the wallet he dropped on the wet pavement and picks it up; an old photo slides out: the same little boy with a jasmine garland; slow push-in on her face", 3),
   ]),
   // 23: two photos.
   ep("รูปสองใบ", "A", [
     s("23-1", "วางคู่กัน", "{LEAD}วางรูปจากกระเป๋าเงินคู่กับรูปของตัวเอง",
-      "{LEAD} lays the photo from the wallet next to her own on the counter between the roses; they are two halves of the same picture", 3,
+      "{LEAD} hurries back inside the florist out of the rain and lays the photo from the wallet next to her own on the counter between the roses; they are two halves of the same picture", 3,
       { say: say("LEAD", "รูปเดียวกัน... ฉีกครึ่งกัน") }),
     s("23-2", "ต่อรูป", "{LEAD}ต่อรูปสองครึ่งเข้าด้วยกัน",
       "{LEAD} pushes the two halves together: the little boy with the garland and the little girl with the ribbon, side by side again", 3),
@@ -405,12 +406,12 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       "{LEAD} lifts the half-finished garland and holds it against her chest, crying silently", 3),
     s("24-5", "เบลล่าข้างหลัง", "{RIVAL}ยืนอยู่ข้างหลังเธอ",
       "a voice behind her; {LEAD} spins round: {RIVAL} stands in the doorway with an umbrella; slow push-in on {LEAD}", 2,
-      { say: say("RIVAL", "หาเขาเหรอ") }),
+      { say: say("RIVAL", "หาเขาเหรอ ไปคุยกันที่ร้านเธอเถอะ") }),
   ]),
   // 25: what Bella knows.
-  ep("ความลับของเบลล่า", "B", [
-    s("25-1", "นั่งคุย", "{RIVAL}ปิดร่ม นั่งลงที่โต๊ะ",
-      "{RIVAL} closes her umbrella, takes two chairs down from a table and sits, gesturing for {LEAD} to sit too", 2,
+  ep("ความลับของเบลล่า", "A", [
+    s("25-1", "นั่งคุย", "{RIVAL}พา{LEAD}กางร่มข้ามถนนกลับร้านดอกไม้ ปิดร่มแล้วนั่งลง",
+      "{RIVAL} walks {LEAD} back across the rainy street under her umbrella into the florist, closes the umbrella and sits on a stool, gesturing for {LEAD} to sit too", 2,
       { say: say("RIVAL", "นั่งก่อน ฉันมีเรื่องจะเล่า") }),
     s("25-2", "เบลล่าเล่า", "{RIVAL}เล่าว่าข้าวถอนหมั้นเพราะใคร",
       "{RIVAL} speaks plainly, without her usual smile", 2,
@@ -419,25 +420,25 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       "{LEAD} holds the two halves of the photo tight, listening, tears still on her cheeks", 2,
       { say: say("LEAD", "แล้วทำไมเขาไม่บอกฉัน") }),
     s("25-4", "ตลาดตีห้า", "{RIVAL}บอกว่าเขาไปตลาดดอกไม้ทุกตีห้า",
-      "{RIVAL} sighs and looks out of the window at the rain", 2,
+      "{RIVAL} sighs and looks out through the glass door at the rain", 2,
       { say: say("RIVAL", "เขากลัวเธอโกรธที่หายไป เช้าพรุ่งนี้ เขาจะไปตลาดดอกไม้ตีห้าเหมือนทุกวัน") }),
     s("25-5", "ไฟลต์เจ็ดโมง", "{RIVAL}เตือนว่าไฟลต์ออกเจ็ดโมง",
       "{RIVAL} stands, picks up her umbrella and looks back; slow push-in on {LEAD}'s determined face", 2,
       { say: say("RIVAL", "แต่ไฟลต์เขาเจ็ดโมงนะ อย่าสาย") }),
   ]),
   // 26: the bare door handle.
-  ep("ไม่มีพวงมาลัย", "A", [
-    s("26-1", "มือจับว่าง", "{LEAD}เปิดประตูร้าน มือจับว่างเปล่าเป็นครั้งแรก",
-      "at dawn {LEAD} opens the florist door and the handle is bare for the first time; she touches it", 2,
+  ep("ไม่มีพวงมาลัย", "E", [
+    s("26-1", "มือจับว่าง", "{LEAD}เปิดหน้าต่างห้องชั้นบนมองลงไป มือจับประตูร้านว่างเปล่าเป็นครั้งแรก",
+      "at dawn {LEAD} opens the old wooden window of her room above the florist and looks down: the shop door handle below is bare for the first time; she grips the sill", 2,
       { say: say("LEAD", "วันนี้ไม่มี...") }),
     s("26-2", "เก็บรูป", "{LEAD}ใส่รูปสองครึ่งลงกระเป๋าผ้ากันเปื้อน",
-      "{LEAD} tucks both halves of the photo into her apron pocket and ties her ribbon tight", 2),
+      "{LEAD} steps back, tucks both halves of the photo into her apron pocket and ties her ribbon tight, then returns to the window", 2),
     s("26-3", "มองข้ามถนน", "{LEAD}มองข้ามถนน",
-      "{LEAD} looks across the empty street toward the coffee shop through the glass door", 2),
+      "{LEAD} leans out of the window and looks across the empty street toward the coffee shop", 2),
     s("26-4", "ข้าวกับกระเป๋า", "{ALLY}ยืนหน้าร้านกาแฟพร้อมกระเป๋าเดินทาง",
-      "across the street {ALLY} stands outside his closed coffee shop with a suitcase, looking one last time at the florist; he doesn't see her behind the glass", 1),
+      "across the street {ALLY} stands outside his closed coffee shop with a suitcase, looking one last time at the florist; he doesn't look up at her window", 1),
     s("26-5", "แท็กซี่", "แท็กซี่จอด {ALLY}ขึ้นรถไป",
-      "a taxi pulls up; {ALLY} loads the suitcase and gets in; the taxi drives off toward the flower market; slow push-in on {LEAD} pressing her hand to the glass", 3,
+      "a taxi pulls up; {ALLY} loads the suitcase and gets in; the taxi drives off toward the flower market; slow push-in on {LEAD} at the window", 3,
       { say: say("LEAD", "ตลาด... เขาไปตลาด") }),
   ]),
   // 27: running through the market.
@@ -456,9 +457,9 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       "{LEAD} spots a suitcase standing beside an old jasmine vendor's stall at the end of the row; slow push-in on the suitcase", 2),
   ]),
   // 28: threading the garland.
-  ep("คนร้อยพวงมาลัย", "C", [
+  ep("คนร้อยพวงมาลัย", "G", [
     s("28-1", "เดินเข้าไป", "{LEAD}เดินช้าๆ เข้าไปที่แผงเก่า",
-      "{LEAD} walks slowly toward the old jasmine stall, holding the photo halves against her chest", 2),
+      "{LEAD} walks slowly down to the old jasmine stall at the end of the row, holding the photo halves against her chest", 2),
     s("28-2", "ข้าวร้อยมาลัย", "{ALLY}นั่งร้อยพวงมาลัยด้วยมือตัวเอง",
       "behind the stall {ALLY} sits threading jasmine buds into a garland by hand, his bandaged fingers careful and practised", 2),
     s("28-3", "ใหม่มองมือ", "{LEAD}มองมือเขาร้อยดอกไม้แบบเดียวกับตอนเด็ก",
@@ -471,9 +472,9 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       "{ALLY} looks up and sees {LEAD} standing there; the garland stops in his hands; slow push-in on his face", 2),
   ]),
   // 29: climax: the boy with the garland.
-  ep("ตลาดดอกไม้ตอนตีห้า", "C", [
-    s("29-1", "ข้าวสารภาพ", "{ALLY}ลุกขึ้นบอกความจริง",
-      "{ALLY} rises slowly from behind the stall, the finished garland in his hands", 2,
+  ep("ตลาดดอกไม้ตอนตีห้า", "F", [
+    s("29-1", "ข้าวสารภาพ", "{ALLY}ลุกขึ้นพา{LEAD}ออกมาที่ท่าน้ำข้างตลาด แล้วบอกความจริง",
+      "{ALLY} rises from behind the stall with the finished garland and walks with {LEAD} out of the crowd to the quiet covered pier at the market's river edge, where the sky is turning pink; at the railing he tells her the truth", 2,
       { say: "REVEAL2" }),
     s("29-2", "ใหม่ร้องไห้", "{LEAD}หัวเราะทั้งน้ำตา ชูรูปข้างหน้าเขา",
       "{LEAD} laughs and cries at the same time, holding the two photo halves up beside his face", 2,
@@ -485,13 +486,13 @@ export const ROMANCE_JASMINE_GARLAND_SEASON: Array<EpisodeScript | null> = [
       "{LEAD} steps forward and takes his bandaged hand in both of hers, over the old scar", 2,
       { say: say("LEAD", "คนที่ร้อยมาลัยให้ฉันทุกเช้า ฉันจะโกรธได้ยังไง") }),
     s("29-5", "เบลล่ามา", "{RIVAL}เดินเข้ามาในตลาดพร้อมตั๋วเครื่องบิน",
-      "{RIVAL} walks through the market crowd holding {ALLY}'s plane ticket between two fingers; slow push-in on {ALLY}", 2,
+      "{RIVAL} walks out onto the pier from the market holding {ALLY}'s plane ticket between two fingers; slow push-in on {ALLY}", 2,
       { say: say("RIVAL", "ไฟลต์ออกสองชั่วโมงนะ ข้าว") }),
   ]),
   // 30: finale: the garland by hand.
   ep("พวงมาลัยกับมือ", "C", [
     s("30-1", "ฉีกตั๋ว", "{RIVAL}ฉีกตั๋วทิ้งและยิ้มให้ทั้งสอง",
-      "{RIVAL} tears the plane ticket in half, smiles at both of them and lets the pieces fall onto the jasmine", 1,
+      "{RIVAL} walks back with them up into the market aisle, tears the plane ticket in half, smiles at both of them and lets the pieces fall onto a pile of jasmine", 1,
       { say: say("RIVAL", "สัญญาซื้อตึกก็ยกเลิกด้วย ไปรักกันให้ดีๆ") }),
     s("30-2", "เบลล่าจากไป", "{RIVAL}เดินจากไปในฝูงคน",
       "{RIVAL} puts her sunglasses on and walks away into the market crowd without looking back; {LEAD} and {ALLY} watch her go", 1),
