@@ -26,7 +26,7 @@ export interface FlowNativePlan {
 }
 
 /** Set dressing per category, written like an art director's brief. Several per family so clips do not repeat. */
-const SETS: Partial<Record<CategoryFamily, SetStyle[]>> & { GENERAL: SetStyle[] } = {
+export const SETS: Partial<Record<CategoryFamily, SetStyle[]>> & { GENERAL: SetStyle[] } = {
   WATCH_ACCESSORY: [
     { id: "oak-desk-morning", nameTh: "โต๊ะไม้โอ๊กยามเช้า", set: "a light-oak desk beside a sheer-curtained window", props: "a linen-bound notebook, a small ceramic coffee cup, a brass key ring, a sprig of eucalyptus in a glass", lighting: "soft diffused morning daylight from the side with a gentle warm bounce", palette: "warm neutrals, cream, oak and sage green", hands: "bare natural skin hands with short neat nails (no gloves), a light-grey knit sweater cuff visible at the wrist", mood: "calm, simple, everyday" },
     { id: "concrete-street", nameTh: "สตรีทคอนกรีตยามเย็น", set: "a matte concrete ledge by a city window at golden hour", props: "a folded denim jacket, a paper coffee cup, a pair of sunglasses", lighting: "low golden-hour sun with long soft shadows", palette: "warm amber, concrete grey and indigo denim", hands: "natural hands with a rolled-up denim sleeve", mood: "casual, retro, confident" },
@@ -62,7 +62,7 @@ const SETS: Partial<Record<CategoryFamily, SetStyle[]>> & { GENERAL: SetStyle[] 
     { id: "color-backdrop", nameTh: "ฉากสีสดแบบโฆษณา TikTok", set: "a bold single-colour paper backdrop with a matching tabletop", props: "one geometric block in a contrasting colour", lighting: "bright soft key light with a crisp shadow", palette: "one bold colour that complements the product, plus white", hands: "clean natural hands", mood: "bold, eye-catching, scroll-stopping" },
   ],
 };
-const ACTIONS: Record<HandAction, { en: string; th: string; risk: "LOW" | "MEDIUM" | "HIGH" }> = {
+export const ACTIONS: Record<HandAction, { en: string; th: string; risk: "LOW" | "MEDIUM" | "HIGH" }> = {
   LIFT_AND_PRESENT: { en: "a hand slowly lifts the product from the surface and presents it toward the camera, holding it steady so it is fully visible", th: "หยิบขึ้นมาโชว์ตรงหน้ากล้อง", risk: "LOW" },
   TURN_TO_LIGHT: { en: "two hands gently turn the product a quarter turn so the light glides across its surface, then hold it still facing the camera", th: "หมุนรับแสงแล้วหยุดหันหน้าเข้ากล้อง", risk: "MEDIUM" },
   POINT_TO_DETAIL: { en: "one hand holds the product while an index finger points to and hovers over its key detail without pressing anything", th: "ชี้ให้ดูรายละเอียดเด่นโดยไม่กด", risk: "LOW" },

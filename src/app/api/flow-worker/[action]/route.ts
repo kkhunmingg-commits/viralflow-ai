@@ -28,6 +28,8 @@ export async function GET(request: Request, context: { params: Promise<{ action:
   after(() => import("@/features/flow-farm/learning-store").then(m => m.syncStaleAccounts(admin, auth.owner)).catch(() => {}));
   // The same poll drives Drama Studio: queue each series' next shot, take finished shots' last frames, cut episodes.
   after(() => import("@/features/drama/service").then(m => m.tickOwner(admin, auth.owner)).catch(() => {}));
+  // And product clips from pasted Shopee/Lazada links: requeue failed takes, cut finished ones, advance posting.
+  after(() => import("@/features/product-links/service").then(m => m.tickProductClips(admin, auth.owner)).catch(() => {}));
   return reply({ accounts: await workerAccounts(admin, auth.owner) });
 }
 
@@ -53,6 +55,7 @@ export async function POST(request: Request, context: { params: Promise<{ action
         const done = await completeClip(admin, owner, completeSchema.parse(body));
         // A finished drama shot lets the series queue its next shot straight away.
         after(() => import("@/features/drama/service").then(m => m.tickOwner(admin, owner)).catch(() => {}));
+        after(() => import("@/features/product-links/service").then(m => m.tickProductClips(admin, owner)).catch(() => {}));
         return reply(done);
       }
       case "fail": {

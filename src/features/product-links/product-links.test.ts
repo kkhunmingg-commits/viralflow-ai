@@ -1,0 +1,93 @@
+import { describe, expect, it } from "vitest";
+import { parseProductLink, sameMarketplace } from "./link";
+import { factCandidates, followLink, readProductPage } from "./source";
+import { screenFacts, shortProductName, writeProductClip } from "./script";
+import { buildProductSubtitles } from "./subtitles";
+
+describe("product links", () => {
+  it("reads Shopee and Lazada links, short and full, and keeps the pasted link as is", () => {
+    expect(parseProductLink("ดูอันนี้ https://s.shopee.co.th/AbC123 ถูกมาก")).toMatchObject({ platform: "SHOPEE", short: true, link: "https://s.shopee.co.th/AbC123" });
+    expect(parseProductLink("https://shopee.co.th/product/37251700/7064733451?smtt=0.0.9")).toMatchObject({ platform: "SHOPEE", short: false, externalId: "37251700.7064733451" });
+    expect(parseProductLink("https://shopee.co.th/%E0%B8%82%E0%B8%A7%E0%B8%94-i.123456.987654321").externalId).toBe("123456.987654321");
+    expect(parseProductLink("https://www.lazada.co.th/products/bottle-i4400123-s17000456.html?spm=x")).toMatchObject({ platform: "LAZADA", externalId: "4400123" });
+    expect(parseProductLink("https://s.lazada.co.th/s.xyz")).toMatchObject({ platform: "LAZADA", short: true });
+  });
+  it("refuses other sites and odd URLs", () => {
+    expect(() => parseProductLink("https://evil.example/shopee.co.th")).toThrow("UNSUPPORTED_PRODUCT_LINK");
+    expect(() => parseProductLink("https://user:pw@shopee.co.th/product/1/2")).toThrow("INVALID_PRODUCT_LINK");
+    expect(() => parseProductLink("ไม่ใช่ลิงก์")).toThrow("INVALID_PRODUCT_LINK");
+    expect(sameMarketplace("SHOPEE", "https://shopee.co.th/x")).toBe(true);
+    expect(sameMarketplace("SHOPEE", "https://lazada.co.th/x")).toBe(false);
+  });
+  it("follows a short link only while it stays on the marketplace", async () => {
+    const hops: Record<string, Response> = {
+      "https://s.shopee.co.th/abc": new Response(null, { status: 302, headers: { location: "https://shopee.co.th/product/1234/5678" } }),
+      "https://shopee.co.th/product/1234/5678": new Response("<html></html>", { status: 200 }),
+    };
+    const fetcher = (async (url: string) => hops[url]) as unknown as typeof fetch;
+    expect((await followLink(parseProductLink("https://s.shopee.co.th/abc"), fetcher)).url).toBe("https://shopee.co.th/product/1234/5678");
+    const away = (async () => new Response(null, { status: 302, headers: { location: "https://phish.example/" } })) as unknown as typeof fetch;
+    await expect(followLink(parseProductLink("https://s.shopee.co.th/abc"), away)).rejects.toThrow("REDIRECT_LEFT_MARKETPLACE");
+  });
+  it("takes title, photos and description from schema.org data and Open Graph tags", () => {
+    const html = `<html><head><title>x</title><meta property="og:title" content="ขวดน้ำ &amp; ฝา | Shopee Thailand">
+      <meta property="og:image" content="https://cf.shopee.co.th/file/a.jpg"><meta property="og:image" content="http://insecure/b.jpg">
+      <script type="application/ld+json">{"@type":"Product","name":"ขวดน้ำเก็บความเย็น 500ml","image":["https://cf.shopee.co.th/file/c.jpg"],"description":"ความจุ 500 ml\\nวัสดุสแตนเลส 304\\nส่งฟรีทั่วไทย","brand":{"name":"CoolCo"}}</script></head></html>`;
+    const page = readProductPage(html);
+    expect(page).toMatchObject({ title: "ขวดน้ำเก็บความเย็น 500ml", brand: "CoolCo" });
+    expect(page.images).toEqual(["https://cf.shopee.co.th/file/c.jpg", "https://cf.shopee.co.th/file/a.jpg"]);
+    expect(factCandidates(page.description)).toEqual(["ความจุ 500 ml", "วัสดุสแตนเลส 304"]);
+    expect(readProductPage(`<meta property="og:title" content="ของ | Shopee Thailand">`).title).toBe("ของ");
+  });
+});
+
+describe("product clip script", () => {
+  const base = { platform: "SHOPEE" as const, link: "https://s.shopee.co.th/AbC123", title: "【พร้อมส่ง】ขวดน้ำเก็บความเย็น สแตนเลส 500ml 🔥 ส่งไว",
+    facts: ["ความจุ 500 ml", "วัสดุสแตนเลส 304", "ดีที่สุดในตลาด", "ลด 50% วันนี้เท่านั้น", "มี 3 สี"], imageCount: 3 };
+
+  it("makes a speakable name and drops exaggerated or price facts", () => {
+    expect(shortProductName(base.title)).toBe("ขวดน้ำเก็บความเย็น สแตนเลส 500ml");
+    const { kept, dropped } = screenFacts(base.facts, "HOME_KITCHEN");
+    expect(kept).toEqual(["ความจุ 500 ml", "วัสดุสแตนเลส 304", "มี 3 สี"]);
+    expect(dropped.map(d => d.text)).toEqual(["ดีที่สุดในตลาด", "ลด 50% วันนี้เท่านั้น"]);
+  });
+  it("drops effect claims for beauty and never speaks benefits for supplements", () => {
+    expect(screenFacts(["ช่วยให้ผิวขาวใสใน 7 วัน", "ขนาด 30 ml"], "BEAUTY").kept).toEqual(["ขนาด 30 ml"]);
+    const supplement = writeProductClip({ ...base, title: "วิตามินซี 1000 mg", facts: ["บรรจุ 30 เม็ด"], lengthSeconds: 32 });
+    expect(supplement.family).toBe("HEALTH_SUPPLEMENT");
+    expect(supplement.shots.map(s => s.narration).join(" ")).not.toContain("30 เม็ด");
+  });
+  it.each([[8, 1], [16, 2], [32, 4]] as const)("%i seconds is %i takes with different framing and photos, one set", (length, takes) => {
+    const script = writeProductClip({ ...base, lengthSeconds: length });
+    expect(script.shots).toHaveLength(takes);
+    expect(new Set(script.shots.map(s => s.action)).size).toBe(takes === 4 ? 4 : takes === 2 ? 2 : 1);
+    if (takes > 1) {
+      expect(new Set(script.shots.map(s => s.imageIndex)).size).toBe(Math.min(takes, 3));
+      for (const shot of script.shots) expect(shot.prompt).toContain(`of ${takes} of one product advert`);
+      // Same set line in every take: continuity.
+      expect(new Set(script.shots.map(s => s.prompt.split("\n").find(l => l.startsWith("SET:")))).size).toBe(1);
+    }
+    expect(script.compliance.status).toBe("PASS");
+    expect(script.caption).toContain(base.link);
+    expect(script.comment).toContain(base.link);
+    expect(script.caption).toContain("AI");
+    expect(script.caption).toContain("affiliate");
+    for (const s of script.shots) expect(s.narration).not.toMatch(/ดีที่สุด|50%|ลด/);
+  });
+  it("only speaks numbers that the kept facts contain", () => {
+    const script = writeProductClip({ ...base, lengthSeconds: 32 });
+    const allowed = new Set(["500", "304", "3"]);
+    for (const shot of script.shots) for (const n of shot.narration.match(/\d+/g) ?? []) expect(allowed.has(n)).toBe(true);
+  });
+  it("a different variant can change the set or hook", () => {
+    const sets = new Set([0, 1, 2, 3].map(variant => writeProductClip({ ...base, lengthSeconds: 16, variant }).setId));
+    expect(sets.size).toBeGreaterThan(1);
+  });
+  it("subtitles carry each line, the AI label and the link end card", () => {
+    const ass = buildProductSubtitles({ lines: ["หนึ่ง", "สอง"], durations: [8, 8], endCard: "ลิงก์สินค้าอยู่ในคอมเมนต์", aiLabel: "สร้างด้วย AI" });
+    expect(ass).toContain("Sub,,0,0,0,,หนึ่ง");
+    expect(ass).toContain("0:00:08.40");
+    expect(ass).toContain("Label,,0,0,0,,สร้างด้วย AI");
+    expect(ass).toContain("End,,0,0,0,,");
+  });
+});

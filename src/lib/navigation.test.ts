@@ -14,7 +14,7 @@ describe("application navigation", () => {
 
   it("keeps one clip entry; promo clips and drama series are tabs inside the page", () => {
     const clip = navigationGroups[0].items.find((item) => item.label === "สร้างคลิป")!;
-    expect(clipStudioTabs.map((tab) => [tab.href, tab.label])).toEqual([["/post", "สร้างคลิปโปรโมท"], ["/drama", "ละครซีรีส์"]]);
+    expect(clipStudioTabs.map((tab) => [tab.href, tab.label])).toEqual([["/post", "สร้างคลิปโปรโมท"], ["/product-clips", "คลิปสินค้าจากลิงก์"], ["/drama", "ละครซีรีส์"]]);
     for (const path of ["/post", "/drama", "/drama/abc"]) expect(isNavActive(path, clip)).toBe(true);
     expect(isNavActive("/postx", clip)).toBe(false);
     expect(isNavActive("/drama", navigation[0])).toBe(false);

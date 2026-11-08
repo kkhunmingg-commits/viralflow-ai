@@ -108,8 +108,10 @@ const hasAudio = async (dir: string, file: string) => {
  * Cuts an episode: the shots in order at 720x1280, Thai subtitles for each line, the series/episode tag at the start
  * and "next episode" (or "the end") over the last seconds. Shots without sound get silence so the cut never fails.
  */
-export function assembleEpisode(input: { shots: Array<{ bytes: Uint8Array; durationSeconds: number; subtitle: string }>; cut: Omit<EpisodeCut, "shots">;
-  fontPath?: string }) {
+export function assembleEpisode(input: { shots: Array<{ bytes: Uint8Array; durationSeconds: number; subtitle: string }>; cut?: Omit<EpisodeCut, "shots">;
+  fontPath?: string;
+  /** Ready-made subtitles (product clips); otherwise the episode's own are built from `cut`. */
+  ass?: (durations: number[]) => string }) {
   if (!input.shots.length) throw new Error("NO_SHOTS");
   return workspace(async dir => {
     await mkdir(join(dir, "fonts"));
@@ -127,7 +129,9 @@ export function assembleEpisode(input: { shots: Array<{ bytes: Uint8Array; durat
         : `aevalsrc=0:c=stereo:s=48000:d=${durations[i]}[a${i}]`);
     }
     const total = durations.reduce((sum, d) => sum + d, 0);
-    await writeFile(join(dir, "episode.ass"), buildEpisodeSubtitles({ ...input.cut, shots: input.shots.map((shot, i) => ({ durationSeconds: durations[i], subtitle: shot.subtitle })) }), "utf8");
+    if (!input.ass && !input.cut) throw new Error("NO_SUBTITLES");
+    await writeFile(join(dir, "episode.ass"), input.ass ? input.ass(durations)
+      : buildEpisodeSubtitles({ ...input.cut!, shots: input.shots.map((shot, i) => ({ durationSeconds: durations[i], subtitle: shot.subtitle })) }), "utf8");
     const joined = input.shots.map((_, i) => `[v${i}][a${i}]`).join("");
     const filter = [...chains, `${joined}concat=n=${input.shots.length}:v=1:a=1[cv][ca]`, "[cv]ass=episode.ass:fontsdir=fonts,format=yuv420p[v]"].join(";");
     args.push("-filter_complex", filter, "-map", "[v]", "-map", "[ca]", "-t", total.toFixed(3), "-r", String(FPS),

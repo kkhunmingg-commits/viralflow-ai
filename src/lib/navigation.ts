@@ -5,6 +5,7 @@ export interface NavigationEntry extends NavigationItem { also?: readonly string
 /** Clip studios: one sidebar entry, switched with tabs inside the page. */
 export const clipStudioTabs: readonly NavigationItem[] = [
   { href: "/post", label: "สร้างคลิปโปรโมท", short: "▶" },
+  { href: "/product-clips", label: "คลิปสินค้าจากลิงก์", short: "🛒" },
   { href: "/drama", label: "ละครซีรีส์", short: "🎬" },
 ];
 

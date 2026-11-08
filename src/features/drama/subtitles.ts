@@ -14,19 +14,19 @@ export function subtitleText(subtitle: string, speakers: string[] = []) {
   const match = /^([^:]{1,24}):\s*(.+)$/.exec(subtitle.trim());
   const at = match ? speakers.indexOf(match[1].trim()) : -1;
   if (!match || at < 0) return wrapLine(subtitle);
-  return `{\\c${SPEAKER_COLOURS[at % SPEAKER_COLOURS.length]}\\fs34}${clean(match[1])}{\\r}\\N${wrapLine(match[2])}`;
+  return `{\\c${SPEAKER_COLOURS[at % SPEAKER_COLOURS.length]}\\fs34}${assClean(match[1])}{\\r}\\N${wrapLine(match[2])}`;
 }
 
-const time = (seconds: number) => {
+export const assTime = (seconds: number) => {
   const s = Math.max(0, seconds), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), rest = s - h * 3600 - m * 60;
   return `${h}:${String(m).padStart(2, "0")}:${rest.toFixed(2).padStart(5, "0")}`;
 };
 /** ASS treats { } and \ as markup; subtitles are plain text. */
-const clean = (text: string) => text.replace(/[{}\\]/g, "").replace(/\s+/g, " ").trim();
+export const assClean = (text: string) => text.replace(/[{}\\]/g, "").replace(/\s+/g, " ").trim();
 
 /** Thai has no spaces between words: break a long line at a space when there is one, otherwise near the middle. */
 export function wrapLine(text: string, max = 22) {
-  const value = clean(text);
+  const value = assClean(text);
   if ([...value].length <= max) return value;
   const chars = [...value], middle = Math.floor(chars.length / 2);
   const spaces = chars.map((c, i) => c === " " ? i : -1).filter(i => i > 0);
@@ -45,12 +45,12 @@ export function buildEpisodeSubtitles(cut: EpisodeCut) {
   let start = 0;
   for (const shot of cut.shots) {
     const end = start + shot.durationSeconds;
-    if (shot.subtitle.trim()) events.push(`Dialogue: 1,${time(start + .5)},${time(Math.max(start + 1.5, end - .4))},Sub,,0,0,0,,${subtitleText(shot.subtitle, cut.speakers)}`);
+    if (shot.subtitle.trim()) events.push(`Dialogue: 1,${assTime(start + .5)},${assTime(Math.max(start + 1.5, end - .4))},Sub,,0,0,0,,${subtitleText(shot.subtitle, cut.speakers)}`);
     start = end;
   }
   const total = start;
-  events.push(`Dialogue: 2,${time(0)},${time(Math.min(3, total))},Tag,,0,0,0,,${clean(cut.seriesTitle)} · EP.${cut.episodeNumber}/${cut.totalEpisodes}\\N${clean(cut.episodeTitle)}`);
-  events.push(`Dialogue: 2,${time(Math.max(0, total - 2.5))},${time(total)},End,,0,0,0,,${cut.finale ? "จบบริบูรณ์\\Nกดติดตามไว้ เพื่อดูเรื่องใหม่" : "กดติดตามไว้\\Nเพื่อดูตอนต่อไป"}`);
+  events.push(`Dialogue: 2,${assTime(0)},${assTime(Math.min(3, total))},Tag,,0,0,0,,${assClean(cut.seriesTitle)} · EP.${cut.episodeNumber}/${cut.totalEpisodes}\\N${assClean(cut.episodeTitle)}`);
+  events.push(`Dialogue: 2,${assTime(Math.max(0, total - 2.5))},${assTime(total)},End,,0,0,0,,${cut.finale ? "จบบริบูรณ์\\Nกดติดตามไว้ เพื่อดูเรื่องใหม่" : "กดติดตามไว้\\Nเพื่อดูตอนต่อไป"}`);
   return [
     "[Script Info]", "ScriptType: v4.00+", "PlayResX: 720", "PlayResY: 1280", "WrapStyle: 2", "ScaledBorderAndShadow: yes", "",
     "[V4+ Styles]",

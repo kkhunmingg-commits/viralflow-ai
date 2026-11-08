@@ -38,6 +38,8 @@ const nextConfig: NextConfig = {
     // The drama tab lives in the clip page; its buttons move a series on, which may check a shot.
     "/post": ["./assets/fonts/**", "./node_modules/ffmpeg-static/ffmpeg"],
     "/drama/[id]": ["./assets/fonts/**", "./node_modules/ffmpeg-static/ffmpeg"],
+    // Product clips from a pasted link: opening the tab may cut a finished clip in the background.
+    "/product-clips": ["./assets/fonts/**", "./node_modules/ffmpeg-static/ffmpeg"],
   },
   poweredByHeader: false,
   async headers() {
@@ -62,6 +64,8 @@ const nextConfig: NextConfig = {
   // avoids Next spawning a duplicate checker in restricted build runners.
   typescript: { ignoreBuildErrors: true },
   experimental: {
+    // Product photos uploaded with a pasted link (resized in the browser first; Vercel caps a request at 4.5 MB).
+    serverActions: { bodySizeLimit: "4mb" },
     cpus: 1,
     workerThreads: true,
   },
