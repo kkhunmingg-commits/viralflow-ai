@@ -42,12 +42,12 @@ const known = (error: unknown) => error instanceof Error ? KNOWN[error.message] 
 /** One click: the showrunner writes the season and the first shot goes into the free Flow queue. */
 export async function createSeriesAction(formData: FormData) {
   const parsed = createSeriesSchema.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) done(HOME, parsed.error.issues.some(i => i.message === "REPAIR_SAME_AS_MAIN") ? KNOWN.REPAIR_SAME_AS_MAIN : "เลือกแนวละคร ช่อง TikTok บัญชี Google หลัก และจำนวนตอน 3–60");
+  if (!parsed.success) done(HOME, parsed.error.issues.some(i => i.message === "REPAIR_SAME_AS_MAIN") ? KNOWN.REPAIR_SAME_AS_MAIN : "เลือกแนวละคร ช่อง TikTok และจำนวนตอน 3–60");
   const ownerId = await owner();
   let id: string;
   try { id = await createSeries(createAdminClient(), ownerId, parsed.data); }
   catch (error) { const message = known(error); if (message) done(HOME, message); throw error; }
-  done(`/drama/${id}`, "เขียนซีซันเสร็จแล้ว ช็อตแรกของตอนที่ 1 เข้าคิว Flow ของบัญชีหลักแล้ว เครื่องที่เปิด Flow worker จะเริ่มสร้างเอง");
+  done(`/drama/${id}`, "เขียนซีซันเสร็จแล้ว ระบบเลือกบัญชีที่เครดิตเหลือพอทำครบตอนให้เอง แล้วส่งช็อตแรกเข้าคิว Flow");
 }
 
 export async function seriesStatusAction(formData: FormData) {

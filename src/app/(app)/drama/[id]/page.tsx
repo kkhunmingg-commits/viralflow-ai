@@ -80,7 +80,7 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
         <label className="manual-muted"><input type="checkbox" name="confirm" value="yes" required /> ยืนยันลบทั้งเรื่อง (ลบคลิปและไฟล์ทุกตอน กู้คืนไม่ได้)</label>
         <button className="manual-secondary" type="submit">ลบทั้งเรื่อง</button></form>
       <span className="manual-muted">ตอนละ {series.shots_per_episode} ช็อต · {series.episodes_per_day} ตอน/วัน · ตัวเขียนบท {series.writer}
-        {mainLabel && ` · บัญชีหลัก ${mainLabel}`}{series.flow_account_id && (pool.length === 0 ? " · ไม่มีบัญชีซ่อม" : poolLeft > 0 ? ` · บัญชีซ่อมกองกลาง ${pool.length} บัญชี ซ่อมได้อีก ${poolLeft} ช็อตวันนี้` : ` · บัญชีซ่อม ${pool.length} บัญชี เครดิตหมดแล้ว`)}
+        {mainLabel ? ` · บัญชีหลัก ${mainLabel}` : " · ระบบเลือกบัญชี Google ให้เองทุกตอน"}{series.flow_account_id && (pool.length === 0 ? " · ไม่มีบัญชีซ่อม" : poolLeft > 0 ? ` · บัญชีซ่อมกองกลาง ${pool.length} บัญชี ซ่อมได้อีก ${poolLeft} ช็อตวันนี้` : ` · บัญชีซ่อม ${pool.length} บัญชี เครดิตหมดแล้ว`)}
         {series.auto_next && series.flow_account_id ? " · จบแล้วเริ่มเรื่องใหม่แนวเดิมให้เอง" : ""}</span>
     </div>
 

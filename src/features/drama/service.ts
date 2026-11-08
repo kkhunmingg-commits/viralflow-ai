@@ -50,7 +50,7 @@ export async function dramaAvailable(client: SupabaseClient) {
 // ---------------------------------------------------------------- Owner actions
 
 export interface NewSeries {
-  tiktokAccountId: string; flowAccountId: string; repairFlowAccountId?: string; genre: DramaGenre; totalEpisodes: number; shotsPerEpisode: number;
+  tiktokAccountId: string; flowAccountId?: string; repairFlowAccountId?: string; genre: DramaGenre; totalEpisodes: number; shotsPerEpisode: number;
   episodesPerDay: number;
 }
 /** The stories of this genre the owner already made, oldest first, so the next one is new. */
@@ -64,20 +64,14 @@ export async function createSeries(admin: SupabaseClient, owner: string, input: 
   const account = check(await admin.from("tiktok_accounts").select("id").eq("owner_id", owner).eq("id", input.tiktokAccountId).is("hidden_at", null).maybeSingle(),
     "accounts_unavailable");
   if (!account) throw new Error("ACCOUNT_NOT_FOUND");
-  const ids = [input.flowAccountId, input.repairFlowAccountId].filter((id): id is string => Boolean(id));
-  const google = check(await admin.from("flow_accounts").select("id,tiktok_account_id,active,purpose").eq("owner_id", owner).in("id", ids), "flow_accounts_unavailable") as
-    Array<{ id: string; tiktok_account_id: string | null; active: boolean; purpose: string }>;
-  const main = google.find(g => g.id === input.flowAccountId);
-  if (!main?.active || main.purpose === "REPAIR") throw new Error("FLOW_ACCOUNT_NOT_FOUND");
-  if (main.tiktok_account_id && main.tiktok_account_id !== input.tiktokAccountId) throw new Error("FLOW_ACCOUNT_OTHER_CHANNEL");
-  if (input.repairFlowAccountId && !google.find(g => g.id === input.repairFlowAccountId)?.active) throw new Error("REPAIR_ACCOUNT_NOT_FOUND");
+  // Lucky, 8 Nov: no Google account is locked to a series any more; each episode picks one from the whole pool.
   const story = pickStory(input.genre, await usedStories(admin, owner, input.genre));
   const bible = createBible(input.genre, input.totalEpisodes, story);
   const inserted = await admin.from("drama_series").insert({
     owner_id: owner, tiktok_account_id: input.tiktokAccountId, genre: input.genre, title: bible.title, logline: bible.logline,
     total_episodes: input.totalEpisodes, shots_per_episode: input.shotsPerEpisode, episodes_per_day: input.episodesPerDay,
-    bible, story_state: emptyStoryState(), writer: SHOWRUNNER_WRITER, flow_account_id: input.flowAccountId,
-    repair_flow_account_id: input.repairFlowAccountId ?? null, previous_series_id: previousSeriesId,
+    bible, story_state: emptyStoryState(), writer: SHOWRUNNER_WRITER, flow_account_id: null,
+    repair_flow_account_id: null, previous_series_id: previousSeriesId,
   }).select("id").single();
   // One running story per Google account (unique index): its daily credits are one episode.
   if (inserted.error?.code === "23505") throw new Error("FLOW_ACCOUNT_BUSY");
@@ -90,12 +84,10 @@ export async function createSeries(admin: SupabaseClient, owner: string, input: 
 export async function startNextStory(admin: SupabaseClient, owner: string, seriesId: string, now = new Date()) {
   const series = await loadSeries(admin, owner, seriesId);
   if (series.status !== "COMPLETED") throw new Error("SERIES_NOT_FINISHED");
-  if (!series.flow_account_id) throw new Error("FLOW_ACCOUNT_NOT_FOUND");
   const next = check(await admin.from("drama_series").select("id").eq("owner_id", owner).eq("previous_series_id", series.id).neq("status", "ARCHIVED").limit(1),
     "drama_unavailable") as Array<{ id: string }>;
   if (next.length) throw new Error("NEXT_STORY_EXISTS");
-  return createSeries(admin, owner, { tiktokAccountId: series.tiktok_account_id, flowAccountId: series.flow_account_id,
-    repairFlowAccountId: series.repair_flow_account_id ?? undefined, genre: series.genre, totalEpisodes: series.total_episodes,
+  return createSeries(admin, owner, { tiktokAccountId: series.tiktok_account_id, genre: series.genre, totalEpisodes: series.total_episodes,
     shotsPerEpisode: series.shots_per_episode, episodesPerDay: series.episodes_per_day }, now, series.id);
 }
 
@@ -516,17 +508,40 @@ export async function tickSeries(admin: SupabaseClient, owner: string, series: S
 }
 
 /** The main account and every repair account, as the episode picker sees them today. */
-async function episodeAccounts(admin: SupabaseClient, owner: string, mainId: string | null, now: Date) {
-  const pool = await repairPool(admin, owner, now);
-  if (!mainId) return pool;
-  const row = (await admin.from("flow_accounts").select("id,label,active,exhausted_on,clips_today,clips_today_on,clips_per_day_estimate,priority,created_at")
-    .eq("owner_id", owner).eq("id", mainId).maybeSingle()).data as RepairAccountRow | null;
-  if (!row) return pool;
+/**
+ * Lucky, 8 Nov: every Google account is one pool for drama (no fixed main or repair account per series). Accounts that
+ * are switched on, signed in on the worker (an account made for promo clips counts as signed in unless the worker said
+ * otherwise), not reported empty by Flow today and not set aside.
+ */
+export async function dramaAccounts(admin: SupabaseClient, owner: string, now = new Date()) {
+  const rows = check(await admin.from("flow_accounts").select("id,label,active,exhausted_on,clips_today,clips_today_on,clips_per_day_estimate,priority,created_at,purpose")
+    .eq("owner_id", owner), "flow_accounts_unavailable") as Array<RepairAccountRow & { purpose: string }> | null;
+  if (!rows?.length) return [];
   const logins = await flowLogins(admin, owner).catch(() => ({} as Awaited<ReturnType<typeof flowLogins>>));
   const aside = await accountsSetAside(admin, owner, now);
-  // The main account is used only for its own series, so a missing login record does not rule it out.
-  const [main] = repairAccounts([row], id => (logins[id]?.state ?? "READY") === "READY", bangkokDate(now), id => aside[id]?.reason ?? null);
-  return [main, ...pool.filter(a => a.id !== mainId)];
+  const purpose = new Map(rows.map(r => [r.id, r.purpose]));
+  return repairAccounts(rows, id => (logins[id]?.state ?? (purpose.get(id) === "REPAIR" ? null : "READY")) === "READY", bangkokDate(now), id => aside[id]?.reason ?? null);
+}
+async function episodeAccounts(admin: SupabaseClient, owner: string, _mainId: string | null, now: Date) {
+  return dramaAccounts(admin, owner, now);
+}
+
+/** Shots other open episodes still need from the account each of them is on, so two episodes never count on the same credits. */
+async function reservedShots(admin: SupabaseClient, owner: string, episodeId: string) {
+  const open = (await admin.from("drama_episodes").select("id").eq("owner_id", owner).eq("status", "PRODUCING").neq("id", episodeId)).data as Array<{ id: string }> | null;
+  const reserved: Record<string, number> = {};
+  for (const other of open ?? []) {
+    const shots = (await admin.from("drama_shots").select("status,flow_clip_id").eq("owner_id", owner).eq("episode_id", other.id)).data as
+      Array<{ status: string; flow_clip_id: string | null }> | null;
+    const left = (shots ?? []).filter(s => s.status !== "DONE" && s.status !== "SKIPPED").length;
+    if (!left) continue;
+    const queued = (shots ?? []).find(s => s.status === "QUEUED" && s.flow_clip_id)?.flow_clip_id;
+    const account = queued
+      ? ((await admin.from("flow_clips").select("required_flow_account_id").eq("owner_id", owner).eq("id", queued).maybeSingle()).data as { required_flow_account_id: string | null } | null)?.required_flow_account_id ?? null
+      : await episodeAccountSoFar(admin, owner, other.id);
+    if (account) reserved[account] = (reserved[account] ?? 0) + left;
+  }
+  return reserved;
 }
 
 /** The Google account that made this episode's latest finished shot, so the rest of the episode stays with it. */
@@ -573,7 +588,7 @@ async function clearSetAside(admin: SupabaseClient, owner: string) {
 
 /** Whether the owner has any repair account in use, and whether every one of them is out of credits today. */
 async function repairState(admin: SupabaseClient, owner: string, _series: SeriesRow, now: Date) {
-  const pool = (await repairPool(admin, owner, now)).filter(a => a.active && a.loggedIn);
+  const pool = (await dramaAccounts(admin, owner, now)).filter(a => a.active && a.loggedIn);
   return { exists: pool.length > 0, outOfCreditsToday: !pool.some(a => repairShotsLeft(a) > 0) };
 }
 
@@ -628,7 +643,7 @@ async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow
   // with room for all of them. If none has, the episode waits for new credits instead of starting half-way somewhere.
   const needed = shots.filter(s => s.status !== "DONE" && s.status !== "SKIPPED").length;
   const accounts = await episodeAccounts(admin, owner, series.flow_account_id, now);
-  const picked = pickEpisodeAccount(accounts, needed, { sticky: await episodeAccountSoFar(admin, owner, episode.id), main: series.flow_account_id });
+  const picked = pickEpisodeAccount(accounts, needed, { sticky: await episodeAccountSoFar(admin, owner, episode.id), reserved: await reservedShots(admin, owner, episode.id) });
   if (!picked) {
     // Accounts only set aside (refused, or could not start) come back soon: wait for the first of them that would have
     // room; when every account is short of credits, wait for the next day's credits.
@@ -641,7 +656,7 @@ async function queueShot(admin: SupabaseClient, owner: string, series: SeriesRow
     return;
   }
   const account = picked.id;
-  shot = { ...shot, route: account === series.flow_account_id ? "PRIMARY" : "REPAIR" };
+  shot = { ...shot, route: shot.attempts > 0 ? "REPAIR" : "PRIMARY" };
   const claimed = await admin.from("drama_shots").update({ status: "QUEUED", route: shot.route ?? "PRIMARY", retry_after: null, updated_at: now.toISOString() })
     .eq("owner_id", owner).eq("id", shot.id).eq("status", "PLANNED").is("flow_clip_id", null).select("id");
   if (claimed.error || !claimed.data?.length) return;
@@ -808,13 +823,13 @@ export async function fallBackToMainAccount(admin: SupabaseClient, owner: string
   // starts from (the previous shot's last frame) and the full prompt travel with the clip.
   const left = (await admin.from("drama_shots").select("id", { count: "exact", head: true }).eq("owner_id", owner).eq("episode_id", shot.episode_id)
     .not("status", "in", "(DONE,SKIPPED)")).count ?? 1;
-  const next = pickEpisodeAccount(await episodeAccounts(admin, owner, main, now), left, { main, exclude: [failed] });
+  const next = pickEpisodeAccount(await episodeAccounts(admin, owner, main, now), left, { exclude: [failed], reserved: await reservedShots(admin, owner, shot.episode_id) });
   const target = next?.id ?? null;
   if (next && target) {
     check(await admin.from("flow_clips").update({ required_flow_account_id: target, error: null, updated_at: now.toISOString() })
       .eq("owner_id", owner).eq("id", clipId).eq("status", "QUEUED"), "flow_clip_not_saved");
-    const repair = target !== main;
-    const who = repair ? `บัญชีซ่อม ${next.label}` : "บัญชีหลัก";
+    const repair = true;
+    const who = `บัญชี ${next.label}`;
     await updateShot(admin, owner, shot.id, "QUEUED", { route: repair ? "REPAIR" : "PRIMARY",
       error: `บัญชีก่อนหน้าทำไม่ได้ (${credit ? "เครดิตหมด" : reason}) ย้ายให้${who}ทำแทนอัตโนมัติ ไม่เสียเครดิต`.slice(0, 400) }, now, clipId);
     return true;

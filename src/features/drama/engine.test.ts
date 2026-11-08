@@ -138,19 +138,22 @@ describe("repair pool", () => {
     expect(isCreditReason("NO_CREDIT")).toBe(true);
     expect(isCreditReason("IMAGE_INPUT_NOT_FOUND")).toBe(false);
   });
-  it("gives a whole episode to one account that has room for every shot left", () => {
+  it("gives a whole episode to one account that has room for every shot left (best fit, no fixed main)", () => {
     const pool = repairAccounts([row("main", { clips_today: 1, clips_today_on: today }), row("a", { clips_today: 2, clips_today_on: today }), row("bb"), row("ccc")], () => true, today);
-    // 5 shots to make: the main account has 4 left, so a full 5/5 repair account takes the episode.
-    expect(pickEpisodeAccount(pool, 5, { main: "main" })?.id).toBe("bb");
+    // 5 shots to make: only the full 5/5 accounts fit; the first of them takes the episode.
+    expect(pickEpisodeAccount(pool, 5)?.id).toBe("bb");
     // Once it made shot 1, the episode stays with it (4 shots left, it has 4).
     const after = repairAccounts([row("main", { clips_today: 1, clips_today_on: today }), row("a", { clips_today: 2, clips_today_on: today }), row("bb", { clips_today: 1, clips_today_on: today }), row("ccc")], () => true, today);
-    expect(pickEpisodeAccount(after, 4, { sticky: "bb", main: "main" })?.id).toBe("bb");
-    // The main account is preferred when it has room.
-    expect(pickEpisodeAccount(pool, 3, { main: "main" })?.id).toBe("main");
+    expect(pickEpisodeAccount(after, 4, { sticky: "bb" })?.id).toBe("bb");
+    // A small job goes to the part-used account that fits best (3/5), keeping the full ones for new episodes.
+    expect(pickEpisodeAccount(pool, 2)?.id).toBe("a");
+    expect(pickEpisodeAccount(pool, 4)?.id).toBe("main");
     // Nobody can finish 6 shots in one account: wait.
-    expect(pickEpisodeAccount(pool, 6, { main: "main" })).toBeNull();
+    expect(pickEpisodeAccount(pool, 6)).toBeNull();
     // A failed account is never picked again for the same shot.
-    expect(pickEpisodeAccount(pool, 5, { main: "main", exclude: ["bb"] })?.id).toBe("ccc");
+    expect(pickEpisodeAccount(pool, 5, { exclude: ["bb"] })?.id).toBe("ccc");
+    // Shots another open episode still needs from an account are not handed out twice.
+    expect(pickEpisodeAccount(pool, 5, { reserved: { bb: 5 } })?.id).toBe("ccc");
   });
   it("never picks an account that is not signed in on the worker", () => {
     expect(pickRepairAccount(repairAccounts([row("a")], () => false, today))).toBeNull();

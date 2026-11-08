@@ -54,8 +54,6 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
   const google = all.filter(g => g.purpose !== "REPAIR"), repairs = all.filter(g => g.purpose === "REPAIR");
   const logins = await flowLogins(createAdminClient(), owner).catch(() => ({} as Awaited<ReturnType<typeof flowLogins>>));
   const series = available ? await listSeries(client, owner).catch(() => []) : [];
-  const busy = new Map(series.filter(s => (s.series.status === "ACTIVE" || s.series.status === "PAUSED") && s.series.flow_account_id).map(s => [s.series.flow_account_id!, s.series.title]));
-  const free = google.filter(g => g.active && !busy.has(g.id));
   const label = (id: string | null) => all.find(g => g.id === id)?.label ?? null;
   // Every repair account is one shared pool: any series sends a repair shot to whichever account still has credits.
   const pool = await repairPool(createAdminClient(), owner).catch(() => []);
@@ -70,7 +68,6 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
     return `เหลือ ${perDay - used}/${perDay} คลิปวันนี้`;
   };
   const drama = <input type="hidden" name="studio" value="drama" />;
-  const channel = (id: string | null) => id ? accounts.find(a => a.id === id)?.display_name ?? "ช่องอื่น" : "ใช้ได้ทุกช่อง";
   const today = bangkokDate();
   // One cover picture per series (episode 1's key still: the cast in the opening scene).
   const admin = createAdminClient();
@@ -85,7 +82,7 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
   const ready = accounts.length > 0 && google.length > 0;
   const steps = [
     { href: "#step-accounts", title: "เตรียมบัญชี", note: ready ? `บัญชีหลัก ${google.length} · ซ่อม ${repairs.length}` : "ต้องทำก่อน", todo: !ready },
-    { href: "#step-new", title: "เริ่มเรื่องใหม่", note: free.length > 0 ? `ว่าง ${free.length} บัญชี` : "บัญชีเต็มแล้ว", todo: false },
+    { href: "#step-new", title: "เริ่มเรื่องใหม่", note: `ระบบเลือกบัญชีให้เอง`, todo: false },
     { href: "#step-production", title: "ติดตามการผลิต", note: `${producing} เรื่องกำลังผลิต`, todo: false },
     { href: "#step-review", title: "ตรวจตอนที่เสร็จ", note: waiting > 0 ? `รอคุณตรวจ ${waiting} ตอน` : "ยังไม่มีตอนรอตรวจ", todo: waiting > 0 },
     { href: "#library", title: "โพสต์จากคลังละคร", note: libraryCount ? `รอโพสต์ ${libraryCount} ตอน` : "ยังไม่มีตอนรอโพสต์", todo: Boolean(libraryCount) },
@@ -99,12 +96,12 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
       <a href={step.href}><span aria-hidden="true">{i + 1}</span><strong>{step.title}</strong><small>{step.note}</small></a></li>)}</ol>
 
     <section className="manual-panel drama-step" id="step-accounts" aria-labelledby="accounts-title">
-      {stepHead(1, "accounts-title", "เตรียมบัญชี", "บัญชีหลัก 1 บัญชีทำละครได้ 1 เรื่อง ส่วนบัญชีซ่อมเป็นกองกลาง ใช้ซ่อมช็อตที่เสียหรือเครดิตหมดให้ทุกเรื่อง")}
+      {stepHead(1, "accounts-title", "เตรียมบัญชี", "ไม่ล็อกบัญชีกับเรื่องแล้ว ทุกบัญชีเป็นกองกลาง ตอนใหม่ใช้บัญชีที่เหลือเต็ม 5/5 ช็อตที่ต้องซ่อมใช้บัญชีที่เหลือไม่เต็ม ระบบเลือกให้เอง")}
       <h3>บัญชี Google หลัก ({google.length})</h3>
       {accounts.length === 0 ? <p className="manual-muted">เชื่อมบัญชี TikTok ก่อน <Link href="/accounts">ไปหน้าบัญชี</Link></p>
         : google.length === 0 ? <p className="manual-muted">ยังไม่มีบัญชี Google <Link href="/post">ไปผูกบัญชีในแท็บสร้างคลิปโปรโมท</Link></p>
         : <ol className="library-flow-list">{google.map(g => <li key={g.id} className={g.active ? undefined : "paused"}>
-          <div><strong>{g.label}</strong><small>{loginText(g.id)} · {busy.has(g.id) ? `ทำเรื่อง “${busy.get(g.id)}”` : g.active ? "ว่าง เริ่มเรื่องใหม่ได้" : "พักไว้"}{" · "}{mainLeft(g)}</small></div>
+          <div><strong>{g.label}</strong><small>{loginText(g.id)} · {g.active ? "ใช้ได้" : "พักไว้"}{" · "}{mainLeft(g)}</small></div>
         </li>)}</ol>}
       {google.length > 0 && <p className="manual-muted drama-note">เพิ่มหรือแก้บัญชีหลักได้ที่ <Link href="/post">แท็บสร้างคลิปโปรโมท</Link></p>}
       <h3>บัญชีซ่อมกองกลาง ({repairs.length})</h3>
@@ -144,9 +141,6 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
         <div className="drama-form-row">
           <label className="manual-filter">ช่อง TikTok ที่จะลง<select name="tiktokAccountId" defaultValue={accounts[0]?.id}>
             {accounts.map(a => <option key={a.id} value={a.id}>{a.display_name}</option>)}</select></label>
-          <label className="manual-filter">บัญชี Google หลัก (ล็อกกับเรื่องนี้)<select name="flowAccountId" defaultValue={free[0]?.id} required>
-            {google.map(g => <option key={g.id} value={g.id} disabled={!g.active || busy.has(g.id)}>
-              {g.label} · {channel(g.tiktok_account_id)}{busy.has(g.id) ? ` · ล็อกกับ “${busy.get(g.id)}” แล้ว` : !g.active ? " · พักไว้" : ""}</option>)}</select></label>
           <label className="manual-filter">จำนวนตอนทั้งซีซัน<select name="totalEpisodes" defaultValue="30">
             {[6, 10, 15, 20, 30].map(n => <option key={n} value={n}>{n} ตอน</option>)}</select></label>
           <label className="manual-filter">ช็อตต่อตอน (ช็อตละ 10 วิ)<select name="shotsPerEpisode" defaultValue="5">
@@ -154,8 +148,8 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
           <label className="manual-filter">ตอนต่อวัน<select name="episodesPerDay" defaultValue="1">
             {[1, 2].map(n => <option key={n} value={n}>{n} ตอน/วัน</option>)}</select></label>
         </div>
-        <p className="manual-muted drama-note">ใช้เครดิตฟรีของบัญชี Google เท่านั้น ไม่โพสต์ TikTok เอง{repairs.length === 0 ? " · ยังไม่มีบัญชีซ่อม เพิ่มได้ในขั้นที่ 1" : ` · ช็อตที่ต้องซ่อมใช้${poolText}`}</p>
-        <button className="manual-primary" type="submit" disabled={free.length === 0}>{free.length === 0 ? "บัญชี Google ทุกบัญชีล็อกกับละครแล้ว" : "ให้ AI เขียนซีซันและเริ่มผลิต"}</button>
+        <p className="manual-muted drama-note">ใช้เครดิตฟรีของบัญชี Google เท่านั้น ไม่โพสต์ TikTok เอง · ระบบเลือกบัญชีเอง: ตอนใหม่ใช้บัญชีที่เหลือเต็ม (เช่น 5/5) ช็อตที่ต้องซ่อมใช้บัญชีที่เหลือไม่เต็ม (เช่น 3/5, 4/5)</p>
+        <button className="manual-primary" type="submit" disabled={all.filter(g => g.active).length === 0}>ให้ AI เขียนซีซันและเริ่มผลิต</button>
       </form>}
       </details>
     </section>

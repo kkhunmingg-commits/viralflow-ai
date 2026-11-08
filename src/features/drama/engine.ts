@@ -125,15 +125,17 @@ export function pickRepairAccount(pool: RepairAccount[], exclude: string[] = [])
 
 /**
  * Lucky, 7 Nov: one account makes an episode from its first shot to its last, in one Flow project, so the shots match.
- * Only an account with room for every shot still to make counts (5/5 for a five-shot episode). The account that made
- * the episode's earlier shots keeps it while it has room; otherwise the main account, then the repair account with the
- * most shots left. Null: no account can finish the episode today, so it waits rather than start on a half-empty one.
+ * Lucky, 8 Nov: no fixed main or repair accounts any more. The account that made the episode's earlier shots keeps it
+ * while it has room; otherwise the account that fits best: the one with the fewest shots left that still has room for
+ * every shot still to make. A new five-shot episode so goes to a full 5/5 account, while a shot or two to remake goes
+ * to a part-used account (3/5, 4/5) and leaves the full ones for new episodes. `reserved` holds shots other open
+ * episodes still need from an account. Null: no account can finish the episode today, so it waits.
  */
 export function pickEpisodeAccount(accounts: RepairAccount[], needed: number,
-  { sticky = null, main = null, exclude = [] }: { sticky?: string | null; main?: string | null; exclude?: string[] } = {}) {
-  const fits = accounts.filter(a => !exclude.includes(a.id) && repairShotsLeft(a) >= Math.max(1, needed));
-  return fits.find(a => a.id === sticky) ?? fits.find(a => a.id === main)
-    ?? fits.toSorted((a, b) => repairShotsLeft(b) - repairShotsLeft(a))[0] ?? null;
+  { sticky = null, exclude = [], reserved = {} }: { sticky?: string | null; exclude?: string[]; reserved?: Record<string, number> } = {}) {
+  const left = (a: RepairAccount) => repairShotsLeft(a) - (a.id === sticky ? 0 : reserved[a.id] ?? 0);
+  const fits = accounts.filter(a => !exclude.includes(a.id) && left(a) >= Math.max(1, needed));
+  return fits.find(a => a.id === sticky) ?? fits.toSorted((a, b) => left(a) - left(b))[0] ?? null;
 }
 
 /** A worker reason that means the account has no credits (Flow said so, or shows no usable Generate button). */

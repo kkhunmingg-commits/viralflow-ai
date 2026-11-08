@@ -84,14 +84,14 @@ export const MAX_ASSEMBLE_ATTEMPTS = 3;
 const optionalUuid = z.preprocess(value => value === "" || value == null ? undefined : value, z.uuid().optional());
 export const createSeriesSchema = z.object({
   tiktokAccountId: z.uuid(),
-  /** The Google (Flow) account that makes this series and nothing else while it runs. */
-  flowAccountId: z.uuid(),
+  /** No longer used (8 Nov): every episode picks its account from the whole pool. Kept so old forms still parse. */
+  flowAccountId: optionalUuid,
   /** A second Google account that remakes any broken shot. */
   repairFlowAccountId: optionalUuid,
   genre: z.enum(DRAMA_GENRES),
   totalEpisodes: z.coerce.number().int().min(3).max(60).default(30),
   shotsPerEpisode: z.coerce.number().int().min(2).max(6).default(5),
   episodesPerDay: z.coerce.number().int().min(1).max(5).default(1),
-}).refine(input => input.repairFlowAccountId !== input.flowAccountId, { message: "REPAIR_SAME_AS_MAIN", path: ["repairFlowAccountId"] });
+}).refine(input => !input.repairFlowAccountId || input.repairFlowAccountId !== input.flowAccountId, { message: "REPAIR_SAME_AS_MAIN", path: ["repairFlowAccountId"] });
 export const seriesRefSchema = z.object({ id: z.uuid() });
 export const shotRefSchema = z.object({ seriesId: z.uuid(), shotId: z.uuid() });
