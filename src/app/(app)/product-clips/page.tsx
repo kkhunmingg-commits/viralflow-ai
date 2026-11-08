@@ -55,8 +55,7 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
   return <div className="manual-page">
     <ClipStudioTabs />
     <header className="manual-hero"><div><p className="manual-eyebrow">Viral Flow AI · Shopee · Lazada · Reels · Shorts</p><h1>คลิปสินค้าจากลิงก์</h1>
-      <p>วางลิงก์สินค้า ระบบดึงรูปและข้อมูล เขียนสคริปต์ที่พูดเฉพาะสิ่งที่หน้าร้านบอก ไม่เวอร์ ไม่อ้างเกินจริง สร้างคลิปด้วยเครดิตฟรีของ Google Flow แล้วรอให้คุณตรวจ ผ่านแล้วโพสต์ Facebook Reels, Instagram Reels, YouTube Shorts พร้อมคอมเมนต์ลิงก์ให้เอง</p></div>
-      <Link className="manual-back" href="/post">← คลิปโปรโมท</Link></header>
+      <p>วางลิงก์สินค้า ระบบดึงรูปและข้อมูล เขียนสคริปต์ที่พูดเฉพาะสิ่งที่หน้าร้านบอก ไม่เวอร์ ไม่อ้างเกินจริง สร้างคลิปด้วยเครดิตฟรีของ Google Flow แล้วรอให้คุณตรวจ ผ่านแล้วโพสต์ Facebook Reels, Instagram Reels, YouTube Shorts พร้อมคอมเมนต์ลิงก์ให้เอง</p></div></header>
     <ol className="manual-steps" aria-label="ขั้นตอน"><li><span>1</span>วางลิงก์ + เลือก 8/16/32 วิ</li><li><span>2</span>Flow สร้างช็อตเอง</li><li><span>3</span>ตรวจคลิป</li><li><span>4</span>โพสต์ + คอมเมนต์ลิงก์อัตโนมัติ</li></ol>
     {msg && <p className="library-message" role="status">{msg.slice(0, 300)}</p>}
     {!available && <p className="manual-warning">ฐานข้อมูลยังไม่มีตาราง product_link_clips: รันไฟล์ supabase/migrations/20261108160000_product_link_clips.sql ใน Supabase SQL Editor ก่อน แล้วหน้านี้จะใช้ได้</p>}

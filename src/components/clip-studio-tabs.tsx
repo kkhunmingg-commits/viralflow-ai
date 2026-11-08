@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { clipStudioTabs } from "@/lib/navigation";
 
-/** In-page switch between the clip studios (promo clips / drama series), shown at the top of each studio page. */
+/** In-page switch between the clip studios (promo clips / product links / drama series), shown at the top of each studio page. */
 export function ClipStudioTabs() {
   const pathname = usePathname();
   return <nav className="clip-studio-tabs" aria-label="เลือกประเภทคลิป">
