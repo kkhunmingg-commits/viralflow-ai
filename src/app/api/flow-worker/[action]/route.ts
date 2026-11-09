@@ -10,7 +10,7 @@ export const maxDuration = 300;
 
 const headers = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
 const KNOWN = new Set(["FLOW_ACCOUNT_UNAVAILABLE", "PRODUCT_IMAGE_UNAVAILABLE", "CLIP_NOT_GENERATING", "UPLOADED_VIDEO_MISSING", "INVALID_MP4",
-  "CHECKSUM_MISMATCH", "NOT_PORTRAIT_9_16", "DUPLICATE_VIDEO", "CLIP_NOT_RECOVERABLE"]);
+  "CHECKSUM_MISMATCH", "NOT_PORTRAIT_9_16", "DUPLICATE_VIDEO", "CLIP_NOT_RECOVERABLE", "PRODUCT_CLIP_NOT_FOUND"]);
 const reply = (body: unknown, status = 200) => Response.json(body, { status, headers });
 
 /** Endpoints for each owner's local Flow worker (workers/flow-browser/farm.mjs). The token decides whose queue it serves. */
@@ -21,6 +21,11 @@ export async function GET(request: Request, context: { params: Promise<{ action:
   if (action === "worker-files") {
     const { workerBundle } = await import("@/features/flow-farm/installer");
     return reply(await workerBundle());
+  }
+  if (action === "product-lookups") {
+    // Product pages Shopee/Lazada would not show the server: the worker opens them in its own Chrome.
+    const { claimProductLookups } = await import("@/features/product-links/service");
+    return reply({ lookups: await claimProductLookups(createAdminClient(), auth.owner) });
   }
   if (action !== "accounts") return reply({ error: "not_found" }, 404);
   const admin = createAdminClient();
@@ -70,6 +75,11 @@ export async function POST(request: Request, context: { params: Promise<{ action
       case "reopen": await reopenMissedClip(admin, owner, clipRefSchema.parse(body).clipId); return reply({ ok: true });
       case "progress": await reportProgress(admin, owner, progressSchema.parse(body)); return reply({ ok: true });
       case "finish": return reply(await finishWithoutCredits(admin, owner));
+      case "product-lookup": {
+        const { lookupResultSchema } = await import("@/features/product-links/browser-lookup");
+        const { finishProductLookup } = await import("@/features/product-links/service");
+        return reply(await finishProductLookup(admin, owner, lookupResultSchema.parse(body)));
+      }
       default: return reply({ error: "not_found" }, 404);
     }
   } catch (error) {

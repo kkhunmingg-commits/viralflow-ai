@@ -29,3 +29,7 @@
 .pl-tiktok{display:grid;gap:8px;margin-top:10px}
 .pl-setup{display:grid;gap:6px;padding-left:20px;overflow-wrap:anywhere}
 @media(max-width:640px){.pl-card{grid-template-columns:1fr}.pl-link-row .manual-primary{width:100%}}
+.pl-quick{border-top:0;padding-top:0}
+.pl-manual{border-top:1px solid #1f2937;padding-top:12px}
+.pl-manual>summary{cursor:pointer;color:#9aa7bc;font-size:14px}
+.pl-manual[open]>summary{margin-bottom:12px}

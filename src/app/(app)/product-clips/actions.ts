@@ -7,7 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { linkErrorLabel, parseProductLink } from "@/features/product-links/link";
 import { factCandidates, lookupProduct, type ProductDetails } from "@/features/product-links/source";
-import { createProductClip, deleteProductClip, remakeProductClip, reviewProductClip } from "@/features/product-links/service";
+import { autoFacts, createProductClip, deleteProductClip, queueProductLookup, remakeProductClip, reviewProductClip } from "@/features/product-links/service";
 import { SOCIAL_LABEL, SOCIAL_PLATFORMS, type SocialPlatform } from "@/features/social-publish/config";
 
 const HOME = "/product-clips";
@@ -82,6 +82,47 @@ export async function createProductClipAction(formData: FormData) {
   }
 }
 
+const startSchema = z.object({
+  tiktokAccountId: z.uuid(),
+  link: z.string().trim().min(8).max(1500),
+  lengthSeconds: z.coerce.number().pipe(z.union([z.literal(8), z.literal(16), z.literal(32)])),
+  rights: z.literal("on"),
+});
+
+/**
+ * One step: paste the link, pick the length, done. The server tries to read the product page itself; Shopee and
+ * Lazada usually refuse it, so the owner's own computer (the Flow worker's Chrome) opens the page instead, and the
+ * title, photos and seller's feature lines it finds become the script and the takes without anything typed by hand.
+ */
+export async function startProductClipAction(formData: FormData) {
+  const parsed = startSchema.safeParse({ tiktokAccountId: formData.get("tiktokAccountId"), link: formData.get("link"), lengthSeconds: formData.get("lengthSeconds"), rights: formData.get("rights") });
+  if (!parsed.success) done("วางลิงก์ เลือกความยาวคลิป และติ๊กยืนยันก่อน");
+  const ownerId = await owner();
+  let link;
+  try { link = parseProductLink(parsed.data.link); } catch (error) { done(label(error) ?? "ลิงก์นี้ใช้ไม่ได้"); }
+  const admin = createAdminClient();
+  let made: { shortName: string; shots: number } | null = null, refused = false;
+  try {
+    const details = await lookupProduct(link.link);
+    if (details.title && details.images.length) {
+      const { script } = await createProductClip(admin, ownerId, { tiktokAccountId: parsed.data.tiktokAccountId, platform: link.platform, source: details.source,
+        link: link.link, productUrl: details.productUrl, externalId: details.externalId, title: details.title, facts: autoFacts(details.description),
+        lengthSeconds: parsed.data.lengthSeconds, imageUrls: details.images.slice(0, 4), uploads: [] });
+      made = { shortName: script.shortName, shots: script.shots.length };
+    }
+  } catch (error) {
+    // The server read the page but could not keep the photos: the computer's Chrome tries instead. Refused words stop here.
+    refused = error instanceof Error && error.message === "SCRIPT_REJECTED";
+  }
+  if (refused) done(KNOWN.SCRIPT_REJECTED);
+  if (made) done(`ดึงข้อมูล “${made.shortName}” แล้ว เขียนสคริปต์ ${made.shots} ช็อต เข้าคิวสร้างคลิปแล้ว`);
+  try {
+    await queueProductLookup(admin, ownerId, { tiktokAccountId: parsed.data.tiktokAccountId, platform: link.platform, link: link.link, externalId: link.externalId,
+      lengthSeconds: parsed.data.lengthSeconds });
+  } catch (error) { const message = label(error); if (message) done(message); throw error; }
+  done("รับลิงก์แล้ว เครื่องสร้างคลิปในคอมจะเปิดหน้าสินค้า ดึงชื่อ รูป และรายละเอียดเอง แล้วเขียนสคริปต์และสร้างคลิปต่อทันที (ดูความคืบหน้าในหัวข้อ “กำลังทำ”)");
+}
+
 const reviewSchema = z.object({ id: z.uuid(), decision: z.enum(["APPROVE", "REJECT"]) });
 export async function reviewProductClipAction(formData: FormData) {
   const parsed = reviewSchema.safeParse({ id: formData.get("id"), decision: formData.get("decision") });
@@ -101,7 +142,10 @@ export async function remakeProductClipAction(formData: FormData) {
   const parsed = refSchema.safeParse({ id: formData.get("id") });
   if (!parsed.success) done("คำขอไม่ถูกต้อง");
   const ownerId = await owner();
-  try { const { script } = await remakeProductClip(createAdminClient(), ownerId, parsed.data.id); done(`ทำใหม่แล้ว ${script.shots.length} ช็อต ฉาก “${script.setTh}”`); }
+  try {
+    const { script } = await remakeProductClip(createAdminClient(), ownerId, parsed.data.id);
+    done(script ? `ทำใหม่แล้ว ${script.shots.length} ช็อต ฉาก “${script.setTh}”` : "ส่งให้เครื่องสร้างคลิปเปิดหน้าสินค้าอีกครั้งแล้ว");
+  }
   catch (error) { const message = label(error); if (message) done(message); throw error; }
 }
 export async function deleteProductClipAction(formData: FormData) {

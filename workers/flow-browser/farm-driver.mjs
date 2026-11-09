@@ -543,3 +543,103 @@ async function saveDebug(page, dir, clipId, label) {
 }
 
 export async function readVideoFile(path) { return readFile(path); }
+
+// ---------------------------------------------------------------- Product pages (Shopee / Lazada)
+
+/** Sign-in and robot-check pages the marketplaces show instead of the product. */
+export function isShopLoginWall(url) {
+  try {
+    const { hostname, pathname } = new URL(url);
+    return /\/(buyer\/login|verify\/|login)/i.test(pathname) || /^(member|login|passport)\./i.test(hostname);
+  } catch { return false; }
+}
+export const SHOP_LOGIN_URL = { SHOPEE: "https://shopee.co.th/buyer/login", LAZADA: "https://member.lazada.co.th/user/login" };
+const SHOP_IMAGE_HOST = /(^|\.)(susercontent\.com|shopeemobile\.com|lazcdn\.com|slatic\.net|alicdn\.com)$/i;
+const SHOPEE_PRODUCT_API = /\/api\/v4\/(pdp\/get_pc|pdp\/get|item\/get)\?/;
+
+function shopeeImage(id, pageUrl) {
+  if (typeof id !== "string") return null;
+  if (/^https:\/\//.test(id)) return id;
+  if (!/^[a-z0-9_-]{8,80}$/i.test(id)) return null;
+  let host = "shopee.co.th";
+  try { host = new URL(pageUrl).hostname; } catch { /* default */ }
+  const cc = /\.sg$/.test(host) ? "sg" : /\.com\.my$/.test(host) ? "my" : /\.vn$/.test(host) ? "vn" : /\.ph$/.test(host) ? "ph" : /\.co\.id$/.test(host) ? "id" : "th";
+  return `https://down-${cc}.img.susercontent.com/file/${id}`;
+}
+function imageKind(bytes) {
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "jpg";
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "png";
+  if (bytes.subarray(0, 4).toString("ascii") === "RIFF" && bytes.subarray(8, 12).toString("ascii") === "WEBP") return "webp";
+  return null;
+}
+
+/**
+ * Opens a pasted Shopee/Lazada link in the farm's own shop profile (a normal Chrome, so the marketplace shows the page
+ * as it would to the owner) and returns what the page holds: Shopee's product data, the HTML, the photos (downloaded
+ * here, because the image servers may refuse ViralFlow's server too). Never buys, clicks or types anything.
+ */
+export async function readShopPage(job, config) {
+  const context = await launchProfile(join(config.profilesDir, "_shop"), { mode: config.windowMode, channel: config.channel });
+  try {
+    const page = context.pages()[0] ?? await context.newPage();
+    let api = null;
+    page.on("response", async response => {
+      if (api || !SHOPEE_PRODUCT_API.test(response.url())) return;
+      try {
+        const data = (await response.json())?.data;
+        const item = data?.item;
+        if (item) api = { item: { title: item.title ?? item.name, description: item.description, brand: item.brand, images: item.images, item_id: item.item_id, shop_id: item.shop_id },
+          product_images: data.product_images?.images ? { images: data.product_images.images } : null };
+      } catch { /* not JSON */ }
+    });
+    await page.goto(job.link, { waitUntil: "domcontentloaded", timeout: 60_000 });
+    for (let i = 0; i < 25 && !api; i++) {
+      if (isShopLoginWall(page.url())) break;
+      // Lazada (and Shopee pages that render without the API) carry the product in JSON-LD / Open Graph.
+      const tagged = await page.evaluate(() => !!document.querySelector('script[type="application/ld+json"]') && !!document.querySelector('meta[property="og:title"]')).catch(() => false);
+      if (i >= 8 && tagged) break;
+      await page.waitForTimeout(1_000);
+    }
+    const finalUrl = page.url();
+    if (isShopLoginWall(finalUrl)) return { ok: false, error: "LOGIN_REQUIRED", finalUrl };
+    await page.waitForTimeout(1_500);
+    const dom = await page.evaluate(() => {
+      const images = [...document.images].filter(img => img.naturalWidth >= 300 && img.naturalHeight >= 300).map(img => img.currentSrc || img.src);
+      const og = [...document.querySelectorAll('meta[property="og:image"],meta[property="og:image:url"]')].map(m => m.getAttribute("content") || "");
+      const ld = [];
+      for (const s of document.querySelectorAll('script[type="application/ld+json"]')) {
+        try {
+          const value = JSON.parse(s.textContent || "");
+          for (const item of [value, ...(Array.isArray(value) ? value : []), ...(Array.isArray(value?.["@graph"]) ? value["@graph"] : [])])
+            if (item && /Product/i.test(String(item["@type"] ?? ""))) ld.push(...[item.image].flat().map(x => typeof x === "string" ? x : x?.url).filter(Boolean));
+        } catch { /* skip */ }
+      }
+      const description = document.querySelector('[class*="product-detail"], [class*="detail-content"], #module_product_detail')?.innerText ?? "";
+      return { title: document.title, h1: document.querySelector("h1")?.innerText ?? "", description: description.slice(0, 6000), images: [...new Set([...ld, ...og, ...images])].slice(0, 40) };
+    }).catch(() => ({ title: "", h1: "", description: "", images: [] }));
+    const html = (await page.content().catch(() => "")).slice(0, 850_000);
+    // Listing photos in the marketplace's own order: product data first, then tagged photos, then large photos on the page.
+    const candidates = [...new Set([...(api?.item?.images ?? []), ...(api?.product_images?.images ?? [])].map(id => shopeeImage(id, finalUrl)).filter(Boolean)
+      .concat(dom.images.map(src => src.startsWith("//") ? `https:${src}` : src)))]
+      .filter(src => { try { const u = new URL(src); return u.protocol === "https:" && SHOP_IMAGE_HOST.test(u.hostname); } catch { return false; } });
+    const images = [];
+    for (const url of candidates.slice(0, 10)) {
+      if (images.length >= 4) break;
+      try {
+        const response = await context.request.get(url, { timeout: 15_000, headers: { referer: finalUrl } });
+        if (!response.ok()) continue;
+        const bytes = await response.body();
+        if (bytes.length < 3_000 || bytes.length > 800_000 || !imageKind(bytes)) continue;
+        images.push({ url, base64: bytes.toString("base64") });
+      } catch { /* the next photo */ }
+    }
+    return { ok: true, finalUrl, html, api, dom: { title: dom.title.slice(0, 500), h1: dom.h1.slice(0, 500), description: dom.description, images: candidates.slice(0, 40) }, images };
+  } catch (error) {
+    return { ok: false, error: String(error?.message ?? error).slice(0, 150) };
+  } finally { await context.close().catch(() => {}); }
+}
+
+/** A visible Chrome on the shop profile's sign-in page; resolves when the owner closes it (or after 15 minutes). */
+export function openShopLogin(platform, config) {
+  return openPlainChrome(join(config.profilesDir, "_shop"), { channel: config.channel, flowUrl: SHOP_LOGIN_URL[platform] ?? SHOP_LOGIN_URL.SHOPEE });
+}

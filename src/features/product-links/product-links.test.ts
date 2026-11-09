@@ -91,3 +91,32 @@ describe("product clip script", () => {
     expect(ass).toContain("End,,0,0,0,,");
   });
 });
+
+describe("reading the product page on the owner's computer", async () => {
+  const { detailsFromBrowser, isLoginWall, lookupResultSchema, shopeeImageUrl } = await import("./browser-lookup");
+  const jobId = "6f1c1b7e-8a3e-4c1f-9a0e-2b4c6d8e0f12";
+
+  it("uses Shopee's product data: exact title, every photo on the shop's own CDN, the seller's lines", () => {
+    const result = lookupResultSchema.parse({ jobId, ok: true, finalUrl: "https://shopee.co.th/ขวดน้ำ-i.123456.987654321?sp_atk=x",
+      api: { item: { title: "ขวดน้ำเก็บความเย็น 500ml", description: "ความจุ 500 ml\nวัสดุสแตนเลส 304\nส่งไว", images: ["th-11134207-7r98o-abcdef123456", "th-11134207-7r98o-zzzzzz999999"], shop_id: 123456, item_id: 987654321 } },
+      html: "<html></html>", dom: { title: "x | Shopee Thailand", images: [] } });
+    const details = detailsFromBrowser("SHOPEE", result);
+    expect(details.title).toBe("ขวดน้ำเก็บความเย็น 500ml");
+    expect(details.imageUrls[0]).toBe("https://down-th.img.susercontent.com/file/th-11134207-7r98o-abcdef123456");
+    expect(details.imageUrls).toHaveLength(2);
+    expect(details.externalId).toBe("123456.987654321");
+    expect(factCandidates(details.description)).toEqual(["ความจุ 500 ml", "วัสดุสแตนเลส 304"]);
+  });
+  it("falls back to the page's schema.org / Open Graph data (Lazada) and the page title", () => {
+    const html = `<meta property="og:title" content="กระเป๋าผ้า | Lazada.co.th"><meta property="og:image" content="https://img.lazcdn.com/g/p/a.jpg">`;
+    const details = detailsFromBrowser("LAZADA", lookupResultSchema.parse({ jobId, ok: true, finalUrl: "https://www.lazada.co.th/products/x-i4400123-s1.html", html }));
+    expect(details).toMatchObject({ title: "กระเป๋าผ้า", imageUrls: ["https://img.lazcdn.com/g/p/a.jpg"], externalId: "4400123" });
+  });
+  it("spots sign-in walls and never trusts a page off the marketplace", () => {
+    expect(isLoginWall("https://shopee.co.th/buyer/login?next=x")).toBe(true);
+    expect(isLoginWall("https://shopee.co.th/verify/traffic")).toBe(true);
+    expect(isLoginWall("https://shopee.co.th/product/1/2")).toBe(false);
+    expect(detailsFromBrowser("SHOPEE", lookupResultSchema.parse({ jobId, ok: true, finalUrl: "https://evil.example/x" })).productUrl).toBeNull();
+    expect(shopeeImageUrl("../../etc")).toBeNull();
+  });
+});

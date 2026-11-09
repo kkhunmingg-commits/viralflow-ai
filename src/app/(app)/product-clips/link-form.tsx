@@ -1,6 +1,6 @@
 "use client";
 import { useState, useTransition } from "react";
-import { createProductClipAction, previewLinkAction, type PreviewResult } from "./actions";
+import { createProductClipAction, previewLinkAction, startProductClipAction, type PreviewResult } from "./actions";
 
 interface Account { id: string; name: string }
 const LENGTHS = [
@@ -23,7 +23,31 @@ async function shrink(file: File): Promise<File> {
   } catch { return file; }
 }
 
+/** The usual way: paste the link, pick the length, press once. Everything else (photos, details, script) is found automatically. */
 export function ProductLinkForm({ accounts, initialAccount }: { accounts: Account[]; initialAccount: string }) {
+  const [sending, setSending] = useState(false);
+  return <div className="pl-form">
+    <form action={async form => { setSending(true); try { await startProductClipAction(form); } finally { setSending(false); } }} className="pl-details pl-quick">
+      <label className="manual-filter pl-link">ลิงก์สินค้า Shopee / Lazada (ลิงก์ affiliate ได้เลย)
+        <input name="link" required placeholder="https://s.shopee.co.th/…" inputMode="url" maxLength={1500} autoComplete="off" /></label>
+      <fieldset className="pl-lengths"><legend>ความยาวคลิป</legend>
+        {LENGTHS.map(l => <label key={l.value} className="pl-length"><input type="radio" name="lengthSeconds" value={l.value} defaultChecked={l.value === 16} />
+          <strong>{l.label}</strong><small>{l.note}</small></label>)}
+      </fieldset>
+      {accounts.length > 1 ? <label className="manual-filter">ใช้บัญชี Google Flow ของช่อง<select name="tiktokAccountId" defaultValue={initialAccount}>
+        {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+        : <input type="hidden" name="tiktokAccountId" value={initialAccount} />}
+      <label className="manual-check"><input type="checkbox" name="rights" defaultChecked required />ฉันเป็นนายหน้า (affiliate) ของสินค้านี้ ใช้รูปและข้อมูลจากหน้าร้านได้</label>
+      <button className="manual-primary" type="submit" disabled={sending}>{sending ? "กำลังอ่านลิงก์…" : "ทำคลิปเลย"}</button>
+      <p className="manual-muted">ระบบดึงชื่อ รูป และรายละเอียดจากหน้าสินค้าเอง (ถ้าร้านไม่ให้เซิร์ฟเวอร์อ่าน เครื่องสร้างคลิปในคอมจะเปิดหน้าสินค้าแทน) เลือกรูป 4 รูปแรกของร้าน
+        เขียนสคริปต์เฉพาะสิ่งที่หน้าร้านบอก ตัดคำเกินจริง/ราคา/สรรพคุณออก แล้วสร้างคลิปต่อเลย คุณแค่ตรวจคลิปก่อนโพสต์</p>
+    </form>
+    <details className="pl-manual"><summary>อยากเลือกรูปหรือแก้ข้อมูลเองก่อนสร้าง</summary><ManualProductForm accounts={accounts} initialAccount={initialAccount} /></details>
+  </div>;
+}
+
+/** The hand-checked way (pick photos, edit the facts) for owners who want control. */
+function ManualProductForm({ accounts, initialAccount }: { accounts: Account[]; initialAccount: string }) {
   const [link, setLink] = useState("");
   const [preview, setPreview] = useState<PreviewResult | null>(null);
   const [reading, startReading] = useTransition();

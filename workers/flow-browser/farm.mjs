@@ -18,7 +18,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 import { message, runFarmPass, runLoginPass } from "./farm-core.mjs";
-import { openFlowAccount, openPlainChrome, signInFlowAccount } from "./farm-driver.mjs";
+import { openFlowAccount, openPlainChrome, openShopLogin, readShopPage, signInFlowAccount } from "./farm-driver.mjs";
 import { inspectVideo, probeBinary } from "./media.mjs";
 import { createHash } from "node:crypto";
 
@@ -77,6 +77,9 @@ export function portalApi({ portal, token }, fetchImpl = fetch) {
     login: (accountId, state, note) => call("login", { flowAccountId: accountId, state, note }),
     finish: () => call("finish", {}),
     reopen: clipId => call("reopen", { clipId }),
+    /** Shopee/Lazada pages the server could not read; an older server answers 404 and there is simply nothing to do. */
+    productLookups: async () => (await call("product-lookups").catch(() => ({ lookups: [] }))).lookups ?? [],
+    productLookup: result => call("product-lookup", result),
     /** Live step for the web page. Never stops the work: an older server without the endpoint just ignores it. */
     progress: (clipId, stage, detail) => call("progress", { ...(clipId ? { clipId } : {}), stage, ...(detail ? { detail: String(detail).slice(0, 120) } : {}) }).catch(() => {}),
     async upload(clip, result) {
@@ -161,6 +164,39 @@ async function selfUpdate(settings, current) {
   return true;
 }
 
+/**
+ * Product pages, beside the Flow work (its own Chrome profile, its own loop): the server asks, this computer opens the
+ * link like the owner would and sends back what the page shows. A sign-in wall opens a visible window once.
+ */
+let shopLoginShownAt = 0, lookupsRunning = true;
+async function lookupPass(settings) {
+  const api = portalApi(settings);
+  const lookups = await api.productLookups();
+  for (const job of lookups) {
+    const config = { ...settings, profilesDir: dirs.profiles };
+    stamp(`  ดึงข้อมูลสินค้า ${job.link}`);
+    let result = await readShopPage(job, config);
+    if (!result.ok && result.error === "LOGIN_REQUIRED") {
+      await api.productLookup({ jobId: job.id, ok: false, error: "LOGIN_REQUIRED", finalUrl: result.finalUrl }).catch(() => {});
+      if (Date.now() - shopLoginShownAt < 30 * 60_000) continue;
+      shopLoginShownAt = Date.now();
+      stamp(`  ${job.platform} ขอให้ล็อกอิน: เปิดหน้าต่างให้ล็อกอินครั้งเดียว แล้วปิดหน้าต่าง`);
+      await openShopLogin(job.platform, config);
+      result = await readShopPage(job, config);
+    }
+    const sent = await api.productLookup({ jobId: job.id, ...result }).catch(error => ({ status: message(error) }));
+    stamp(`  ข้อมูลสินค้า: ${result.ok ? `รูป ${result.images?.length ?? 0}` : result.error} → ${sent?.status ?? "?"}`);
+  }
+  return lookups.length;
+}
+async function lookupLoop(settings) {
+  while (lookupsRunning) {
+    let busy = 0;
+    try { busy = await lookupPass(settings); } catch (error) { stamp(`ดึงข้อมูลสินค้าไม่สำเร็จ: ${message(error)}`); }
+    await new Promise(done => setTimeout(done, busy ? 2_000 : 20_000));
+  }
+}
+
 let lastSummary = "";
 /** Sends each live step to the web page and writes a log line whenever a clip's step changes. */
 function logged(progress) {
@@ -240,13 +276,16 @@ async function main() {
   process.once("SIGINT", async () => { await release(); process.exit(130); });
   try {
     if (command === "--dry-run") return void await pass(settings, true);
-    if (command === "--once") return void await pass(settings, false);
+    if (command === "--once") { await lookupPass(settings); return void await pass(settings, false); }
+    if (command === "--lookup") return void await lookupPass(settings);
     if (command !== "--watch") throw new Error("USAGE: --login <id> | --probe [id] | --dry-run | --once | --watch");
     // Which files this process really loaded: on 2 Nov a worker kept behaving like the 31 Oct copy after the 1 Nov update.
     const version = await ownVersion();
     stamp(`เวอร์ชัน ${version} โฟลเดอร์ ${here}`);
     stamp(`เริ่ม pid ${process.pid} เฝ้าคิวทุก ${settings.watchSeconds} วินาที (Ctrl+C เพื่อหยุด) หน้าต่าง Flow: ${settings.windowMode}`);
     let checkedAt = 0;
+    // Product pages are read on their own loop, so a long Flow pass never keeps a pasted link waiting.
+    void lookupLoop(settings);
     for (;;) {
       if (Date.now() - checkedAt >= 10 * 60_000) {
         checkedAt = Date.now();
@@ -255,7 +294,7 @@ async function main() {
       try { await pass(settings, false); } catch (error) { stamp(`รอบนี้ผิดพลาด: ${message(error)}`); }
       await new Promise(done => setTimeout(done, settings.watchSeconds * 1000));
     }
-  } finally { await release(); }
+  } finally { lookupsRunning = false; await release(); }
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === join(here, "farm.mjs")) {

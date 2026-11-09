@@ -12,6 +12,7 @@ import { SOCIAL_LABEL, SOCIAL_PLATFORMS, socialReadiness } from "@/features/soci
 import { postErrorLabel } from "@/features/social-publish/publishers";
 import { ClipPhoneActions } from "../post/clip-phone-actions";
 import { ProductLinkForm } from "./link-form";
+import { lookupErrorLabel } from "@/features/product-links/browser-lookup";
 import { deleteProductClipAction, remakeProductClipAction, reviewProductClipAction } from "./actions";
 import "../post/post.css";
 import "./product-clips.css";
@@ -93,7 +94,10 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
   </div>;
 }
 
+const nameOf = (job: ProductClipView) => job.script.shortName ?? job.title;
+
 function Script({ job }: { job: ProductClipView }) {
+  if (!job.script.shots) return null;
   return <details className="pl-script"><summary>สคริปต์ {job.script.shots.length} ช็อต · ฉาก “{job.script.setTh}”</summary>
     <ol>{job.script.shots.map(s => <li key={s.position}><strong>{s.roleTh}</strong> “{s.narration}”</li>)}</ol>
     {job.script.dropped.length > 0 && <p className="manual-muted">ตัดออก: {job.script.dropped.map(d => `“${d.text}” (${d.reason})`).join(" · ")}</p>}
@@ -107,7 +111,7 @@ function ReviewCard({ job, ready }: { job: ProductClipView; ready: string[] }) {
   return <article className="library-clip pl-card">
     {job.final_clip_id && <video controls playsInline preload="metadata" src={`/api/library/${job.final_clip_id}/video#t=0.1`} aria-label={job.title} />}
     <div className="library-clip-body">
-      <h3>{job.script.shortName}</h3>
+      <h3>{nameOf(job)}</h3>
       <p className="library-meta">{job.platform === "SHOPEE" ? "Shopee" : "Lazada"} · {job.length_seconds} วิ · <a href={job.link} target="_blank" rel="noreferrer noopener">เปิดหน้าสินค้า</a></p>
       <p className="manual-muted">ตรวจ: สินค้าในคลิปหน้าตาตรงกับของจริง ตัวหนังสือ/โลโก้ไม่เพี้ยน และเสียงพูดไม่เกินจากหน้าร้าน</p>
       <Script job={job} />
@@ -125,16 +129,26 @@ function ReviewCard({ job, ready }: { job: ProductClipView; ready: string[] }) {
   </article>;
 }
 
+function LookupLine({ job }: { job: ProductClipView }) {
+  const lookup = job.script.lookup!;
+  const text = lookup.state === "LOGIN" ? lookupErrorLabel("LOGIN_REQUIRED")
+    : lookup.state === "CLAIMED" ? "เครื่องสร้างคลิปกำลังเปิดหน้าสินค้า ดึงชื่อ รูป และรายละเอียด…"
+    : "รอเครื่องสร้างคลิปในคอมเปิดหน้าสินค้า (เปิดคอมที่ติดตั้งไว้ไว้)";
+  return <p className="manual-muted">{text} <a href={job.link} target="_blank" rel="noreferrer noopener">ลิงก์</a></p>;
+}
+
 function WorkingCard({ job }: { job: ProductClipView }) {
+  const lookup = job.script.lookup;
   return <article className="pl-row">
-    <div><strong>{job.script.shortName}</strong> · {job.length_seconds} วิ · {STATUS_TH[job.status]}
-      {job.status === "PRODUCING" && <ol className="pl-shots">{job.script.shots.map((shot, i) => {
+    <div><strong>{nameOf(job)}</strong> · {job.length_seconds} วิ · {lookup ? "กำลังดึงข้อมูลสินค้า" : STATUS_TH[job.status]}
+      {lookup && <LookupLine job={job} />}
+      {job.status === "PRODUCING" && !lookup && <ol className="pl-shots">{job.script.shots.map((shot, i) => {
         const state = job.shots[i];
         const label = state ? flowClipStatusLabels[state.status as FlowClipStatus] ?? state.status : "รอคิว";
         return <li key={i}>{shot.roleTh}: {label}{state?.error && state.status !== "READY" ? ` · ${flowErrorLabel(state.error)}` : ""}{(job.shot_attempts[i] ?? 1) > 1 ? ` (ครั้งที่ ${job.shot_attempts[i]})` : ""}</li>;
       })}</ol>}
       {job.status === "PUBLISHING" && <ul className="pl-shots">{job.posts.map(p => <li key={p.platform}>{SOCIAL_LABEL[p.platform]}: {p.status === "DONE" ? "✓ โพสต์แล้ว" : p.status === "FAILED" ? `✗ ${postErrorLabel(p.error)}` : "กำลังส่ง…"}</li>)}</ul>}
-      {job.error && <p className="manual-warning">{job.error}</p>}
+      {job.error && lookup?.state !== "LOGIN" && <p className="manual-warning">{job.error}</p>}
     </div>
     {job.status === "PRODUCING" && <form action={deleteProductClipAction}><input type="hidden" name="id" value={job.id} /><button className="library-link danger" type="submit">ยกเลิก</button></form>}
   </article>;
@@ -143,7 +157,7 @@ function WorkingCard({ job }: { job: ProductClipView }) {
 function DoneCard({ job }: { job: ProductClipView }) {
   const caption = job.script.caption;
   return <article className="pl-row">
-    <div><strong>{job.script.shortName}</strong> · {job.length_seconds} วิ · {STATUS_TH[job.status]}{job.published_at ? ` · ${bangkokTime(job.published_at)}` : ""}
+    <div><strong>{nameOf(job)}</strong> · {job.length_seconds} วิ · {STATUS_TH[job.status]}{job.published_at ? ` · ${bangkokTime(job.published_at)}` : ""}
       {job.posts.length > 0 && <ul className="pl-shots">{job.posts.map(p => <li key={p.platform}>{SOCIAL_LABEL[p.platform]}: {p.status === "DONE"
         ? <>{p.url ? <a href={p.url} target="_blank" rel="noreferrer noopener">✓ ดูโพสต์</a> : "✓ โพสต์แล้ว"}{p.commented ? " · คอมเมนต์ลิงก์แล้ว" : ` · ${postErrorLabel(p.error) ?? "ยังไม่ได้คอมเมนต์ลิงก์"}`}</>
         : `✗ ${postErrorLabel(p.error)}`}</li>)}</ul>}
@@ -153,7 +167,7 @@ function DoneCard({ job }: { job: ProductClipView }) {
         <a className="manual-secondary" href={`/api/library/${job.final_clip_id}/video?download=1`}>ดาวน์โหลด MP4</a></div>}
     </div>
     <div className="library-inline">
-      <form action={remakeProductClipAction}><input type="hidden" name="id" value={job.id} /><button className="manual-secondary" type="submit">ทำใหม่ (ฉากใหม่)</button></form>
+      <form action={remakeProductClipAction}><input type="hidden" name="id" value={job.id} /><button className="manual-secondary" type="submit">{job.image_paths.length ? "ทำใหม่ (ฉากใหม่)" : "ลองดึงข้อมูลใหม่"}</button></form>
       <form action={deleteProductClipAction}><input type="hidden" name="id" value={job.id} /><button className="library-link danger" type="submit">ลบ</button></form>
     </div>
   </article>;

@@ -5,7 +5,9 @@ import { bangkokDate } from "@/features/flow-farm/contracts";
 import { clipStoragePath } from "@/features/flow-farm/service";
 import { metaConfig, socialReadiness, youtubeConfig, type SocialPlatform } from "@/features/social-publish/config";
 import { advancePost, newPost, type PlatformPost } from "@/features/social-publish/publishers";
-import type { ProductPlatform } from "./link";
+import { PLATFORM_LABEL, type ProductPlatform } from "./link";
+import { detailsFromBrowser, LOOKUP_MAX_ATTEMPTS, lookupErrorLabel, type LookupResult, type LookupState } from "./browser-lookup";
+import { factCandidates } from "./source";
 import { writeProductClip, type ClipLength, type ProductClipScript } from "./script";
 import { buildProductSubtitles } from "./subtitles";
 
@@ -21,7 +23,9 @@ const COLUMNS = "id,owner_id,tiktok_account_id,platform,source,link,product_url,
 export type JobStatus = "PRODUCING" | "ASSEMBLING" | "REVIEW" | "APPROVED" | "PUBLISHING" | "PUBLISHED" | "REJECTED" | "FAILED";
 export interface ProductClipJob {
   id: string; owner_id: string; tiktok_account_id: string; platform: ProductPlatform; source: string; link: string; product_url: string | null;
-  external_id: string | null; title: string; facts: string[]; image_paths: string[]; length_seconds: ClipLength; script: ProductClipScript;
+  external_id: string | null; title: string; facts: string[]; image_paths: string[]; length_seconds: ClipLength;
+  /** A clip still waiting for the owner's computer to read the product page has only `lookup` (no shots yet). */
+  script: ProductClipScript & { lookup?: LookupState };
   status: JobStatus; shot_clip_ids: string[]; shot_attempts: number[]; final_clip_id: string | null; targets: SocialPlatform[]; posts: PlatformPost[];
   assemble_attempts: number; error: string | null; ready_at: string | null; reviewed_at: string | null; published_at: string | null; created_at: string; updated_at: string;
 }
@@ -78,11 +82,8 @@ export interface NewProductClip {
   imagePaths?: string[]; variant?: number;
 }
 
-/** Saves the photos, writes the script, and queues one Flow take per shot. Throws SCRIPT_REJECTED / NO_USABLE_IMAGE. */
-export async function createProductClip(admin: SupabaseClient, owner: string, input: NewProductClip, now = new Date()) {
-  const account = check(await admin.from("tiktok_accounts").select("id").eq("owner_id", owner).eq("id", input.tiktokAccountId).maybeSingle(), "accounts_unavailable");
-  if (!account) throw new Error("account_not_found");
-  const id = crypto.randomUUID();
+/** Saves the photos and writes the script. Throws SCRIPT_REJECTED / NO_USABLE_IMAGE. */
+async function prepare(admin: SupabaseClient, owner: string, id: string, input: NewProductClip) {
   let paths = input.imagePaths?.filter(p => p.startsWith(`owner/${owner}/`)) ?? [];
   if (!paths.length) {
     const fetched: Uint8Array[] = [];
@@ -93,6 +94,15 @@ export async function createProductClip(admin: SupabaseClient, owner: string, in
   const script = writeProductClip({ platform: input.platform, link: input.link, title: input.title, facts: input.facts, imageCount: paths.length,
     lengthSeconds: input.lengthSeconds, variant: input.variant });
   if (script.compliance.status === "REJECT") throw new Error("SCRIPT_REJECTED");
+  return { paths, script };
+}
+
+/** Saves the photos, writes the script, and queues one Flow take per shot. Throws SCRIPT_REJECTED / NO_USABLE_IMAGE. */
+export async function createProductClip(admin: SupabaseClient, owner: string, input: NewProductClip, now = new Date()) {
+  const account = check(await admin.from("tiktok_accounts").select("id").eq("owner_id", owner).eq("id", input.tiktokAccountId).maybeSingle(), "accounts_unavailable");
+  if (!account) throw new Error("account_not_found");
+  const id = crypto.randomUUID();
+  const { paths, script } = await prepare(admin, owner, id, input);
   const shotIds = script.shots.map(() => crypto.randomUUID());
   check(await admin.from("product_link_clips").insert({
     id, owner_id: owner, tiktok_account_id: input.tiktokAccountId, platform: input.platform, source: input.source, link: input.link,
@@ -106,6 +116,98 @@ export async function createProductClip(admin: SupabaseClient, owner: string, in
     throw new Error("flow_clips_not_queued");
   }
   return { id, script };
+}
+
+// ---------------------------------------------------------------- Read the product page on the owner's computer
+
+/** Facts for an automatic clip: the seller's own feature lines (the script screens them again). */
+export const autoFacts = (description: string) => factCandidates(description, 8);
+
+/**
+ * The marketplace refused the server: the clip waits (status PRODUCING, no shots yet) until the owner's Flow worker
+ * opens the link in its Chrome and sends the page back (finishProductLookup), then the script and takes follow by themselves.
+ */
+export async function queueProductLookup(admin: SupabaseClient, owner: string,
+  input: { tiktokAccountId: string; platform: ProductPlatform; link: string; externalId: string | null; lengthSeconds: ClipLength }, now = new Date()) {
+  const account = check(await admin.from("tiktok_accounts").select("id").eq("owner_id", owner).eq("id", input.tiktokAccountId).maybeSingle(), "accounts_unavailable");
+  if (!account) throw new Error("account_not_found");
+  const id = crypto.randomUUID();
+  const lookup: LookupState = { state: "PENDING", attempts: 0, requestedAt: now.toISOString(), claimedAt: null, note: null };
+  check(await admin.from("product_link_clips").insert({
+    id, owner_id: owner, tiktok_account_id: input.tiktokAccountId, platform: input.platform, source: "MANUAL_LINK", link: input.link, product_url: null,
+    external_id: input.externalId, title: `${PLATFORM_LABEL[input.platform]} · กำลังดึงข้อมูลสินค้า`, facts: [], image_paths: [], length_seconds: input.lengthSeconds,
+    script: { lookup }, status: "PRODUCING", shot_clip_ids: [], shot_attempts: [], created_at: now.toISOString(), updated_at: now.toISOString(),
+  }), "product_clip_not_saved");
+  return { id };
+}
+
+const LOOKUP_CLAIM_MS = 4 * 60_000;
+/** Pages for the worker to open: waiting ones, and ones a worker took but never answered within 4 minutes. */
+export async function claimProductLookups(admin: SupabaseClient, owner: string, now = new Date()) {
+  const result = await admin.from("product_link_clips").select("id,platform,link,script,updated_at").eq("owner_id", owner).eq("status", "PRODUCING")
+    .order("created_at", { ascending: true }).limit(20);
+  if (result.error) return [];
+  const out: Array<{ id: string; platform: ProductPlatform; link: string; attempts: number }> = [];
+  for (const row of (result.data ?? []) as Array<{ id: string; platform: ProductPlatform; link: string; script: { lookup?: LookupState }; updated_at: string }>) {
+    const lookup = row.script?.lookup;
+    if (!lookup || lookup.state === "FAILED") continue;
+    const stale = lookup.claimedAt && now.getTime() - Date.parse(lookup.claimedAt) > LOOKUP_CLAIM_MS;
+    if (lookup.state !== "PENDING" && !stale) continue;
+    const next: LookupState = { ...lookup, state: "CLAIMED", claimedAt: now.toISOString() };
+    const taken = await admin.from("product_link_clips").update({ script: { lookup: next }, updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", row.id)
+      .eq("updated_at", row.updated_at).select("id");
+    if (!taken.error && taken.data?.length) out.push({ id: row.id, platform: row.platform, link: row.link, attempts: lookup.attempts });
+    if (out.length >= 2) break;
+  }
+  return out;
+}
+
+function decodeImage(base64: string) {
+  try { return new Uint8Array(Buffer.from(base64, "base64")); } catch { return null; }
+}
+
+/** What the worker's Chrome saw on the product page: write the script and queue the takes, or retry / give up. */
+export async function finishProductLookup(admin: SupabaseClient, owner: string, result: LookupResult, now = new Date()) {
+  const job = await loadJob(admin, owner, result.jobId);
+  const lookup = job.script.lookup;
+  if (job.status !== "PRODUCING" || !lookup || lookup.state === "FAILED") return { status: "IGNORED" as const };
+  const giveUpOrRetry = async (code: string) => {
+    if (code === "LOGIN_REQUIRED") {
+      // Not counted as a try: the worker opens a window for the owner to sign in, then reads the page again.
+      await save(admin, owner, job.id, { script: { lookup: { ...lookup, state: "LOGIN", note: code } }, error: lookupErrorLabel(code), updated_at: now.toISOString() });
+      return { status: "LOGIN" as const };
+    }
+    const attempts = lookup.attempts + 1, last = attempts >= LOOKUP_MAX_ATTEMPTS;
+    await save(admin, owner, job.id, { script: { lookup: { ...lookup, state: last ? "FAILED" : "PENDING", attempts, claimedAt: null, note: code.slice(0, 160) } },
+      status: last ? "FAILED" : "PRODUCING", error: `${last ? "ดึงข้อมูลสินค้าไม่สำเร็จ" : `ดึงข้อมูลไม่สำเร็จ ลองใหม่ (ครั้งที่ ${attempts})`}: ${lookupErrorLabel(code)}`.slice(0, 480),
+      updated_at: now.toISOString() });
+    return { status: last ? "FAILED" as const : "RETRY" as const };
+  };
+  if (!result.ok) return giveUpOrRetry(result.error ?? "READ_FAILED");
+  const details = detailsFromBrowser(job.platform, result);
+  if (!details.title) return giveUpOrRetry("NO_TITLE");
+  const uploads = (result.images ?? []).map(i => decodeImage(i.base64)).filter((b): b is Uint8Array<ArrayBuffer> => !!b && !!imageType(b));
+  const input: NewProductClip = { tiktokAccountId: job.tiktok_account_id, platform: job.platform, source: "MANUAL_LINK", link: job.link, productUrl: details.productUrl,
+    externalId: details.externalId ?? job.external_id, title: details.title, facts: autoFacts(details.description), lengthSeconds: job.length_seconds,
+    imageUrls: uploads.length ? [] : details.imageUrls.filter(allowedImageUrl), uploads };
+  let prepared;
+  try { prepared = await prepare(admin, owner, job.id, input); }
+  catch (error) {
+    const code = error instanceof Error ? error.message : "SCRIPT_FAILED";
+    if (code === "NO_USABLE_IMAGE") return giveUpOrRetry("NO_IMAGES");
+    await save(admin, owner, job.id, { status: "FAILED", script: { lookup: { ...lookup, state: "FAILED", note: code } }, title: details.title,
+      error: code === "SCRIPT_REJECTED" ? "ข้อมูลหน้าร้านมีคำกล่าวอ้างที่ห้ามใช้ ระบบไม่สร้างคลิปนี้" : `เขียนสคริปต์ไม่สำเร็จ: ${code}`.slice(0, 480), updated_at: now.toISOString() });
+    return { status: "FAILED" as const };
+  }
+  const { paths, script } = prepared;
+  const shotIds = script.shots.map(() => crypto.randomUUID());
+  check(await admin.from("product_link_clips").update({
+    title: details.title, product_url: details.productUrl, external_id: input.externalId, facts: script.facts, image_paths: paths, script,
+    shot_clip_ids: shotIds, shot_attempts: shotIds.map(() => 1), error: null, updated_at: new Date(now.getTime() - LOCK_MS).toISOString(),
+  }).eq("owner_id", owner).eq("id", job.id).eq("status", "PRODUCING"), "product_clip_not_saved");
+  const queued = await admin.from("flow_clips").insert(script.shots.map((_, i) => shotRow(owner, job.tiktok_account_id, job.id, script, i, shotIds[i], paths)));
+  if (queued.error) await save(admin, owner, job.id, { status: "FAILED", error: "เข้าคิว Flow ไม่ได้", updated_at: now.toISOString() });
+  return { status: "QUEUED" as const, shots: script.shots.length, title: details.title };
 }
 
 function shotRow(owner: string, tiktokAccountId: string, jobId: string, script: ProductClipScript, index: number, clipId: string, paths: string[]) {
@@ -160,6 +262,13 @@ export async function tickProductClips(admin: SupabaseClient, owner: string, now
   for (const job of jobs) {
     try {
       if (job.status === "ASSEMBLING" && now.getTime() - Date.parse(job.updated_at) < ASSEMBLY_STALE_MS) continue;
+      // Still waiting for the owner's computer to read the product page; after a day without it, give up.
+      if (job.script?.lookup) {
+        if (now.getTime() - Date.parse(job.script.lookup.requestedAt) > 24 * 3600_000 && job.script.lookup.state !== "CLAIMED")
+          await save(admin, owner, job.id, { status: "FAILED", script: { lookup: { ...job.script.lookup, state: "FAILED" } },
+            error: "เครื่องสร้างคลิปไม่ได้เปิดหน้าสินค้าภายใน 1 วัน กด “ลองใหม่” ตอนเปิดคอมอยู่", updated_at: now.toISOString() });
+        continue;
+      }
       if (!(await lock(admin, owner, job, now))) continue;
       if (job.status === "PUBLISHING") await publishStep(admin, owner, job, now);
       else await produceStep(admin, owner, job, now);
@@ -283,6 +392,12 @@ async function discardFiles(admin: SupabaseClient, owner: string, job: ProductCl
 export async function remakeProductClip(admin: SupabaseClient, owner: string, id: string, now = new Date()) {
   const job = await loadJob(admin, owner, id);
   if (!["REJECTED", "FAILED", "APPROVED", "PUBLISHED"].includes(job.status)) throw new Error("STILL_IN_PROGRESS");
+  // The product page was never read: read it again on the same card.
+  if (!job.image_paths.length) {
+    const lookup: LookupState = { state: "PENDING", attempts: 0, requestedAt: now.toISOString(), claimedAt: null, note: null };
+    await save(admin, owner, id, { status: "PRODUCING", script: { lookup }, shot_clip_ids: [], shot_attempts: [], error: null, updated_at: now.toISOString() });
+    return { id, script: null };
+  }
   const created = await createProductClip(admin, owner, { tiktokAccountId: job.tiktok_account_id, platform: job.platform, source: job.source === "AFFILIATE_API" ? "AFFILIATE_API" : "MANUAL_LINK",
     link: job.link, productUrl: job.product_url, externalId: job.external_id, title: job.title, facts: job.facts, lengthSeconds: job.length_seconds,
     imageUrls: [], uploads: [], imagePaths: job.image_paths, variant: Date.parse(job.created_at) % 97 + 1 }, now);
