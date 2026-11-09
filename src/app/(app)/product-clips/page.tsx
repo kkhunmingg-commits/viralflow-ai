@@ -99,7 +99,8 @@ const nameOf = (job: ProductClipView) => job.script.shortName ?? job.title;
 
 function Script({ job }: { job: ProductClipView }) {
   if (!job.script.shots) return null;
-  return <details className="pl-script"><summary>สคริปต์ {job.script.shots.length} ช็อต · ฉาก “{job.script.setTh}”</summary>
+  return <details className="pl-script"><summary>สคริปต์ {job.script.shots.length} ช็อต · ฉาก “{job.script.setTh}”{job.script.formatTh ? ` · สไตล์ “${job.script.formatTh}”` : ""}</summary>
+    {job.script.hookText && <p className="manual-muted">ตัวหนังสือเปิดคลิป: “{job.script.hookText}”</p>}
     <ol>{job.script.shots.map(s => <li key={s.position}><strong>{s.roleTh}</strong> “{s.narration}”</li>)}</ol>
     {job.script.dropped.length > 0 && <p className="manual-muted">ตัดออก: {job.script.dropped.map(d => `“${d.text}” (${d.reason})`).join(" · ")}</p>}
     {job.script.compliance.issues.length > 0 && <p className="manual-warning">ตรวจกฎ: {job.script.compliance.issues.join(" · ")}</p>}

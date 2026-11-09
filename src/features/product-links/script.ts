@@ -1,4 +1,5 @@
-import { categoryPlaybook, type CategoryFamily } from "@/features/creative/category-insight";
+import { categoryPlaybook, type AdFormat, type CategoryFamily } from "@/features/creative/category-insight";
+import { shoppingMoment, trendFormatsFor, type TrendFormat } from "@/features/creative/trend-playbook";
 import { claimIssues } from "@/features/creative/claims";
 import { ACTIONS, SETS, type HandAction, type SetStyle } from "@/features/creative/flow-native";
 import { checkProductTruth } from "@/features/compliance/compliance";
@@ -11,7 +12,7 @@ import { PLATFORM_LABEL, type ProductPlatform } from "./link";
  * shares one set, light and pair of hands (continuity), while the framing, the hand action and the listing photo
  * used as reference change from take to take, so the product is seen from different sides.
  */
-export const PRODUCT_SCRIPT_VERSION = "product-link-script-v1";
+export const PRODUCT_SCRIPT_VERSION = "product-link-script-v2";
 export const CLIP_LENGTHS = [8, 16, 24, 32, 40] as const;
 export type ClipLength = typeof CLIP_LENGTHS[number];
 export type ShotRole = "HERO" | "HOOK" | "DETAIL" | "IN_USE" | "OVERVIEW" | "CLOSE";
@@ -35,11 +36,15 @@ export interface ProductClipScript {
   youtubeTitle: string;
   compliance: { status: "PASS" | "REVIEW" | "REJECT"; issues: string[] };
   disclosure: string;
+  /** The short-video format the clip is built around (trend playbook), its big on-screen opening line, and the shopping moment. */
+  format?: AdFormat; formatTh?: string; hookText?: string; moment?: string | null;
 }
 export interface ScriptInput {
   platform: ProductPlatform; link: string; title: string; facts: string[]; imageCount: number; lengthSeconds: ClipLength;
   /** Picks among equally good sets/hooks, so two clips of one product do not look the same. */
   variant?: number;
+  /** For the seasonal / payday shopping moment (Bangkok date). */
+  now?: Date;
 }
 
 const ROLE_TH: Record<ShotRole, string> = { HERO: "โชว์สินค้า", HOOK: "เปิดเรื่อง", DETAIL: "ซูมรายละเอียด", IN_USE: "มุมใช้งาน", OVERVIEW: "มุมกว้างอีกด้าน", CLOSE: "ปิดท้าย + ลิงก์" };
@@ -136,15 +141,42 @@ export function screenFacts(facts: string[], family: CategoryFamily) {
 function pick<T>(items: readonly T[], seed: number) { return items[((seed % items.length) + items.length) % items.length]; }
 function hash(text: string) { let h = 0; for (const c of text) h = (h * 31 + c.codePointAt(0)!) | 0; return Math.abs(h); }
 
+/** Comment and share prompts: they lift reach on every platform and never promise price, stock or results. */
+const ENGAGE = ["คอมเมนต์บอกหน่อย ชอบแบบนี้ไหม 👇", "เซฟไว้ก่อนลืม 📌", "แท็กเพื่อนที่ต้องมีอันนี้ 👀", "ชอบสีไหน/แบบไหน คอมเมนต์บอกได้ 💬"];
+const plain = (text: string) => text.replace(/\p{Extended_Pictographic}|[\u{FE0F}\u{200D}]/gu, "").replace(/\s+/g, " ").trim();
+
+/**
+ * The format the clip is built around, from the trend playbook: the category's strongest formats first, rotated by
+ * variant so a remake looks different. Its hook lines are filled from the name and the kept facts only and dropped
+ * if they hit the exaggeration list or the category's forbidden claims.
+ */
+export function pickTrend(title: string, family: CategoryFamily, name: string, facts: string[], seed: number) {
+  const playbook = categoryPlaybook("", title);
+  const ok = (text: string) => !EXAGGERATION.test(text) && !playbook.forbiddenClaims.some(re => re.test(text));
+  const fact = family === "HEALTH_SUPPLEMENT" ? undefined : facts.find(f => /\d/.test(f)) ?? facts[0];
+  const fill = (t: string) => t.includes("{fact}") && !fact ? null : t.replaceAll("{product}", name).replaceAll("{fact}", fact ?? "");
+  const formats = trendFormatsFor(playbook).slice(0, 5);
+  const format = pick(formats, seed);
+  const spokenHooks = format.hooks.map(fill).filter((h): h is string => !!h && ok(h));
+  const captionHooks = format.captionHooks.map(fill).filter((h): h is string => !!h && ok(h));
+  const spoken = spokenHooks.length ? shorten(pick(spokenHooks, seed >> 3), 64) : "";
+  const captionHook = captionHooks.length ? pick(captionHooks, seed >> 5) : `${name} ✨`;
+  // The big words on screen for the first seconds: Reels and Shorts start muted. Thai has no spaces to cut at, so a
+  // line that does not fit whole is never cut: the next one that fits is used.
+  const fits = (t: string) => !!t && chars(t) <= 30;
+  const hookText = [plain(captionHook), ...captionHooks.map(plain), plain(spoken), name].find(fits) ?? shorten(name, 30);
+  return { format, spoken, captionHook, hookText };
+}
+
 const HOOKS = ["เจอ{n}ตัวนี้มา ขอโชว์ให้ดูหน่อย", "ใครกำลังหา{n}อยู่ ดูตัวนี้ก่อน", "{n} หน้าตาแบบนี้ ดูกันชัด ๆ"];
 const CTA_SHORT = "ลิงก์สินค้าอยู่ในคอมเมนต์";
 const CTA_LONG = "รายละเอียดกับราคาล่าสุด ดูที่ลิงก์ในคอมเมนต์นะ";
 
 /** The Thai line spoken in each take, from the product name and the kept facts only. */
-export function narrationFor(role: ShotRole, name: string, facts: string[], seed: number, family: CategoryFamily, total = 1) {
+export function narrationFor(role: ShotRole, name: string, facts: string[], seed: number, family: CategoryFamily, total = 1, trendHook?: string) {
   // Supplements: the name and the link only. A spoken benefit is a health claim on every platform.
   const usable = family === "HEALTH_SUPPLEMENT" ? [] : facts;
-  const hook = pick(HOOKS, seed).replace("{n}", name);
+  const hook = trendHook || pick(HOOKS, seed).replace("{n}", name);
   switch (role) {
     case "HERO": return shorten(usable[0] ? `${name} ${usable[0]} ${CTA_SHORT}` : `${hook} ${CTA_SHORT}`, 70);
     case "HOOK": return shorten(hook, 64);
@@ -156,20 +188,23 @@ export function narrationFor(role: ShotRole, name: string, facts: string[], seed
   }
 }
 
-export function shotPrompt(input: { title: string; style: SetStyle; role: ShotRole; position: number; total: number; narration: string }) {
-  const shot = ROLE_SHOT[input.role], s = input.style;
+export function shotPrompt(input: { title: string; style: SetStyle; role: ShotRole; position: number; total: number; narration: string; trend?: TrendFormat; setTouch?: string }) {
+  const shot = ROLE_SHOT[input.role], s = input.style, first = input.position === 0, last = input.position === input.total - 1;
   return [
     `Use the attached reference image as the exact product (${input.title}). Photoreal vertical 9:16 video, 8 seconds, one continuous take.`,
+    // The first second decides whether people keep watching: open on the format's scroll-stopping beat, already in motion.
+    ...(first && input.trend ? [`OPENING (first second, made to stop the scroll on Reels/Shorts/TikTok): ${input.trend.opening}. Never start on a still frame.`] : []),
+    ...(last && input.total > 1 ? ["LOOP: the final frame mirrors the composition of the advert's first frame, so the clip loops seamlessly when it replays."] : []),
     ...(input.total > 1 ? [`ADVERT CONTINUITY: this is shot ${input.position + 1} of ${input.total} of one product advert that is cut together. Every shot uses the same set, props, light, palette and the same hands and sleeve, so the cuts feel like one place and one person. START: ${shot.start}. END: ${shot.end}.`] : []),
-    `SET: ${s.set}; props: ${s.props}. Styled like a premium product advert, uncluttered.`,
+    `SET: ${s.set}; props: ${s.props}${input.setTouch ? `; ${input.setTouch}` : ""}. Styled like a premium product advert, uncluttered.`,
     `SHOT: ${shot.framing}.`,
     `ACTION: ${ACTIONS[shot.action].en}. Hands: ${s.hands}.`,
     "CONTINUITY: there is exactly one product, the same single object from the moment it is in frame to the last frame; it never appears, multiplies or changes on its own. The set and props stay fixed for the whole take.",
-    `CAMERA: ${shot.camera}. Shallow depth of field, product always in sharp focus.`,
+    `CAMERA: ${first && input.trend ? input.trend.camera : shot.camera}. Shallow depth of field, product always in sharp focus.`,
     `TIMING: ${shot.timing}.`,
     `LIGHT & COLOUR: ${s.lighting}; palette ${s.palette}; mood ${s.mood}.`,
     "PRODUCT FIDELITY: keep the product identical to the reference — same shape, proportions, colours, logo and every printed word; any display shows exactly the same characters as the reference and stays perfectly still.",
-    `AUDIO: a warm, natural Thai voice says only: "${input.narration}" — nothing else; soft room ambience and subtle handling sounds, no music.`,
+    `AUDIO: a warm, natural, upbeat Thai voice (like a friend sharing a find, not an announcer) says only: "${input.narration}" — nothing else; soft room ambience and crisp, satisfying handling sounds${first && input.trend ? `; ${input.trend.audio}` : ""}, no music.`,
     `AVOID: ${NEGATIVE.join("; ")}.`,
   ].join("\n");
 }
@@ -178,24 +213,32 @@ export function writeProductClip(input: ScriptInput): ProductClipScript {
   const family = categoryPlaybook("", input.title).family;
   const seed = hash(input.title) + (input.variant ?? 0);
   const sets = SETS[family] ?? SETS.GENERAL, style = pick(sets, seed);
-  const name = shortProductName(input.title);
+  // Beauty, supplements, food, baby and pet names often carry an effect claim ("หน้าใส"): it is not spoken.
+  const name = EFFECT_FAMILIES.includes(family)
+    ? shorten(cleanTitle(input.title).split(" ").filter(w => !EFFECT.test(w)).join(" "), 34) || shortProductName(input.title) : shortProductName(input.title);
   const { kept, dropped } = screenFacts(input.facts, family);
   const roles = ROLES[input.lengthSeconds];
   const images = Math.max(1, input.imageCount);
+  const trend = pickTrend(input.title, family, name, kept, seed);
+  const moment = shoppingMoment(input.now ?? new Date());
   const shots: ProductShot[] = roles.map((role, position) => {
-    const narration = narrationFor(role, name, kept, seed, family, roles.length);
+    const narration = narrationFor(role, name, kept, seed, family, roles.length, trend.spoken);
     const shot = ROLE_SHOT[role];
     // The watch family shows the product worn for the use-angle take; the face is never shown.
     const action: HandAction = role === "IN_USE" && family === "WATCH_ACCESSORY" ? "WRIST_GLANCE" : shot.action;
     return { position, role, roleTh: ROLE_TH[role], action, camera: shot.camera, narration, imageIndex: position % images,
-      prompt: shotPrompt({ title: cleanTitle(input.title).slice(0, 200), style, role, position, total: roles.length, narration }) };
+      prompt: shotPrompt({ title: cleanTitle(input.title).slice(0, 200), style, role, position, total: roles.length, narration, trend: trend.format, setTouch: moment?.setTouch || undefined }) };
   });
   const store = PLATFORM_LABEL[input.platform];
-  const hashtags = [`#${store}`, FAMILY_TAG[family], `#${store}Affiliate`];
+  const hashtags = [...new Set([`#${store}`, "#ป้ายยา", FAMILY_TAG[family], ...(moment ? [moment.hashtag] : []), `#${store}Affiliate`, "#Reels", "#Shorts"])];
   const disclosure = "คลิปนี้สร้างด้วย AI จากภาพสินค้าในหน้าร้าน · มีลิงก์ affiliate (อาจได้ค่าคอมมิชชั่นเมื่อมีการสั่งซื้อ)";
   const caption = [
+    // First line = the scroll-stopping hook (it is all people see before "more"), then what it is.
+    trend.captionHook,
     name,
     ...kept.slice(0, 3).map(f => `• ${f}`),
+    ...(moment ? [moment.captionLine] : []),
+    ENGAGE[seed % ENGAGE.length],
     "",
     `🛒 ดูสินค้าใน ${store}: ${input.link}`,
     "ราคาและโปรโมชันดูที่ลิงก์ (อาจเปลี่ยนตามร้านค้า)",
@@ -203,12 +246,13 @@ export function writeProductClip(input: ScriptInput): ProductClipScript {
     hashtags.join(" "),
   ].join("\n").slice(0, 2000);
   const comment = `🛒 ลิงก์สินค้า (${store}): ${input.link}`;
-  const youtubeTitle = shorten(`${name} #Shorts`, 95);
-  const spoken = shots.map(s => s.narration);
+  const youtubeTitle = shorten(`${trend.hookText} | ${name} #Shorts`, 95);
+  const spoken = [...shots.map(s => s.narration), trend.hookText];
   const truth = checkProductTruth([...spoken, caption].join("\n"), kept);
   const claims = claimIssues(spoken, "GENERATIVE", [input.title, ...kept]);
   const issues = [...truth.issues.map(i => `${i.code}: ${i.message}`), ...claims.map(c => `${c.code}: ${c.text}`)];
   const status = truth.status === "REJECT" ? "REJECT" : truth.status === "REVIEW" || claims.length ? "REVIEW" : "PASS";
   return { version: PRODUCT_SCRIPT_VERSION, lengthSeconds: input.lengthSeconds, family, setId: style.id, setTh: style.nameTh, shortName: name, facts: kept, dropped,
-    shots, caption, hashtags, comment, youtubeTitle, compliance: { status, issues }, disclosure };
+    shots, caption, hashtags, comment, youtubeTitle, compliance: { status, issues }, disclosure,
+    format: trend.format.format, formatTh: trend.format.nameTh, hookText: trend.hookText, moment: moment?.key ?? null };
 }

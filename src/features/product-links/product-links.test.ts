@@ -85,8 +85,30 @@ describe("product clip script", () => {
     const sets = new Set([0, 1, 2, 3].map(variant => writeProductClip({ ...base, lengthSeconds: 16, variant }).setId));
     expect(sets.size).toBeGreaterThan(1);
   });
+  it("builds every clip around a trend format: scroll-stopping opening, on-screen hook, loop ending, engagement line", () => {
+    const script = writeProductClip({ ...base, lengthSeconds: 24, now: new Date("2026-11-09T12:00:00Z") });
+    expect(script.format).toBeTruthy();
+    expect(script.hookText && [...script.hookText].length).toBeLessThanOrEqual(30);
+    expect(script.shots[0].prompt).toContain("OPENING (first second");
+    expect(script.shots.at(-1)!.prompt).toContain("LOOP:");
+    expect(script.shots[1].prompt).not.toContain("OPENING (first second");
+    expect(script.caption.split("\n")[0]).not.toBe(script.shortName);
+    expect(script.caption).toMatch(/คอมเมนต์|เซฟ|แท็ก/);
+    expect(script.hashtags).toContain("#ป้ายยา");
+    expect(script.compliance.status).toBe("PASS");
+    // Remakes rotate the format.
+    const formats = new Set([0, 1, 2, 3, 4, 5, 6, 7].map(variant => writeProductClip({ ...base, lengthSeconds: 16, variant }).format));
+    expect(formats.size).toBeGreaterThan(1);
+  });
+  it("never puts an exaggerated hook on screen or in the voice", () => {
+    for (let variant = 0; variant < 20; variant++) {
+      const script = writeProductClip({ ...base, lengthSeconds: 40, variant });
+      for (const text of [script.hookText ?? "", ...script.shots.map(s => s.narration)]) expect(text).not.toMatch(/ที่สุด|อันดับ\s*1|ขายดี|100\s*%|การันตี/);
+    }
+  });
   it("subtitles carry each line, the AI label and the link end card", () => {
-    const ass = buildProductSubtitles({ lines: ["หนึ่ง", "สอง"], durations: [8, 8], endCard: "ลิงก์สินค้าอยู่ในคอมเมนต์", aiLabel: "สร้างด้วย AI" });
+    const ass = buildProductSubtitles({ lines: ["หนึ่ง", "สอง"], durations: [8, 8], endCard: "ลิงก์สินค้าอยู่ในคอมเมนต์", aiLabel: "สร้างด้วย AI", hookText: "ทายสิ นี่คืออะไร" });
+    expect(ass).toContain("Hook,,0,0,0,,{\\fad(0,250)}ทายสิ นี่คืออะไร");
     expect(ass).toContain("Sub,,0,0,0,,หนึ่ง");
     expect(ass).toContain("0:00:08.40");
     expect(ass).toContain("Label,,0,0,0,,สร้างด้วย AI");
