@@ -4,10 +4,23 @@ import { createProductClipAction, previewLinkAction, startProductClipAction, typ
 
 interface Account { id: string; name: string }
 const LENGTHS = [
-  { value: 8, label: "8 วิ", note: "1 ช็อต · ใช้เครดิต 1 คลิป" },
-  { value: 16, label: "16 วิ", note: "2 ช็อต: เปิด → ปิดท้าย+ลิงก์" },
-  { value: 32, label: "32 วิ", note: "4 ช็อต: เปิด → ซูม → มุมใช้งาน → ปิดท้าย" },
+  { value: 8, label: "8 วิ", shots: 1, note: "1 ช็อต: โชว์สินค้า + ลิงก์ · ใช้เครดิต 1 คลิป" },
+  { value: 16, label: "16 วิ", shots: 2, note: "2 ช็อต: เปิดเรื่อง → ปิดท้าย + ลิงก์" },
+  { value: 24, label: "24 วิ", shots: 3, note: "3 ช็อต: เปิดเรื่อง → ซูมรายละเอียด → ปิดท้าย + ลิงก์" },
+  { value: 32, label: "32 วิ", shots: 4, note: "4 ช็อต: เปิดเรื่อง → ซูม → มุมใช้งาน → ปิดท้าย + ลิงก์" },
+  { value: 40, label: "40 วิ", shots: 5, note: "5 ช็อต: เปิดเรื่อง → ซูม → มุมใช้งาน → มุมกว้างอีกด้าน → ปิดท้าย + ลิงก์" },
 ];
+
+function LengthPicker() {
+  const [length, setLength] = useState(16);
+  const chosen = LENGTHS.find(l => l.value === length) ?? LENGTHS[1];
+  return <fieldset className="pl-lengths"><legend>ความยาวคลิป</legend>
+    <div className="pl-length-grid">{LENGTHS.map(l => <label key={l.value} className="pl-length">
+      <input type="radio" name="lengthSeconds" value={l.value} checked={length === l.value} onChange={() => setLength(l.value)} />
+      <strong>{l.value}<span> วิ</span></strong><small>{l.shots} ช็อต</small></label>)}</div>
+    <p className="pl-length-note">{chosen.note}</p>
+  </fieldset>;
+}
 
 /** Photos from the computer are shrunk to ≤1080 px JPEG in the browser, so a few of them fit in one request. */
 async function shrink(file: File): Promise<File> {
@@ -27,20 +40,23 @@ async function shrink(file: File): Promise<File> {
 export function ProductLinkForm({ accounts, initialAccount }: { accounts: Account[]; initialAccount: string }) {
   const [sending, setSending] = useState(false);
   return <div className="pl-form">
-    <form action={async form => { setSending(true); try { await startProductClipAction(form); } finally { setSending(false); } }} className="pl-details pl-quick">
-      <label className="manual-filter pl-link">ลิงก์สินค้า Shopee / Lazada (ลิงก์ affiliate ได้เลย)
-        <input name="link" required placeholder="https://s.shopee.co.th/…" inputMode="url" maxLength={1500} autoComplete="off" /></label>
-      <fieldset className="pl-lengths"><legend>ความยาวคลิป</legend>
-        {LENGTHS.map(l => <label key={l.value} className="pl-length"><input type="radio" name="lengthSeconds" value={l.value} defaultChecked={l.value === 16} />
-          <strong>{l.label}</strong><small>{l.note}</small></label>)}
-      </fieldset>
+    <form action={async form => { setSending(true); try { await startProductClipAction(form); } finally { setSending(false); } }} className="pl-quick">
+      <label className="pl-link-field"><span>ลิงก์สินค้า Shopee / Lazada</span>
+        <input name="link" required placeholder="วางลิงก์ เช่น https://s.shopee.co.th/…" inputMode="url" maxLength={1500} autoComplete="off" />
+        <small>ลิงก์ affiliate ได้เลย ระบบเก็บลิงก์เดิมไว้ใส่แคปชันและคอมเมนต์</small></label>
+      <LengthPicker />
       {accounts.length > 1 ? <label className="manual-filter">ใช้บัญชี Google Flow ของช่อง<select name="tiktokAccountId" defaultValue={initialAccount}>
         {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
         : <input type="hidden" name="tiktokAccountId" value={initialAccount} />}
-      <label className="manual-check"><input type="checkbox" name="rights" defaultChecked required />ฉันเป็นนายหน้า (affiliate) ของสินค้านี้ ใช้รูปและข้อมูลจากหน้าร้านได้</label>
-      <button className="manual-primary" type="submit" disabled={sending}>{sending ? "กำลังอ่านลิงก์…" : "ทำคลิปเลย"}</button>
-      <p className="manual-muted">ระบบดึงชื่อ รูป และรายละเอียดจากหน้าสินค้าเอง (ถ้าร้านไม่ให้เซิร์ฟเวอร์อ่าน เครื่องสร้างคลิปในคอมจะเปิดหน้าสินค้าแทน) เลือกรูป 4 รูปแรกของร้าน
-        เขียนสคริปต์เฉพาะสิ่งที่หน้าร้านบอก ตัดคำเกินจริง/ราคา/สรรพคุณออก แล้วสร้างคลิปต่อเลย คุณแค่ตรวจคลิปก่อนโพสต์</p>
+      <div className="pl-submit">
+        <label className="pl-rights"><input type="checkbox" name="rights" defaultChecked required /><span>ฉันเป็นนายหน้า (affiliate) ของสินค้านี้ ใช้รูปและข้อมูลจากหน้าร้านได้</span></label>
+        <button className="manual-primary" type="submit" disabled={sending}>{sending ? "กำลังอ่านลิงก์…" : "ทำคลิปเลย"}</button>
+      </div>
+      <ul className="pl-auto">
+        <li>ดึงชื่อ รูป 4 รูปแรก และรายละเอียดจากหน้าสินค้าเอง</li>
+        <li>เขียนสคริปต์เฉพาะสิ่งที่หน้าร้านบอก ตัดคำเกินจริง ราคา และสรรพคุณออก</li>
+        <li>สร้างคลิปใน Flow แล้วมารอให้คุณตรวจก่อนโพสต์</li>
+      </ul>
     </form>
     <details className="pl-manual"><summary>อยากเลือกรูปหรือแก้ข้อมูลเองก่อนสร้าง</summary><ManualProductForm accounts={accounts} initialAccount={initialAccount} /></details>
   </div>;
@@ -102,10 +118,7 @@ function ManualProductForm({ accounts, initialAccount }: { accounts: Account[]; 
         <p className="manual-muted">เลือกรูปตัวสินค้าชัด ๆ พื้นหลังเรียบ หลีกเลี่ยงรูปที่มีตัวหนังสือโฆษณาหรือราคาบนรูป (AI จะลอกตัวหนังสือมา)</p>
       </fieldset>
 
-      <fieldset className="pl-lengths"><legend>ความยาวคลิป</legend>
-        {LENGTHS.map(l => <label key={l.value} className="pl-length"><input type="radio" name="lengthSeconds" value={l.value} defaultChecked={l.value === 16} />
-          <strong>{l.label}</strong><small>{l.note}</small></label>)}
-      </fieldset>
+      <LengthPicker />
 
       {accounts.length > 1 ? <label className="manual-filter">ใช้บัญชี Google Flow ของช่อง<select name="tiktokAccountId" defaultValue={initialAccount}>
         {accounts.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>

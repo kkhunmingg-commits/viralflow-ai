@@ -12,9 +12,9 @@ import { PLATFORM_LABEL, type ProductPlatform } from "./link";
  * used as reference change from take to take, so the product is seen from different sides.
  */
 export const PRODUCT_SCRIPT_VERSION = "product-link-script-v1";
-export const CLIP_LENGTHS = [8, 16, 32] as const;
+export const CLIP_LENGTHS = [8, 16, 24, 32, 40] as const;
 export type ClipLength = typeof CLIP_LENGTHS[number];
-export type ShotRole = "HERO" | "HOOK" | "DETAIL" | "IN_USE" | "CLOSE";
+export type ShotRole = "HERO" | "HOOK" | "DETAIL" | "IN_USE" | "OVERVIEW" | "CLOSE";
 
 export interface ProductShot {
   position: number; role: ShotRole; roleTh: string; action: HandAction; camera: string;
@@ -42,8 +42,11 @@ export interface ScriptInput {
   variant?: number;
 }
 
-const ROLE_TH: Record<ShotRole, string> = { HERO: "โชว์สินค้า", HOOK: "เปิดเรื่อง", DETAIL: "ซูมรายละเอียด", IN_USE: "มุมใช้งาน", CLOSE: "ปิดท้าย + ลิงก์" };
-const ROLES: Record<ClipLength, ShotRole[]> = { 8: ["HERO"], 16: ["HOOK", "CLOSE"], 32: ["HOOK", "DETAIL", "IN_USE", "CLOSE"] };
+const ROLE_TH: Record<ShotRole, string> = { HERO: "โชว์สินค้า", HOOK: "เปิดเรื่อง", DETAIL: "ซูมรายละเอียด", IN_USE: "มุมใช้งาน", OVERVIEW: "มุมกว้างอีกด้าน", CLOSE: "ปิดท้าย + ลิงก์" };
+/** One 8-second Flow take per role; each added take shows the product from a new side. */
+export const ROLES: Record<ClipLength, ShotRole[]> = {
+  8: ["HERO"], 16: ["HOOK", "CLOSE"], 24: ["HOOK", "DETAIL", "CLOSE"], 32: ["HOOK", "DETAIL", "IN_USE", "CLOSE"], 40: ["HOOK", "DETAIL", "IN_USE", "OVERVIEW", "CLOSE"],
+};
 
 /** Per-role framing and how each take starts and ends, so the cut from one take to the next reads as one movement. */
 const ROLE_SHOT: Record<ShotRole, { action: HandAction; camera: string; framing: string; start: string; end: string; timing: string }> = {
@@ -63,6 +66,10 @@ const ROLE_SHOT: Record<ShotRole, { action: HandAction; camera: string; framing:
     framing: "three-quarter angle from a lower camera height, showing the product's shape and size against the hands",
     start: "the product is held in both hands in the same set", end: "the product faces the camera again, steady",
     timing: "a slow quarter turn between second 1 and second 5, then hold still facing the camera to the end" },
+  OVERVIEW: { action: "LIFT_AND_PRESENT", camera: "slow arc around the product from a high three-quarter angle",
+    framing: "wider shot from a higher angle showing the whole product and its other side on the same set",
+    start: "the product is held a little above the set, turned to show the side not seen yet", end: "the product is held steady, whole shape visible",
+    timing: "the camera arc and a slight lift happen between second 1 and second 5; hold steady to the end" },
   CLOSE: { action: "PLACE_ON_SURFACE", camera: "slow pull-back that settles into a locked-off hero frame",
     framing: "clean hero shot, the product centred on the set with space above it for the end caption",
     start: "the hand is holding the product just above the set", end: "the product sits centred on the set, hands gone, frame perfectly still",
@@ -143,6 +150,7 @@ export function narrationFor(role: ShotRole, name: string, facts: string[], seed
     case "HOOK": return shorten(hook, 64);
     case "DETAIL": return shorten(usable[0] ?? "ดูรายละเอียดตรงนี้กันชัด ๆ", 50);
     case "IN_USE": return shorten(usable[1] ?? usable[0] ?? "มุมนี้ให้เห็นทรงกับขนาดชัด ๆ", 50);
+    case "OVERVIEW": return shorten(usable[2] ?? "อีกมุม ให้เห็นทรงเต็ม ๆ", 50);
     // In a 16-second clip the closing take is the only one left to carry a fact; in 32 seconds the facts came earlier.
     case "CLOSE": return shorten(total === 2 && usable[0] ? `${usable[0]} ${CTA_SHORT}` : CTA_LONG, 70);
   }

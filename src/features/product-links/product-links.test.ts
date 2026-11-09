@@ -57,10 +57,12 @@ describe("product clip script", () => {
     expect(supplement.family).toBe("HEALTH_SUPPLEMENT");
     expect(supplement.shots.map(s => s.narration).join(" ")).not.toContain("30 เม็ด");
   });
-  it.each([[8, 1], [16, 2], [32, 4]] as const)("%i seconds is %i takes with different framing and photos, one set", (length, takes) => {
+  it.each([[8, 1], [16, 2], [24, 3], [32, 4], [40, 5]] as const)("%i seconds is %i takes with different framing and photos, one set", (length, takes) => {
     const script = writeProductClip({ ...base, lengthSeconds: length });
     expect(script.shots).toHaveLength(takes);
-    expect(new Set(script.shots.map(s => s.action)).size).toBe(takes === 4 ? 4 : takes === 2 ? 2 : 1);
+    // Every take changes the framing; the hand action repeats only once there are more takes than actions.
+    expect(new Set(script.shots.map(s => s.role)).size).toBe(takes);
+    expect(new Set(script.shots.map(s => s.action)).size).toBe(Math.min(takes, 4));
     if (takes > 1) {
       expect(new Set(script.shots.map(s => s.imageIndex)).size).toBe(Math.min(takes, 3));
       for (const shot of script.shots) expect(shot.prompt).toContain(`of ${takes} of one product advert`);

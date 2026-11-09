@@ -48,7 +48,7 @@ const createSchema = z.object({
   externalId: z.string().trim().max(80).optional().default(""),
   title: z.string().trim().min(2).max(300),
   facts: z.string().max(4000).optional().default(""),
-  lengthSeconds: z.coerce.number().pipe(z.union([z.literal(8), z.literal(16), z.literal(32)])),
+  lengthSeconds: z.coerce.number().pipe(z.union([z.literal(8), z.literal(16), z.literal(24), z.literal(32), z.literal(40)])),
   rights: z.literal("on"),
 });
 
@@ -85,7 +85,7 @@ export async function createProductClipAction(formData: FormData) {
 const startSchema = z.object({
   tiktokAccountId: z.uuid(),
   link: z.string().trim().min(8).max(1500),
-  lengthSeconds: z.coerce.number().pipe(z.union([z.literal(8), z.literal(16), z.literal(32)])),
+  lengthSeconds: z.coerce.number().pipe(z.union([z.literal(8), z.literal(16), z.literal(24), z.literal(32), z.literal(40)])),
   rights: z.literal("on"),
 });
 
