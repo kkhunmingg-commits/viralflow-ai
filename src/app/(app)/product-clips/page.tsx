@@ -7,7 +7,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ClipStudioTabs } from "@/components/clip-studio-tabs";
 import { flowClipStatusLabels, flowErrorLabel, type FlowClipStatus } from "@/features/flow-farm/contracts";
-import { workerLastSeen } from "@/features/flow-farm/service";
+import { flowLogins, listFlowAccounts, workerLastSeen } from "@/features/flow-farm/service";
+import type { FlowAccountView } from "@/features/flow-farm/capacity";
 import { listProductClips, tickProductClips, type ProductClipView } from "@/features/product-links/service";
 import { SOCIAL_LABEL, SOCIAL_PLATFORMS, socialReadiness } from "@/features/social-publish/config";
 import { postErrorLabel } from "@/features/social-publish/publishers";
@@ -33,11 +34,12 @@ const STATUS_TH: Record<ProductClipView["status"], string> = {
 const bangkokTime = (iso: string) => new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
 
 async function loadPage(client: Awaited<ReturnType<typeof createClient>>, owner: string) {
-  const [jobs, lastSeen] = await Promise.all([
+  const [jobs, lastSeen, google] = await Promise.all([
     listProductClips(client, owner).then(list => ({ list, available: true })).catch(() => ({ list: [] as ProductClipView[], available: false })),
     workerLastSeen(client, owner).catch(() => null),
+    flowLogins(createAdminClient(), owner).then(logins => listFlowAccounts(client, owner, new Date(), logins)).catch(() => [] as FlowAccountView[]),
   ]);
-  return { ...jobs, lastSeen, now: Date.now() };
+  return { ...jobs, lastSeen, google: google.filter(g => g.active), now: Date.now() };
 }
 
 export default async function ProductClipsPage({ searchParams }: { searchParams: Promise<{ msg?: string; account?: string }> }) {
@@ -51,7 +53,7 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
   const accounts = ((accountsResult.data ?? []) as Array<{ id: string; display_name: string; is_mock: boolean | null }>)
     .filter(a => process.env.NODE_ENV !== "production" || !a.is_mock).map(a => ({ id: a.id, name: a.display_name }));
   const initialAccount = z.uuid().safeParse(account).success && accounts.some(a => a.id === account) ? account! : accounts[0]?.id ?? "";
-  const { list, available, lastSeen, now } = await loadPage(client, owner);
+  const { list, available, lastSeen, google, now } = await loadPage(client, owner);
   const readiness = socialReadiness(owner);
   const host = (await headers()).get("host") ?? "";
   const capture = bookmarkletHref(/^[a-z0-9.-]+(:\d+)?$/i.test(host) ? `${/^(localhost|127\.)/.test(host) ? "http" : "https"}://${host}` : "");
@@ -68,6 +70,8 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
     {!available && <p className="manual-warning">ฐานข้อมูลยังไม่มีตาราง product_link_clips: รันไฟล์ supabase/migrations/20261108160000_product_link_clips.sql ใน Supabase SQL Editor ก่อน แล้วหน้านี้จะใช้ได้</p>}
     <p className={online ? "flow-worker online" : "flow-worker"} role="status"><span aria-hidden="true">●</span>
       {online ? "เครื่องสร้างคลิปออนไลน์ ช็อตที่เข้าคิวจะเริ่มทำเอง" : <>เครื่องสร้างคลิปไม่ได้ทำงาน{lastSeen ? ` (เห็นล่าสุด ${bangkokTime(lastSeen)})` : ""} เปิดคอมที่ติดตั้งไว้ หรือติดตั้งที่ <Link href="/post">หน้าคลิปโปรโมท</Link></>}</p>
+
+    <GoogleAccounts accounts={google} />
 
     <section className="manual-panel" aria-labelledby="pl-new">
       <div className="manual-section-head"><div><p className="manual-eyebrow">ขั้นที่ 1</p><h2 id="pl-new">ทำคลิปจากลิงก์สินค้า</h2></div></div>
@@ -180,4 +184,19 @@ function DoneCard({ job }: { job: ProductClipView }) {
       <form action={deleteProductClipAction}><input type="hidden" name="id" value={job.id} /><button className="library-link danger" type="submit">ลบ</button></form>
     </div>
   </article>;
+}
+
+/** Lucky, 10 Nov: which Google (Flow) accounts are signed in and how many takes each can still make today. */
+function GoogleAccounts({ accounts }: { accounts: FlowAccountView[] }) {
+  if (!accounts.length) return null;
+  const left = accounts.reduce((sum, a) => sum + a.remainingEstimate, 0);
+  const state = (a: FlowAccountView) => a.loginState !== "READY" ? (a.loginState === "FAILED" ? "⚠ ล็อกอินไม่สำเร็จ" : "⏳ รอล็อกอิน")
+    : a.exhaustedToday || a.remainingEstimate === 0 ? `เครดิตหมดวันนี้ (ใช้ ${a.clipsToday} ช็อต)` : `เหลือ ~${a.remainingEstimate} ช็อต (ใช้ ${a.clipsToday}/${a.clipsPerDayEstimate})`;
+  return <section className="manual-panel pl-google" aria-labelledby="pl-google">
+    <div className="manual-section-head"><div><p className="manual-eyebrow">บัญชี Google Flow · เครดิตรีเซ็ตทุกวัน</p>
+      <h2 id="pl-google">{left > 0 ? `วันนี้ทำได้อีก ~${left} ช็อต (คลิป 40 วิ ≈ ${Math.floor(left / 5)} คลิป · 16 วิ ≈ ${Math.floor(left / 2)} คลิป)` : "เครดิตวันนี้หมดทุกบัญชีแล้ว รอพรุ่งนี้"}</h2></div></div>
+    <ul className="pl-google-list">{accounts.map(a => <li key={a.id} className={a.remainingEstimate > 0 ? "ok" : "empty"}>
+      <span>{a.label}</span><span>{state(a)}</span></li>)}</ul>
+    <p className="manual-muted">ตัวเลขเป็นค่าประมาณจากจำนวนช็อตที่ทำไปวันนี้ เครดิตจริงดูได้ใน Flow</p>
+  </section>;
 }
