@@ -245,6 +245,17 @@ async function attachReference(page, selectors, imageUrl, scratchDir, clipId, { 
     let slot = frames ? startSlot() : page.getByRole("button", { name: /^add$/ }).last();
     // Flow may keep the composer in frames mode (10 Nov: only "เริ่ม/สิ้นสุด" slots, no ingredients "add"): the product
     // photo then goes in as the start frame instead of failing the shot again and again.
+    if (!frames && !await slot.count()) {
+      // Ask for ingredients mode once more (radio, tab or button) before falling back: a start frame shows the shop's
+      // banner photo in the first frames of the take (10 Nov owner).
+      const INGREDIENTS = /ส่วนผสม|ส่วนประกอบ|วัตถุดิบ|ingredients?/i;
+      await pickRadio(page, INGREDIENTS);
+      for (const role of ["tab", "button"]) {
+        const other = page.getByRole(role, { name: INGREDIENTS }).first();
+        if (!await slot.count() && await other.count()) { await other.click({ timeout: 5_000 }).catch(() => {}); await page.waitForTimeout(800); }
+      }
+      slot = page.getByRole("button", { name: /^add$/ }).last();
+    }
     if (!frames && !await slot.count() && await startSlot().count()) { frames = true; slot = startSlot(); }
     if (!await slot.count()) throw new Error("IMAGE_INPUT_NOT_FOUND");
     await slot.click({ timeout: 10_000 });

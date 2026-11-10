@@ -338,6 +338,7 @@ async function produceStep(admin: SupabaseClient, owner: string, job: ProductCli
   await assemble(admin, owner, job, ids.map(id => byId.get(id)!), now);
 }
 
+const SHOT_TRIM_START = 0.75;
 async function assemble(admin: SupabaseClient, owner: string, job: ProductClipJob, shots: Array<{ id: string; storage_path: string | null; duration_seconds: number | null }>, now: Date) {
   const claimed = check(await admin.from("product_link_clips").update({ status: "ASSEMBLING", assemble_attempts: job.assemble_attempts + 1, updated_at: now.toISOString() })
     .eq("owner_id", owner).eq("id", job.id).in("status", ["PRODUCING", "ASSEMBLING"]).select("id"), "product_clips_unavailable") as unknown[] | null;
@@ -349,7 +350,9 @@ async function assemble(admin: SupabaseClient, owner: string, job: ProductClipJo
       if (!shot.storage_path) throw new Error("SHOT_VIDEO_MISSING");
       const file = await admin.storage.from(BUCKET).download(shot.storage_path);
       if (file.error || !file.data) throw new Error("SHOT_VIDEO_MISSING");
-      inputs.push({ bytes: new Uint8Array(await file.data.arrayBuffer()), durationSeconds: Number(shot.duration_seconds ?? 8), subtitle: job.script.shots[i]?.narration ?? "" });
+      // 10 Nov (owner): the first frames showed the shop's banner photo fading into the scene; each take starts after it.
+      inputs.push({ bytes: new Uint8Array(await file.data.arrayBuffer()), durationSeconds: Number(shot.duration_seconds ?? 8), subtitle: job.script.shots[i]?.narration ?? "",
+        trimStartSeconds: SHOT_TRIM_START });
     }
     const { assembleEpisode } = await import("@/features/drama/media");
     const video = await assembleEpisode({ shots: inputs, ass: durations => buildProductSubtitles({ lines: [], durations,

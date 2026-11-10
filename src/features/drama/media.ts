@@ -108,7 +108,7 @@ const hasAudio = async (dir: string, file: string) => {
  * Cuts an episode: the shots in order at 720x1280, Thai subtitles for each line, the series/episode tag at the start
  * and "next episode" (or "the end") over the last seconds. Shots without sound get silence so the cut never fails.
  */
-export function assembleEpisode(input: { shots: Array<{ bytes: Uint8Array; durationSeconds: number; subtitle: string }>; cut?: Omit<EpisodeCut, "shots">;
+export function assembleEpisode(input: { shots: Array<{ bytes: Uint8Array; durationSeconds: number; subtitle: string; trimStartSeconds?: number }>; cut?: Omit<EpisodeCut, "shots">;
   fontPath?: string;
   /** Ready-made subtitles (product clips); otherwise the episode's own are built from `cut`. */
   ass?: (durations: number[]) => string }) {
@@ -116,16 +116,18 @@ export function assembleEpisode(input: { shots: Array<{ bytes: Uint8Array; durat
   return workspace(async dir => {
     await mkdir(join(dir, "fonts"));
     await copyFile(input.fontPath ?? join(process.cwd(), "assets", "fonts", "NotoSansThai-Bold.ttf"), join(dir, "fonts", "NotoSansThai-Bold.ttf"));
-    const durations = input.shots.map(shot => Math.max(1, Math.min(10, shot.durationSeconds || 8)));
+    // A cut from the start of a take (product clips: Flow's first frames can still show the reference photo).
+    const starts = input.shots.map(shot => Math.max(0, Math.min(2, shot.trimStartSeconds ?? 0)));
+    const durations = input.shots.map((shot, i) => Math.max(1, Math.min(10, shot.durationSeconds || 8) - starts[i]));
     const args = ["-nostdin", "-hide_banner", "-loglevel", "error", "-y"];
     const chains: string[] = [];
     for (const [i, shot] of input.shots.entries()) {
       const file = `shot-${i}.mp4`;
       await writeFile(join(dir, file), shot.bytes);
       args.push("-i", file);
-      chains.push(`[${i}:v]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT},fps=${FPS},setsar=1,format=yuv420p,trim=duration=${durations[i]},setpts=PTS-STARTPTS[v${i}]`);
+      chains.push(`[${i}:v]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT},fps=${FPS},setsar=1,format=yuv420p,trim=start=${starts[i]}:duration=${durations[i]},setpts=PTS-STARTPTS[v${i}]`);
       chains.push(await hasAudio(dir, file)
-        ? `[${i}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=duration=${durations[i]},asetpts=PTS-STARTPTS,apad=whole_dur=${durations[i]}[a${i}]`
+        ? `[${i}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=start=${starts[i]}:duration=${durations[i]},asetpts=PTS-STARTPTS,apad=whole_dur=${durations[i]}[a${i}]`
         : `aevalsrc=0:c=stereo:s=48000:d=${durations[i]}[a${i}]`);
     }
     const total = durations.reduce((sum, d) => sum + d, 0);

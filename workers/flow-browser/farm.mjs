@@ -132,7 +132,7 @@ const stamp = line => { const text = `${now()} ${line}`; console.log(text); void
 // with a touch of farm.mjs, e.g. EXTENSION_REV below).
 const VERSION_FILES = ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs"];
 const WORKER_FILES = ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs", "extension.mjs"];
-export const EXTENSION_REV = 2;
+export const EXTENSION_REV = 2; // touched with farm-driver changes too
 export function workerVersion(files) {
   const hash = createHash("sha256");
   for (const name of VERSION_FILES) hash.update(name).update("\0").update(files[name] ?? "").update("\0");

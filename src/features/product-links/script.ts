@@ -76,7 +76,7 @@ const ROLE_SHOT: Record<ShotRole, { action: HandAction; camera: string; framing:
     start: "the product is held a little above the set, turned to show the side not seen yet", end: "the product is held steady, whole shape visible",
     timing: "the camera arc and a slight lift happen between second 1 and second 5; hold steady to the end" },
   CLOSE: { action: "PLACE_ON_SURFACE", camera: "slow pull-back that settles into a locked-off hero frame",
-    framing: "clean hero shot, the product centred on the set with space above it for the end caption",
+    framing: "clean hero shot, the product a little above the centre of the set with empty space below it for the end caption",
     start: "the hand is holding the product just above the set", end: "the product sits centred on the set, hands gone, frame perfectly still",
     timing: "the product is placed down by second 3 and the hand leaves by second 4; the last 3 seconds are perfectly still" },
 };
@@ -87,6 +87,8 @@ const NEGATIVE = [
   "gloves or covered hands", "faces, testimonials, captions, subtitles, watermarks, price tags or any on-screen text",
   "the product performing a function, result or before/after effect not shown in the reference", "cuts or scene changes inside the take",
   "objects morphing, duplicating, or appearing and vanishing on their own",
+  // 10 Nov: a take began on the shop's banner (text, swatches, white card) and faded into the set.
+  "starting from, or fading in from, the reference photo, a banner, a collage, a white product card or any printed text",
   // 10 Nov (KAGE cushion "พร้อมสปาตูล่า"): Flow turned the bundled spatula into a spoon waved through every take.
   "nail polish, painted or long nails, rings, tattoos, or hands that look different from the other takes",
   "spoons, spatulas, cutlery, brushes, applicators, cables or any other accessory or tool next to the product",
@@ -203,7 +205,7 @@ export function narrationFor(role: ShotRole, name: string, facts: string[], seed
 export function shotPrompt(input: { title: string; style: SetStyle; role: ShotRole; position: number; total: number; narration: string; trend?: TrendFormat; setTouch?: string }) {
   const shot = ROLE_SHOT[input.role], s = input.style, first = input.position === 0, last = input.position === input.total - 1;
   return [
-    `Use the attached reference image as the exact product (${input.title}). The reference may be a shop banner: take only the product from it and ignore its background, badges, colour swatches and any words printed around the product. Show only this product itself: leave out anything else in the reference photo (spatula, spoon, brush, puff, box, cable or other bundled extra). The video never shows the reference photo itself. Photoreal vertical 9:16 video, 8 seconds, one continuous take.`,
+    `Use the attached reference image as the exact product (${input.title}). The reference may be a shop banner: take only the product from it and ignore its background, badges, colour swatches and any words printed around the product. Show only this product itself: leave out anything else in the reference photo (spatula, spoon, brush, puff, box, cable or other bundled extra). The video never shows the reference photo itself: the very first frame is already the real set in motion. Photoreal vertical 9:16 video, 8 seconds, one continuous take.`,
     // The first second decides whether people keep watching: open on the format's scroll-stopping beat, already in motion.
     ...(first && input.trend ? [`OPENING (first second, made to stop the scroll on Reels/Shorts/TikTok): ${input.trend.opening}. Never start on a still frame.`] : []),
     ...(last && input.total > 1 ? ["LOOP: the final frame mirrors the composition of the advert's first frame, so the clip loops seamlessly when it replays."] : []),

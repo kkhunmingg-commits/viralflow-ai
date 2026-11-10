@@ -115,6 +115,11 @@ describe("product clip script", () => {
     expect(ass).toContain("0:00:08.40");
     expect(ass).toContain("Label,,0,0,0,,สร้างด้วย AI");
     expect(ass).toContain("End,,0,0,0,,");
+    // 10 Nov (owner): one line on a pill, never split inside "อยู่".
+    const end = ass.split("\n").find(l => l.includes(",End,"))!;
+    expect(end).toMatch(/ลิงก์สินค้าอยู่ในคอมเมนต์$/);
+    expect(end).not.toContain("\\N");
+    expect(ass).toMatch(/,Pill,,0,0,0,,\{\\an5\\pos\(360,1120\)\\fad\(250,0\)\\p1\}m \d+ 0 /);
   });
 });
 
