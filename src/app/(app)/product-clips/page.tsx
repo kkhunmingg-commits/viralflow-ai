@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -13,6 +14,8 @@ import { SOCIAL_LABEL, SOCIAL_PLATFORMS, socialReadiness } from "@/features/soci
 import { postErrorLabel } from "@/features/social-publish/publishers";
 import { ClipPhoneActions } from "../post/clip-phone-actions";
 import { ProductLinkForm } from "./link-form";
+import { CaptureButton } from "./capture-button";
+import { bookmarkletHref } from "@/features/product-links/capture";
 import { lookupErrorLabel } from "@/features/product-links/browser-lookup";
 import { deleteProductClipAction, remakeProductClipAction, reviewProductClipAction } from "./actions";
 import "../post/post.css";
@@ -56,6 +59,8 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
   const { list, available, lastSeen, google, now } = await loadPage(client, owner);
   const readiness = socialReadiness(owner);
   const online = lastSeen !== null && now - Date.parse(lastSeen) < 3 * 60_000;
+  const host = (await headers()).get("host") ?? "";
+  const capture = bookmarkletHref(/^[a-z0-9.-]+(:\d+)?$/i.test(host) ? `${/^(localhost|127\.)/.test(host) ? "http" : "https"}://${host}` : "");
   const review = list.filter(j => j.status === "REVIEW"), working = list.filter(j => ["PRODUCING", "ASSEMBLING", "PUBLISHING"].includes(j.status)),
     finished = list.filter(j => ["APPROVED", "PUBLISHED", "FAILED", "REJECTED"].includes(j.status));
 
@@ -76,14 +81,19 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
       {accounts.length ? <ProductLinkForm accounts={accounts} initialAccount={initialAccount} />
         : <p className="manual-warning">ต้องมีบัญชี TikTok ที่ผูกบัญชี Google Flow ไว้ก่อน (ใช้คิวเดียวกับคลิปโปรโมท) <Link href="/accounts">เชื่อมบัญชี →</Link></p>}
       <details className="pl-manual pl-extension" open={working.some(j => j.script.lookup?.state === "LOGIN" || /NO_EXTENSION/.test(j.script.lookup?.note ?? ""))}>
-        <summary>ส่วนขยาย Chrome (ติดตั้งครั้งเดียว) · ให้ Shopee/Lazada ดึงข้อมูลเองอัตโนมัติ</summary>
-        {STORE_URL && <p><a className="manual-primary" href={STORE_URL} target="_blank" rel="noreferrer">ติดตั้งส่วนขยาย ViralFlow (กดครั้งเดียว)</a> แล้วกด “เพิ่มไปยัง Chrome” · ถ้าเคยติดตั้งแบบโฟลเดอร์ไว้ ให้ลบอันเก่าที่ chrome://extensions ก่อน</p>}
-        {STORE_URL && <p className="manual-muted">หรือติดตั้งแบบโฟลเดอร์ (สำหรับคอมที่ติดตั้งเครื่องสร้างคลิป):</p>}
+        <summary>ตัวเชื่อม Shopee/Lazada (ฟรี · ติดตั้งครั้งเดียว) · เลือกแบบใดแบบหนึ่ง</summary>
+        {STORE_URL && <p><a className="manual-primary" href={STORE_URL} target="_blank" rel="noreferrer">ติดตั้งส่วนขยาย ViralFlow (กดครั้งเดียว)</a> แล้วกด “เพิ่มไปยัง Chrome”</p>}
+        <h3 className="pl-extension-title">แบบที่ 1 · ปุ่มบุ๊กมาร์ก (ง่ายสุด ไม่ต้องติดตั้ง)</h3>
+        <CaptureButton href={capture} />
+        <h3 className="pl-extension-title">แบบที่ 2 · ส่วนขยาย Chrome (อัตโนมัติ วางลิงก์อย่างเดียว)</h3>
+        <p><a className="manual-secondary" href="/downloads/viralflow-chrome-extension.zip" download>⬇ ดาวน์โหลดส่วนขยาย ViralFlow</a></p>
         <ol>
-          <li>ใน Chrome ที่ล็อกอิน Shopee และ ViralFlow ไว้ เปิด <code>chrome://extensions</code> แล้วเปิด “โหมดนักพัฒนาซอฟต์แวร์” (มุมขวาบน)</li>
-          <li>กด “โหลดส่วนขยายที่แยกไว้” แล้วเลือกโฟลเดอร์ <code>%LOCALAPPDATA%\ViralFlowClipMaker\app\chrome-extension</code></li>
-          <li>เสร็จแล้ว: วางลิงก์ Shopee ที่นี่อย่างเดียว เครื่องสร้างคลิปจะเปิดหน้าสินค้าใน Chrome ของคุณ อ่านข้อมูล แล้วปิดแท็บเอง · เปิดหน้าสินค้าเองก็กดปุ่ม ⚡ ส่งเข้า ViralFlow มุมขวาล่างได้</li>
-        </ol></details>
+          <li>คลิกขวาไฟล์ที่โหลดมา → <strong>แตกไฟล์ทั้งหมด (Extract All)</strong> จะได้โฟลเดอร์ <code>ViralFlow-extension</code></li>
+          <li>พิมพ์ <code>chrome://extensions</code> ในช่องที่อยู่ของ Chrome แล้วเปิดสวิตช์ <strong>โหมดนักพัฒนาซอฟต์แวร์</strong> มุมขวาบน</li>
+          <li>กด <strong>โหลดส่วนขยายที่แยกไว้</strong> แล้วเลือกโฟลเดอร์ <code>ViralFlow-extension</code> · เสร็จ ต่อไปวางลิงก์ที่นี่อย่างเดียว ระบบเปิดหน้าสินค้า อ่านข้อมูล แล้วปิดแท็บเอง</li>
+        </ol>
+        <p className="manual-muted">ใช้ Chrome ที่ล็อกอิน ViralFlow ไว้ ไม่ต้องจับคู่อะไรเพิ่ม · ติดตั้งแบบที่ 2 แล้ว หน้าสินค้าจะมีปุ่ม ⚡ ส่งเข้า ViralFlow มุมขวาล่างให้ด้วย ไม่ต้องใช้บุ๊กมาร์ก</p>
+      </details>
     </section>
 
     <section className="manual-panel" aria-labelledby="pl-review">
