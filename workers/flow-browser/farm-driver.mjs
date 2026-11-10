@@ -239,7 +239,10 @@ async function attachReference(page, selectors, imageUrl, scratchDir, clipId, { 
     // Flow (Nov 2026): frames mode has a "เริ่ม" (start) slot, ingredients mode an "add" button; either opens a picker
     // whose "อัปโหลดสื่อ" button asks for a file.
     const startSlot = () => page.locator("button.empty-chip").filter({ hasText: /^\s*(เริ่ม|start)\s*$/i }).first();
-    const slot = frames ? startSlot() : page.getByRole("button", { name: /^add$/ }).last();
+    let slot = frames ? startSlot() : page.getByRole("button", { name: /^add$/ }).last();
+    // Flow may keep the composer in frames mode (10 Nov: only "เริ่ม/สิ้นสุด" slots, no ingredients "add"): the product
+    // photo then goes in as the start frame instead of failing the shot again and again.
+    if (!frames && !await slot.count() && await startSlot().count()) { frames = true; slot = startSlot(); }
     if (!await slot.count()) throw new Error("IMAGE_INPUT_NOT_FOUND");
     await slot.click({ timeout: 10_000 });
     await page.waitForTimeout(1000);

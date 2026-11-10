@@ -17,6 +17,7 @@ const MAX_IMAGE_BYTES = 5_000_000;
 const MAX_IMAGES = 4;
 /** A failed or skipped take is made again up to this many times before the clip gives up. */
 export const MAX_SHOT_ATTEMPTS = 3;
+const SHOT_RETRY_WAIT_MS = 10 * 60_000;
 const LOCK_MS = 30_000;
 const ASSEMBLY_STALE_MS = 10 * 60_000;
 const COLUMNS = "id,owner_id,tiktok_account_id,platform,source,link,product_url,external_id,title,facts,image_paths,length_seconds,script,status,shot_clip_ids,shot_attempts,final_clip_id,targets,posts,assemble_attempts,error,ready_at,reviewed_at,published_at,created_at,updated_at";
@@ -314,6 +315,8 @@ async function produceStep(admin: SupabaseClient, owner: string, job: ProductCli
     // Every Google account ran out of credits: wait for tomorrow's credits, then queue the take again (not counted as a try).
     const noCredit = clip?.status === "SKIPPED_NO_CREDIT";
     if (noCredit && bangkokDate(clip.updated_at) === bangkokDate(now)) continue;
+    // A failed take waits 10 minutes before the next try, so Flow never sees the same shot started again and again.
+    if (clip && !noCredit && now.getTime() - Date.parse(clip.updated_at) < SHOT_RETRY_WAIT_MS) continue;
     // Failed, out of credits, or the row is gone: make this take again, up to MAX_SHOT_ATTEMPTS.
     if (!noCredit && (attempts[i] ?? 1) >= MAX_SHOT_ATTEMPTS) {
       await save(admin, owner, job.id, { status: "FAILED", error: `ช็อต ${i + 1} สร้างไม่สำเร็จ ${attempts[i]} ครั้ง (${clip?.error ?? clip?.status ?? "ไม่พบ"})`.slice(0, 480), updated_at: now.toISOString() });
