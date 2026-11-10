@@ -17,6 +17,8 @@ export const MAX_CLIPS_PER_BATCH = 30;
 export const FLOW_CLIP_MAX_BYTES = 50_000_000;
 
 export const MAX_FLOW_ACCOUNTS_PER_TIKTOK = 5;
+/** Google accounts are one pool shared by every TikTok account of the owner (10 Nov owner). */
+export const MAX_SHARED_FLOW_ACCOUNTS = 10;
 
 export interface FlowAccountRow {
   id: string; tiktok_account_id: string | null; label: string; priority: number; clips_per_day_estimate: number; active: boolean;

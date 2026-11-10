@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { bangkokLocalToIso, flowAccountSchema, repairAccountSchema, postedSchema, scheduleSchema, startBatchSchema } from "@/features/flow-farm/contracts";
+import { MAX_SHARED_FLOW_ACCOUNTS } from "@/features/flow-farm/contracts";
 import { addFlowAccount, addRepairAccount, closeClip, moveFlowAccount, removeFlowAccount, requestFlowLogin, scheduleClip, startBatch, updateFlowAccount } from "@/features/flow-farm/service";
 
 async function owner() {
@@ -54,8 +55,8 @@ export async function addFlowAccountAction(formData: FormData) {
   let moved = false;
   try { ({ moved } = await addFlowAccount(createAdminClient(), ownerId, parsed.data)); }
   catch (error) {
-    if (error instanceof Error && error.message === "FLOW_ACCOUNT_LABEL_TAKEN") done(formData, "มีบัญชี Google ชื่อนี้แล้ว");
-    if (error instanceof Error && error.message === "FLOW_ACCOUNT_LIMIT_5") done(formData, "บัญชี TikTok หนึ่งผูกบัญชี Google ได้สูงสุด 5 บัญชี");
+    if (error instanceof Error && error.message === "FLOW_ACCOUNT_LABEL_TAKEN") done(formData, "บัญชี Google นี้ผูกไว้แล้ว (ใช้ร่วมกันทุกบัญชี TikTok)");
+    if (error instanceof Error && error.message === "FLOW_ACCOUNT_LIMIT_5") done(formData, `ผูกบัญชี Google ได้สูงสุด ${MAX_SHARED_FLOW_ACCOUNTS} บัญชี (ใช้ร่วมกันทุกบัญชี TikTok)`);
     throw error;
   }
   if (moved) done(formData, `ย้ายบัญชี Google “${parsed.data.label}” มาไว้ที่บัญชี TikTok นี้แล้ว (ก่อนหน้านี้ผูกไว้กับบัญชี TikTok อื่น) ใช้การล็อกอินเดิมในคอมได้เลย`);

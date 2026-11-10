@@ -6,7 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ClipStudioTabs } from "@/components/clip-studio-tabs";
 import { flowClipStatusLabels, flowErrorLabel, type FlowClipStatus } from "@/features/flow-farm/contracts";
-import { flowLogins, listFlowAccounts, workerLastSeen } from "@/features/flow-farm/service";
+import { flowLogins, listFlowAccounts, shareFlowAccounts, workerLastSeen } from "@/features/flow-farm/service";
 import type { FlowAccountView } from "@/features/flow-farm/capacity";
 import { listProductClips, tickProductClips, type ProductClipView } from "@/features/product-links/service";
 import { SOCIAL_LABEL, SOCIAL_PLATFORMS, socialReadiness } from "@/features/social-publish/config";
@@ -34,7 +34,7 @@ async function loadPage(client: Awaited<ReturnType<typeof createClient>>, owner:
   const [jobs, lastSeen, google] = await Promise.all([
     listProductClips(client, owner).then(list => ({ list, available: true })).catch(() => ({ list: [] as ProductClipView[], available: false })),
     workerLastSeen(client, owner).catch(() => null),
-    flowLogins(createAdminClient(), owner).then(logins => listFlowAccounts(client, owner, new Date(), logins)).catch(() => [] as FlowAccountView[]),
+    shareFlowAccounts(createAdminClient(), owner).catch(() => {}).then(() => flowLogins(createAdminClient(), owner)).then(logins => listFlowAccounts(client, owner, new Date(), logins)).catch(() => [] as FlowAccountView[]),
   ]);
   return { ...jobs, lastSeen, google: google.filter(g => g.active), now: Date.now() };
 }

@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getProductRadar } from "@/features/products/services";
-import { bangkokDate, bangkokDayRange, COUNTED_STATUSES, FLOW_CLIP_MAX_BYTES, LIBRARY_STATUSES, MAX_CLIPS_PER_BATCH, MAX_FLOW_ACCOUNTS_PER_TIKTOK,
+import { bangkokDate, bangkokDayRange, COUNTED_STATUSES, FLOW_CLIP_MAX_BYTES, LIBRARY_STATUSES, MAX_CLIPS_PER_BATCH, MAX_SHARED_FLOW_ACCOUNTS,
   decodeProgress, encodeProgress, type FlowAccountRow, type FlowClipStatus, type FlowLoginState, type FlowProgress, type FlowProgressStage } from "./contracts";
 import { clipsToAdd, flowAccountViews } from "./capacity";
 export { draftDelivered } from "./contracts";
@@ -69,27 +69,26 @@ async function saveLogin(admin: SupabaseClient, owner: string, id: string, entry
   if (entry) logins[id] = entry; else delete logins[id];
   await saveStateFile(admin, loginsPath(owner), logins, "flow_login_not_saved");
 }
+/**
+ * Links a Google account to the owner's one shared pool (10 Nov owner: every TikTok account uses every Google account).
+ * `tiktokAccountId` only says which page it was added from; the account is stored unlinked (shared).
+ */
 export async function addFlowAccount(admin: SupabaseClient, owner: string, input: { tiktokAccountId: string; label: string; clipsPerDay: number }) {
-  const rows = check(await admin.from("flow_accounts").select("priority").eq("owner_id", owner).eq("tiktok_account_id", input.tiktokAccountId), "flow_accounts_unavailable") as Array<{ priority: number }>;
-  if (rows.length >= MAX_FLOW_ACCOUNTS_PER_TIKTOK) throw new Error("FLOW_ACCOUNT_LIMIT_5");
+  await shareFlowAccounts(admin, owner);
+  const rows = check(await admin.from("flow_accounts").select("priority").eq("owner_id", owner).is("tiktok_account_id", null).eq("purpose", "CLIP"),
+    "flow_accounts_unavailable") as Array<{ priority: number }>;
+  if (rows.length >= MAX_SHARED_FLOW_ACCOUNTS) throw new Error("FLOW_ACCOUNT_LIMIT_5");
   const priority = Math.min(100, rows.reduce((max, row) => Math.max(max, row.priority), 0) + 1);
-  const result = await admin.from("flow_accounts").insert({ owner_id: owner, tiktok_account_id: input.tiktokAccountId, label: input.label,
+  const result = await admin.from("flow_accounts").insert({ owner_id: owner, tiktok_account_id: null, label: input.label,
     clips_per_day_estimate: input.clipsPerDay, priority });
-  if (result.error?.code === "23505") {
-    // A label is unique per owner: the same Google account linked under another TikTok account moves here, keeping
-    // its signed-in browser profile (keyed by id), instead of failing while this TikTok account shows none.
-    const existing = check(await admin.from("flow_accounts").select("id,tiktok_account_id").eq("owner_id", owner).eq("label", input.label).maybeSingle(),
-      "flow_accounts_unavailable") as { id: string; tiktok_account_id: string | null } | null;
-    if (!existing || existing.tiktok_account_id === input.tiktokAccountId) throw new Error("FLOW_ACCOUNT_LABEL_TAKEN");
-    const moved = await admin.from("flow_accounts").update({ tiktok_account_id: input.tiktokAccountId, priority, active: true,
-      clips_per_day_estimate: input.clipsPerDay, updated_at: new Date().toISOString() }).eq("owner_id", owner).eq("id", existing.id);
-    if (moved.error?.message.includes("FLOW_ACCOUNT_LIMIT_5")) throw new Error("FLOW_ACCOUNT_LIMIT_5");
-    check(moved, "flow_account_not_saved");
-    return { moved: true };
-  }
-  if (result.error?.message.includes("FLOW_ACCOUNT_LIMIT_5")) throw new Error("FLOW_ACCOUNT_LIMIT_5");
+  if (result.error?.code === "23505") throw new Error("FLOW_ACCOUNT_LABEL_TAKEN");
   check(result, "flow_account_not_saved");
   return { moved: false };
+}
+/** Google accounts linked to one TikTok account before the pool was shared become shared (signed-in profiles keep their id). */
+export async function shareFlowAccounts(admin: SupabaseClient, owner: string) {
+  await admin.from("flow_accounts").update({ tiktok_account_id: null, updated_at: new Date().toISOString() })
+    .eq("owner_id", owner).eq("purpose", "CLIP").not("tiktok_account_id", "is", null);
 }
 /** Adds a drama repair account: unlinked from any TikTok account, it makes only the drama shots sent to it. */
 export async function addRepairAccount(admin: SupabaseClient, owner: string, input: { label: string; clipsPerDay: number }) {

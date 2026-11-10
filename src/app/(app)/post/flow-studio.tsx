@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { accountsFor, remainingCapacity, type FlowAccountView } from "@/features/flow-farm/capacity";
-import { bangkokDate, MAX_FLOW_ACCOUNTS_PER_TIKTOK } from "@/features/flow-farm/contracts";
-import { closeDeliveredDraftClips, draftDelivered, flowLogins, listFlowAccounts, listLibrary, liveClipProgress, workerLastSeen } from "@/features/flow-farm/service";
+import { bangkokDate, MAX_SHARED_FLOW_ACCOUNTS } from "@/features/flow-farm/contracts";
+import { closeDeliveredDraftClips, draftDelivered, flowLogins, shareFlowAccounts, listFlowAccounts, listLibrary, liveClipProgress, workerLastSeen } from "@/features/flow-farm/service";
 import { LiveClipProgressPanel } from "./live-clip-progress";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addFlowAccountAction, flowAccountAction, startBatchAction } from "./flow-actions";
@@ -16,6 +16,8 @@ const bangkokTime = (iso: string) => new Intl.DateTimeFormat("th-TH", { timeZone
 
 /** Reads outside render; a missing table (migration not applied yet) shows a notice instead of an error page. */
 async function loadStudio(client: SupabaseClient, owner: string, accountId: string) {
+  // One shared pool of Google accounts for every TikTok account (10 Nov owner); older per-account links join it.
+  await shareFlowAccounts(createAdminClient(), owner).catch(() => {});
   const logins = await flowLogins(createAdminClient(), owner).catch(() => ({}));
   const settled = await Promise.allSettled([listFlowAccounts(client, owner, new Date(), logins), liveClipProgress(client, owner, accountId), listLibrary(client, owner, accountId), workerLastSeen(client, owner)]);
   const list = <T,>(result: PromiseSettledResult<T[]>) => result.status === "fulfilled" ? result.value : [];
@@ -54,7 +56,8 @@ function loginLabel(f: FlowAccountView) {
 
 export async function FlowStudio({ client, owner, account }: { client: SupabaseClient; owner: string; account: StudioAccount }) {
   const { flowAccounts, live, library, lastSeen, unavailable, now, publishScope, scopes } = await dropDeliveredDrafts(owner, account.id, await loadStudio(client, owner, account.id));
-  const own = flowAccounts.filter(f => f.tiktokAccountId === account.id), shared = flowAccounts.filter(f => f.tiktokAccountId === null);
+  // Every Google account serves every TikTok account: one list, one drain order.
+  const own = flowAccounts;
   const capacity = remainingCapacity(flowAccounts);
   const defaultCount = Math.min(30, Math.max(1, account.daily_post_target ?? 5));
   const online = lastSeen !== null && now - Date.parse(lastSeen) < 3 * 60_000;
@@ -87,8 +90,8 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
 
     <section className="manual-panel" aria-labelledby="google-title">
       <div className="manual-section-head"><div><p className="manual-eyebrow">ขั้นที่ 1 · ฟรี ไม่มีค่าใช้จ่ายต่อคลิป</p>
-        <h2 id="google-title">บัญชี Google Flow ของ {account.display_name} ({own.length}/{MAX_FLOW_ACCOUNTS_PER_TIKTOK})</h2></div></div>
-      <p className="manual-muted">ผูกบัญชี Google ได้สูงสุด {MAX_FLOW_ACCOUNTS_PER_TIKTOK} บัญชีเพื่อหมุนใช้เครดิตฟรีทุกวัน ระบบใช้บัญชีบนสุดจนเครดิตหมดก่อนแล้วค่อยย้ายบัญชีถัดไป
+        <h2 id="google-title">บัญชี Google Flow · ใช้ร่วมกันทุกบัญชี TikTok ({own.length}/{MAX_SHARED_FLOW_ACCOUNTS})</h2></div></div>
+      <p className="manual-muted">ผูกบัญชี Google ได้สูงสุด {MAX_SHARED_FLOW_ACCOUNTS} บัญชี ทุกบัญชี TikTok ใช้ร่วมกัน หมุนใช้เครดิตฟรีทุกวัน ระบบใช้บัญชีบนสุดจนเครดิตหมดก่อนแล้วค่อยย้ายบัญชีถัดไป
         ถ้ามีบัญชีที่เครดิตเหลือเยอะ ผูกบัญชีเดียวก็พอ ระบบจะใช้บัญชีนั้นไปเรื่อย ๆ จนเครดิตหมด</p>
       {own.length ? <ol className="library-flow-list">{own.map((f, index) => <li key={f.id} className={f.active ? undefined : "paused"}>
         <div><strong>{index + 1}. {f.label}</strong><small>
@@ -102,8 +105,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
           <button className="library-link" name="op" value={f.active ? "PAUSE" : "RESUME"} type="submit">{f.active ? "พัก" : "ใช้งาน"}</button>
           <button className="library-link danger" name="op" value="REMOVE" type="submit">เลิกผูก</button></form>
       </li>)}</ol> : <p className="manual-warning">ยังไม่ได้ผูกบัญชี Google ผูกอย่างน้อย 1 บัญชีก่อนสร้างคลิป</p>}
-      {shared.length > 0 && <p className="manual-muted">บัญชีกลางที่ใช้ร่วมทุกบัญชี TikTok (ใช้หลังบัญชีของตัวเองหมด): {shared.map(f => f.label).join(", ")}</p>}
-      {own.length < MAX_FLOW_ACCOUNTS_PER_TIKTOK && <form action={addFlowAccountAction} className="library-start">
+      {own.length < MAX_SHARED_FLOW_ACCOUNTS && <form action={addFlowAccountAction} className="library-start">
         <input type="hidden" name="tiktokAccountId" value={account.id} />{back}
         <label className="manual-filter">อีเมล Google (หรือชื่อเรียก)<input name="label" required maxLength={60} placeholder="name@gmail.com" /></label>
         <label className="manual-filter">คลิปฟรีต่อวันโดยประมาณ<input name="clipsPerDay" type="number" min={1} max={200} defaultValue={5} /></label>
