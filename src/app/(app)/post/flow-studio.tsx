@@ -8,6 +8,14 @@ import { addFlowAccountAction, flowAccountAction, startBatchAction } from "./flo
 import type { DraftReceipt } from "./tiktok-draft-button";
 import { LearningPanel } from "./learning-panel";
 import { ClipLibrary } from "./clip-library";
+
+/** Lucky, 10 Nov: one short line per Google account, like the product-clips page (credits left today on the right). */
+function accountState(f: { active: boolean; loginState: string | null; exhaustedToday: boolean; remainingEstimate: number; clipsToday: number; clipsPerDayEstimate: number }) {
+  if (!f.active) return "พักไว้";
+  if (f.loginState !== "READY") return f.loginState === "FAILED" ? "⚠ ล็อกอินไม่สำเร็จ" : "⏳ รอล็อกอิน";
+  if (f.exhaustedToday || f.remainingEstimate === 0) return `เครดิตหมดวันนี้ (ใช้ ${f.clipsToday} ช็อต)`;
+  return `เหลือ ~${f.remainingEstimate} ช็อต (ใช้ ${f.clipsToday}/${f.clipsPerDayEstimate})`;
+}
 import "./flow-studio.css";
 
 export interface StudioAccount { id: string; display_name: string; daily_post_target: number | null; effective_mode: string | null }
@@ -93,17 +101,17 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
         <h2 id="google-title">บัญชี Google Flow · ใช้ร่วมกันทุกบัญชี TikTok ({own.length}/{MAX_SHARED_FLOW_ACCOUNTS})</h2></div></div>
       <p className="manual-muted">ผูกบัญชี Google ได้สูงสุด {MAX_SHARED_FLOW_ACCOUNTS} บัญชี ทุกบัญชี TikTok ใช้ร่วมกัน หมุนใช้เครดิตฟรีทุกวัน ระบบใช้บัญชีบนสุดจนเครดิตหมดก่อนแล้วค่อยย้ายบัญชีถัดไป
         ถ้ามีบัญชีที่เครดิตเหลือเยอะ ผูกบัญชีเดียวก็พอ ระบบจะใช้บัญชีนั้นไปเรื่อย ๆ จนเครดิตหมด</p>
-      {own.length ? <ol className="library-flow-list">{own.map((f, index) => <li key={f.id} className={f.active ? undefined : "paused"}>
-        <div><strong>{index + 1}. {f.label}</strong><small>
-          {loginLabel(f)}{!f.active ? "พักไว้" : f.loginState !== "READY" ? "" : f.exhaustedToday ? `เครดิตหมดวันนี้ · ทำไป ${f.clipsToday} คลิป · พรุ่งนี้ใช้ต่อได้` : `วันนี้ทำไป ${f.clipsToday} คลิป · คาดว่าได้ ~${f.clipsPerDayEstimate} คลิป/วัน`}</small>
-          </div>
+      {own.length ? <ol className="flow-google-list">{own.map((f, index) => <li key={f.id} className={!f.active || f.loginState !== "READY" ? "wait" : f.exhaustedToday || f.remainingEstimate === 0 ? "empty" : "ok"}>
+        <div className="flow-google-row"><span>{index + 1}. {f.label}</span><span>{accountState(f)}</span></div>
+        <details className="flow-google-manage" open={f.loginState === "FAILED"}><summary>จัดการ</summary>
+        <small className="manual-muted">{loginLabel(f).replace(/ · $/, "")}</small>
         <form action={flowAccountAction} className="library-inline"><input type="hidden" name="id" value={f.id} />{back}
-          <button className="library-link" name="op" value="UP" type="submit" disabled={index === 0} aria-label="ใช้ก่อน">↑</button>
-          <button className="library-link" name="op" value="DOWN" type="submit" disabled={index === own.length - 1} aria-label="ใช้ทีหลัง">↓</button>
+          <button className="library-link" name="op" value="UP" type="submit" disabled={index === 0} aria-label="ใช้ก่อน">↑ ใช้ก่อน</button>
+          <button className="library-link" name="op" value="DOWN" type="submit" disabled={index === own.length - 1} aria-label="ใช้ทีหลัง">↓ ใช้ทีหลัง</button>
           {f.exhaustedToday && <button className="library-link" name="op" value="RESET" type="submit">เติมเครดิตแล้ว</button>}
           {f.loginState !== "PENDING" && <button className="library-link" name="op" value="RELOGIN" type="submit">ล็อกอินใหม่</button>}
           <button className="library-link" name="op" value={f.active ? "PAUSE" : "RESUME"} type="submit">{f.active ? "พัก" : "ใช้งาน"}</button>
-          <button className="library-link danger" name="op" value="REMOVE" type="submit">เลิกผูก</button></form>
+          <button className="library-link danger" name="op" value="REMOVE" type="submit">เลิกผูก</button></form></details>
       </li>)}</ol> : <p className="manual-warning">ยังไม่ได้ผูกบัญชี Google ผูกอย่างน้อย 1 บัญชีก่อนสร้างคลิป</p>}
       {own.length < MAX_SHARED_FLOW_ACCOUNTS && <form action={addFlowAccountAction} className="library-start">
         <input type="hidden" name="tiktokAccountId" value={account.id} />{back}

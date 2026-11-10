@@ -67,3 +67,12 @@
 .niche-scores b{text-align:right;color:#ecf1fa}
 
 .library-clip.is-leaving{display:none}
+.flow-google-list{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.flow-google-list li{padding:10px 12px;border-radius:10px;background:rgb(255 255 255 / .04);font-size:14px}
+.flow-google-row{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.flow-google-row span:first-child{overflow-wrap:anywhere}
+.flow-google-list li.ok .flow-google-row span:last-child{color:#4ade80}
+.flow-google-list li.empty .flow-google-row span:last-child{color:#f87171}
+.flow-google-list li.wait .flow-google-row span:last-child{color:#fbbf24}
+.flow-google-manage summary{cursor:pointer;font-size:12px;opacity:.7;margin-top:4px}
+.flow-google-manage .library-inline{margin-top:6px;flex-wrap:wrap}
