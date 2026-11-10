@@ -12,7 +12,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const EXTENSION_VERSION = "1.0.0";
+export const EXTENSION_VERSION = "1.1.0";
 export const EXTENSION_DIR = "chrome-extension";
 
 const SHOPEE = ["co.th", "com.my", "sg", "ph", "vn", "co.id", "com", "tw", "com.br"].flatMap(tld => [`https://shopee.${tld}/*`, `https://*.shopee.${tld}/*`]);
@@ -66,9 +66,10 @@ function background(portal) {
 
 /** On ViralFlow's /product-clips/fetch page: open the product, then post what came back with the owner's sign-in. */
 function viralflowPage() {
+  // Lets ViralFlow's install button show "ติดตั้งแล้ว".
+  document.documentElement.dataset.vfExtension = "1";
   const root = document.getElementById("vf-fetch");
   if (!root) return;
-  document.documentElement.dataset.vfExtension = "1";
   const say = text => { const el = document.getElementById("vf-status"); if (el) el.textContent = text; };
   const send = msg => new Promise(done => chrome.runtime.sendMessage(msg, answer => done(answer || {})));
   const wait = ms => new Promise(done => setTimeout(done, ms));
@@ -193,16 +194,17 @@ function shopPage() {
 const run = (fn, arg) => `(${fn.toString()})(${arg === undefined ? "" : JSON.stringify(arg)});\n`;
 
 /** The extension's files for the given ViralFlow origin (the worker's FLOW_PORTAL_URL). */
-export function extensionFiles(portal) {
+export function extensionFiles(portal, { icon = false } = {}) {
   const origin = new URL(portal).origin;
   const manifest = {
     manifest_version: 3, name: "ViralFlow ส่งสินค้า", version: EXTENSION_VERSION,
     description: "ส่งชื่อ รูป และรายละเอียดสินค้าจากหน้า Shopee/Lazada ที่เปิดใน Chrome ของคุณเข้า ViralFlow",
     permissions: ["storage"],
     host_permissions: [`${origin}/*`, ...SHOPEE, ...LAZADA],
+    ...(icon ? { icons: { 128: "icon-128.png" }, action: { default_icon: { 128: "icon-128.png" }, default_title: "ViralFlow ส่งสินค้า" } } : {}),
     background: { service_worker: "background.js" },
     content_scripts: [
-      { matches: [`${origin}/product-clips/fetch*`], js: ["viralflow.js"], run_at: "document_idle" },
+      { matches: [`${origin}/product-clips*`], js: ["viralflow.js"], run_at: "document_idle" },
       { matches: [...SHOPEE, ...LAZADA], js: ["shop.js"], run_at: "document_idle" },
     ],
   };

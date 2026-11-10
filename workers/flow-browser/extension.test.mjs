@@ -8,7 +8,7 @@ const manifest = JSON.parse(files["manifest.json"]);
 test("runs on the ViralFlow fetch page and on Shopee/Lazada pages only", () => {
   assert.equal(manifest.manifest_version, 3);
   assert.deepEqual(manifest.permissions, ["storage"]);
-  assert.deepEqual(manifest.content_scripts[0].matches, ["https://viralflow.example/product-clips/fetch*"]);
+  assert.deepEqual(manifest.content_scripts[0].matches, ["https://viralflow.example/product-clips*"]);
   assert.ok(manifest.content_scripts[1].matches.includes("https://*.shopee.co.th/*"));
   assert.ok(manifest.content_scripts[1].matches.includes("https://*.lazada.co.th/*"));
   assert.ok(manifest.host_permissions.every(h => /^https:\/\/(viralflow\.example|(\*\.)?(shopee|lazada)\.[a-z.]+)\/\*$/.test(h)));
