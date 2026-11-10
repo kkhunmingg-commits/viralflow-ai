@@ -88,6 +88,7 @@ const NEGATIVE = [
   "the product performing a function, result or before/after effect not shown in the reference", "cuts or scene changes inside the take",
   "objects morphing, duplicating, or appearing and vanishing on their own",
   // 10 Nov (KAGE cushion "พร้อมสปาตูล่า"): Flow turned the bundled spatula into a spoon waved through every take.
+  "nail polish, painted or long nails, rings, tattoos, or hands that look different from the other takes",
   "spoons, spatulas, cutlery, brushes, applicators, cables or any other accessory or tool next to the product",
 ];
 /** A bundled extra ("ตลับจริงพร้อมสปาตูล่า", "แถมฟรี…"): never the subject of a take or a spoken line. */
@@ -202,7 +203,7 @@ export function narrationFor(role: ShotRole, name: string, facts: string[], seed
 export function shotPrompt(input: { title: string; style: SetStyle; role: ShotRole; position: number; total: number; narration: string; trend?: TrendFormat; setTouch?: string }) {
   const shot = ROLE_SHOT[input.role], s = input.style, first = input.position === 0, last = input.position === input.total - 1;
   return [
-    `Use the attached reference image as the exact product (${input.title}). Show only this product itself: leave out anything else in the reference photo (spatula, spoon, brush, puff, box, cable or other bundled extra). Photoreal vertical 9:16 video, 8 seconds, one continuous take.`,
+    `Use the attached reference image as the exact product (${input.title}). The reference may be a shop banner: take only the product from it and ignore its background, badges, colour swatches and any words printed around the product. Show only this product itself: leave out anything else in the reference photo (spatula, spoon, brush, puff, box, cable or other bundled extra). The video never shows the reference photo itself. Photoreal vertical 9:16 video, 8 seconds, one continuous take.`,
     // The first second decides whether people keep watching: open on the format's scroll-stopping beat, already in motion.
     ...(first && input.trend ? [`OPENING (first second, made to stop the scroll on Reels/Shorts/TikTok): ${input.trend.opening}. Never start on a still frame.`] : []),
     ...(last && input.total > 1 ? ["LOOP: the final frame mirrors the composition of the advert's first frame, so the clip loops seamlessly when it replays."] : []),
@@ -210,12 +211,12 @@ export function shotPrompt(input: { title: string; style: SetStyle; role: ShotRo
     `SET: ${s.set}; props: ${s.props}${input.setTouch ? `; ${input.setTouch}` : ""}. Styled like a premium product advert, uncluttered.`,
     `SHOT: ${shot.framing}.`,
     `ACTION: ${ACTIONS[shot.action].en}. Hands: ${s.hands}.`,
-    "CONTINUITY: there is exactly one product, the same single object from the moment it is in frame to the last frame; it never appears, multiplies or changes on its own. The set and props stay fixed for the whole take.",
+    "CONTINUITY: the same pair of hands in every take — natural skin, short clean bare nails, no nail polish, no rings or jewellery. There is exactly one product, the same single object from the moment it is in frame to the last frame; it never appears, multiplies or changes on its own. The set and props stay fixed for the whole take.",
     `CAMERA: ${first && input.trend ? input.trend.camera : shot.camera}. Shallow depth of field, product always in sharp focus.`,
     `TIMING: ${shot.timing}.`,
     `LIGHT & COLOUR: ${s.lighting}; palette ${s.palette}; mood ${s.mood}.`,
     "PRODUCT FIDELITY: keep the product identical to the reference — same shape, proportions, colours, logo and every printed word; any display shows exactly the same characters as the reference and stays perfectly still.",
-    `AUDIO: a warm, natural, upbeat Thai voice (like a friend sharing a find, not an announcer) says only: "${input.narration}" — nothing else; soft room ambience and crisp, satisfying handling sounds${first && input.trend ? `; ${input.trend.audio}` : ""}, no music.`,
+    `AUDIO: one warm, natural, upbeat female voice speaking Thai (ภาษาไทย) with native central Thai pronunciation, like a friend sharing a find, not an announcer. She says exactly this Thai line, word for word, in Thai: "${input.narration}" — no English or any other language, no other words; soft room ambience and crisp, satisfying handling sounds${first && input.trend ? `; ${input.trend.audio}` : ""}, no music.`,
     `AVOID: ${NEGATIVE.join("; ")}.`,
   ].join("\n");
 }
@@ -226,10 +227,9 @@ export function writeProductClip(input: ScriptInput): ProductClipScript {
   const sets = SETS[family] ?? SETS.GENERAL, style = pick(sets, seed);
   // Beauty, supplements, food, baby and pet names often carry an effect claim ("หน้าใส"): it is not spoken.
   const name = EFFECT_FAMILIES.includes(family)
-    ? shorten(cleanTitle(input.title).split(" ").filter(w => !EFFECT.test(w)).join(" "), 34) || shortProductName(input.title) : shortProductName(input.title);
+    ? shorten(mainProductTitle(input.title).split(" ").filter(w => !EFFECT.test(w)).join(" "), 34) || shortProductName(input.title) : shortProductName(mainProductTitle(input.title));
   const { kept, dropped } = screenFacts(input.facts, family);
   const roles = ROLES[input.lengthSeconds];
-  const images = Math.max(1, input.imageCount);
   const trend = pickTrend(input.title, family, name, kept, seed);
   const moment = shoppingMoment(input.now ?? new Date());
   const shots: ProductShot[] = roles.map((role, position) => {
@@ -237,7 +237,9 @@ export function writeProductClip(input: ScriptInput): ProductClipScript {
     const shot = ROLE_SHOT[role];
     // The watch family shows the product worn for the use-angle take; the face is never shown.
     const action: HandAction = role === "IN_USE" && family === "WATCH_ACCESSORY" ? "WRIST_GLANCE" : shot.action;
-    return { position, role, roleTh: ROLE_TH[role], action, camera: shot.camera, narration, imageIndex: position % images,
+    return { position, role, roleTh: ROLE_TH[role], action, camera: shot.camera, narration,
+      // One photo for every take (10 Nov: a different listing photo per take showed a puff, a pink case, a white case).
+      imageIndex: 0,
       prompt: shotPrompt({ title: mainProductTitle(input.title).slice(0, 200), style, role, position, total: roles.length, narration, trend: trend.format, setTouch: moment?.setTouch || undefined }) };
   });
   const store = PLATFORM_LABEL[input.platform];

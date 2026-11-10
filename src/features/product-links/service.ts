@@ -345,8 +345,9 @@ async function assemble(admin: SupabaseClient, owner: string, job: ProductClipJo
       inputs.push({ bytes: new Uint8Array(await file.data.arrayBuffer()), durationSeconds: Number(shot.duration_seconds ?? 8), subtitle: job.script.shots[i]?.narration ?? "" });
     }
     const { assembleEpisode } = await import("@/features/drama/media");
-    const video = await assembleEpisode({ shots: inputs, ass: durations => buildProductSubtitles({ lines: job.script.shots.map(s => s.narration), durations,
-      endCard: "ลิงก์สินค้าอยู่ในคอมเมนต์", aiLabel: "สร้างด้วย AI", hookText: job.script.hookText }) });
+    const video = await assembleEpisode({ shots: inputs, ass: durations => buildProductSubtitles({ lines: [], durations,
+      // 10 Nov (owner): no subtitles or headline on the video; only the AI disclosure and the end "link" card stay.
+      endCard: "ลิงก์สินค้าอยู่ในคอมเมนต์", aiLabel: "สร้างด้วย AI" }) });
     const sha256 = createHash("sha256").update(video.bytes).digest("hex");
     const upload = await admin.storage.from(BUCKET).upload(path, video.bytes, { contentType: "video/mp4", upsert: true });
     if (upload.error) throw new Error("CLIP_NOT_SAVED");

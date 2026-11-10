@@ -201,7 +201,10 @@ export async function chooseVideoSettings(page, selectors, { frames = false, pla
     await pickRadio(page, /วิดีโอ|video/i);
     // Switching from the image model redraws the panel; the frames choice only appears after it.
     await page.waitForTimeout(600);
-    if (frames) await pickRadio(page, /เฟรม|frames?/i);
+    // Product shots use the photo as a reference ("ingredients"), never as the first frame: a shop's cover photo is
+    // often a banner with words on it, and as a start frame it opened the clip (10 Nov, KAGE). Flow remembers the
+    // last mode, so set it every time.
+    await pickRadio(page, frames ? /เฟรม|frames?/i : /ส่วนผสม|ส่วนประกอบ|วัตถุดิบ|ingredients?/i);
     await pickRadio(page, /9:16/);
     const model = page.locator('button:has-text("arrow_drop_down")').filter({ hasText: /Veo|Omni|Flash|Lite|Fast|Quality/i }).last();
     if (await model.count() && !plan.model.test(await model.innerText().catch(() => ""))) {

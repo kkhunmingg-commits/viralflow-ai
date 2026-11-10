@@ -58,14 +58,15 @@ describe("product clip script", () => {
     expect(supplement.family).toBe("HEALTH_SUPPLEMENT");
     expect(supplement.shots.map(s => s.narration).join(" ")).not.toContain("30 เม็ด");
   });
-  it.each([[8, 1], [16, 2], [24, 3], [32, 4], [40, 5]] as const)("%i seconds is %i takes with different framing and photos, one set", (length, takes) => {
+  it.each([[8, 1], [16, 2], [24, 3], [32, 4], [40, 5]] as const)("%i seconds is %i takes with different framing, one photo, one set", (length, takes) => {
     const script = writeProductClip({ ...base, lengthSeconds: length });
     expect(script.shots).toHaveLength(takes);
     // Every take changes the framing; the hand action repeats only once there are more takes than actions.
     expect(new Set(script.shots.map(s => s.role)).size).toBe(takes);
     expect(new Set(script.shots.map(s => s.action)).size).toBe(Math.min(takes, 4));
     if (takes > 1) {
-      expect(new Set(script.shots.map(s => s.imageIndex)).size).toBe(Math.min(takes, 3));
+      // The same main photo in every take, so the product looks the same throughout.
+      expect(new Set(script.shots.map(s => s.imageIndex))).toEqual(new Set([0]));
       for (const shot of script.shots) expect(shot.prompt).toContain(`of ${takes} of one product advert`);
       // Same set line in every take: continuity.
       expect(new Set(script.shots.map(s => s.prompt.split("\n").find(l => l.startsWith("SET:")))).size).toBe(1);
@@ -189,6 +190,18 @@ describe("only the product itself", () => {
       expect(shot.narration).not.toMatch(/Spatula|สปาตูล่า/i);
       expect(shot.prompt).toMatch(/Show only this product itself/);
       expect(shot.prompt).toMatch(/AVOID:.*spoons, spatulas/);
+    }
+  });
+});
+
+describe("one look for the whole advert", () => {
+  it("uses the main photo for every take, the same bare hands, and a Thai voice", () => {
+    const script = writeProductClip({ platform: "SHOPEE", link: "https://s.shopee.co.th/x", title: "คุชชั่น KAGE VELVET CLOUD CUSHION", facts: ["เนื้อบางเบา เกลี่ยง่าย"], imageCount: 4, lengthSeconds: 40 });
+    expect(script.shots.map(s => s.imageIndex)).toEqual([0, 0, 0, 0, 0]);
+    for (const shot of script.shots) {
+      expect(shot.prompt).toMatch(/no nail polish/);
+      expect(shot.prompt).toMatch(/speaking Thai \(ภาษาไทย\)/);
+      expect(shot.prompt).toMatch(/never shows the reference photo itself/);
     }
   });
 });
