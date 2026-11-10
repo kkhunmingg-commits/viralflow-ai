@@ -245,7 +245,9 @@ export async function captureProductPage(admin: SupabaseClient, owner: string, c
 
 function shotRow(owner: string, tiktokAccountId: string, jobId: string, script: ProductClipScript, index: number, clipId: string, paths: string[]) {
   const shot = script.shots[index];
+  // Shots inserted together share one created_at and Flow took them in random (id) order: 1 ms apart keeps shot 1 first.
   return { id: clipId, owner_id: owner, tiktok_account_id: tiktokAccountId, batch_id: jobId, product_id: null, kind: "PRODUCT_SHOT",
+    created_at: new Date(Date.now() + index).toISOString(),
     title: `${script.shortName} · ช็อต ${index + 1}/${script.shots.length} ${shot.roleTh}`.slice(0, 200), prompt: shot.prompt,
     caption: script.caption.slice(0, 2200), hashtags: script.hashtags, reference_image_path: paths[shot.imageIndex % paths.length] ?? paths[0] };
 }
