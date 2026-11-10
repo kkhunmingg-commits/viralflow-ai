@@ -17,6 +17,9 @@ import { lookupErrorLabel } from "@/features/product-links/browser-lookup";
 import { deleteProductClipAction, remakeProductClipAction, reviewProductClipAction } from "./actions";
 import "../post/post.css";
 import "../post/flow-studio.css";
+
+/** The Chrome Web Store listing of the ViralFlow extension, once it is published (one-click install). */
+const STORE_URL = process.env.NEXT_PUBLIC_CHROME_EXTENSION_URL?.startsWith("https://chromewebstore.google.com/") ? process.env.NEXT_PUBLIC_CHROME_EXTENSION_URL : null;
 import "./product-clips.css";
 
 export const metadata = { title: "คลิปสินค้าจากลิงก์ · Viral Flow AI" };
@@ -73,7 +76,9 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
       {accounts.length ? <ProductLinkForm accounts={accounts} initialAccount={initialAccount} />
         : <p className="manual-warning">ต้องมีบัญชี TikTok ที่ผูกบัญชี Google Flow ไว้ก่อน (ใช้คิวเดียวกับคลิปโปรโมท) <Link href="/accounts">เชื่อมบัญชี →</Link></p>}
       <details className="pl-manual pl-extension" open={working.some(j => j.script.lookup?.state === "LOGIN" || /NO_EXTENSION/.test(j.script.lookup?.note ?? ""))}>
-        <summary>ส่วนขยาย Chrome (ติดตั้งครั้งเดียว) · ให้ Shopee ดึงข้อมูลเองอัตโนมัติ</summary>
+        <summary>ส่วนขยาย Chrome (ติดตั้งครั้งเดียว) · ให้ Shopee/Lazada ดึงข้อมูลเองอัตโนมัติ</summary>
+        {STORE_URL && <p><a className="manual-primary" href={STORE_URL} target="_blank" rel="noreferrer">ติดตั้งส่วนขยาย ViralFlow (กดครั้งเดียว)</a> แล้วกด “เพิ่มไปยัง Chrome” · ถ้าเคยติดตั้งแบบโฟลเดอร์ไว้ ให้ลบอันเก่าที่ chrome://extensions ก่อน</p>}
+        {STORE_URL && <p className="manual-muted">หรือติดตั้งแบบโฟลเดอร์ (สำหรับคอมที่ติดตั้งเครื่องสร้างคลิป):</p>}
         <ol>
           <li>ใน Chrome ที่ล็อกอิน Shopee และ ViralFlow ไว้ เปิด <code>chrome://extensions</code> แล้วเปิด “โหมดนักพัฒนาซอฟต์แวร์” (มุมขวาบน)</li>
           <li>กด “โหลดส่วนขยายที่แยกไว้” แล้วเลือกโฟลเดอร์ <code>%LOCALAPPDATA%\ViralFlowClipMaker\app\chrome-extension</code></li>
