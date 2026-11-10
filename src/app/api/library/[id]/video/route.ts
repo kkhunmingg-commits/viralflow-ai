@@ -14,7 +14,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   if (!z.uuid().safeParse(id).success) return Response.json({ error: "ไม่พบคลิปนี้" }, { status: 404 });
   try {
     const download = new URL(request.url).searchParams.get("download") === "1";
-    return Response.redirect(await clipSignedUrl(createAdminClient(), data.user.id, id, download), 302);
+    const location = await clipSignedUrl(createAdminClient(), data.user.id, id, download);
+    return new Response(null, { status: 302, headers: { Location: location, "Cache-Control": "no-store" } });
   } catch {
     return Response.json({ error: "ไม่พบคลิปนี้ในคลัง" }, { status: 404 });
   }

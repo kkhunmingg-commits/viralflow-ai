@@ -431,7 +431,9 @@ async function libraryClip(admin: SupabaseClient, owner: string, id: string, kep
 /** A short-lived link for watching a library clip, or a posted drama episode (its cut is kept so the season can be rewatched). */
 export async function clipSignedUrl(admin: SupabaseClient, owner: string, id: string, download: boolean) {
   const clip = await libraryClip(admin, owner, id, true);
-  const signed = await admin.storage.from(BUCKET).createSignedUrl(clip.storage_path, 600, download ? { download: `viralflow-${id.slice(0, 8)}.mp4` } : undefined);
+  // The page's player fetches this link when the page opens and keeps reading parts of it while playing: a 10-minute
+  // link stopped a clip after ~2 s when the owner pressed play later (10 Nov). Four hours covers an open tab.
+  const signed = await admin.storage.from(BUCKET).createSignedUrl(clip.storage_path, download ? 600 : 4 * 3600, download ? { download: `viralflow-${id.slice(0, 8)}.mp4` } : undefined);
   if (signed.error || !signed.data) throw new Error("VIDEO_UNAVAILABLE");
   return signed.data.signedUrl;
 }
