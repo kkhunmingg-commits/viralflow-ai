@@ -356,6 +356,13 @@ export async function chromePath(channel, env = process.env) {
 }
 
 /** Opens the profile in ordinary Chrome on screen; resolves true when the person closes it, false on timeout. */
+/** Opens a page in the owner's everyday Chrome (their default profile and sign-ins), not a worker profile. */
+export async function openInOwnChrome(url, config) {
+  const child = spawn(await chromePath(config.channel || "chrome"), [url], { stdio: "ignore", detached: true });
+  child.once("error", () => {});
+  child.unref();
+}
+
 export async function openPlainChrome(profileDir, config, timeoutMs = 15 * 60_000) {
   await mkdir(profileDir, { recursive: true, mode: 0o700 });
   const child = spawn(await chromePath(config.channel), [`--user-data-dir=${profileDir}`, "--no-first-run", "--no-default-browser-check",

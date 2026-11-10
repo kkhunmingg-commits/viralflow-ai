@@ -77,7 +77,9 @@ export function detailsFromBrowser(platform: ProductPlatform, result: LookupResu
 
 export const lookupErrorLabel = (code: string | null | undefined) => {
   if (!code) return null;
-  if (/LOGIN_REQUIRED/.test(code)) return "ร้านค้าไม่ยอมเปิดหน้าสินค้าให้เครื่องสร้างคลิป: เปิดลิงก์ใน Chrome ของคุณ แล้วกดปุ่ม ⚡ ส่งเข้า ViralFlow ที่แถบบุ๊กมาร์ก";
+  if (/LOGIN_REQUIRED/.test(code)) return "ร้านค้าไม่ยอมเปิดหน้าสินค้าให้เครื่องสร้างคลิป: เปิดลิงก์ใน Chrome ของคุณ แล้วกดปุ่ม ⚡ ส่งเข้า ViralFlow มุมขวาล่าง";
+  if (/NO_EXTENSION/.test(code)) return "เปิดหน้าสินค้าใน Chrome ของคุณแล้ว แต่ไม่มีข้อมูลกลับมา: ติดตั้งส่วนขยาย ViralFlow ใน Chrome ก่อน (ดูวิธีในหน้าคลิปสินค้า)";
+  if (/PAGE_NOT_READY/.test(code)) return "Chrome ของคุณเปิดหน้าสินค้าแล้วแต่ไม่เห็นข้อมูลสินค้า (อาจต้องล็อกอิน Shopee หรือยืนยันตัวตนก่อน)";
   if (/NO_PRODUCT_DATA|NO_TITLE/.test(code)) return "หน้าสินค้าไม่แสดงชื่อสินค้า (ลิงก์อาจหมดอายุหรือสินค้าถูกลบ)";
   if (/NO_IMAGES/.test(code)) return "หน้าสินค้าไม่มีรูปที่ใช้ได้";
   if (/TIMEOUT|Timeout/.test(code)) return "เปิดหน้าสินค้าไม่ทัน (เน็ตช้าหรือหน้าเว็บค้าง)";

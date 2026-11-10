@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 
 export const INSTALLER_VERSION = "1.0.2";
 /** The worker files the installed copy runs; farm.mjs imports only these. */
-export const INSTALLED_WORKER_FILES = ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs"] as const;
+export const INSTALLED_WORKER_FILES = ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs", "extension.mjs"] as const;
 const MARKER = "#PS1START#";
 
 /**

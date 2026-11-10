@@ -156,7 +156,14 @@ export async function claimProductLookups(admin: SupabaseClient, owner: string, 
     const stale = lookup.claimedAt && now.getTime() - Date.parse(lookup.claimedAt) > LOOKUP_CLAIM_MS;
     // LOGIN: the shop blocked the worker's window; it waits for the owner's "ส่งเข้า ViralFlow" button instead of looping.
     if (lookup.state === "LOGIN" || (lookup.state !== "PENDING" && !stale)) continue;
-    const next: LookupState = { ...lookup, state: "CLAIMED", claimedAt: now.toISOString() };
+    // A claim that ran out with no answer (a Shopee page opened in the owner's Chrome without the extension) counts as a try.
+    const attempts = lookup.attempts + (stale ? 1 : 0);
+    if (attempts >= LOOKUP_MAX_ATTEMPTS) {
+      await save(admin, owner, row.id, { script: { lookup: { ...lookup, state: "FAILED", attempts, claimedAt: null, note: "NO_EXTENSION" } }, status: "FAILED",
+        error: `ดึงข้อมูลสินค้าไม่สำเร็จ: ${lookupErrorLabel("NO_EXTENSION")}`, updated_at: now.toISOString() }).catch(() => {});
+      continue;
+    }
+    const next: LookupState = { ...lookup, state: "CLAIMED", attempts, claimedAt: now.toISOString() };
     const taken = await admin.from("product_link_clips").update({ script: { lookup: next }, updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", row.id)
       .eq("updated_at", row.updated_at).select("id");
     if (!taken.error && taken.data?.length) out.push({ id: row.id, platform: row.platform, link: row.link, attempts: lookup.attempts });
@@ -217,14 +224,14 @@ export async function finishProductLookup(admin: SupabaseClient, owner: string, 
  * The owner sent the product page from their own Chrome (the "ส่งเข้า ViralFlow" bookmark). It fills the clip waiting
  * for that product, else the newest clip still waiting for product details, else starts a new clip on the first account.
  */
-export async function captureProductPage(admin: SupabaseClient, owner: string, capture: ProductCapture, platform: ProductPlatform, now = new Date()) {
+export async function captureProductPage(admin: SupabaseClient, owner: string, capture: ProductCapture, platform: ProductPlatform, now = new Date(), preferredJobId?: string | null) {
   let externalId: string | null = null;
   try { externalId = productIdFromUrl(platform, new URL(capture.finalUrl)); } catch { externalId = null; }
   const rows = check(await admin.from("product_link_clips").select("id,platform,external_id,script,shot_clip_ids,created_at").eq("owner_id", owner).eq("status", "PRODUCING")
     .order("created_at", { ascending: false }).limit(30), "product_clips_unavailable") as Array<{ id: string; platform: ProductPlatform; external_id: string | null;
       script: { lookup?: LookupState }; shot_clip_ids: string[] }>;
   const waiting = rows.filter(r => r.platform === platform && r.script?.lookup && r.script.lookup.state !== "FAILED" && !r.shot_clip_ids?.length);
-  let jobId = (externalId && waiting.find(r => r.external_id === externalId)?.id) || waiting.find(r => !r.external_id)?.id || waiting[0]?.id || null;
+  let jobId = (preferredJobId && waiting.find(r => r.id === preferredJobId)?.id) || (externalId && waiting.find(r => r.external_id === externalId)?.id) || waiting.find(r => !r.external_id)?.id || waiting[0]?.id || null;
   let created = false;
   if (!jobId) {
     const account = check(await admin.from("tiktok_accounts").select("id").eq("owner_id", owner).is("hidden_at", null).order("created_at", { ascending: true }).limit(1).maybeSingle(), "accounts_unavailable") as { id: string } | null;

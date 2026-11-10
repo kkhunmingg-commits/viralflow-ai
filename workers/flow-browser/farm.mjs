@@ -18,7 +18,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import process from "node:process";
 import { message, runFarmPass, runLoginPass } from "./farm-core.mjs";
-import { openFlowAccount, openPlainChrome, openShopLogin, readShopPage, signInFlowAccount } from "./farm-driver.mjs";
+import { openFlowAccount, openInOwnChrome, openPlainChrome, openShopLogin, readShopPage, signInFlowAccount } from "./farm-driver.mjs";
 import { inspectVideo, probeBinary } from "./media.mjs";
 import { createHash } from "node:crypto";
 
@@ -128,7 +128,7 @@ const now = () => new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" 
 const stamp = line => { const text = `${now()} ${line}`; console.log(text); void writeLog(text); };
 
 // Must match workerVersion() in src/features/flow-farm/installer.ts.
-const WORKER_FILES = ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs"];
+const WORKER_FILES = ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs", "extension.mjs"];
 export function workerVersion(files) {
   const hash = createHash("sha256");
   for (const name of WORKER_FILES) hash.update(name).update("\0").update(files[name] ?? "").update("\0");
@@ -175,6 +175,12 @@ async function lookupPass(settings) {
   for (const job of lookups) {
     const config = { ...settings, profilesDir: dirs.profiles };
     stamp(`  ดึงข้อมูลสินค้า ${job.link}`);
+    if (job.platform === "SHOPEE") {
+      // Shopee blocks automated windows: the owner's own Chrome opens it, and the ViralFlow extension sends the page back.
+      await openInOwnChrome(`${settings.portal}/product-clips/fetch?job=${job.id}&auto=1`, config);
+      stamp("  เปิดหน้าสินค้าใน Chrome ของคุณ ส่วนขยาย ViralFlow จะส่งข้อมูลกลับเอง");
+      continue;
+    }
     let result = await readShopPage(job, config);
     if (!result.ok && result.error === "LOGIN_REQUIRED") {
       await api.productLookup({ jobId: job.id, ok: false, error: "LOGIN_REQUIRED", finalUrl: result.finalUrl }).catch(() => {});
@@ -284,6 +290,9 @@ async function main() {
     const version = await ownVersion();
     stamp(`เวอร์ชัน ${version} โฟลเดอร์ ${here}`);
     stamp(`เริ่ม pid ${process.pid} เฝ้าคิวทุก ${settings.watchSeconds} วินาที (Ctrl+C เพื่อหยุด) หน้าต่าง Flow: ${settings.windowMode}`);
+    // The Chrome extension for Shopee pages (dynamic: a worker updated from an older copy may not have the file yet).
+    try { const { writeExtension } = await import("./extension.mjs"); stamp(`ส่วนขยาย Chrome: ${await writeExtension(here, settings.portal)}`); }
+    catch (error) { stamp(`เขียนส่วนขยาย Chrome ไม่สำเร็จ: ${message(error)}`); }
     let checkedAt = 0;
     // Product pages are read on their own loop, so a long Flow pass never keeps a pasted link waiting.
     void lookupLoop(settings);
