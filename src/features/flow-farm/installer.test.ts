@@ -1,7 +1,7 @@
 import { writeFile } from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
-const { buildInstaller, INSTALLED_WORKER_FILES, installerSources, workerBundle, workerVersion, zipOne } = await import("./installer");
+const { buildInstaller, INSTALLED_WORKER_FILES, VERSION_WORKER_FILES, installerSources, workerBundle, workerVersion, zipOne } = await import("./installer");
 
 const token = `vfw_${"A".repeat(43)}`;
 
@@ -63,8 +63,15 @@ describe("worker self-update", () => {
     // Re-run the worker's own function body on the same files.
     const body = farm.match(/export function workerVersion\(files\) \{([\s\S]*?)\n\}/)?.[1];
     const { createHash } = await import("node:crypto");
-    const workerSide = new Function("files", "createHash", "WORKER_FILES", body!) as (f: Record<string, string>, c: typeof createHash, w: string[]) => string;
-    expect(workerSide(sources.files, createHash, [...INSTALLED_WORKER_FILES])).toBe(workerVersion(sources.files));
+    const versioned = farm.match(/const VERSION_FILES = (\[[^\]]+\])/)?.[1];
+    expect(versioned && JSON.parse(versioned)).toEqual([...VERSION_WORKER_FILES]);
+    const workerSide = new Function("files", "createHash", "VERSION_FILES", body!) as (f: Record<string, string>, c: typeof createHash, w: string[]) => string;
+    expect(workerSide(sources.files, createHash, [...VERSION_WORKER_FILES])).toBe(workerVersion(sources.files));
+    // A worker from before extension.mjs (it checks the five files it knows) accepts this bundle.
+    const old = (await workerBundle()).files;
+    const oldSide = createHash("sha256");
+    for (const name of ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs"]) oldSide.update(name).update("\0").update(old[name] ?? "").update("\0");
+    expect(oldSide.digest("hex").slice(0, 16)).toBe((await workerBundle()).version);
     expect((await workerBundle()).version).toBe(workerVersion(sources.files));
   });
 });

@@ -127,11 +127,15 @@ async function writeLog(text) {
 const now = () => new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
 const stamp = line => { const text = `${now()} ${line}`; console.log(text); void writeLog(text); };
 
-// Must match workerVersion() in src/features/flow-farm/installer.ts.
+// Must match src/features/flow-farm/installer.ts. The version hashes the first five files only: a worker from before
+// extension.mjs existed hashes those five, and must still accept the update (so a change to extension.mjs alone ships
+// with a touch of farm.mjs, e.g. EXTENSION_REV below).
+const VERSION_FILES = ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs"];
 const WORKER_FILES = ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs", "extension.mjs"];
+export const EXTENSION_REV = 1;
 export function workerVersion(files) {
   const hash = createHash("sha256");
-  for (const name of WORKER_FILES) hash.update(name).update("\0").update(files[name] ?? "").update("\0");
+  for (const name of VERSION_FILES) hash.update(name).update("\0").update(files[name] ?? "").update("\0");
   return hash.digest("hex").slice(0, 16);
 }
 async function ownVersion() {
@@ -149,7 +153,9 @@ async function selfUpdate(settings, current) {
   const response = await fetch(`${settings.portal}/api/flow-worker/worker-files`, { headers: { authorization: `Bearer ${settings.token}` } });
   if (!response.ok) return false;
   const bundle = await response.json().catch(() => null);
-  if (!bundle?.version || bundle.version === current || !WORKER_FILES.every(name => typeof bundle.files?.[name] === "string" && bundle.files[name].length > 100)) return false;
+  // A file this version needs but an older updater never wrote (extension.mjs) is fetched even at the same version.
+  const missing = (await Promise.all(WORKER_FILES.map(name => access(join(here, name)).then(() => false, () => true)))).some(Boolean);
+  if (!bundle?.version || (bundle.version === current && !missing) || !WORKER_FILES.every(name => typeof bundle.files?.[name] === "string" && bundle.files[name].length > 100)) return false;
   if (workerVersion(bundle.files) !== bundle.version) return false;
   const { spawnSync } = await import("node:child_process");
   // ".mjs" keeps the staged copy an ES module for node --check.

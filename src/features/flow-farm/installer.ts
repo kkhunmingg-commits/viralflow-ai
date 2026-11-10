@@ -7,6 +7,8 @@ import { createHash } from "node:crypto";
 export const INSTALLER_VERSION = "1.0.2";
 /** The worker files the installed copy runs; farm.mjs imports only these. */
 export const INSTALLED_WORKER_FILES = ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs", "extension.mjs"] as const;
+/** The files the version hashes: the set every installed worker knows (one from before extension.mjs must still update). */
+export const VERSION_WORKER_FILES = ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs"] as const;
 const MARKER = "#PS1START#";
 
 /**
@@ -66,7 +68,7 @@ export async function installerSources(root = join(process.cwd(), "workers", "fl
 /** Same digest farm.mjs computes over its own files, so the worker can tell it is behind the deployed copy. */
 export function workerVersion(files: Record<string, string>) {
   const hash = createHash("sha256");
-  for (const name of INSTALLED_WORKER_FILES) hash.update(name).update("\0").update(files[name] ?? "").update("\0");
+  for (const name of VERSION_WORKER_FILES) hash.update(name).update("\0").update(files[name] ?? "").update("\0");
   return hash.digest("hex").slice(0, 16);
 }
 
