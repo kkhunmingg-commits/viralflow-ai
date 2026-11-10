@@ -130,8 +130,12 @@ export async function reviewProductClipAction(formData: FormData) {
   const ownerId = await owner();
   const targets = formData.getAll("target").map(String).filter((t): t is SocialPlatform => (SOCIAL_PLATFORMS as string[]).includes(t));
   try {
+    // 10 Nov (owner): "ไม่ผ่าน" deletes the clip and its files outright; nothing is remade (the owner starts a new one).
+    if (parsed.data.decision === "REJECT") {
+      await deleteProductClip(createAdminClient(), ownerId, parsed.data.id);
+      done("ไม่ผ่าน: ลบคลิปนี้ทิ้งแล้ว ไม่มีการสร้างใหม่ วางลิงก์ใหม่เมื่อต้องการทำอีกครั้ง");
+    }
     const { posting } = await reviewProductClip(createAdminClient(), ownerId, parsed.data.id, { approved: parsed.data.decision === "APPROVE", targets });
-    if (parsed.data.decision === "REJECT") done("ไม่ผ่าน: ทิ้งคลิปนี้แล้ว กด “ทำใหม่” ที่สินค้าเดิมได้ (ฉากและประโยคเปิดจะเปลี่ยน)");
     done(posting.length ? `อนุมัติแล้ว กำลังโพสต์ไป ${posting.map(p => SOCIAL_LABEL[p]).join(", ")} พร้อมคอมเมนต์ลิงก์ (ใช้เวลา 1–5 นาที)`
       : "อนุมัติแล้ว ยังไม่ได้ตั้งค่าแพลตฟอร์มให้โพสต์อัตโนมัติ ดาวน์โหลดหรือแชร์ไปโพสต์เองได้");
   } catch (error) { const message = label(error); if (message) done(message); throw error; }

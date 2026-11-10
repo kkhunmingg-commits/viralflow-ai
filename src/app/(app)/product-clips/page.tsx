@@ -135,7 +135,7 @@ function ReviewCard({ job, ready }: { job: ProductClipView; ready: string[] }) {
           {SOCIAL_LABEL[p]}{ready.includes(p) ? "" : " (ยังไม่ได้ตั้งค่า)"}</label>)}</fieldset>
         <div className="library-inline">
           <button className="manual-primary" name="decision" value="APPROVE" type="submit">ผ่าน · โพสต์</button>
-          <button className="manual-secondary" name="decision" value="REJECT" type="submit">ไม่ผ่าน</button>
+          <button className="manual-secondary" name="decision" value="REJECT" type="submit" title="ลบคลิปนี้ทิ้ง ไม่สร้างใหม่">ไม่ผ่าน · ลบทิ้ง</button>
         </div>
       </form>
     </div>
