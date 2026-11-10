@@ -5,7 +5,8 @@ import { bangkokDate } from "@/features/flow-farm/contracts";
 import { clipStoragePath } from "@/features/flow-farm/service";
 import { metaConfig, socialReadiness, youtubeConfig, type SocialPlatform } from "@/features/social-publish/config";
 import { advancePost, newPost, type PlatformPost } from "@/features/social-publish/publishers";
-import { PLATFORM_LABEL, type ProductPlatform } from "./link";
+import { PLATFORM_LABEL, productIdFromUrl, type ProductPlatform } from "./link";
+import type { ProductCapture } from "./capture";
 import { detailsFromBrowser, LOOKUP_MAX_ATTEMPTS, lookupErrorLabel, type LookupResult, type LookupState } from "./browser-lookup";
 import { factCandidates } from "./source";
 import { writeProductClip, type ClipLength, type ProductClipScript } from "./script";
@@ -152,7 +153,8 @@ export async function claimProductLookups(admin: SupabaseClient, owner: string, 
     const lookup = row.script?.lookup;
     if (!lookup || lookup.state === "FAILED") continue;
     const stale = lookup.claimedAt && now.getTime() - Date.parse(lookup.claimedAt) > LOOKUP_CLAIM_MS;
-    if (lookup.state !== "PENDING" && !stale) continue;
+    // LOGIN: the shop blocked the worker's window; it waits for the owner's "ส่งเข้า ViralFlow" button instead of looping.
+    if (lookup.state === "LOGIN" || (lookup.state !== "PENDING" && !stale)) continue;
     const next: LookupState = { ...lookup, state: "CLAIMED", claimedAt: now.toISOString() };
     const taken = await admin.from("product_link_clips").update({ script: { lookup: next }, updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", row.id)
       .eq("updated_at", row.updated_at).select("id");
@@ -208,6 +210,29 @@ export async function finishProductLookup(admin: SupabaseClient, owner: string, 
   const queued = await admin.from("flow_clips").insert(script.shots.map((_, i) => shotRow(owner, job.tiktok_account_id, job.id, script, i, shotIds[i], paths)));
   if (queued.error) await save(admin, owner, job.id, { status: "FAILED", error: "เข้าคิว Flow ไม่ได้", updated_at: now.toISOString() });
   return { status: "QUEUED" as const, shots: script.shots.length, title: details.title };
+}
+
+/**
+ * The owner sent the product page from their own Chrome (the "ส่งเข้า ViralFlow" bookmark). It fills the clip waiting
+ * for that product, else the newest clip still waiting for product details, else starts a new clip on the first account.
+ */
+export async function captureProductPage(admin: SupabaseClient, owner: string, capture: ProductCapture, platform: ProductPlatform, now = new Date()) {
+  let externalId: string | null = null;
+  try { externalId = productIdFromUrl(platform, new URL(capture.finalUrl)); } catch { externalId = null; }
+  const rows = check(await admin.from("product_link_clips").select("id,platform,external_id,script,shot_clip_ids,created_at").eq("owner_id", owner).eq("status", "PRODUCING")
+    .order("created_at", { ascending: false }).limit(30), "product_clips_unavailable") as Array<{ id: string; platform: ProductPlatform; external_id: string | null;
+      script: { lookup?: LookupState }; shot_clip_ids: string[] }>;
+  const waiting = rows.filter(r => r.platform === platform && r.script?.lookup && r.script.lookup.state !== "FAILED" && !r.shot_clip_ids?.length);
+  let jobId = (externalId && waiting.find(r => r.external_id === externalId)?.id) || waiting.find(r => !r.external_id)?.id || waiting[0]?.id || null;
+  let created = false;
+  if (!jobId) {
+    const account = check(await admin.from("tiktok_accounts").select("id").eq("owner_id", owner).is("hidden_at", null).order("created_at", { ascending: true }).limit(1).maybeSingle(), "accounts_unavailable") as { id: string } | null;
+    if (!account) throw new Error("account_not_found");
+    jobId = (await queueProductLookup(admin, owner, { tiktokAccountId: account.id, platform, link: capture.finalUrl, externalId, lengthSeconds: 16 }, now)).id;
+    created = true;
+  }
+  const result = await finishProductLookup(admin, owner, { ...capture, jobId, ok: true }, now);
+  return { jobId, created, ...result };
 }
 
 function shotRow(owner: string, tiktokAccountId: string, jobId: string, script: ProductClipScript, index: number, clipId: string, paths: string[]) {

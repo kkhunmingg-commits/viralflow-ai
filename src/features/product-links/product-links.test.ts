@@ -3,6 +3,7 @@ import { parseProductLink, sameMarketplace } from "./link";
 import { factCandidates, followLink, readProductPage } from "./source";
 import { screenFacts, shortProductName, writeProductClip } from "./script";
 import { buildProductSubtitles } from "./subtitles";
+import { detailsFromBrowser } from "./browser-lookup";
 
 describe("product links", () => {
   it("reads Shopee and Lazada links, short and full, and keeps the pasted link as is", () => {
@@ -142,5 +143,37 @@ describe("reading the product page on the owner's computer", async () => {
     expect(isLoginWall("https://shopee.co.th/product/1/2")).toBe(false);
     expect(detailsFromBrowser("SHOPEE", lookupResultSchema.parse({ jobId, ok: true, finalUrl: "https://evil.example/x" })).productUrl).toBeNull();
     expect(shopeeImageUrl("../../etc")).toBeNull();
+  });
+});
+
+describe("send from the owner's Chrome (bookmark)", () => {
+  it("accepts only Shopee/Lazada product pages and origins", async () => {
+    const { capturePlatform, marketplaceOrigin } = await import("./capture");
+    expect(capturePlatform("https://shopee.co.th/product/897244389/27942400787")).toBe("SHOPEE");
+    expect(capturePlatform("https://www.lazada.co.th/products/x-i123456-s789.html")).toBe("LAZADA");
+    expect(capturePlatform("https://s.shopee.co.th/50aUa6OhmY")).toBeNull();
+    expect(capturePlatform("https://evil.example/product/1/2")).toBeNull();
+    expect(marketplaceOrigin("https://shopee.co.th")).toBe(true);
+    expect(marketplaceOrigin("https://www.lazada.co.th")).toBe(true);
+    expect(marketplaceOrigin("https://shopee.co.th.evil.example")).toBe(false);
+    expect(marketplaceOrigin(null)).toBe(false);
+  });
+  it("builds a self-contained bookmark for the ViralFlow origin", async () => {
+    const { bookmarkletHref } = await import("./capture");
+    const href = bookmarkletHref("https://viralflow.example");
+    expect(href.startsWith("javascript:")).toBe(true);
+    const code = decodeURIComponent(href.slice("javascript:".length));
+    expect(() => new Function(code)).not.toThrow();
+    expect(code).toContain("https://viralflow.example");
+    expect(code).not.toMatch(/\brequire\(|__webpack|import\(/);
+  });
+  it("reads a captured Shopee page into product details", async () => {
+    const { captureSchema } = await import("./capture");
+    const html = `<html><head><title>คุชชั่น KAGE | Shopee Thailand</title><script type="application/ld+json">${JSON.stringify({ "@type": "Product", name: "คุชชั่น KAGE SPF50", description: "เนื้อบางเบา\nเกลี่ยง่าย", image: "https://down-th.img.susercontent.com/file/th-11134207-81ztc-mv74x3v4scua8b" })}</script></head></html>`;
+    const capture = captureSchema.parse({ finalUrl: "https://shopee.co.th/product/897244389/27942400787", html, dom: { title: "x", h1: "คุชชั่น KAGE SPF50", images: [] } });
+    const details = detailsFromBrowser("SHOPEE", { ...capture, jobId: "00000000-0000-4000-8000-000000000000", ok: true });
+    expect(details.title).toBe("คุชชั่น KAGE SPF50");
+    expect(details.externalId).toBe("897244389.27942400787");
+    expect(details.imageUrls[0]).toContain("susercontent.com/file/th-11134207");
   });
 });

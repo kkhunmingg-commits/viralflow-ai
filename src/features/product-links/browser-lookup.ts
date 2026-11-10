@@ -77,7 +77,7 @@ export function detailsFromBrowser(platform: ProductPlatform, result: LookupResu
 
 export const lookupErrorLabel = (code: string | null | undefined) => {
   if (!code) return null;
-  if (/LOGIN_REQUIRED/.test(code)) return "Shopee/Lazada ขอให้ล็อกอินก่อน: เครื่องสร้างคลิปเปิดหน้าต่างให้ล็อกอินบนคอมแล้ว ล็อกอินครั้งเดียวแล้วปิดหน้าต่าง ระบบจะดึงต่อเอง";
+  if (/LOGIN_REQUIRED/.test(code)) return "ร้านค้าไม่ยอมเปิดหน้าสินค้าให้เครื่องสร้างคลิป: เปิดลิงก์ใน Chrome ของคุณ แล้วกดปุ่ม ⚡ ส่งเข้า ViralFlow ที่แถบบุ๊กมาร์ก";
   if (/NO_PRODUCT_DATA|NO_TITLE/.test(code)) return "หน้าสินค้าไม่แสดงชื่อสินค้า (ลิงก์อาจหมดอายุหรือสินค้าถูกลบ)";
   if (/NO_IMAGES/.test(code)) return "หน้าสินค้าไม่มีรูปที่ใช้ได้";
   if (/TIMEOUT|Timeout/.test(code)) return "เปิดหน้าสินค้าไม่ทัน (เน็ตช้าหรือหน้าเว็บค้าง)";

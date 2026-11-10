@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { after } from "next/server";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
@@ -12,6 +13,8 @@ import { SOCIAL_LABEL, SOCIAL_PLATFORMS, socialReadiness } from "@/features/soci
 import { postErrorLabel } from "@/features/social-publish/publishers";
 import { ClipPhoneActions } from "../post/clip-phone-actions";
 import { ProductLinkForm } from "./link-form";
+import { CaptureButton } from "./capture-button";
+import { bookmarkletHref } from "@/features/product-links/capture";
 import { lookupErrorLabel } from "@/features/product-links/browser-lookup";
 import { deleteProductClipAction, remakeProductClipAction, reviewProductClipAction } from "./actions";
 import "../post/post.css";
@@ -50,6 +53,8 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
   const initialAccount = z.uuid().safeParse(account).success && accounts.some(a => a.id === account) ? account! : accounts[0]?.id ?? "";
   const { list, available, lastSeen, now } = await loadPage(client, owner);
   const readiness = socialReadiness(owner);
+  const host = (await headers()).get("host") ?? "";
+  const capture = bookmarkletHref(/^[a-z0-9.-]+(:\d+)?$/i.test(host) ? `${/^(localhost|127\.)/.test(host) ? "http" : "https"}://${host}` : "");
   const online = lastSeen !== null && now - Date.parse(lastSeen) < 3 * 60_000;
   const review = list.filter(j => j.status === "REVIEW"), working = list.filter(j => ["PRODUCING", "ASSEMBLING", "PUBLISHING"].includes(j.status)),
     finished = list.filter(j => ["APPROVED", "PUBLISHED", "FAILED", "REJECTED"].includes(j.status));
@@ -68,6 +73,8 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
       <div className="manual-section-head"><div><p className="manual-eyebrow">ขั้นที่ 1</p><h2 id="pl-new">ทำคลิปจากลิงก์สินค้า</h2></div></div>
       {accounts.length ? <ProductLinkForm accounts={accounts} initialAccount={initialAccount} />
         : <p className="manual-warning">ต้องมีบัญชี TikTok ที่ผูกบัญชี Google Flow ไว้ก่อน (ใช้คิวเดียวกับคลิปโปรโมท) <Link href="/accounts">เชื่อมบัญชี →</Link></p>}
+      <details className="pl-manual" open={working.some(j => j.script.lookup?.state === "LOGIN")}><summary>Shopee ไม่ยอมให้ดึงข้อมูล? ใช้ปุ่ม ⚡ ส่งเข้า ViralFlow จาก Chrome ของคุณ</summary>
+        <CaptureButton href={capture} /></details>
     </section>
 
     <section className="manual-panel" aria-labelledby="pl-review">
@@ -136,7 +143,7 @@ function LookupLine({ job }: { job: ProductClipView }) {
   const text = lookup.state === "LOGIN" ? lookupErrorLabel("LOGIN_REQUIRED")
     : lookup.state === "CLAIMED" ? "เครื่องสร้างคลิปกำลังเปิดหน้าสินค้า ดึงชื่อ รูป และรายละเอียด…"
     : "รอเครื่องสร้างคลิปในคอมเปิดหน้าสินค้า (เปิดคอมที่ติดตั้งไว้ไว้)";
-  return <p className="manual-muted">{text} <a href={job.link} target="_blank" rel="noreferrer noopener">ลิงก์</a></p>;
+  return <p className={lookup.state === "LOGIN" ? "manual-warning" : "manual-muted"}>{text} <a href={job.link} target="_blank" rel="noreferrer noopener">{lookup.state === "LOGIN" ? "เปิดหน้าสินค้า ↗" : "ลิงก์"}</a></p>;
 }
 
 function WorkingCard({ job }: { job: ProductClipView }) {

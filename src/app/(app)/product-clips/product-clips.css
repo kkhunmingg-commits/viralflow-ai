@@ -52,3 +52,9 @@
 .pl-manual{border-top:1px solid #1f2937;padding-top:12px}
 .pl-manual>summary{cursor:pointer;color:#9aa7bc;font-size:14px}
 .pl-manual[open]>summary{margin-bottom:12px}
+
+/* "ส่งเข้า ViralFlow" bookmark */
+.pl-capture{display:grid;gap:10px;margin-top:10px}
+.pl-capture-link{justify-self:start;display:inline-flex;align-items:center;gap:6px;padding:12px 18px;border-radius:12px;font-weight:700;
+  background:linear-gradient(135deg,#ff3b6b,#ff8a3d);color:#fff;text-decoration:none;cursor:grab;box-shadow:0 6px 18px rgb(255 59 107 / .3)}
+.pl-capture ol{margin:0;padding-left:20px;display:grid;gap:4px}

@@ -178,7 +178,8 @@ async function lookupPass(settings) {
     let result = await readShopPage(job, config);
     if (!result.ok && result.error === "LOGIN_REQUIRED") {
       await api.productLookup({ jobId: job.id, ok: false, error: "LOGIN_REQUIRED", finalUrl: result.finalUrl }).catch(() => {});
-      if (Date.now() - shopLoginShownAt < 30 * 60_000) continue;
+      // Shopee blocks this automated window even when signed in: the owner sends the page with the bookmark button instead.
+      if (job.platform === "SHOPEE" || Date.now() - shopLoginShownAt < 30 * 60_000) { stamp(`  ${job.platform} ไม่เปิดหน้าสินค้าให้: กดปุ่ม ส่งเข้า ViralFlow ใน Chrome ของคุณ`); continue; }
       shopLoginShownAt = Date.now();
       stamp(`  ${job.platform} ขอให้ล็อกอิน: เปิดหน้าต่างให้ล็อกอินครั้งเดียว แล้วปิดหน้าต่าง`);
       await openShopLogin(job.platform, config);
