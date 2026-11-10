@@ -85,15 +85,20 @@ export async function addFlowAccount(admin: SupabaseClient, owner: string, input
   check(result, "flow_account_not_saved");
   return { moved: false };
 }
-/** Google accounts linked to one TikTok account before the pool was shared become shared (signed-in profiles keep their id). */
+/**
+ * Google accounts linked to one TikTok account before the pool was shared become shared, and drama repair accounts
+ * join the pool too (10 Nov owner: every account makes every kind of clip). Signed-in profiles keep their id, and a
+ * series that names an account for its repairs still sends those shots to it.
+ */
 export async function shareFlowAccounts(admin: SupabaseClient, owner: string) {
-  await admin.from("flow_accounts").update({ tiktok_account_id: null, updated_at: new Date().toISOString() })
-    .eq("owner_id", owner).eq("purpose", "CLIP").not("tiktok_account_id", "is", null);
+  const at = new Date().toISOString();
+  await admin.from("flow_accounts").update({ tiktok_account_id: null, updated_at: at }).eq("owner_id", owner).eq("purpose", "CLIP").not("tiktok_account_id", "is", null);
+  await admin.from("flow_accounts").update({ purpose: "CLIP", updated_at: at }).eq("owner_id", owner).eq("purpose", "REPAIR");
 }
-/** Adds a drama repair account: unlinked from any TikTok account, it makes only the drama shots sent to it. */
+/** Adds a Google account from the drama tab: it joins the shared pool like any other (10 Nov: no separate repair accounts). */
 export async function addRepairAccount(admin: SupabaseClient, owner: string, input: { label: string; clipsPerDay: number }) {
   const result = await admin.from("flow_accounts").insert({ owner_id: owner, tiktok_account_id: null, label: input.label,
-    clips_per_day_estimate: input.clipsPerDay, priority: 100, purpose: "REPAIR" });
+    clips_per_day_estimate: input.clipsPerDay, priority: 100, purpose: "CLIP" });
   if (result.error?.code === "23505") throw new Error("FLOW_ACCOUNT_LABEL_TAKEN");
   check(result, "flow_account_not_saved");
 }

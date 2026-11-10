@@ -561,7 +561,7 @@ async function episodeAccountSoFar(admin: SupabaseClient, owner: string, episode
  */
 export async function repairPool(admin: SupabaseClient, owner: string, now = new Date()) {
   const rows = check(await admin.from("flow_accounts").select("id,label,active,exhausted_on,clips_today,clips_today_on,clips_per_day_estimate,priority,created_at")
-    .eq("owner_id", owner).eq("purpose", "REPAIR"), "flow_accounts_unavailable") as RepairAccountRow[] | null;
+    .eq("owner_id", owner), "flow_accounts_unavailable") as RepairAccountRow[] | null;
   if (!rows?.length) return [];
   const logins = await flowLogins(admin, owner).catch(() => ({} as Awaited<ReturnType<typeof flowLogins>>));
   const aside = await accountsSetAside(admin, owner, now);

@@ -11,7 +11,6 @@ import { repairShotsLeft } from "@/features/drama/engine";
 import { bangkokDate } from "@/features/flow-farm/contracts";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { flowLogins } from "@/features/flow-farm/service";
-import { addRepairAccountAction, flowAccountAction } from "../post/flow-actions";
 import { createSeriesAction, newStoryAction, reviewEpisodeAction, takeAction } from "./actions";
 import "../post/flow-studio.css";
 import "./drama.css";
@@ -35,15 +34,6 @@ function nextStep(item: SeriesSummary, today: string) {
 }
 
 /** The drama menu: every series, which Google accounts make it, and the form that starts a new one. */
-/** One pool account's state in words: how many repair shots it has left today, or that its credits are gone. */
-function repairStatus(a: { active: boolean; loggedIn: boolean; exhaustedToday: boolean; usedToday: number; perDay: number; asideReason: string | null } | undefined) {
-  if (!a) return "";
-  if (!a.active) return "พักไว้";
-  if (a.asideReason && !a.exhaustedToday) return `พักไว้ชั่วคราว (${a.asideReason}) ช็อตย้ายไปบัญชีอื่นเองแล้ว เดี๋ยวกลับมาใช้ใหม่เอง`;
-  if (a.exhaustedToday || a.usedToday >= a.perDay) return `หมดเครดิตแล้ว (ใช้ ${Math.min(a.usedToday, a.perDay)}/${a.perDay} ช็อต) รอเครดิตรอบใหม่`;
-  if (!a.loggedIn) return `ยังใช้ไม่ได้จนกว่าจะล็อกอิน (${a.perDay} ช็อต)`;
-  return `พร้อมซ่อม · เหลือ ${a.perDay - a.usedToday}/${a.perDay} ช็อตวันนี้`;
-}
 
 export async function DramaHome({ client, owner, library, libraryCount = 0 }: { client: SupabaseClient; owner: string; library?: ReactNode; libraryCount?: number }) {
   const available = await dramaAvailable(client);
@@ -51,14 +41,13 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
   const accounts = ((accountsResult.data ?? []) as Array<{ id: string; display_name: string; is_mock: boolean | null }>)
     .filter(a => process.env.NODE_ENV !== "production" || !a.is_mock);
   const all = ((await client.from("flow_accounts").select("id,label,tiktok_account_id,active,exhausted_on,purpose,clips_today,clips_today_on,clips_per_day_estimate").eq("owner_id", owner).order("priority").order("created_at")).data ?? []) as GoogleAccount[];
-  const google = all.filter(g => g.purpose !== "REPAIR"), repairs = all.filter(g => g.purpose === "REPAIR");
+  const google = all;
   const logins = await flowLogins(createAdminClient(), owner).catch(() => ({} as Awaited<ReturnType<typeof flowLogins>>));
   const series = available ? await listSeries(client, owner).catch(() => []) : [];
   const label = (id: string | null) => all.find(g => g.id === id)?.label ?? null;
   // Every repair account is one shared pool: any series sends a repair shot to whichever account still has credits.
   const pool = await repairPool(createAdminClient(), owner).catch(() => []);
   const poolLeft = pool.reduce((sum, a) => sum + repairShotsLeft(a), 0), poolTotal = pool.filter(a => a.active).reduce((sum, a) => sum + a.perDay, 0);
-  const poolOf = (id: string) => pool.find(a => a.id === id);
   const poolText = pool.length === 0 ? "ไม่มีบัญชีซ่อม" : poolLeft === 0 ? `บัญชีซ่อม ${pool.length} บัญชี · เครดิตหมดทุกบัญชีแล้ว` : `บัญชีซ่อมกองกลาง ${pool.length} บัญชี · ซ่อมได้อีก ${poolLeft} ช็อตวันนี้`;
   const loginText = (id: string) => { const l = logins[id]; return l?.state === "READY" ? "✓ ล็อกอินแล้ว" : l?.state === "FAILED" ? `⚠ ล็อกอินไม่สำเร็จ${l.note ? ` (${l.note})` : ""}` : "⏳ รอล็อกอิน (เปิดคอมที่ติดตั้งเครื่องสร้างคลิปไว้)"; };
   // Lucky, 8 Nov: show how many clips each main account still has today, like the repair pool does.
@@ -67,7 +56,6 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
     if (g.exhausted_on === today || used >= perDay) return `เครดิตวันนี้หมดแล้ว (ใช้ ${Math.min(used, perDay)}/${perDay} คลิป)`;
     return `เหลือ ${perDay - used}/${perDay} คลิปวันนี้`;
   };
-  const drama = <input type="hidden" name="studio" value="drama" />;
   const today = bangkokDate();
   // One cover picture per series (episode 1's key still: the cast in the opening scene).
   const admin = createAdminClient();
@@ -81,7 +69,7 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
   const producing = series.filter(item => item.series.status === "ACTIVE").length;
   const ready = accounts.length > 0 && google.length > 0;
   const steps = [
-    { href: "#step-accounts", title: "เตรียมบัญชี", note: ready ? `บัญชีหลัก ${google.length} · ซ่อม ${repairs.length}` : "ต้องทำก่อน", todo: !ready },
+    { href: "#step-accounts", title: "เตรียมบัญชี", note: ready ? `บัญชีกองกลาง ${google.length}` : "ต้องทำก่อน", todo: !ready },
     { href: "#step-new", title: "เริ่มเรื่องใหม่", note: `ระบบเลือกบัญชีให้เอง`, todo: false },
     { href: "#step-production", title: "ติดตามการผลิต", note: `${producing} เรื่องกำลังผลิต`, todo: false },
     { href: "#step-review", title: "ตรวจตอนที่เสร็จ", note: waiting > 0 ? `รอคุณตรวจ ${waiting} ตอน` : "ยังไม่มีตอนรอตรวจ", todo: waiting > 0 },
@@ -97,28 +85,14 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
 
     <section className="manual-panel drama-step" id="step-accounts" aria-labelledby="accounts-title">
       {stepHead(1, "accounts-title", "เตรียมบัญชี", "ไม่ล็อกบัญชีกับเรื่องแล้ว ทุกบัญชีเป็นกองกลาง ตอนใหม่ใช้บัญชีที่เหลือเต็ม 5/5 ช็อตที่ต้องซ่อมใช้บัญชีที่เหลือไม่เต็ม ระบบเลือกให้เอง")}
-      <h3>บัญชี Google หลัก ({google.length})</h3>
+      <h3>บัญชี Google กองกลาง ({google.length})</h3>
       {accounts.length === 0 ? <p className="manual-muted">เชื่อมบัญชี TikTok ก่อน <Link href="/accounts">ไปหน้าบัญชี</Link></p>
         : google.length === 0 ? <p className="manual-muted">ยังไม่มีบัญชี Google <Link href="/post">ไปผูกบัญชีในแท็บสร้างคลิปโปรโมท</Link></p>
         : <ol className="library-flow-list">{google.map(g => <li key={g.id} className={g.active ? undefined : "paused"}>
           <div><strong>{g.label}</strong><small>{loginText(g.id)} · {g.active ? "ใช้ได้" : "พักไว้"}{" · "}{mainLeft(g)}</small></div>
         </li>)}</ol>}
-      {google.length > 0 && <p className="manual-muted drama-note">เพิ่มหรือแก้บัญชีหลักได้ที่ <Link href="/post">แท็บสร้างคลิปโปรโมท</Link></p>}
-      <h3>บัญชีซ่อมกองกลาง ({repairs.length})</h3>
-      {pool.length > 0 && <p className="drama-pool"><strong>{poolLeft > 0 ? `วันนี้ซ่อมได้อีก ${poolLeft} จาก ${poolTotal} ช็อต` : `เครดิตหมดทุกบัญชีแล้ว (${poolTotal} ช็อต)`}</strong> · ช็อตละ 10 เครดิต · บัญชีไหนหมดระบบข้ามไปบัญชีถัดไปเอง</p>}
-      {repairs.length > 0 && <ol className="library-flow-list">{repairs.map(g => <li key={g.id} className={g.active ? undefined : "paused"}>
-        <div><strong>{g.label}</strong><small>{loginText(g.id)} · {repairStatus(poolOf(g.id))}</small></div>
-        <form action={flowAccountAction} className="library-inline"><input type="hidden" name="id" value={g.id} />{drama}
-          {(g.exhausted_on === today || (poolOf(g.id)?.usedToday ?? 0) >= (poolOf(g.id)?.perDay ?? Infinity)) && <button className="library-link" name="op" value="RESET" type="submit">เติมเครดิตแล้ว</button>}
-          {logins[g.id]?.state !== "PENDING" && <button className="library-link" name="op" value="RELOGIN" type="submit">ล็อกอินใหม่</button>}
-          <button className="library-link" name="op" value={g.active ? "PAUSE" : "RESUME"} type="submit">{g.active ? "พัก" : "ใช้งาน"}</button>
-          <button className="library-link danger" name="op" value="REMOVE" type="submit">เลิกผูก</button></form>
-      </li>)}</ol>}
-      <form action={addRepairAccountAction} className="library-start">{drama}
-        <label className="manual-filter">อีเมล Google ของบัญชีซ่อม<input name="label" required maxLength={60} placeholder="name@gmail.com" /></label>
-        <label className="manual-filter">คลิปฟรีต่อวันโดยประมาณ<input name="clipsPerDay" type="number" min={1} max={200} defaultValue={5} /></label>
-        <button className="manual-secondary" type="submit">+ เพิ่มบัญชีซ่อม</button></form>
-      <p className="manual-muted drama-note">เพิ่มแล้ว คอมที่ติดตั้งเครื่องสร้างคลิปจะเปิดหน้าล็อกอิน Google ของบัญชีนี้ให้ครั้งเดียว ใช้บัญชีที่ไม่ได้ผูกเป็นบัญชีหลัก</p>
+      {google.length > 0 && <p className="manual-muted drama-note">เพิ่มหรือแก้บัญชีได้ที่ <Link href="/post">แท็บสร้างคลิปโปรโมท</Link></p>}
+      {pool.length > 0 && <p className="drama-pool"><strong>{poolLeft > 0 ? `วันนี้ซ่อมได้อีก ${poolLeft} จาก ${poolTotal} ช็อต` : `เครดิตหมดทุกบัญชีแล้ว (${poolTotal} ช็อต)`}</strong> · ช็อตที่ต้องซ่อมใช้บัญชีกองกลางเดียวกัน บัญชีไหนหมดระบบข้ามไปบัญชีถัดไปเอง</p>}
     </section>
 
     <section className="manual-panel drama-step" id="step-new" aria-labelledby="new-title">
