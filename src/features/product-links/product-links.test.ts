@@ -177,3 +177,18 @@ describe("send from the owner's Chrome (bookmark)", () => {
     expect(details.imageUrls[0]).toContain("susercontent.com/file/th-11134207");
   });
 });
+
+describe("only the product itself", () => {
+  it("leaves bundled extras out of the prompt, the name and the spoken lines", async () => {
+    const { mainProductTitle } = await import("./script");
+    const title = "คุชชั่นเสกผิว KAGE VELVET CLOUD CUSHION | ตลับจริงพร้อมสปาตูล่า SPF50 PA+++ บางเบา";
+    expect(mainProductTitle(title)).toBe("คุชชั่นเสกผิว KAGE VELVET CLOUD CUSHION");
+    const script = writeProductClip({ platform: "SHOPEE", link: "https://s.shopee.co.th/x", title, facts: ["มาพร้อม Spatula ดีไซน์เฉพาะ", "เนื้อบางเบา เกลี่ยง่าย"], imageCount: 2, lengthSeconds: 16 });
+    expect(script.facts.join(" ")).not.toMatch(/Spatula/i);
+    for (const shot of script.shots) {
+      expect(shot.narration).not.toMatch(/Spatula|สปาตูล่า/i);
+      expect(shot.prompt).toMatch(/Show only this product itself/);
+      expect(shot.prompt).toMatch(/AVOID:.*spoons, spatulas/);
+    }
+  });
+});

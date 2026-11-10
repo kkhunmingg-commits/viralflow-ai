@@ -87,7 +87,17 @@ const NEGATIVE = [
   "gloves or covered hands", "faces, testimonials, captions, subtitles, watermarks, price tags or any on-screen text",
   "the product performing a function, result or before/after effect not shown in the reference", "cuts or scene changes inside the take",
   "objects morphing, duplicating, or appearing and vanishing on their own",
+  // 10 Nov (KAGE cushion "พร้อมสปาตูล่า"): Flow turned the bundled spatula into a spoon waved through every take.
+  "spoons, spatulas, cutlery, brushes, applicators, cables or any other accessory or tool next to the product",
 ];
+/** A bundled extra ("ตลับจริงพร้อมสปาตูล่า", "แถมฟรี…"): never the subject of a take or a spoken line. */
+const ACCESSORY = /(^|\s)(มา)?(พร้อม|แถม|ฟรี|free\b|with\b)|สปาตูล่า|spatula|ช้อน|spoon|พัฟ|puff|แปรง|brush|applicator/i;
+/** The product itself, without the shop's second half of the title or the bundled extras. */
+export function mainProductTitle(title: string) {
+  const first = title.split(/[|｜]/)[0] ?? title;
+  const words = cleanTitle(first).split(" "), cut = words.findIndex(w => ACCESSORY.test(` ${w}`));
+  return (cut > 1 ? words.slice(0, cut) : words).join(" ").trim() || cleanTitle(title);
+}
 
 /** Words a seller page uses that this clip must never repeat (unverifiable, exaggerated, or sales pressure). */
 const EXAGGERATION = /ที่สุด|อันดับ\s*1|no\.?\s*1|ขายดี|ยอดขาย|แท้\s*100|ของแท้|เหนือกว่า|ปัง|เวอร์|มหัศจรรย์|ทันใจ|ทันที|ถาวร|การันตี|guarantee|best|#1|100\s*%|ไม่ผิดหวัง|ทุกคนต้องมี|จำนวนจำกัด|ด่วน|หมดแล้วหมดเลย/i;
@@ -130,6 +140,7 @@ export function screenFacts(facts: string[], family: CategoryFamily) {
     if (!text || seen.has(text.toLowerCase())) continue;
     seen.add(text.toLowerCase());
     if (EXAGGERATION.test(text) || checkProductTruth(text, []).status !== "PASS") { dropped.push({ text, reason: "เกินจริงหรือพิสูจน์ไม่ได้" }); continue; }
+    if (ACCESSORY.test(text)) { dropped.push({ text, reason: "ของแถม/อุปกรณ์เสริม ไม่ใช่ตัวสินค้า" }); continue; }
     if (PRICE.test(text)) { dropped.push({ text, reason: "ราคา/โปรเปลี่ยนได้ ให้คนดูที่ลิงก์" }); continue; }
     if (EFFECT_FAMILIES.includes(family) && EFFECT.test(text)) { dropped.push({ text, reason: "อ้างผลลัพธ์/สรรพคุณ ต้องมีเอกสารรับรอง" }); continue; }
     kept.push(shorten(text, 48));
@@ -191,7 +202,7 @@ export function narrationFor(role: ShotRole, name: string, facts: string[], seed
 export function shotPrompt(input: { title: string; style: SetStyle; role: ShotRole; position: number; total: number; narration: string; trend?: TrendFormat; setTouch?: string }) {
   const shot = ROLE_SHOT[input.role], s = input.style, first = input.position === 0, last = input.position === input.total - 1;
   return [
-    `Use the attached reference image as the exact product (${input.title}). Photoreal vertical 9:16 video, 8 seconds, one continuous take.`,
+    `Use the attached reference image as the exact product (${input.title}). Show only this product itself: leave out anything else in the reference photo (spatula, spoon, brush, puff, box, cable or other bundled extra). Photoreal vertical 9:16 video, 8 seconds, one continuous take.`,
     // The first second decides whether people keep watching: open on the format's scroll-stopping beat, already in motion.
     ...(first && input.trend ? [`OPENING (first second, made to stop the scroll on Reels/Shorts/TikTok): ${input.trend.opening}. Never start on a still frame.`] : []),
     ...(last && input.total > 1 ? ["LOOP: the final frame mirrors the composition of the advert's first frame, so the clip loops seamlessly when it replays."] : []),
@@ -227,7 +238,7 @@ export function writeProductClip(input: ScriptInput): ProductClipScript {
     // The watch family shows the product worn for the use-angle take; the face is never shown.
     const action: HandAction = role === "IN_USE" && family === "WATCH_ACCESSORY" ? "WRIST_GLANCE" : shot.action;
     return { position, role, roleTh: ROLE_TH[role], action, camera: shot.camera, narration, imageIndex: position % images,
-      prompt: shotPrompt({ title: cleanTitle(input.title).slice(0, 200), style, role, position, total: roles.length, narration, trend: trend.format, setTouch: moment?.setTouch || undefined }) };
+      prompt: shotPrompt({ title: mainProductTitle(input.title).slice(0, 200), style, role, position, total: roles.length, narration, trend: trend.format, setTouch: moment?.setTouch || undefined }) };
   });
   const store = PLATFORM_LABEL[input.platform];
   const hashtags = [...new Set([`#${store}`, "#ป้ายยา", FAMILY_TAG[family], ...(moment ? [moment.hashtag] : []), `#${store}Affiliate`, "#Reels", "#Shorts"])];
