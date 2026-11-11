@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assertPostableAccount, assertPrivatePostAccess, PRIVATE_POST_CAPTION_MAX, privatePostCaption, privatePostSettings, UNAUDITED_PUBLIC_ACCOUNT } from "./private-post";
+import { assertPostableAccount, assertPrivatePostAccess, PRIVATE_POST_CAPTION_MAX, privatePostCaption, privatePostSettings, directPostSettings, UNAUDITED_PUBLIC_ACCOUNT } from "./private-post";
 
 const access = { ownerId: "o", accountOwner: "o", authorized: true, mock: false, scopes: ["user.info.basic", "video.publish"], official: true,
   productionApproved: false, sandboxEnabled: true, accountIdentity: "open-1", sandboxIdentity: "open-1" };
@@ -41,4 +41,21 @@ describe("assertPostableAccount", () => {
   it("allows a private account (no PUBLIC_TO_EVERYONE option) while unaudited", () =>
     expect(() => assertPostableAccount({ privacyLevelOptions: ["FOLLOWER_OF_CREATOR", "MUTUAL_FOLLOW_FRIENDS", "SELF_ONLY"] }, false)).not.toThrow());
   it("allows a public account once audited", () => expect(() => assertPostableAccount(creator, true)).not.toThrow());
+});
+
+describe("directPostSettings", () => {
+  const choice = { caption: "hi", privacyLevel: "SELF_ONLY", allowComment: true, allowDuet: true, allowStitch: false,
+    commercial: { enabled: false, yourBrand: false, brandedContent: false } };
+  it("uses exactly what the creator chose, keeping interactions the creator disabled off", () =>
+    expect(directPostSettings(choice, creator)).toEqual({ caption: "hi", privacyLevel: "SELF_ONLY", disableComment: false, disableDuet: true,
+      disableStitch: true, isAigc: true, commercialContent: {} }));
+  it("refuses a privacy level creator_info does not offer", () =>
+    expect(() => directPostSettings({ ...choice, privacyLevel: "FOLLOWER_OF_CREATOR" }, creator)).toThrow("privacy_level_invalid"));
+  it("requires a commercial type once disclosure is on", () =>
+    expect(() => directPostSettings({ ...choice, commercial: { enabled: true, yourBrand: false, brandedContent: false } }, creator)).toThrow("commercial_type_required"));
+  it("never posts branded content as only me", () =>
+    expect(() => directPostSettings({ ...choice, commercial: { enabled: true, yourBrand: false, brandedContent: true } }, creator)).toThrow("branded_content_not_private"));
+  it("sends the disclosure toggles TikTok expects", () =>
+    expect(directPostSettings({ ...choice, privacyLevel: "PUBLIC_TO_EVERYONE", commercial: { enabled: true, yourBrand: true, brandedContent: true } }, creator).commercialContent)
+      .toEqual({ brand_organic_toggle: true, brand_content_toggle: true }));
 });

@@ -48,3 +48,34 @@ export const UNAUDITED_PUBLIC_ACCOUNT = "unaudited_client_can_only_post_to_priva
 export function assertPostableAccount(creator: { privacyLevelOptions: string[] }, audited: boolean) {
   if (!audited && creator.privacyLevelOptions.includes("PUBLIC_TO_EVERYONE")) throw new Error(UNAUDITED_PUBLIC_ACCOUNT);
 }
+
+/** What the creator chose on the post screen. Nothing here has a default: TikTok requires an explicit choice. */
+export interface DirectPostChoice {
+  caption: string;
+  privacyLevel: string;
+  allowComment: boolean;
+  allowDuet: boolean;
+  allowStitch: boolean;
+  commercial: { enabled: boolean; yourBrand: boolean; brandedContent: boolean };
+}
+
+/**
+ * Turns the creator's choices into TikTok post settings, enforcing TikTok's Direct Post rules: the privacy level must be
+ * one creator_info offers, interactions the creator turned off stay off, a disclosed commercial post names at least one
+ * kind, and branded content can never be "only me". Library clips are AI-made, so the AI label is always on.
+ */
+export function directPostSettings(choice: DirectPostChoice, creator: { privacyLevelOptions: string[]; commentDisabled: boolean; duetDisabled: boolean; stitchDisabled: boolean }): PublishSettings {
+  if (!creator.privacyLevelOptions.includes(choice.privacyLevel)) throw new Error("privacy_level_invalid");
+  const { enabled, yourBrand, brandedContent } = choice.commercial;
+  if (enabled && !yourBrand && !brandedContent) throw new Error("commercial_type_required");
+  if (enabled && brandedContent && choice.privacyLevel === "SELF_ONLY") throw new Error("branded_content_not_private");
+  return {
+    caption: choice.caption,
+    privacyLevel: choice.privacyLevel,
+    disableComment: creator.commentDisabled || !choice.allowComment,
+    disableDuet: creator.duetDisabled || !choice.allowDuet,
+    disableStitch: creator.stitchDisabled || !choice.allowStitch,
+    isAigc: true,
+    commercialContent: enabled ? { brand_organic_toggle: yourBrand, brand_content_toggle: brandedContent } : {},
+  };
+}

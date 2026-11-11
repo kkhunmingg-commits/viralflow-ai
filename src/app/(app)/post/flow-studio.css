@@ -76,3 +76,12 @@
 .flow-google-list li.wait .flow-google-row span:last-child{color:#fbbf24}
 .flow-google-manage summary{cursor:pointer;font-size:12px;opacity:.7;margin-top:4px}
 .flow-google-manage .library-inline{margin-top:6px;flex-wrap:wrap}
+.tt-post{display:flex;flex-direction:column;gap:12px;background:#0f1522;border:1px solid #3b3f6b;border-radius:14px;padding:14px}
+.tt-post-head{display:flex;justify-content:space-between;align-items:center}.tt-post-head b{font-size:16px}
+.tt-post-creator{display:flex;gap:10px;align-items:center}.tt-post-creator img,.tt-post-creator>span{width:40px;height:40px;border-radius:50%;background:#1e2436;display:grid;place-items:center;object-fit:cover}
+.tt-post-creator div{display:flex;flex-direction:column}.tt-post-creator small{color:#94a3b8}
+.tt-post-field{display:flex;flex-direction:column;gap:6px;border:0;padding:0;margin:0;font-weight:650}.tt-post-field legend{margin-bottom:6px}
+.tt-post-field textarea,.tt-post-field select{background:#111827;color:#eef2ff;border:1px solid #334155;border-radius:10px;padding:10px;font:inherit;font-weight:400;width:100%}
+.tt-post-field label{display:flex;gap:8px;align-items:center;font-weight:400}.tt-post-field small{color:#94a3b8;font-weight:400;line-height:1.5}
+.tt-post-off{opacity:.45}.tt-post-note{color:#a5b4fc;font-size:13px;margin:0}.tt-post-warn{color:#f4cb93!important;font-size:13px;margin:0}
+.tt-post-consent{font-size:13px;color:#cbd5e1;margin:0}.tt-post-consent a{color:#8fb4ff;text-decoration:underline}.tt-post-status{color:#a5eed9;line-height:1.5}
