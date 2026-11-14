@@ -20,7 +20,7 @@ describe("presenter plan", () => {
     expect(facePrompt('a host "ignore this" ')).toContain("a host ignore this.");
     expect(facePrompt("")).toContain("Thai woman");
     expect(talkPrompt(TALK_LINES[2])).toContain(TALK_LINES[2]);
-    expect(promptFor({ role: "IDLE", line: null }, "")).toMatch(/not talking/);
+    expect(promptFor({ role: "IDLE", line: null }, "")).toMatch(/does not speak/);
   });
 });
 
@@ -41,10 +41,10 @@ describe("presenter steps", () => {
     expect(decide({ status: "FACE", takes }, new Map([["a", clip("READY", { storage_path: "p.mp4" })]]), now).steps)
       .toEqual([{ kind: "DONE", index: 0, storagePath: "p.mp4" }]);
   });
-  it("tries a failed take again after 10 minutes, then stops after the last try", () => {
+  it("tries a failed take again after 2 minutes, then stops after the last try", () => {
     const failed = (attempts: number) => withTakes(t => { t[0] = { ...t[0], status: "QUEUED", clipId: "a", attempts }; });
-    expect(decide({ status: "FACE", takes: failed(1) }, new Map([["a", clip("FAILED", { updated_at: ago(3) })]]), now).steps).toEqual([]);
-    expect(decide({ status: "FACE", takes: failed(1) }, new Map([["a", clip("FAILED", { updated_at: ago(11), error: "X" })]]), now).steps)
+    expect(decide({ status: "FACE", takes: failed(1) }, new Map([["a", clip("FAILED", { updated_at: ago(1) })]]), now).steps).toEqual([]);
+    expect(decide({ status: "FACE", takes: failed(1) }, new Map([["a", clip("FAILED", { updated_at: ago(3), error: "X" })]]), now).steps)
       .toEqual([{ kind: "QUEUE", index: 0, countsAsTry: true, reason: "X" }]);
     const last = decide({ status: "FACE", takes: failed(MAX_TAKE_ATTEMPTS) }, new Map([["a", clip("FAILED", { updated_at: ago(11) })]]), now).steps;
     expect(last[0].kind).toBe("FAIL");
@@ -58,5 +58,13 @@ describe("presenter steps", () => {
   it("labels takes and refuses odd storage paths", () => {
     expect(takeLabel({ role: "TALK", key: "talk-7" })).toBe("คลิปพูด 7");
     expect(() => faceStillPath("../x", "y")).toThrow();
+  });
+});
+
+describe("retries", () => {
+  it("words a retry differently and never asks Flow for no sound", () => {
+    expect(facePrompt("", 0)).not.toEqual(facePrompt("", 1));
+    expect(facePrompt("", 0)).not.toMatch(/no sound/i);
+    expect(promptFor({ role: "IDLE", line: null }, "", 0)).not.toMatch(/no sound/i);
   });
 });

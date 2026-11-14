@@ -48,21 +48,42 @@ export function lookText(look: string) {
   return clean || DEFAULT_LOOK;
 }
 
-export function facePrompt(look: string) {
-  return `Photorealistic video of ${lookText(look)}. ${STAGE} She sits still and looks into the lens with her mouth gently closed and a soft smile, `
-    + "only natural breathing and blinking, no talking, no sound effects. The final frame is a clear, sharp, front-facing shot of her face.";
+// 14 Nov, first live run: Flow failed the face take with "สร้างเสียงไม่สำเร็จ" (its audio step failed). Asking for "no
+// sound" seems to trip it, so silent takes ask for quiet room tone instead, and each retry words the take differently.
+const QUIET = ["Audio: soft quiet studio room tone only.", "Audio: gentle quiet indoor ambience.", "Audio: calm soft background hum of a quiet room."];
+const pick = <T,>(list: readonly T[], attempt: number) => list[Math.max(0, attempt) % list.length];
+
+export function facePrompt(look: string, attempt = 0) {
+  return `Photorealistic video of ${lookText(look)}. ${STAGE} She sits still and looks into the lens with her lips gently closed and a soft smile, `
+    + `only natural breathing and blinking, she does not speak. The final frame is a clear, sharp, front-facing shot of her face. ${pick(QUIET, attempt)}`;
 }
-export function talkPrompt(line: string) {
-  return `The woman in the picture talks directly to the camera like a Thai live-stream seller, speaking Thai clearly and warmly: "${line}". `
+export function talkPrompt(line: string, attempt = 0) {
+  const voice = ["speaking Thai clearly and warmly", "speaking Thai in a friendly, lively voice", "speaking Thai naturally and cheerfully"];
+  return `The woman in the picture talks directly to the camera like a Thai live-stream seller, ${pick(voice, attempt)}: "${line}". `
     + `${STAGE} Her head stays mostly still with small natural nods. Same person, same clothes, same lighting and background throughout.`;
 }
-export function idlePrompt() {
-  return `The woman in the picture listens to the camera and smiles softly with her mouth closed, small natural breathing and blinking, tiny head movements, not talking. ${STAGE} Same person, same clothes, same lighting and background throughout.`;
+export function idlePrompt(attempt = 0) {
+  return "The woman in the picture listens to the camera and smiles softly with her lips closed, small natural breathing and blinking, tiny head movements, she does not speak. "
+    + `${STAGE} Same person, same clothes, same lighting and background throughout. ${pick(QUIET, attempt)}`;
 }
-export function promptFor(take: Pick<PresenterTake, "role" | "line">, look: string) {
-  if (take.role === "FACE") return facePrompt(look);
-  if (take.role === "TALK") return talkPrompt(take.line ?? TALK_LINES[0]);
-  return idlePrompt();
+/** `attempt` = tries already made: a retry gets different wording, since Flow refusing a prompt tends to repeat. */
+export function promptFor(take: Pick<PresenterTake, "role" | "line">, look: string, attempt = 0) {
+  if (take.role === "FACE") return facePrompt(look, attempt);
+  if (take.role === "TALK") return talkPrompt(take.line ?? TALK_LINES[0], attempt);
+  return idlePrompt(attempt);
+}
+
+/** Flow's and the worker's failure codes in words the owner reads on the take. */
+export function failureLabel(code: string | null | undefined) {
+  const value = String(code ?? "");
+  if (!value) return "";
+  if (value.startsWith("ตรวจไม่ผ่าน")) return value;
+  if (/FLOW_REPORTED_FAILURE/.test(value)) return "Flow สร้างไม่สำเร็จ (คืนเครดิตแล้ว) กำลังลองใหม่ด้วยคำสั่งแบบอื่น";
+  if (/FLOW_UNUSUAL_ACTIVITY/.test(value)) return "Flow แจ้งกิจกรรมผิดปกติ รอแล้วลองใหม่";
+  if (/NO_CREDIT/.test(value)) return "เครดิตหมด รอบัญชีถัดไปหรือวันพรุ่งนี้";
+  if (/NEW_VIDEO_TIMEOUT|WORKER_LOST/.test(value)) return "รอวิดีโอนานเกิน กำลังลองใหม่";
+  if (/LOGIN/.test(value)) return "บัญชี Google ต้องล็อกอินใหม่";
+  return value.slice(0, 120);
 }
 
 export function planTakes(): PresenterTake[] {

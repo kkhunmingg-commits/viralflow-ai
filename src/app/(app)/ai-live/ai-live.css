@@ -98,6 +98,7 @@
 .pstudio-takes li.todo, .pstudio-legend i.todo { color: #8f9db2; background: #262e3d; }
 .pstudio-legend { display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; margin: 0; color: #8f9db2; font-size: 11px; }
 .pstudio-legend i { display: inline-block; width: 10px; height: 10px; margin-right: -6px; border-radius: 3px; }
+.pstudio-retry { color: #fbbf24; font-size: 11px; line-height: 1.6; }
 .pstudio-ready { padding: 10px 12px; border-radius: 10px; color: #c9f5d9; background: rgb(74 222 128 / .08); font-size: 12px; line-height: 1.7; }
 .pstudio-ready code { display: block; margin-top: 4px; overflow-wrap: anywhere; color: #eef2fb; }
 .presenter-actions { display: flex; gap: 8px; flex-wrap: wrap; }

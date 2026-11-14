@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { bangkokDate } from "@/features/flow-farm/contracts";
-import { MAX_TAKE_ATTEMPTS, planTakes, promptFor, type PresenterStatus, type PresenterTake } from "./presenter-plan";
+import { failureLabel, MAX_TAKE_ATTEMPTS, planTakes, promptFor, type PresenterStatus, type PresenterTake } from "./presenter-plan";
 
 /**
  * AI LIVE presenters made by the owner's existing Google Flow worker. Driven by the worker's minute poll
@@ -10,7 +10,8 @@ import { MAX_TAKE_ATTEMPTS, planTakes, promptFor, type PresenterStatus, type Pre
  */
 const BUCKET = "video-assets";
 const LOCK_MS = 30_000;
-const RETRY_WAIT_MS = 10 * 60_000;
+// Flow refunds a failed take at once; a short pause is enough before trying again.
+const RETRY_WAIT_MS = 2 * 60_000;
 const CHECKS_PER_TICK = 4;
 const COLUMNS = "id,owner_id,tiktok_account_id,name,look,status,face_still_path,takes,error,ready_at,created_at,updated_at";
 
@@ -180,10 +181,10 @@ async function advance(admin: SupabaseClient, owner: string, presenter: Presente
       id: clipId, owner_id: owner, tiktok_account_id: presenter.tiktok_account_id, batch_id: presenter.id, product_id: null, kind: "PRESENTER_CLIP",
       // Inserted together they share created_at; 1 ms apart keeps the order on the page and in Flow.
       created_at: new Date(now.getTime() + step.index).toISOString(),
-      title: `พรีเซนเตอร์ ${presenter.name} · ${takeLabel(take)}`.slice(0, 200), prompt: promptFor(take, presenter.look).slice(0, 12000),
+      title: `พรีเซนเตอร์ ${presenter.name} · ${takeLabel(take)}`.slice(0, 200), prompt: promptFor(take, presenter.look, take.attempts).slice(0, 12000),
       caption: `AI LIVE presenter ${presenter.name}`.slice(0, 2200), hashtags: [], reference_image_path: take.role === "FACE" ? null : facePath,
     }), "flow_clips_not_queued");
-    takes[step.index] = { ...take, status: "QUEUED", clipId, attempts: take.attempts + (step.countsAsTry ? 1 : 0), error: step.reason ?? null };
+    takes[step.index] = { ...take, status: "QUEUED", clipId, attempts: take.attempts + (step.countsAsTry ? 1 : 0), error: step.reason ? failureLabel(step.reason) : null };
   }
 
   const faceDone = takes.find(t => t.role === "FACE")?.status === "DONE";
@@ -226,10 +227,10 @@ export function decide(presenter: Pick<PresenterRow, "status" | "takes">, clips:
       steps.push({ kind: "QUEUE", index, countsAsTry: false, reason: "เครดิตหมดเมื่อวาน สร้างต่อวันนี้" });
       continue;
     }
-    // Failed or discarded: wait 10 minutes, then try again up to MAX_TAKE_ATTEMPTS.
+    // Failed or discarded: wait 2 minutes, then try again up to MAX_TAKE_ATTEMPTS.
     if (clip && now.getTime() - Date.parse(clip.updated_at) < RETRY_WAIT_MS) continue;
     if (t.attempts >= MAX_TAKE_ATTEMPTS) {
-      steps.push({ kind: "FAIL", reason: `${takeLabel(t)} สร้างไม่สำเร็จ ${t.attempts} ครั้ง (${clip?.error ?? clip?.status ?? "ไม่พบคลิป"})` });
+      steps.push({ kind: "FAIL", reason: `${takeLabel(t)} สร้างไม่สำเร็จ ${t.attempts} ครั้ง (${failureLabel(clip?.error) || clip?.status || "ไม่พบคลิป"})` });
       return { steps };
     }
     steps.push({ kind: "QUEUE", index, countsAsTry: true, reason: clip?.error ?? undefined });
