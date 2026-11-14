@@ -39,8 +39,7 @@ export const TALK_LINES = [
 export const IDLE_TAKES = 2;
 
 const DEFAULT_LOOK = "a friendly Thai woman live-commerce host, about 27 years old, smart-casual blouse";
-const STAGE = "Vertical 9:16, chest-up, facing the camera straight on, soft even studio lighting on the face, plain softly blurred light-grey studio background. "
-  + "The camera is locked on a tripod: no zoom, no pan, no camera movement. Hands stay below the frame and nothing covers the mouth.";
+const STAGE = "Vertical 9:16, chest-up, facing the camera, bright soft studio light, plain light-grey background, still camera.";
 
 /** English describing the presenter's look: only what the owner typed, never their quotes or instructions. */
 export function lookText(look: string) {
@@ -48,26 +47,23 @@ export function lookText(look: string) {
   return clean || DEFAULT_LOOK;
 }
 
-// 14 Nov, first live runs: Flow failed every silent face take with "สร้างเสียงไม่สำเร็จ" (its audio step failed; the
-// credits came back), with "no sound" and with "quiet room tone" alike. Veo's audio needs something to voice, so the
-// face and idle takes now say one short Thai word, then hold still with the lips closed (the face is the last frame).
+// 14 Nov, live runs: Flow failed every face take with "สร้างเสียงไม่สำเร็จ" (its audio step; credits came back) while
+// the prompt was long and full of stage rules (tripod, hands, silent hold). A plain prompt with a full Thai sentence
+// went through first time, so every prompt stays short: who she is, where, and the Thai she says.
 const pick = <T,>(list: readonly T[], attempt: number) => list[Math.max(0, attempt) % list.length];
 
 export function facePrompt(look: string, attempt = 0) {
-  const greet = ["สวัสดีค่ะ", "ยินดีต้อนรับค่ะ", "สวัสดีทุกคนค่ะ"];
-  return `Photorealistic video of ${lookText(look)}. ${STAGE} She looks into the lens and says softly in Thai: "${pick(greet, attempt)}", `
-    + "then stops talking and holds a warm smile with her lips closed for the last three seconds, only natural breathing and blinking. "
-    + "The final frame is a clear, sharp, front-facing shot of her face with lips closed.";
+  const greet = ["สวัสดีค่ะทุกคน ยินดีต้อนรับเข้าไลฟ์นะคะ", "สวัสดีค่ะ วันนี้มีของดีมาแนะนำค่ะ", "ยินดีต้อนรับทุกคนเข้าไลฟ์ค่ะ"];
+  return `A Thai live-stream host: ${lookText(look)}. She sits facing the camera in a bright studio. ${STAGE} `
+    + `She smiles and says in Thai: "${pick(greet, attempt)}", then smiles at the camera.`;
 }
 export function talkPrompt(line: string, attempt = 0) {
-  const voice = ["speaking Thai clearly and warmly", "speaking Thai in a friendly, lively voice", "speaking Thai naturally and cheerfully"];
-  return `The woman in the picture talks directly to the camera like a Thai live-stream seller, ${pick(voice, attempt)}: "${line}". `
-    + `${STAGE} Her head stays mostly still with small natural nods. Same person, same clothes, same lighting and background throughout.`;
+  const voice = ["clearly and warmly", "in a friendly, lively voice", "naturally and cheerfully"];
+  return `The woman in the picture is a Thai live-stream host. ${STAGE} She looks at the camera and says in Thai, ${pick(voice, attempt)}: "${line}"`;
 }
 export function idlePrompt(attempt = 0) {
-  const word = ["ค่ะ", "อื้ม ค่ะ", "ได้เลยค่ะ"];
-  return `The woman in the picture listens to the camera, nods once and says softly in Thai: "${pick(word, attempt)}", then keeps smiling with her lips closed, `
-    + `small natural breathing and blinking, tiny head movements. ${STAGE} Same person, same clothes, same lighting and background throughout.`;
+  const word = ["ค่ะ ขอบคุณค่ะ", "ได้เลยค่ะ", "อื้ม ใช่ค่ะ"];
+  return `The woman in the picture is a Thai live-stream host. ${STAGE} She listens, nods and says softly in Thai: "${pick(word, attempt)}", then smiles at the camera.`;
 }
 /** `attempt` = tries already made: a retry gets different wording, since Flow refusing a prompt tends to repeat. */
 export function promptFor(take: Pick<PresenterTake, "role" | "line">, look: string, attempt = 0) {
