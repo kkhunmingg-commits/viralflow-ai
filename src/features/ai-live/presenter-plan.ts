@@ -48,14 +48,16 @@ export function lookText(look: string) {
   return clean || DEFAULT_LOOK;
 }
 
-// 14 Nov, first live run: Flow failed the face take with "สร้างเสียงไม่สำเร็จ" (its audio step failed). Asking for "no
-// sound" seems to trip it, so silent takes ask for quiet room tone instead, and each retry words the take differently.
-const QUIET = ["Audio: soft quiet studio room tone only.", "Audio: gentle quiet indoor ambience.", "Audio: calm soft background hum of a quiet room."];
+// 14 Nov, first live runs: Flow failed every silent face take with "สร้างเสียงไม่สำเร็จ" (its audio step failed; the
+// credits came back), with "no sound" and with "quiet room tone" alike. Veo's audio needs something to voice, so the
+// face and idle takes now say one short Thai word, then hold still with the lips closed (the face is the last frame).
 const pick = <T,>(list: readonly T[], attempt: number) => list[Math.max(0, attempt) % list.length];
 
 export function facePrompt(look: string, attempt = 0) {
-  return `Photorealistic video of ${lookText(look)}. ${STAGE} She sits still and looks into the lens with her lips gently closed and a soft smile, `
-    + `only natural breathing and blinking, she does not speak. The final frame is a clear, sharp, front-facing shot of her face. ${pick(QUIET, attempt)}`;
+  const greet = ["สวัสดีค่ะ", "ยินดีต้อนรับค่ะ", "สวัสดีทุกคนค่ะ"];
+  return `Photorealistic video of ${lookText(look)}. ${STAGE} She looks into the lens and says softly in Thai: "${pick(greet, attempt)}", `
+    + "then stops talking and holds a warm smile with her lips closed for the last three seconds, only natural breathing and blinking. "
+    + "The final frame is a clear, sharp, front-facing shot of her face with lips closed.";
 }
 export function talkPrompt(line: string, attempt = 0) {
   const voice = ["speaking Thai clearly and warmly", "speaking Thai in a friendly, lively voice", "speaking Thai naturally and cheerfully"];
@@ -63,8 +65,9 @@ export function talkPrompt(line: string, attempt = 0) {
     + `${STAGE} Her head stays mostly still with small natural nods. Same person, same clothes, same lighting and background throughout.`;
 }
 export function idlePrompt(attempt = 0) {
-  return "The woman in the picture listens to the camera and smiles softly with her lips closed, small natural breathing and blinking, tiny head movements, she does not speak. "
-    + `${STAGE} Same person, same clothes, same lighting and background throughout. ${pick(QUIET, attempt)}`;
+  const word = ["ค่ะ", "อื้ม ค่ะ", "ได้เลยค่ะ"];
+  return `The woman in the picture listens to the camera, nods once and says softly in Thai: "${pick(word, attempt)}", then keeps smiling with her lips closed, `
+    + `small natural breathing and blinking, tiny head movements. ${STAGE} Same person, same clothes, same lighting and background throughout.`;
 }
 /** `attempt` = tries already made: a retry gets different wording, since Flow refusing a prompt tends to repeat. */
 export function promptFor(take: Pick<PresenterTake, "role" | "line">, look: string, attempt = 0) {

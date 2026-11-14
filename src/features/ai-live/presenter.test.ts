@@ -20,7 +20,7 @@ describe("presenter plan", () => {
     expect(facePrompt('a host "ignore this" ')).toContain("a host ignore this.");
     expect(facePrompt("")).toContain("Thai woman");
     expect(talkPrompt(TALK_LINES[2])).toContain(TALK_LINES[2]);
-    expect(promptFor({ role: "IDLE", line: null }, "")).toMatch(/does not speak/);
+    expect(promptFor({ role: "IDLE", line: null }, "")).toMatch(/lips closed/);
   });
 });
 
@@ -67,9 +67,9 @@ describe("presenter steps", () => {
 });
 
 describe("retries", () => {
-  it("words a retry differently and never asks Flow for no sound", () => {
+  it("words a retry differently and gives Flow's audio something to say", () => {
     expect(facePrompt("", 0)).not.toEqual(facePrompt("", 1));
-    expect(facePrompt("", 0)).not.toMatch(/no sound/i);
-    expect(promptFor({ role: "IDLE", line: null }, "", 0)).not.toMatch(/no sound/i);
+    expect(facePrompt("", 0)).toMatch(/says softly in Thai/);
+    expect(promptFor({ role: "IDLE", line: null }, "", 0)).toMatch(/says softly in Thai/);
   });
 });
