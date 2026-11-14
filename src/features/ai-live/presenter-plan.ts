@@ -62,8 +62,9 @@ export function talkPrompt(line: string, attempt = 0) {
   return `The woman in the picture is a Thai live-stream host. ${STAGE} She looks at the camera and says in Thai, ${pick(voice, attempt)}: "${line}"`;
 }
 export function idlePrompt(attempt = 0) {
-  const word = ["ค่ะ ขอบคุณค่ะ", "ได้เลยค่ะ", "อื้ม ใช่ค่ะ"];
-  return `The woman in the picture is a Thai live-stream host. ${STAGE} She listens, nods and says softly in Thai: "${pick(word, attempt)}", then smiles at the camera.`;
+  // "says softly" with one short word failed Flow's audio step (14 Nov); a short sentence said warmly goes through.
+  const line = ["ขอบคุณที่เข้ามาดูนะคะ", "ยินดีต้อนรับค่ะ", "ขอบคุณมากนะคะ"];
+  return `The woman in the picture is a Thai live-stream host. ${STAGE} She looks at the camera and says in Thai, warmly: "${pick(line, attempt)}", then smiles and nods gently.`;
 }
 /** `attempt` = tries already made: a retry gets different wording, since Flow refusing a prompt tends to repeat. */
 export function promptFor(take: Pick<PresenterTake, "role" | "line">, look: string, attempt = 0) {
