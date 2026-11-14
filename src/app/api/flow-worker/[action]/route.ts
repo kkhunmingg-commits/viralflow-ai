@@ -27,6 +27,16 @@ export async function GET(request: Request, context: { params: Promise<{ action:
     const { claimProductLookups } = await import("@/features/product-links/service");
     return reply({ lookups: await claimProductLookups(createAdminClient(), auth.owner) });
   }
+  if (action === "presenters") {
+    // The owner's computer turns a ready AI LIVE presenter into a lip-sync bundle: ?id= gives its takes' links.
+    const service = await import("@/features/ai-live/presenter-service");
+    const id = new URL(request.url).searchParams.get("id");
+    const admin = createAdminClient();
+    if (!id) return reply({ presenters: await service.readyPresenters(admin, auth.owner) });
+    if (!/^[0-9a-f-]{36}$/i.test(id)) return reply({ error: "not_found" }, 404);
+    try { return reply({ presenter: await service.presenterDownloads(admin, auth.owner, id) }); }
+    catch (error) { return reply({ error: error instanceof Error ? error.message : "failed" }, 404); }
+  }
   if (action !== "accounts") return reply({ error: "not_found" }, 404);
   const admin = createAdminClient();
   // The worker polls every minute, which makes it a free clock for pulling clip stats from TikTok (hourly per account).
@@ -35,6 +45,8 @@ export async function GET(request: Request, context: { params: Promise<{ action:
   after(() => import("@/features/drama/service").then(m => m.tickOwner(admin, auth.owner)).catch(() => {}));
   // And product clips from pasted Shopee/Lazada links: requeue failed takes, cut finished ones, advance posting.
   after(() => import("@/features/product-links/service").then(m => m.tickProductClips(admin, auth.owner)).catch(() => {}));
+  // And AI LIVE presenters: face take, then the talking and idle takes that start from it.
+  after(() => import("@/features/ai-live/presenter-service").then(m => m.tickPresenters(admin, auth.owner)).catch(() => {}));
   return reply({ accounts: await workerAccounts(admin, auth.owner) });
 }
 
@@ -61,6 +73,7 @@ export async function POST(request: Request, context: { params: Promise<{ action
         // A finished drama shot lets the series queue its next shot straight away.
         after(() => import("@/features/drama/service").then(m => m.tickOwner(admin, owner)).catch(() => {}));
         after(() => import("@/features/product-links/service").then(m => m.tickProductClips(admin, owner)).catch(() => {}));
+        after(() => import("@/features/ai-live/presenter-service").then(m => m.tickPresenters(admin, owner)).catch(() => {}));
         return reply(done);
       }
       case "fail": {

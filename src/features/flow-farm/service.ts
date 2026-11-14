@@ -276,8 +276,9 @@ export async function claimClip(admin: SupabaseClient, owner: string, flowAccoun
     }
     imageUrl = signed.data.signedUrl;
   }
-  // Every shot of one drama episode goes into the same Flow project of the account (the worker remembers it by this key).
-  const projectKey = clip.kind === "DRAMA_SHOT" ? clip.batch_id : null;
+  // Every shot of one drama episode goes into the same Flow project of the account (the worker remembers it by this key),
+  // and so do every take of one AI LIVE presenter.
+  const projectKey = clip.kind === "DRAMA_SHOT" || clip.kind === "PRESENTER_CLIP" ? clip.batch_id : null;
   return { id: clip.id, title: clip.title, prompt: clip.prompt, kind: clip.kind, imageUrl, projectKey };
 }
 
