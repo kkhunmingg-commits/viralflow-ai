@@ -20,7 +20,7 @@ function googleState(f: FlowAccountView) {
 }
 function takeTone(t: PresenterTake) {
   if (t.status === "DONE") return "pass";
-  if (t.status === "FAILED") return "reject";
+  if (t.status === "FAILED") return "skip";
   if (t.error?.startsWith("ตรวจไม่ผ่าน")) return "reject";
   if (t.status === "QUEUED") return "busy";
   return "todo";
@@ -122,11 +122,11 @@ function PresenterCard({ presenter: p, face }: { presenter: PresenterRow; face: 
       <ul className="pstudio-takes" aria-label="ผลตรวจแต่ละคลิป">
         {p.takes.map(t => <li key={t.key} className={takeTone(t)} title={takeTitle(t)}>{takeShort(t)}</li>)}
       </ul>
-      <p className="pstudio-legend"><i className="pass" />ผ่าน <i className="busy" />กำลังสร้าง <i className="reject" />ไม่ผ่าน <i className="todo" />รอคิว</p>
+      <p className="pstudio-legend"><i className="pass" />ผ่าน <i className="busy" />กำลังสร้าง <i className="reject" />ไม่ผ่าน <i className="todo" />รอคิว <i className="skip" />ข้าม</p>
       {p.status !== "FAILED" && p.takes.filter(t => t.status !== "DONE" && t.status !== "FAILED" && t.error).slice(0, 3).map(t =>
         <small key={t.key} className="pstudio-retry">{takeLabel(t)} · ครั้งที่ {t.attempts}/3 · {t.error}</small>)}
       {p.error && <small className="ai-live-error">{p.error}</small>}
-      {p.status === "READY" && <div className="pstudio-ready">ผ่านครบ {progress.total} คลิป พร้อมทำเป็นพรีเซนเตอร์ไลฟ์ ในโฟลเดอร์ ai-live-cpu สั่ง
+      {p.status === "READY" && <div className="pstudio-ready">{progress.failed ? `ผ่าน ${progress.done} คลิป · ข้ามคลิปนิ่ง ${progress.failed} (ใช้งานได้)` : `ผ่านครบ ${progress.total} คลิป`} พร้อมทำเป็นพรีเซนเตอร์ไลฟ์ ในโฟลเดอร์ ai-live-cpu สั่ง
         <code>python -m loop_presenter.from_portal {p.id}</code></div>}
       <div className="presenter-actions">
         {p.status === "FAILED" && <form action={retryPresenterAction}><input type="hidden" name="id" value={p.id} /><button className="secondary-action" type="submit">สร้างต่อ</button></form>}

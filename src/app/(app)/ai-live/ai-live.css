@@ -96,6 +96,7 @@
 .pstudio-takes li.busy, .pstudio-legend i.busy { color: #3a2a00; background: #fbbf24; }
 .pstudio-takes li.reject, .pstudio-legend i.reject { color: #fff; background: #ef4444; }
 .pstudio-takes li.todo, .pstudio-legend i.todo { color: #8f9db2; background: #262e3d; }
+.pstudio-takes li.skip, .pstudio-legend i.skip { color: #8f9db2; background: #262e3d; text-decoration: line-through; opacity: .7; }
 .pstudio-legend { display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; margin: 0; color: #8f9db2; font-size: 11px; }
 .pstudio-legend i { display: inline-block; width: 10px; height: 10px; margin-right: -6px; border-radius: 3px; }
 .pstudio-retry { color: #fbbf24; font-size: 11px; line-height: 1.6; }
