@@ -54,6 +54,12 @@ describe("presenter steps", () => {
     const last = decide({ status: "FACE", takes: failed(MAX_TAKE_ATTEMPTS) }, new Map([["a", clip("FAILED", { updated_at: ago(11) })]]), now).steps;
     expect(last[0].kind).toBe("FAIL");
   });
+  it("skips an idle take Flow keeps refusing instead of failing the presenter", () => {
+    const takes = withTakes(t => { t[0] = { ...t[0], status: "DONE" }; t[14] = { ...t[14], status: "QUEUED", clipId: "a", attempts: MAX_TAKE_ATTEMPTS }; });
+    const steps = decide({ status: "CLIPS", takes }, new Map([["a", clip("FAILED", { updated_at: ago(3) })]]), now).steps;
+    expect(steps.find(s => s.kind === "SKIP")).toMatchObject({ kind: "SKIP", index: 14 });
+    expect(steps.some(s => s.kind === "FAIL")).toBe(false);
+  });
   it("waits for tomorrow's credits without counting a try", () => {
     const takes = withTakes(t => { t[0] = { ...t[0], status: "QUEUED", clipId: "a", attempts: 3 }; });
     expect(decide({ status: "FACE", takes }, new Map([["a", clip("SKIPPED_NO_CREDIT", { updated_at: ago(60) })]]), now).steps).toEqual([]);

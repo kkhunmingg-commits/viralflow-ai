@@ -152,6 +152,7 @@ async function advance(admin: SupabaseClient, owner: string, presenter: Presente
       return;
     }
     const take = takes[step.index];
+    if (step.kind === "SKIP") { takes[step.index] = { ...take, status: "FAILED", error: step.reason.slice(0, 300) }; continue; }
     if (step.kind === "DONE") {
       // Checking means downloading and decoding the take: a few per poll keeps the request short.
       if (checked >= CHECKS_PER_TICK) continue;
@@ -189,7 +190,7 @@ async function advance(admin: SupabaseClient, owner: string, presenter: Presente
   }
 
   const faceDone = takes.find(t => t.role === "FACE")?.status === "DONE";
-  const allDone = takes.every(t => t.status === "DONE");
+  const allDone = takes.every(t => t.status === "DONE" || (t.role === "IDLE" && t.status === "FAILED"));
   const status: PresenterStatus = allDone ? "READY" : faceDone ? "CLIPS" : "FACE";
   if (status === "CLIPS" && presenter.status === "FACE") {
     // The face just arrived: queue every talking and idle take now, in this same step.
@@ -204,6 +205,7 @@ async function advance(admin: SupabaseClient, owner: string, presenter: Presente
 export type Step =
   | { kind: "QUEUE"; index: number; countsAsTry: boolean; reason?: string }
   | { kind: "DONE"; index: number; storagePath: string }
+  | { kind: "SKIP"; index: number; reason: string }
   | { kind: "FAIL"; reason: string };
 
 /** What to do with each take, from its Flow clip's state. Pure, so the rules are tested without a database. */
@@ -222,10 +224,14 @@ export function decide(presenter: Pick<PresenterRow, "status" | "takes">, clips:
   let inFlight = active.filter(({ t }) => busy(t)).length;
   const queue = (step: Extract<Step, { kind: "QUEUE" }>) => { if (inFlight < limit) { inFlight++; steps.push(step); } };
   for (const { t, index } of active) {
-    if (t.status === "DONE") continue;
+    if (t.status === "DONE" || t.status === "FAILED") continue;
     if (t.status === "PLANNED") {
       // Back to PLANNED after a take that came out unusable (no face in it): still limited to MAX_TAKE_ATTEMPTS.
-      if (t.attempts >= MAX_TAKE_ATTEMPTS) { steps.push({ kind: "FAIL", reason: `${takeLabel(t)} สร้างไม่สำเร็จ ${t.attempts} ครั้ง (${t.error ?? "ใช้ไม่ได้"})` }); return { steps }; }
+      if (t.attempts >= MAX_TAKE_ATTEMPTS) {
+        const reason = `${takeLabel(t)} สร้างไม่สำเร็จ ${t.attempts} ครั้ง (${t.error ?? "ใช้ไม่ได้"})`;
+        if (t.role === "IDLE") { steps.push({ kind: "SKIP", index, reason }); continue; }
+        steps.push({ kind: "FAIL", reason }); return { steps };
+      }
       queue({ kind: "QUEUE", index, countsAsTry: true });
       continue;
     }
@@ -242,7 +248,11 @@ export function decide(presenter: Pick<PresenterRow, "status" | "takes">, clips:
     // Failed or discarded: wait 2 minutes, then try again up to MAX_TAKE_ATTEMPTS.
     if (clip && now.getTime() - Date.parse(clip.updated_at) < RETRY_WAIT_MS) continue;
     if (t.attempts >= MAX_TAKE_ATTEMPTS) {
-      steps.push({ kind: "FAIL", reason: `${takeLabel(t)} สร้างไม่สำเร็จ ${t.attempts} ครั้ง (${(failureLabel(clip?.error) || clip?.status || "ไม่พบคลิป").replace(/ กำลังลองใหม่.*$/, "")})` });
+      const reason = `${takeLabel(t)} สร้างไม่สำเร็จ ${t.attempts} ครั้ง (${(failureLabel(clip?.error) || clip?.status || "ไม่พบคลิป").replace(/ กำลังลองใหม่.*$/, "")})`;
+      // Idle takes only add a little body motion between answers: without them the presenter still works, so 12
+      // good talking takes are not thrown away over an idle take Flow keeps refusing (14 Nov).
+      if (t.role === "IDLE") { steps.push({ kind: "SKIP", index, reason }); continue; }
+      steps.push({ kind: "FAIL", reason });
       return { steps };
     }
     queue({ kind: "QUEUE", index, countsAsTry: true, reason: clip?.error ?? undefined });

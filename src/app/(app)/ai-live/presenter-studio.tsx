@@ -20,6 +20,7 @@ function googleState(f: FlowAccountView) {
 }
 function takeTone(t: PresenterTake) {
   if (t.status === "DONE") return "pass";
+  if (t.status === "FAILED") return "reject";
   if (t.error?.startsWith("ตรวจไม่ผ่าน")) return "reject";
   if (t.status === "QUEUED") return "busy";
   return "todo";
@@ -27,6 +28,7 @@ function takeTone(t: PresenterTake) {
 function takeTitle(t: PresenterTake) {
   const what = t.line ? `${takeLabel(t)}: ${t.line}` : takeLabel(t);
   if (t.status === "DONE") return `${what} · ตรวจผ่าน (${t.check ?? "ok"})`;
+  if (t.status === "FAILED") return `${what} · ข้ามไป (${t.error ?? "สร้างไม่สำเร็จ"}) ใช้งานได้โดยไม่มีคลิปนี้`;
   if (t.error) return `${what} · ${t.error} · กำลังสร้างใหม่`;
   return `${what} · ${t.status === "QUEUED" ? "กำลังสร้าง" : "รอคิว"}`;
 }
@@ -121,7 +123,7 @@ function PresenterCard({ presenter: p, face }: { presenter: PresenterRow; face: 
         {p.takes.map(t => <li key={t.key} className={takeTone(t)} title={takeTitle(t)}>{takeShort(t)}</li>)}
       </ul>
       <p className="pstudio-legend"><i className="pass" />ผ่าน <i className="busy" />กำลังสร้าง <i className="reject" />ไม่ผ่าน <i className="todo" />รอคิว</p>
-      {p.status !== "FAILED" && p.takes.filter(t => t.status !== "DONE" && t.error).slice(0, 3).map(t =>
+      {p.status !== "FAILED" && p.takes.filter(t => t.status !== "DONE" && t.status !== "FAILED" && t.error).slice(0, 3).map(t =>
         <small key={t.key} className="pstudio-retry">{takeLabel(t)} · ครั้งที่ {t.attempts}/3 · {t.error}</small>)}
       {p.error && <small className="ai-live-error">{p.error}</small>}
       {p.status === "READY" && <div className="pstudio-ready">ผ่านครบ {progress.total} คลิป พร้อมทำเป็นพรีเซนเตอร์ไลฟ์ ในโฟลเดอร์ ai-live-cpu สั่ง
