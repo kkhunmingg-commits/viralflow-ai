@@ -242,7 +242,7 @@ export function decide(presenter: Pick<PresenterRow, "status" | "takes">, clips:
     // Failed or discarded: wait 2 minutes, then try again up to MAX_TAKE_ATTEMPTS.
     if (clip && now.getTime() - Date.parse(clip.updated_at) < RETRY_WAIT_MS) continue;
     if (t.attempts >= MAX_TAKE_ATTEMPTS) {
-      steps.push({ kind: "FAIL", reason: `${takeLabel(t)} สร้างไม่สำเร็จ ${t.attempts} ครั้ง (${failureLabel(clip?.error) || clip?.status || "ไม่พบคลิป"})` });
+      steps.push({ kind: "FAIL", reason: `${takeLabel(t)} สร้างไม่สำเร็จ ${t.attempts} ครั้ง (${(failureLabel(clip?.error) || clip?.status || "ไม่พบคลิป").replace(/ กำลังลองใหม่.*$/, "")})` });
       return { steps };
     }
     queue({ kind: "QUEUE", index, countsAsTry: true, reason: clip?.error ?? undefined });
