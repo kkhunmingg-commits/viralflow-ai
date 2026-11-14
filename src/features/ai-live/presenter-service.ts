@@ -13,6 +13,7 @@ const LOCK_MS = 30_000;
 // Flow refunds a failed take at once; a short pause is enough before trying again.
 const RETRY_WAIT_MS = 2 * 60_000;
 const CHECKS_PER_TICK = 4;
+const MAX_IN_FLIGHT = 3;
 const COLUMNS = "id,owner_id,tiktok_account_id,name,look,status,face_still_path,takes,error,ready_at,created_at,updated_at";
 
 export interface PresenterRow {
@@ -209,12 +210,23 @@ export type Step =
 export function decide(presenter: Pick<PresenterRow, "status" | "takes">, clips: Map<string, Pick<ClipRow, "status" | "error" | "storage_path" | "updated_at">>, now: Date) {
   const steps: Step[] = [];
   const active = presenter.takes.map((t, index) => ({ t, index })).filter(({ t }) => presenter.status === "FACE" ? t.role === "FACE" : t.role !== "FACE");
+  // Credits guard (14 Nov owner: "a mistake must not eat the credits"): one talking take goes first as a pilot; only once
+  // it passed the check do the others follow, and never more than a few at a time, so a problem that hits every take
+  // (a Flow change, a bad prompt) costs one or a few takes, not fourteen.
+  const pilotPassed = presenter.takes.some(t => t.role === "TALK" && t.status === "DONE");
+  const limit = presenter.status === "FACE" ? 1 : pilotPassed ? MAX_IN_FLIGHT : 1;
+  const busy = (t: PresenterTake) => {
+    const clip = t.status === "QUEUED" && t.clipId ? clips.get(t.clipId) : undefined;
+    return Boolean(clip && ["QUEUED", "GENERATING", "READY", "SCHEDULED"].includes(clip.status));
+  };
+  let inFlight = active.filter(({ t }) => busy(t)).length;
+  const queue = (step: Extract<Step, { kind: "QUEUE" }>) => { if (inFlight < limit) { inFlight++; steps.push(step); } };
   for (const { t, index } of active) {
     if (t.status === "DONE") continue;
     if (t.status === "PLANNED") {
       // Back to PLANNED after a take that came out unusable (no face in it): still limited to MAX_TAKE_ATTEMPTS.
       if (t.attempts >= MAX_TAKE_ATTEMPTS) { steps.push({ kind: "FAIL", reason: `${takeLabel(t)} สร้างไม่สำเร็จ ${t.attempts} ครั้ง (${t.error ?? "ใช้ไม่ได้"})` }); return { steps }; }
-      steps.push({ kind: "QUEUE", index, countsAsTry: true });
+      queue({ kind: "QUEUE", index, countsAsTry: true });
       continue;
     }
     const clip = t.clipId ? clips.get(t.clipId) : undefined;
@@ -224,7 +236,7 @@ export function decide(presenter: Pick<PresenterRow, "status" | "takes">, clips:
     const noCredit = clip?.status === "SKIPPED_NO_CREDIT";
     if (noCredit) {
       if (bangkokDate(clip.updated_at) === bangkokDate(now)) continue;
-      steps.push({ kind: "QUEUE", index, countsAsTry: false, reason: "เครดิตหมดเมื่อวาน สร้างต่อวันนี้" });
+      queue({ kind: "QUEUE", index, countsAsTry: false, reason: "เครดิตหมดเมื่อวาน สร้างต่อวันนี้" });
       continue;
     }
     // Failed or discarded: wait 2 minutes, then try again up to MAX_TAKE_ATTEMPTS.
@@ -233,7 +245,7 @@ export function decide(presenter: Pick<PresenterRow, "status" | "takes">, clips:
       steps.push({ kind: "FAIL", reason: `${takeLabel(t)} สร้างไม่สำเร็จ ${t.attempts} ครั้ง (${failureLabel(clip?.error) || clip?.status || "ไม่พบคลิป"})` });
       return { steps };
     }
-    steps.push({ kind: "QUEUE", index, countsAsTry: true, reason: clip?.error ?? undefined });
+    queue({ kind: "QUEUE", index, countsAsTry: true, reason: clip?.error ?? undefined });
   }
   return { steps };
 }

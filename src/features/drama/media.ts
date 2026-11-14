@@ -152,7 +152,9 @@ export type TakeCheck = { ok: true; durationSeconds: number; note: string } | { 
  */
 export async function checkPresenterTake(mp4: Uint8Array, needsVoice: boolean): Promise<TakeCheck> {
   const shot = await checkShot(mp4);
-  if (!shot.ok) return shot;
+  // A face or idle take is meant to be almost still: "picture frozen" alone never fails it (a remake costs credits).
+  if (!shot.ok && !(shot.reason === "ภาพค้างทั้งช็อต" && !needsVoice)) return shot;
+  if (!shot.ok) return { ok: true, durationSeconds: 8, note: "ภาพนิ่งมาก (ตั้งใจ)" };
   if (!needsVoice) return { ok: true, durationSeconds: shot.durationSeconds, note: `${shot.durationSeconds.toFixed(1)} วิ` };
   return workspace(async dir => {
     await writeFile(join(dir, "in.mp4"), mp4);

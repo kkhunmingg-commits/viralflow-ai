@@ -29,11 +29,16 @@ describe("presenter steps", () => {
     const { steps } = decide({ status: "FACE", takes: planTakes() }, new Map(), now);
     expect(steps).toEqual([{ kind: "QUEUE", index: 0, countsAsTry: true }]);
   });
-  it("queues every talking and idle take once the face is done", () => {
+  it("sends one talking take first as a pilot once the face is done", () => {
     const takes = withTakes(t => { t[0] = { ...t[0], status: "DONE", path: "x" }; });
     const { steps } = decide({ status: "CLIPS", takes }, new Map(), now);
-    expect(steps).toHaveLength(14);
-    expect(steps.every(s => s.kind === "QUEUE")).toBe(true);
+    expect(steps).toEqual([{ kind: "QUEUE", index: 1, countsAsTry: true }]);
+  });
+  it("waits while the pilot is being made, then queues at most three at a time", () => {
+    const waiting = withTakes(t => { t[0] = { ...t[0], status: "DONE" }; t[1] = { ...t[1], status: "QUEUED", clipId: "p", attempts: 1 }; });
+    expect(decide({ status: "CLIPS", takes: waiting }, new Map([["p", clip("GENERATING")]]), now).steps).toEqual([]);
+    const passed = withTakes(t => { t[0] = { ...t[0], status: "DONE" }; t[1] = { ...t[1], status: "DONE" }; });
+    expect(decide({ status: "CLIPS", takes: passed }, new Map(), now).steps.map(s => s.kind === "QUEUE" && s.index)).toEqual([2, 3, 4]);
   });
   it("marks a finished take done and waits for one Flow is still making", () => {
     const takes = withTakes(t => { t[0] = { ...t[0], status: "QUEUED", clipId: "a", attempts: 1 }; });
