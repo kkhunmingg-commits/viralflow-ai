@@ -11,6 +11,8 @@ export type TakeStatus = "PLANNED" | "QUEUED" | "DONE" | "FAILED";
 export interface PresenterTake {
   key: string; role: TakeRole; line: string | null; clipId: string | null; attempts: number; status: TakeStatus;
   path: string | null; error: string | null;
+  /** What the server's check found on the kept take (length, voice level), or why the last one failed it. */
+  check?: string | null;
 }
 export type PresenterStatus = "FACE" | "CLIPS" | "READY" | "FAILED";
 export const presenterStatusLabels: Record<PresenterStatus, string> = {
@@ -74,11 +76,13 @@ export function planTakes(): PresenterTake[] {
 export const totalCredits = () => planTakes().length * CREDITS_PER_TAKE;
 
 export function progressOf(takes: PresenterTake[]) {
-  return { done: takes.filter(t => t.status === "DONE").length, total: takes.length, failed: takes.filter(t => t.status === "FAILED").length };
+  return { done: takes.filter(t => t.status === "DONE").length, total: takes.length, failed: takes.filter(t => t.status === "FAILED").length,
+    rejected: takes.filter(t => t.status !== "DONE" && t.error?.startsWith("ตรวจไม่ผ่าน")).length };
 }
+/** Takes needed beyond those already made: what the Google accounts still have to pay for. */
+export const takesLeft = (takes: PresenterTake[]) => takes.filter(t => t.status !== "DONE").length;
 
 export const createPresenterSchema = z.object({
-  tiktokAccountId: z.uuid(),
   name: z.string().trim().min(1).max(60),
   look: z.string().trim().max(300).optional().default(""),
   credits: z.literal("on"),

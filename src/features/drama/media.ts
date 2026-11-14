@@ -144,3 +144,23 @@ export function assembleEpisode(input: { shots: Array<{ bytes: Uint8Array; durat
     return { bytes, width: WIDTH, height: HEIGHT, durationSeconds: Math.round(total * 1000) / 1000 };
   });
 }
+
+export type TakeCheck = { ok: true; durationSeconds: number; note: string } | { ok: false; reason: string };
+/**
+ * AI LIVE presenter takes: the shot check above, plus for talking takes a sound track loud enough to be speech
+ * (the lip-sync learns mouth shapes from it). Whether it is the same face is checked on the owner's computer.
+ */
+export async function checkPresenterTake(mp4: Uint8Array, needsVoice: boolean): Promise<TakeCheck> {
+  const shot = await checkShot(mp4);
+  if (!shot.ok) return shot;
+  if (!needsVoice) return { ok: true, durationSeconds: shot.durationSeconds, note: `${shot.durationSeconds.toFixed(1)} วิ` };
+  return workspace(async dir => {
+    await writeFile(join(dir, "in.mp4"), mp4);
+    let log: string;
+    try { log = await run(["-nostdin", "-hide_banner", "-i", "in.mp4", "-map", "0:a:0", "-af", "volumedetect", "-vn", "-f", "null", "-"], dir, 60_000); }
+    catch { return { ok: false, reason: "ไม่มีเสียงพูด" }; }
+    const mean = Number(/mean_volume:\s*(-?[\d.]+) dB/.exec(log)?.[1] ?? "-91");
+    if (!(mean > -45)) return { ok: false, reason: `เสียงเบาเกินไป (${mean.toFixed(0)} dB)` };
+    return { ok: true, durationSeconds: shot.durationSeconds, note: `${shot.durationSeconds.toFixed(1)} วิ · เสียง ${mean.toFixed(0)} dB` };
+  });
+}

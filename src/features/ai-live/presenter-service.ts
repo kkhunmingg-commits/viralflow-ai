@@ -11,6 +11,7 @@ import { MAX_TAKE_ATTEMPTS, planTakes, promptFor, type PresenterStatus, type Pre
 const BUCKET = "video-assets";
 const LOCK_MS = 30_000;
 const RETRY_WAIT_MS = 10 * 60_000;
+const CHECKS_PER_TICK = 4;
 const COLUMNS = "id,owner_id,tiktok_account_id,name,look,status,face_still_path,takes,error,ready_at,created_at,updated_at";
 
 export interface PresenterRow {
@@ -42,14 +43,19 @@ export async function listPresenters(client: SupabaseClient, owner: string) {
   return (result.data ?? []) as PresenterRow[];
 }
 
-export async function createPresenter(admin: SupabaseClient, owner: string, input: { tiktokAccountId: string; name: string; look: string }) {
-  const account = check(await admin.from("tiktok_accounts").select("id").eq("owner_id", owner).eq("id", input.tiktokAccountId).maybeSingle(), "account_not_found");
+export async function createPresenter(admin: SupabaseClient, owner: string, input: { name: string; look: string }) {
+  // flow_clips rows need a channel, but every Google account in the shared pool makes any channel's clips (10 Nov owner),
+  // so the presenter is filed under the owner's first connected TikTok account without asking.
+  const accounts = check(await admin.from("tiktok_accounts").select("id,is_mock,authorization_status").eq("owner_id", owner).order("created_at"), "account_not_found") as
+    Array<{ id: string; is_mock: boolean | null; authorization_status: string | null }> | null;
+  const account = accounts?.find(a => !a.is_mock && a.authorization_status === "authorized") ?? accounts?.[0];
   if (!account) throw new Error("account_not_found");
+  await import("@/features/flow-farm/service").then(m => m.shareFlowAccounts(admin, owner)).catch(() => {});
   const busy = check(await admin.from("ai_live_presenters").select("id").eq("owner_id", owner).in("status", ["FACE", "CLIPS"]), "presenter_not_saved") as unknown[];
   if (busy.length) throw new Error("PRESENTER_IN_PROGRESS");
   const id = crypto.randomUUID();
   check(await admin.from("ai_live_presenters").insert({
-    id, owner_id: owner, tiktok_account_id: input.tiktokAccountId, name: input.name, look: input.look, status: "FACE", takes: planTakes(),
+    id, owner_id: owner, tiktok_account_id: account.id, name: input.name, look: input.look, status: "FACE", takes: planTakes(),
     // Old enough that the next worker poll may take the lock straight away.
     updated_at: new Date(Date.now() - LOCK_MS * 2).toISOString(),
   }), "presenter_not_saved");
@@ -136,7 +142,7 @@ async function advance(admin: SupabaseClient, owner: string, presenter: Presente
     "flow_clips_unavailable") as ClipRow[] : [];
   const plan = decide(presenter, new Map(clips.map(c => [c.id, c])), now);
   const takes = [...presenter.takes];
-  let facePath = presenter.face_still_path;
+  let facePath = presenter.face_still_path, checked = 0;
 
   for (const step of plan.steps) {
     if (step.kind === "FAIL") {
@@ -145,15 +151,26 @@ async function advance(admin: SupabaseClient, owner: string, presenter: Presente
     }
     const take = takes[step.index];
     if (step.kind === "DONE") {
+      // Checking means downloading and decoding the take: a few per poll keeps the request short.
+      if (checked >= CHECKS_PER_TICK) continue;
+      checked++;
+      let verdict: Awaited<ReturnType<typeof checkTake>>;
+      try { verdict = await checkTake(admin, step.storagePath, take.role === "TALK"); }
+      catch (error) { console.error("[ai-live] take check unavailable", take.key, error); continue; } // checked again next poll
+      if (!verdict.ok) {
+        // Not kept: the file goes, the clip is discarded and the slot is made again (counts as a try).
+        await discardClip(admin, owner, take.clipId, step.storagePath, verdict.reason, now);
+        takes[step.index] = { ...take, status: "PLANNED", clipId: null, path: null, error: `ตรวจไม่ผ่าน: ${verdict.reason}`, check: verdict.reason };
+        continue;
+      }
       if (take.role === "FACE") {
         try { facePath = await saveFace(admin, owner, presenter.id, step.storagePath); }
         catch {
-          // The take was not a usable video: make it again (counts as a try).
-          takes[step.index] = { ...take, status: "PLANNED", clipId: null, error: "ดึงภาพหน้าจากคลิปไม่ได้" };
+          takes[step.index] = { ...take, status: "PLANNED", clipId: null, error: "ตรวจไม่ผ่าน: ดึงภาพหน้าจากคลิปไม่ได้" };
           continue;
         }
       }
-      takes[step.index] = { ...take, status: "DONE", path: step.storagePath, error: null };
+      takes[step.index] = { ...take, status: "DONE", path: step.storagePath, error: null, check: verdict.note };
       continue;
     }
     // QUEUE: a new Flow take for this slot.
@@ -224,6 +241,19 @@ export function takeLabel(take: Pick<PresenterTake, "role" | "key">) {
   if (take.role === "FACE") return "หน้า";
   const n = take.key.split("-")[1] ?? "";
   return take.role === "TALK" ? `คลิปพูด ${n}` : `คลิปนิ่ง ${n}`;
+}
+
+async function checkTake(admin: SupabaseClient, storagePath: string, needsVoice: boolean) {
+  const file = await admin.storage.from(BUCKET).download(storagePath);
+  if (file.error || !file.data) return { ok: false as const, reason: "ไม่พบไฟล์วิดีโอ" };
+  const { checkPresenterTake } = await import("@/features/drama/media");
+  return checkPresenterTake(new Uint8Array(await file.data.arrayBuffer()), needsVoice);
+}
+async function discardClip(admin: SupabaseClient, owner: string, clipId: string | null, storagePath: string, reason: string, now: Date) {
+  await admin.storage.from(BUCKET).remove([storagePath]).catch(() => {});
+  if (!clipId) return;
+  await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, error: `ตรวจไม่ผ่าน: ${reason}`.slice(0, 300), file_deleted_at: now.toISOString(),
+    updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", clipId).in("status", ["READY", "SCHEDULED"]);
 }
 
 async function saveFace(admin: SupabaseClient, owner: string, presenterId: string, storagePath: string) {

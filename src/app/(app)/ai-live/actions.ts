@@ -20,7 +20,7 @@ function done(message: string): never {
   redirect(`${HOME}?msg=${encodeURIComponent(message)}#presenter-studio`);
 }
 const KNOWN: Record<string, string> = {
-  account_not_found: "ไม่พบบัญชี TikTok นี้",
+  account_not_found: "ต้องเชื่อมบัญชี TikTok อย่างน้อย 1 บัญชีก่อน",
   PRESENTER_IN_PROGRESS: "มีพรีเซนเตอร์ที่กำลังสร้างอยู่ รอให้เสร็จก่อนค่อยสร้างคนใหม่",
   PRESENTER_NOT_FOUND: "ไม่พบพรีเซนเตอร์นี้", PRESENTER_NOT_FAILED: "พรีเซนเตอร์นี้ไม่ได้ล้มเหลว",
   presenter_not_saved: "บันทึกไม่ได้ (ฐานข้อมูลอาจยังไม่ได้เพิ่มตาราง ai_live_presenters)",
@@ -35,9 +35,9 @@ function fail(error: unknown): never {
 /** Queue a new presenter: the Flow worker makes the face first, then the talking and idle takes from it. */
 export async function createPresenterAction(formData: FormData) {
   const parsed = createPresenterSchema.safeParse({
-    tiktokAccountId: formData.get("tiktokAccountId"), name: formData.get("name"), look: formData.get("look") ?? "", credits: formData.get("credits"),
+    name: formData.get("name"), look: formData.get("look") ?? "", credits: formData.get("credits"),
   });
-  if (!parsed.success) done("ใส่ชื่อพรีเซนเตอร์ เลือกบัญชี และติ๊กยืนยันการใช้เครดิตก่อน");
+  if (!parsed.success) done("ใส่ชื่อพรีเซนเตอร์ และติ๊กยืนยันการใช้เครดิตก่อน");
   const ownerId = await owner();
   try { await createPresenter(createAdminClient(), ownerId, parsed.data); }
   catch (error) { fail(error); }
