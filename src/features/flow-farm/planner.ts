@@ -594,9 +594,10 @@ export function planBatch(input: { mode: FlowClipKind; count: number; products: 
   const affiliate = input.mode === "AFFILIATE" && input.products.length > 0;
   const used = new Map<string, { styleIds: string[]; actions: HandAction[] }>();
   if (!affiliate && input.girl) {
+    // Stateless here (a fresh story each call); the batch service continues the saved story instead.
     const guide = input.learning;
-    return planGirlClips(input.count, input.girl.name, guide ? { recentTitles: guide.recentTitles, seriesWeights: guide.seriesWeights,
-      episodes: guide.episodes, strictSeries: guide.strictSeries } : {}, seeded((input.offset ?? 0) + 1))
+    return planGirlClips(input.count, input.girl.name, { guide: guide ? { seriesWeights: guide.seriesWeights, strictSeries: guide.strictSeries } : {} },
+      seeded((input.offset ?? 0) + 1)).clips
       .map(clip => ({ kind: "GROWTH" as const, productId: null, title: clip.title, prompt: clip.prompt, caption: clip.caption, hashtags: clip.hashtags,
         referenceImagePath: input.girl!.facePath }));
   }

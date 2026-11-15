@@ -2,7 +2,8 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readStateFile, saveStateFile } from "@/features/flow-farm/service";
 import {
-  decideFaces, emptyGirlState, facePrompt, facesSettled, newCandidates, type FaceCandidate, type GirlCharacter, type GirlState,
+  characterStatus, decideFaces, emptyGirlState, facePrompt, MAX_FACES_SHOWN, newCandidate, planGirlClips, type FaceCandidate, type GirlCharacter,
+  type GirlGuide, type GirlState,
 } from "./plan";
 
 /**
@@ -54,31 +55,37 @@ async function queueFace(admin: SupabaseClient, owner: string, character: GirlCh
   return { ...candidate, clipId, attempts: candidate.attempts + 1, status: "QUEUED" as const, error: null };
 }
 
-/** Starts a new girl: 4 candidate faces go to Flow. Replaces any girl not picked yet; a READY one is kept until a new face is picked. */
-export async function createCharacter(admin: SupabaseClient, owner: string, input: { name: string; look: string }, now = new Date()) {
+/**
+ * One new candidate face (10 credits; 16 Nov owner: "make one at a time, press again if I don't like it"). Earlier
+ * faces stay on the page to pick from, and a face already picked keeps being used until another is picked.
+ */
+export async function addFace(admin: SupabaseClient, owner: string, input: { name: string; look: string }, now = new Date()) {
   await import("@/features/flow-farm/service").then(m => m.shareFlowAccounts(admin, owner)).catch(() => {});
   const state = await readGirl(admin, owner);
-  if (state.character?.status === "FACES") await dropFaceClips(admin, owner, state.character);
-  const previous = state.character?.status === "READY" ? state.character : null;
-  const character: GirlCharacter = {
-    id: crypto.randomUUID(), name: input.name, look: input.look, status: "FACES", candidates: newCandidates(),
-    facePath: previous?.facePath ?? null, createdAt: now.toISOString(), updatedAt: now.toISOString(),
+  if (state.character?.candidates.some(c => c.status === "QUEUED")) throw new Error("FACE_IN_PROGRESS");
+  const base: GirlCharacter = state.character ?? {
+    id: crypto.randomUUID(), name: input.name, look: input.look, status: "FACES", candidates: [], facePath: null,
+    createdAt: now.toISOString(), updatedAt: now.toISOString(),
   };
-  for (const [index, candidate] of character.candidates.entries()) character.candidates[index] = await queueFace(admin, owner, character, candidate, index, now);
-  await saveGirl(admin, owner, { ...state, character });
+  const character: GirlCharacter = { ...base, name: input.name, look: input.look };
+  const index = character.candidates.length ? Math.max(...character.candidates.map(c => Number(c.key.split("-")[1]) || 0)) : 0;
+  const queued = await queueFace(admin, owner, character, newCandidate(index), index, now);
+  const candidates = [...character.candidates, queued];
+  await saveGirl(admin, owner, { ...state, character: { ...character, candidates, status: characterStatus(candidates, character.facePath), updatedAt: now.toISOString() } });
 }
 
-/** Unfinished face takes of a girl being replaced must not spend credits. */
-async function dropFaceClips(admin: SupabaseClient, owner: string, character: GirlCharacter) {
-  const ids = character.candidates.map(c => c.clipId).filter((v): v is string => Boolean(v));
-  if (ids.length) await admin.from("flow_clips").update({ status: "DISCARDED", updated_at: new Date().toISOString() }).eq("owner_id", owner).in("id", ids).eq("status", "QUEUED");
+/** Renames the girl without making a new face. */
+export async function renameGirl(admin: SupabaseClient, owner: string, name: string) {
+  const state = await readGirl(admin, owner);
+  if (!state.character) throw new Error("FACE_NOT_FOUND");
+  await saveGirl(admin, owner, { ...state, character: { ...state.character, name } });
 }
 
 /** Called on the Flow worker's minute poll: keeps finished faces (as a still), retries failed ones. */
 export async function tickGirl(admin: SupabaseClient, owner: string, now = new Date()) {
   const state = await readGirl(admin, owner);
   const character = state.character;
-  if (!character || character.status !== "FACES") return;
+  if (!character || !character.candidates.some(c => c.status === "QUEUED")) return;
   const ids = character.candidates.map(c => c.clipId).filter((v): v is string => Boolean(v));
   const result = ids.length ? await admin.from("flow_clips").select("id,status,error,storage_path").eq("owner_id", owner).in("id", ids) : { data: [], error: null };
   if (result.error) return;
@@ -105,9 +112,12 @@ export async function tickGirl(admin: SupabaseClient, owner: string, now = new D
   if (!changed) return;
   // Re-read just before saving: the owner may have replaced or picked meanwhile.
   const latest = await readGirl(admin, owner);
-  if (latest.character?.id !== character.id || latest.character.status !== "FACES") return;
-  const status = facesSettled(candidates) ? "PICK" : "FACES";
-  await saveGirl(admin, owner, { ...latest, character: { ...latest.character, candidates, status, updatedAt: now.toISOString() } });
+  if (latest.character?.id !== character.id) return;
+  // Keep any face the owner added meanwhile; only the ones this tick looked at are replaced.
+  const byKey = new Map(candidates.map(c => [c.key, c]));
+  const merged = latest.character.candidates.map(c => byKey.get(c.key) ?? c);
+  await saveGirl(admin, owner, { ...latest, character: { ...latest.character, candidates: merged,
+    status: characterStatus(merged, latest.character.facePath), updatedAt: now.toISOString() } });
 }
 
 async function saveStill(admin: SupabaseClient, owner: string, characterId: string, key: string, storagePath: string) {
@@ -127,13 +137,13 @@ export async function pickFace(admin: SupabaseClient, owner: string, key: string
   const character = state.character;
   const candidate = character?.candidates.find(c => c.key === key && c.status === "DONE" && c.stillPath);
   if (!character || !candidate) throw new Error("FACE_NOT_FOUND");
-  if (character.status === "FACES") await dropFaceClips(admin, owner, character);
   await saveGirl(admin, owner, { ...state, character: { ...character, status: "READY", facePath: candidate.stillPath, updatedAt: now.toISOString() } });
 }
 
 /** Signed links for the page: every candidate still and the chosen face. */
 export async function faceLinks(admin: SupabaseClient, character: GirlCharacter | null) {
-  const paths = [...new Set([...(character?.candidates.map(c => c.stillPath) ?? []), character?.facePath ?? null].filter((p): p is string => Boolean(p)))];
+  const shown = (character?.candidates ?? []).slice(-MAX_FACES_SHOWN);
+  const paths = [...new Set([...shown.map(c => c.stillPath), character?.facePath ?? null].filter((p): p is string => Boolean(p)))];
   const links: Record<string, string> = {};
   if (!paths.length) return links;
   const signed = await admin.storage.from(BUCKET).createSignedUrls(paths, 3600);
@@ -168,4 +178,18 @@ export async function resetOldClips(admin: SupabaseClient, owner: string, now = 
   const state = await readGirl(admin, owner);
   await saveGirl(admin, owner, { ...state, resetAt: now.toISOString() });
   return { clips: rows.length };
+}
+
+/**
+ * The next `count` clips of the girl for one channel, continuing the current story arc; the arc and the titles made
+ * are saved so tomorrow picks up where today stopped. Null when no face is picked yet.
+ */
+export async function planGirlBatch(admin: SupabaseClient, owner: string, count: number, guide?: GirlGuide) {
+  const state = await readGirl(admin, owner);
+  const character = state.character;
+  if (!character?.facePath || character.status !== "READY") return null;
+  const plan = planGirlClips(count, character.name, { guide, arc: state.arc, made: state.made });
+  await saveGirl(admin, owner, { ...state, arc: plan.arc, made: plan.made });
+  return plan.clips.map(clip => ({ kind: "GROWTH" as const, productId: null, title: clip.title, prompt: clip.prompt, caption: clip.caption,
+    hashtags: clip.hashtags, referenceImagePath: character.facePath }));
 }

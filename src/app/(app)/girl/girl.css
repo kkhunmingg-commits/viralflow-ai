@@ -24,3 +24,5 @@
 .girl-note { color: #9aa7bc; font-size: 13px; margin: 0; }
 .girl-series { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
 .girl-series span { display: block; color: #9aa7bc; font-size: 13px; }
+.girl-button.secondary { background: #2b3244; }
+.girl-rename { border-top: 1px solid #2b3244; padding-top: 12px; }
