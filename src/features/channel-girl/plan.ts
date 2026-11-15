@@ -125,7 +125,8 @@ export function decideFaces(candidates: FaceCandidate[], clips: Map<string, Clip
     if (c.status !== "QUEUED") return;
     if (!c.clipId) { steps.push({ kind: "QUEUE", index }); return; }
     const clip = clips.get(c.clipId);
-    if (clip && ["QUEUED", "GENERATING"].includes(clip.status)) return;
+    // DISCARDED: another tick running at the same moment already kept this take as a picture.
+    if (clip && ["QUEUED", "GENERATING", "DISCARDED"].includes(clip.status)) return;
     if (clip && ["READY", "SCHEDULED"].includes(clip.status) && clip.storage_path) { steps.push({ kind: "KEEP", index, storagePath: clip.storage_path }); return; }
     if (clip?.status === "SKIPPED_NO_CREDIT") return;
     if (clip?.status === "FAILED" && !flowVerdict(clip.error) && now - Date.parse(clip.updated_at ?? "") < ACCOUNT_RETRY_WAIT_MS) return; // every Google account is out of credits: waits for tomorrow's credits

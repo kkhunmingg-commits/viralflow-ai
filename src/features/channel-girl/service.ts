@@ -43,15 +43,28 @@ async function firstAccount(admin: SupabaseClient, owner: string) {
   return account.id;
 }
 
+/**
+ * One id per face try. The worker's poll and its "clip done" call both run this tick at the same moment, and with random
+ * ids both queued a new take for the same face (16 Nov: two takes, 20 credits, for one face). The same id for the same
+ * try makes the second insert a no-op.
+ */
+async function faceClipId(characterId: string, key: string, attempt: number) {
+  const bytes = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`channel-girl:${characterId}:${key}:${attempt}`))).slice(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50; bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map(b => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 async function queueFace(admin: SupabaseClient, owner: string, character: GirlCharacter, candidate: FaceCandidate, index: number, now: Date) {
-  const clipId = crypto.randomUUID();
+  const clipId = await faceClipId(character.id, candidate.key, candidate.attempts + 1);
   const insert = await admin.from("flow_clips").insert({
     id: clipId, owner_id: owner, tiktok_account_id: await firstAccount(admin, owner), batch_id: character.id, product_id: null, kind: "PRESENTER_CLIP",
     created_at: new Date(now.getTime() + index).toISOString(),
     title: `สาว AI ${character.name} · หน้าแบบที่ ${index + 1}`.slice(0, 200), prompt: facePrompt(character.look, index, candidate.attempts).slice(0, 12000),
     caption: `สาว AI ${character.name}`.slice(0, 2200), hashtags: [], reference_image_path: null,
   });
-  if (insert.error) throw new Error("flow_clips_not_queued");
+  // 23505: this very try was already queued by a tick running at the same time.
+  if (insert.error && insert.error.code !== "23505") throw new Error("flow_clips_not_queued");
   return { ...candidate, clipId, attempts: candidate.attempts + 1, status: "QUEUED" as const, error: null };
 }
 
@@ -100,9 +113,11 @@ export async function tickGirl(admin: SupabaseClient, owner: string, now = new D
   const candidates = [...character.candidates];
   const added: FaceCandidate[] = [];
   let changed = false;
+  const touched = new Set<string>();
   for (const step of decideFaces(candidates, clips, now.getTime())) {
     const candidate = candidates[step.index];
     changed = true;
+    touched.add(candidate.key);
     if (step.kind === "GIVE_UP") { candidates[step.index] = { ...candidate, status: "FAILED", error: step.reason.slice(0, 200) }; continue; }
     if (step.kind === "QUEUE") { candidates[step.index] = await queueFace(admin, owner, character, candidate, step.index, now); continue; }
     try {
@@ -127,7 +142,7 @@ export async function tickGirl(admin: SupabaseClient, owner: string, now = new D
   const latest = await readGirl(admin, owner);
   if (latest.character?.id !== character.id) return;
   // Keep any face the owner added meanwhile; only the ones this tick looked at are replaced.
-  const byKey = new Map(candidates.map(c => [c.key, c]));
+  const byKey = new Map(candidates.filter(c => touched.has(c.key)).map(c => [c.key, c]));
   const taken = new Set(latest.character.candidates.map(c => c.key));
   const merged = [...latest.character.candidates.map(c => byKey.get(c.key) ?? c), ...added.filter(c => !taken.has(c.key))];
   await saveGirl(admin, owner, { ...latest, character: { ...latest.character, candidates: merged,
