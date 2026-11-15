@@ -1,0 +1,26 @@
+.girl-page { display: grid; gap: 18px; }
+.girl-head h1 { margin: 4px 0 6px; }
+.girl-head p { color: #9aa7bc; margin: 0; }
+.girl-msg { padding: 10px 14px; border-radius: 10px; background: rgba(66, 142, 232, .14); border: 1px solid #36517a; }
+.girl-warn { padding: 10px 14px; border-radius: 10px; background: rgba(232, 160, 66, .12); border: 1px solid #7a5a36; }
+.girl-card { padding: 18px; border: 1px solid #2b3244; border-radius: 16px; background: rgba(17, 22, 32, .9); display: grid; gap: 14px; }
+.girl-card h2 { margin: 0; font-size: 18px; }
+.girl-chosen { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+.girl-chosen img { width: 140px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 14px; border: 2px solid #5b5494; }
+.girl-status.ok { color: #7ee2a8; margin: 6px 0 10px; }
+.girl-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
+.girl-face { display: grid; gap: 8px; }
+.girl-face img, .girl-face-empty { width: 100%; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 12px; background: #1a2030; }
+.girl-face-empty { display: grid; place-items: center; padding: 10px; color: #9aa7bc; font-size: 13px; text-align: center; }
+.girl-face button, .girl-button { min-height: 44px; padding: 8px 14px; border-radius: 10px; border: 0; font-weight: 700; color: #fff; cursor: pointer;
+  background: linear-gradient(90deg, #7164f5, #428ee8); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+.girl-face button:disabled { opacity: .4; cursor: not-allowed; }
+.girl-button.danger { background: #a33a4a; }
+.girl-new summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }
+.girl-form { display: grid; gap: 10px; max-width: 520px; }
+.girl-form label { display: grid; gap: 6px; font-size: 14px; }
+.girl-form input:not([type=checkbox]), .girl-form textarea { width: 100%; padding: 10px; border-radius: 10px; border: 1px solid #2b3244; background: #0d1119; color: inherit; font: inherit; }
+.girl-check { display: flex !important; align-items: center; gap: 8px; }
+.girl-note { color: #9aa7bc; font-size: 13px; margin: 0; }
+.girl-series { margin: 0; padding-left: 18px; display: grid; gap: 8px; }
+.girl-series span { display: block; color: #9aa7bc; font-size: 13px; }

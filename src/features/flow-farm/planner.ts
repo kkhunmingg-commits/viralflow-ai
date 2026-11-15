@@ -5,6 +5,7 @@ import { shoppingMoment, trendCaption, trendFormatsFor } from "@/features/creati
 import type { FlowClipKind } from "./contracts";
 import { CTA_VARIANTS, type CtaId, type PlanGuide } from "./learning";
 import { NICHE_KEYS, NICHES, nicheOfSeries, type NicheKey } from "./niches";
+import { girlSeriesOfTitle, planGirlClips } from "@/features/channel-girl/plan";
 
 /** A product the one-click search found: best-selling (by stored score) with a cleared photograph. */
 export interface FarmProduct {
@@ -427,6 +428,8 @@ const GROWTH_CONCEPTS: readonly GrowthConcept[] = [
 ];
 /** The series a warm-up title belongs to (current and past concepts), for the learning loop. */
 export function seriesOfTitle(title: string): string | null {
+  const girl = girlSeriesOfTitle(title);
+  if (girl) return girl;
   const known = GROWTH_CONCEPTS.find(c => c.title === title) ?? Object.values(MOMENT_CONCEPTS).find(c => c.title === title);
   if (known) return known.series;
   const prefix = title.split(":")[0].trim();
@@ -583,11 +586,20 @@ function chooseGrowth(count: number, guide: PlanGuide | undefined, seasonal: Gro
 
 /** Plans `count` clips. A selling account with found products gets product ads (rotating products, sets and hand
  * actions); otherwise, or with no cleared product photo, it gets warm-up clips. `offset` rotates concepts by day. */
-export function planBatch(input: { mode: FlowClipKind; count: number; products: FarmProduct[]; offset?: number; now?: Date; learning?: PlanGuide }): PlannedClip[] {
+export function planBatch(input: { mode: FlowClipKind; count: number; products: FarmProduct[]; offset?: number; now?: Date; learning?: PlanGuide;
+  /** The channel's AI girl (16 Nov owner): once a face is picked, every warm-up clip is her, with her face attached. */
+  girl?: { name: string; facePath: string } | null }): PlannedClip[] {
   const clips: PlannedClip[] = [], now = input.now ?? new Date(), moment = shoppingMoment(now);
   const seasonal = moment ? MOMENT_CONCEPTS[moment.key] : undefined;
   const affiliate = input.mode === "AFFILIATE" && input.products.length > 0;
   const used = new Map<string, { styleIds: string[]; actions: HandAction[] }>();
+  if (!affiliate && input.girl) {
+    const guide = input.learning;
+    return planGirlClips(input.count, input.girl.name, guide ? { recentTitles: guide.recentTitles, seriesWeights: guide.seriesWeights,
+      episodes: guide.episodes, strictSeries: guide.strictSeries } : {}, seeded((input.offset ?? 0) + 1))
+      .map(clip => ({ kind: "GROWTH" as const, productId: null, title: clip.title, prompt: clip.prompt, caption: clip.caption, hashtags: clip.hashtags,
+        referenceImagePath: input.girl!.facePath }));
+  }
   if (!affiliate) {
     const random = seeded((input.offset ?? 0) + 1), guide = input.learning, episodes = { ...guide?.episodes };
     for (const concept of chooseGrowth(input.count, guide, seasonal, random)) {

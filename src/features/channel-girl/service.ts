@@ -1,0 +1,171 @@
+import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { readStateFile, saveStateFile } from "@/features/flow-farm/service";
+import {
+  decideFaces, emptyGirlState, facePrompt, facesSettled, newCandidates, type FaceCandidate, type GirlCharacter, type GirlState,
+} from "./plan";
+
+/**
+ * The "สาวไทย AI" channel: one small state file per owner (no migration), face candidates made as Flow clips of kind
+ * PRESENTER_CLIP (kept out of the clip library), and the chosen face attached to every new warm-up clip.
+ */
+const BUCKET = "video-assets";
+const isUuid = (value: string) => /^[0-9a-f-]{36}$/i.test(value);
+function statePath(owner: string) {
+  if (!isUuid(owner)) throw new Error("INVALID_OWNER");
+  return `owner/${owner}/channel-girl.json`;
+}
+function stillPath(owner: string, characterId: string, key: string) {
+  if (!isUuid(owner) || !isUuid(characterId) || !/^face-\d+$/.test(key)) throw new Error("INVALID_FACE_PATH");
+  return `owner/${owner}/channel-girl/${characterId}/${key}.jpg`;
+}
+
+export async function readGirl(admin: SupabaseClient, owner: string): Promise<GirlState> {
+  const file = await readStateFile<GirlState>(admin, statePath(owner)).catch(() => null);
+  return file?.version === 1 ? { ...emptyGirlState(), ...file } : emptyGirlState();
+}
+async function saveGirl(admin: SupabaseClient, owner: string, state: GirlState) {
+  await saveStateFile(admin, statePath(owner), state, "girl_not_saved");
+}
+
+/** The picture every new warm-up clip attaches, once the owner picked a face. */
+export async function readyCharacter(admin: SupabaseClient, owner: string) {
+  const { character } = await readGirl(admin, owner);
+  return character?.status === "READY" && character.facePath ? { name: character.name, facePath: character.facePath } : null;
+}
+
+async function firstAccount(admin: SupabaseClient, owner: string) {
+  const result = await admin.from("tiktok_accounts").select("id,is_mock,authorization_status").eq("owner_id", owner).is("hidden_at", null).order("created_at");
+  const accounts = (result.data ?? []) as Array<{ id: string; is_mock: boolean | null; authorization_status: string | null }>;
+  const account = accounts.find(a => !a.is_mock && a.authorization_status === "authorized") ?? accounts[0];
+  if (!account) throw new Error("account_not_found");
+  return account.id;
+}
+
+async function queueFace(admin: SupabaseClient, owner: string, character: GirlCharacter, candidate: FaceCandidate, index: number, now: Date) {
+  const clipId = crypto.randomUUID();
+  const insert = await admin.from("flow_clips").insert({
+    id: clipId, owner_id: owner, tiktok_account_id: await firstAccount(admin, owner), batch_id: character.id, product_id: null, kind: "PRESENTER_CLIP",
+    created_at: new Date(now.getTime() + index).toISOString(),
+    title: `สาว AI ${character.name} · หน้าแบบที่ ${index + 1}`.slice(0, 200), prompt: facePrompt(character.look, index, candidate.attempts).slice(0, 12000),
+    caption: `สาว AI ${character.name}`.slice(0, 2200), hashtags: [], reference_image_path: null,
+  });
+  if (insert.error) throw new Error("flow_clips_not_queued");
+  return { ...candidate, clipId, attempts: candidate.attempts + 1, status: "QUEUED" as const, error: null };
+}
+
+/** Starts a new girl: 4 candidate faces go to Flow. Replaces any girl not picked yet; a READY one is kept until a new face is picked. */
+export async function createCharacter(admin: SupabaseClient, owner: string, input: { name: string; look: string }, now = new Date()) {
+  await import("@/features/flow-farm/service").then(m => m.shareFlowAccounts(admin, owner)).catch(() => {});
+  const state = await readGirl(admin, owner);
+  if (state.character?.status === "FACES") await dropFaceClips(admin, owner, state.character);
+  const previous = state.character?.status === "READY" ? state.character : null;
+  const character: GirlCharacter = {
+    id: crypto.randomUUID(), name: input.name, look: input.look, status: "FACES", candidates: newCandidates(),
+    facePath: previous?.facePath ?? null, createdAt: now.toISOString(), updatedAt: now.toISOString(),
+  };
+  for (const [index, candidate] of character.candidates.entries()) character.candidates[index] = await queueFace(admin, owner, character, candidate, index, now);
+  await saveGirl(admin, owner, { ...state, character });
+}
+
+/** Unfinished face takes of a girl being replaced must not spend credits. */
+async function dropFaceClips(admin: SupabaseClient, owner: string, character: GirlCharacter) {
+  const ids = character.candidates.map(c => c.clipId).filter((v): v is string => Boolean(v));
+  if (ids.length) await admin.from("flow_clips").update({ status: "DISCARDED", updated_at: new Date().toISOString() }).eq("owner_id", owner).in("id", ids).eq("status", "QUEUED");
+}
+
+/** Called on the Flow worker's minute poll: keeps finished faces (as a still), retries failed ones. */
+export async function tickGirl(admin: SupabaseClient, owner: string, now = new Date()) {
+  const state = await readGirl(admin, owner);
+  const character = state.character;
+  if (!character || character.status !== "FACES") return;
+  const ids = character.candidates.map(c => c.clipId).filter((v): v is string => Boolean(v));
+  const result = ids.length ? await admin.from("flow_clips").select("id,status,error,storage_path").eq("owner_id", owner).in("id", ids) : { data: [], error: null };
+  if (result.error) return;
+  const clips = new Map((result.data as Array<{ id: string; status: string; error: string | null; storage_path: string | null }>).map(c => [c.id, c]));
+  const candidates = [...character.candidates];
+  let changed = false;
+  for (const step of decideFaces(candidates, clips)) {
+    const candidate = candidates[step.index];
+    changed = true;
+    if (step.kind === "GIVE_UP") { candidates[step.index] = { ...candidate, status: "FAILED", error: step.reason.slice(0, 200) }; continue; }
+    if (step.kind === "QUEUE") { candidates[step.index] = await queueFace(admin, owner, character, candidate, step.index, now); continue; }
+    try {
+      const path = await saveStill(admin, owner, character.id, candidate.key, step.storagePath);
+      candidates[step.index] = { ...candidate, status: "DONE", stillPath: path, error: null };
+      // The take itself is not a post: keep only the picture.
+      await admin.storage.from(BUCKET).remove([step.storagePath]).catch(() => {});
+      await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, file_deleted_at: now.toISOString(), updated_at: now.toISOString() })
+        .eq("owner_id", owner).eq("id", candidate.clipId!);
+    } catch {
+      candidates[step.index] = { ...candidate, status: candidate.attempts >= 2 ? "FAILED" : "QUEUED", clipId: candidate.attempts >= 2 ? candidate.clipId : null,
+        error: "ดึงภาพหน้าจากคลิปไม่ได้" };
+    }
+  }
+  if (!changed) return;
+  // Re-read just before saving: the owner may have replaced or picked meanwhile.
+  const latest = await readGirl(admin, owner);
+  if (latest.character?.id !== character.id || latest.character.status !== "FACES") return;
+  const status = facesSettled(candidates) ? "PICK" : "FACES";
+  await saveGirl(admin, owner, { ...latest, character: { ...latest.character, candidates, status, updatedAt: now.toISOString() } });
+}
+
+async function saveStill(admin: SupabaseClient, owner: string, characterId: string, key: string, storagePath: string) {
+  const file = await admin.storage.from(BUCKET).download(storagePath);
+  if (file.error || !file.data) throw new Error("FACE_VIDEO_MISSING");
+  const { lastFrameJpeg } = await import("@/features/drama/media");
+  const frame = await lastFrameJpeg(new Uint8Array(await file.data.arrayBuffer()));
+  const path = stillPath(owner, characterId, key);
+  const upload = await admin.storage.from(BUCKET).upload(path, frame, { contentType: "image/jpeg", upsert: true });
+  if (upload.error) throw new Error("FACE_NOT_SAVED");
+  return path;
+}
+
+/** The owner picks one face: from now on every warm-up clip is this girl. */
+export async function pickFace(admin: SupabaseClient, owner: string, key: string, now = new Date()) {
+  const state = await readGirl(admin, owner);
+  const character = state.character;
+  const candidate = character?.candidates.find(c => c.key === key && c.status === "DONE" && c.stillPath);
+  if (!character || !candidate) throw new Error("FACE_NOT_FOUND");
+  if (character.status === "FACES") await dropFaceClips(admin, owner, character);
+  await saveGirl(admin, owner, { ...state, character: { ...character, status: "READY", facePath: candidate.stillPath, updatedAt: now.toISOString() } });
+}
+
+/** Signed links for the page: every candidate still and the chosen face. */
+export async function faceLinks(admin: SupabaseClient, character: GirlCharacter | null) {
+  const paths = [...new Set([...(character?.candidates.map(c => c.stillPath) ?? []), character?.facePath ?? null].filter((p): p is string => Boolean(p)))];
+  const links: Record<string, string> = {};
+  if (!paths.length) return links;
+  const signed = await admin.storage.from(BUCKET).createSignedUrls(paths, 3600);
+  for (const item of signed.data ?? []) if (item.path && item.signedUrl) links[item.path] = item.signedUrl;
+  return links;
+}
+
+/**
+ * "โละของเก่า" (16 Nov, owner): old warm-up and product clips leave the queue and library, and the learning loop
+ * starts over. Nothing is erased: the clip ids and the old stats file are saved to a backup file first, so it can
+ * be undone, and posted clips stay posted on TikTok.
+ */
+export async function resetOldClips(admin: SupabaseClient, owner: string, now = new Date()) {
+  const old = await admin.from("flow_clips").select("id,status").eq("owner_id", owner).in("kind", ["GROWTH", "AFFILIATE"])
+    .in("status", ["QUEUED", "READY", "SCHEDULED"]).lt("created_at", now.toISOString()).limit(2000);
+  if (old.error) throw new Error("flow_clips_unavailable");
+  const rows = (old.data ?? []) as Array<{ id: string; status: string }>;
+  const { backupAndClearStats } = await import("@/features/flow-farm/learning-store");
+  const stamp = now.toISOString().replace(/[:.]/g, "-");
+  const statsBackup = await backupAndClearStats(admin, owner, stamp);
+  // The state bucket takes files up to 64 KB: ids are saved 1,000 to a file.
+  for (let i = 0, part = 1; i < Math.max(rows.length, 1); i += 1000, part++) {
+    await saveStateFile(admin, `owner/${owner}/clip-reset-${stamp}-${part}.json`,
+      { at: now.toISOString(), statsBackup, status: rows.slice(i, i + 1000).map(r => `${r.id}:${r.status}`) }, "reset_backup_not_saved");
+  }
+  for (let i = 0; i < rows.length; i += 200) {
+    const ids = rows.slice(i, i + 200).map(r => r.id);
+    const update = await admin.from("flow_clips").update({ status: "DISCARDED", error: "ล้างระบบคลิปเดิม", updated_at: now.toISOString() })
+      .eq("owner_id", owner).in("id", ids).in("status", ["QUEUED", "READY", "SCHEDULED"]);
+    if (update.error) throw new Error("flow_clips_unavailable");
+  }
+  const state = await readGirl(admin, owner);
+  await saveGirl(admin, owner, { ...state, resetAt: now.toISOString() });
+  return { clips: rows.length };
+}

@@ -180,6 +180,7 @@ export async function startBatch(admin: SupabaseClient, owner: string, accountId
   const today = bangkokDate(now), { start, end } = bangkokDayRange(today);
   await releaseTimeoutHolds(admin, owner).catch(() => {});
   const productsByNiche = new Map<string, FarmProduct[]>();
+  const girl = await import("@/features/channel-girl/service").then(m => m.readyCharacter(admin, owner)).catch(() => null);
   const results: BatchResult[] = [];
   for (const [position, account] of accounts.entries()) {
     const existing = await admin.from("flow_clips").select("id", { count: "exact", head: true }).eq("owner_id", owner)
@@ -195,7 +196,7 @@ export async function startBatch(admin: SupabaseClient, owner: string, accountId
       products = productsByNiche.get(nicheKey ?? "ANY") ?? await findBatchProducts(admin, owner, 5, now, nicheKey);
       productsByNiche.set(nicheKey ?? "ANY", products);
     }
-    const planned = add ? planBatch({ mode, count: add, products: products ?? [], offset: (existing.count ?? 0) + Number(today.slice(-2)) + position * 3, now, learning }) : [];
+    const planned = add ? planBatch({ mode, count: add, products: products ?? [], offset: (existing.count ?? 0) + Number(today.slice(-2)) + position * 3, now, learning, girl }) : [];
     if (planned.length) {
       const batchId = crypto.randomUUID();
       check(await admin.from("flow_clips").insert(planned.map(clip => ({

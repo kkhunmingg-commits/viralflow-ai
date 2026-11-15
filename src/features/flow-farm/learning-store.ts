@@ -37,9 +37,12 @@ const toClip = (r: ClipRow): LearningClip => ({ id: r.id, kind: r.kind, title: r
   readyAt: r.ready_at, postedAt: r.posted_at, createdAt: r.created_at, postUrl: r.post_url });
 
 /** The account's clips the loop can learn from (everything planned except failed or skipped generations). */
-export async function learningClips(client: SupabaseClient, owner: string, accountId: string): Promise<LearningClip[]> {
-  const result = await client.from("flow_clips").select(CLIP_COLUMNS).eq("owner_id", owner).eq("tiktok_account_id", accountId)
-    .in("status", ["QUEUED", "GENERATING", "READY", "SCHEDULED", "POSTED", "DISCARDED"]).in("kind", ["GROWTH", "AFFILIATE"]).order("created_at", { ascending: false }).limit(300);
+export async function learningClips(client: SupabaseClient, owner: string, accountId: string, since: string | null = null): Promise<LearningClip[]> {
+  let query = client.from("flow_clips").select(CLIP_COLUMNS).eq("owner_id", owner).eq("tiktok_account_id", accountId)
+    .in("status", ["QUEUED", "GENERATING", "READY", "SCHEDULED", "POSTED", "DISCARDED"]).in("kind", ["GROWTH", "AFFILIATE"]);
+  // After the owner cleared the old clips (16 Nov), only clips made since then teach the loop.
+  if (since) query = query.gte("created_at", since);
+  const result = await query.order("created_at", { ascending: false }).limit(300);
   if (result.error) throw new Error("flow_clips_unavailable");
   return (result.data as ClipRow[]).map(toClip);
 }
@@ -50,7 +53,8 @@ export interface LearningView {
   nicheChoice: NicheKey | "AUTO";
 }
 export async function loadLearning(admin: SupabaseClient, owner: string, accountId: string): Promise<LearningView> {
-  const [clips, file] = await Promise.all([learningClips(admin, owner, accountId), readStats(admin, owner)]);
+  const resetAt = await import("@/features/channel-girl/service").then(m => m.readGirl(admin, owner)).then(g => g.resetAt).catch(() => null);
+  const [clips, file] = await Promise.all([learningClips(admin, owner, accountId, resetAt), readStats(admin, owner)]);
   const account = file.accounts[accountId];
   const report = analyzeLearning(clips, file.clips, seriesOfTitle, account?.followers ?? [],
     { current: account?.focusNiche ?? null, ownerChoice: account?.nicheChoice ?? "AUTO" });
@@ -180,4 +184,15 @@ export async function setNicheChoice(admin: SupabaseClient, owner: string, accou
   const file = await readStats(admin, owner);
   file.accounts[accountId] = { ...{ syncedAt: null }, ...file.accounts[accountId], nicheChoice: choice };
   await writeStats(admin, owner, file);
+}
+
+/** "โละสถิติ" (16 Nov, owner): the stats file is copied to a backup, then starts empty (sign-in sync state is kept). */
+export async function backupAndClearStats(admin: SupabaseClient, owner: string, stamp: string) {
+  const file = await readStats(admin, owner);
+  const backup = statsPath(owner).replace(/\.json$/, `.backup-${stamp}.json`);
+  await saveStateFile(admin, backup, file, "clip_stats_not_saved");
+  const accounts: StatsFile["accounts"] = {};
+  for (const [id, account] of Object.entries(file.accounts)) accounts[id] = { syncedAt: null, nicheChoice: account.nicheChoice === "AI_GIRL" ? "AI_GIRL" : "AUTO" };
+  await writeStats(admin, owner, { version: 1, clips: {}, accounts });
+  return backup;
 }

@@ -4,7 +4,7 @@
  * (a pets channel sells pet supplies, a mystery channel sells mutelu items).
  */
 export const NICHE_KEYS = ["PETS", "FOOD", "COMEDY", "MYSTERY", "LUCKY", "SATISFYING", "MINIATURE",
-  "TRAVEL", "HOME", "GADGET", "BEAUTY", "GARDEN", "CAR", "FASHION", "FITNESS"] as const;
+  "TRAVEL", "HOME", "GADGET", "BEAUTY", "GARDEN", "CAR", "FASHION", "FITNESS", "AI_GIRL"] as const;
 export type NicheKey = (typeof NICHE_KEYS)[number];
 
 export interface Niche {
@@ -40,6 +40,10 @@ export const NICHES: Record<NicheKey, Niche> = {
     products: /car|รถ|motor|มอเตอร์ไซค์|ยาง|tire|ที่วางมือถือในรถ|กล้องติดรถ|dash ?cam|น้ำยาเคลือบ|wax/i, productLabel: "ของแต่งรถและอุปกรณ์ในรถ" },
   FASHION: { label: "แฟชั่น แต่งตัว", series: ["แฟชั่นแปลงร่าง"],
     products: /fashion|cloth|apparel|เสื้อ|กางเกง|รองเท้า|กระเป๋า|bag|shoe|นาฬิกา|watch|เครื่องประดับ|jewel|หมวก|hat/i, productLabel: "เสื้อผ้า รองเท้า กระเป๋า และเครื่องประดับ" },
+  // 16 Nov owner: one recurring AI Thai girl (outfit flips, before/after, dances). Made only once a face is picked.
+  AI_GIRL: { label: "สาวไทย AI", series: ["แปลงลุควับ", "ก่อน/หลัง", "เต้นเพลงฮิต", "ชีวิตน้อง"],
+    products: /fashion|cloth|apparel|เสื้อ|กางเกง|เดรส|dress|รองเท้า|กระเป๋า|bag|beauty|skin|cosmetic|ความงาม|สกินแคร์|เครื่องสำอาง|ลิป|lip|ครีม|น้ำหอม|hair|ผม/i,
+    productLabel: "เสื้อผ้า เครื่องสำอาง และของใช้สาวๆ" },
   FITNESS: { label: "สุขภาพ ออกกำลังกาย", series: ["ฟิตจิ๋ว"],
     products: /fitness|ออกกำลัง|gym|ยิม|sport|กีฬา|yoga|โยคะ|ดัมเบล|dumbbell|health|supplement|อาหารเสริม|วิตามิน|vitamin|โปรตีน|protein/i, productLabel: "อุปกรณ์ออกกำลังกายและสุขภาพ" },
 };

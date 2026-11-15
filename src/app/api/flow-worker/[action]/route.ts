@@ -47,6 +47,8 @@ export async function GET(request: Request, context: { params: Promise<{ action:
   after(() => import("@/features/product-links/service").then(m => m.tickProductClips(admin, auth.owner)).catch(() => {}));
   // And AI LIVE presenters: face take, then the talking and idle takes that start from it.
   after(() => import("@/features/ai-live/presenter-service").then(m => m.tickPresenters(admin, auth.owner)).catch(() => {}));
+  // And the channel's AI girl: keep finished candidate faces as pictures, retry failed ones.
+  after(() => import("@/features/channel-girl/service").then(m => m.tickGirl(admin, auth.owner)).catch(() => {}));
   return reply({ accounts: await workerAccounts(admin, auth.owner) });
 }
 
@@ -74,6 +76,7 @@ export async function POST(request: Request, context: { params: Promise<{ action
         after(() => import("@/features/drama/service").then(m => m.tickOwner(admin, owner)).catch(() => {}));
         after(() => import("@/features/product-links/service").then(m => m.tickProductClips(admin, owner)).catch(() => {}));
         after(() => import("@/features/ai-live/presenter-service").then(m => m.tickPresenters(admin, owner)).catch(() => {}));
+        after(() => import("@/features/channel-girl/service").then(m => m.tickGirl(admin, owner)).catch(() => {}));
         return reply(done);
       }
       case "fail": {

@@ -116,7 +116,9 @@ describe("channel niches", () => {
     for (const key of NICHE_KEYS) {
       // A channel focused on any niche gets at least three different ideas from it.
       const focused = planBatch({ mode: "GROWTH", count: 20, products: [], offset: 3, learning: { seriesWeights: {}, ctaWeights: {}, episodes: {},
-        recentTitles: [], strictSeries: [], focusNiche: key } });
+        recentTitles: [], strictSeries: [], focusNiche: key },
+        // The AI girl niche is made only once the owner picked her face.
+        girl: key === "AI_GIRL" ? { name: "น้อง", facePath: "face.jpg" } : null });
       const own = new Set(focused.filter(c => NICHES[key].series.includes(seriesOfTitle(c.title) ?? "")).map(c => c.title));
       expect(own.size, key).toBeGreaterThanOrEqual(3);
     }
