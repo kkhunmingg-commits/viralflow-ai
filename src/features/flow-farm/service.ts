@@ -169,7 +169,9 @@ export async function findBatchProducts(admin: SupabaseClient, owner: string, li
 }
 
 /** `selling` is the account's own mode; `mode` is what was queued (a selling account with no usable product gets warm-up clips). */
-export interface BatchResult { accountId: string; added: number; mode: "GROWTH" | "AFFILIATE"; selling: boolean; products: number }
+export interface BatchResult { accountId: string; added: number; mode: "GROWTH" | "AFFILIATE"; selling: boolean; products: number;
+  /** 16 Nov owner: the old warm-up niches are gone; warm-up clips are the AI girl only, so none are made until her face is picked. */
+  needsGirl?: boolean }
 
 /** The one-click start: for each chosen TikTok account, tops today's clips up to `count` with new plans. */
 export async function startBatch(admin: SupabaseClient, owner: string, accountId: string | "ALL", count: number, now = new Date()): Promise<BatchResult[]> {
@@ -195,6 +197,10 @@ export async function startBatch(admin: SupabaseClient, owner: string, accountId
     if (mode === "AFFILIATE") {
       products = productsByNiche.get(nicheKey ?? "ANY") ?? await findBatchProducts(admin, owner, 5, now, nicheKey);
       productsByNiche.set(nicheKey ?? "ANY", products);
+    }
+    if (add && !girl && !(mode === "AFFILIATE" && products?.length)) {
+      results.push({ accountId: account.id, added: 0, mode: "GROWTH", selling: mode === "AFFILIATE", products: 0, needsGirl: true });
+      continue;
     }
     // The channel's AI girl continues her saved story; otherwise the usual plan.
     const girlClips = add && girl && mode === "GROWTH"

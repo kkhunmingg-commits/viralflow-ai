@@ -3,11 +3,12 @@ export interface NavigationItem { href: string; label: string; short: string }
 export interface NavigationEntry extends NavigationItem { also?: readonly string[] }
 
 /** Clip studios: one sidebar entry, switched with tabs inside the page. */
-/** 16 Nov owner: the old studios (product links, drama) are off the menu; the channel is built around one AI girl.
- * Their pages still open by address. */
+/** 16 Nov owner: the AI girl replaces the old warm-up clips; drama series stays. Product-link clips are off the menu
+ * (the page still opens by address). */
 export const clipStudioTabs: readonly NavigationItem[] = [
   { href: "/girl", label: "สาว AI ประจำช่อง", short: "💃" },
   { href: "/post", label: "สร้างคลิป · คลังคลิป", short: "▶" },
+  { href: "/drama", label: "ละครซีรีส์", short: "🎬" },
 ];
 
 /** Everyday destinations, in the order an owner works through a day. Other feature routes remain reachable. */
@@ -16,7 +17,7 @@ export const navigationGroups: ReadonlyArray<{ label: string; items: readonly Na
     label: "งานประจำวัน",
     items: [
       { href: "/auto", label: "หน้าหลัก", short: "⌂" },
-      { href: "/girl", label: "สร้างคลิป", short: "▶", also: [...clipStudioTabs.map(tab => tab.href), "/product-clips", "/drama"] },
+      { href: "/girl", label: "สร้างคลิป", short: "▶", also: [...clipStudioTabs.map(tab => tab.href), "/product-clips"] },
       { href: "/ai-live", label: "AI LIVE", short: "●" },
     ],
   },
