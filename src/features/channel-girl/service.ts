@@ -2,7 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readStateFile, saveStateFile } from "@/features/flow-farm/service";
 import {
-  characterStatus, decideFaces, emptyGirlState, facePrompt, MAX_FACES_SHOWN, newCandidate, planGirlClips, type FaceCandidate, type GirlCharacter,
+  characterStatus, decideFaces, emptyGirlState, facePrompt, MAX_FACE_ATTEMPTS, MAX_FACES_SHOWN, newCandidate, planGirlClips, type FaceCandidate, type GirlCharacter,
   type GirlGuide, type GirlState,
 } from "./plan";
 
@@ -105,7 +105,7 @@ export async function tickGirl(admin: SupabaseClient, owner: string, now = new D
       await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, file_deleted_at: now.toISOString(), updated_at: now.toISOString() })
         .eq("owner_id", owner).eq("id", candidate.clipId!);
     } catch {
-      candidates[step.index] = { ...candidate, status: candidate.attempts >= 2 ? "FAILED" : "QUEUED", clipId: candidate.attempts >= 2 ? candidate.clipId : null,
+      candidates[step.index] = { ...candidate, status: candidate.attempts >= MAX_FACE_ATTEMPTS ? "FAILED" : "QUEUED", clipId: candidate.attempts >= MAX_FACE_ATTEMPTS ? candidate.clipId : null,
         error: "ดึงภาพหน้าจากคลิปไม่ได้" };
     }
   }

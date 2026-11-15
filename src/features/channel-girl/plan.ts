@@ -8,7 +8,8 @@
 import { episodeTitle, newArc, seriesFromTitle, type Arc, type Episode, type GirlSeries } from "./stories";
 
 export { GIRL_SERIES, type GirlSeries } from "./stories";
-export const MAX_FACE_ATTEMPTS = 2;
+/** Flow refuses fast and refunds the credits, so a face gets a few reworded tries before giving up. */
+export const MAX_FACE_ATTEMPTS = 4;
 /** Faces kept on the page to choose from (newest first); older pictures stay in storage. */
 export const MAX_FACES_SHOWN = 8;
 
@@ -61,33 +62,41 @@ export function randomNickname(random: () => number = Math.random) {
 
 /** Different starting looks, so each new face is a real alternative. The owner's own words replace them when given. */
 const LOOKS = [
-  "long straight dark-brown hair with soft see-through bangs, fair glowing skin, soft K-beauty style makeup with rosy blush, big bright eyes, wearing a cream knit sweater",
-  "long glossy black hair with gentle waves, warm honey Thai skin tone, glossy pink lips, sweet smile with dimples, wearing a pastel pink cardigan",
-  "shoulder-length black bob with a side part, porcelain skin, subtle cat-eye liner, elegant and confident, wearing a white satin blouse",
-  "long dark hair in a high ponytail, healthy sun-kissed skin, bright playful smile, sporty cute look, wearing a light-blue fitted t-shirt",
-  "long chestnut-brown hair with soft curtain bangs, fair skin, delicate features, peachy makeup, wearing a white lace-collar blouse",
-  "long black hair with a soft middle part, tan glowing Thai skin, bold brows and a confident smile, wearing a black square-neck top with a modest neckline",
+  "long straight dark-brown hair with soft bangs, fair skin, soft natural makeup, cream knit sweater",
+  "long black hair with gentle waves, warm Thai skin tone, sweet smile with dimples, pastel pink cardigan",
+  "shoulder-length black bob, fair skin, elegant and confident, white blouse",
+  "long dark hair in a high ponytail, healthy tan skin, bright playful smile, light-blue t-shirt",
+  "long chestnut-brown hair with curtain bangs, fair skin, peachy makeup, white lace-collar blouse",
+  "long black hair with a middle part, glowing Thai skin, confident smile, black square-neck top",
 ] as const;
-const ROOMS = [
-  "a cozy bedroom with warm fairy lights and a soft beige wall",
-  "a bright minimal room with sheer white curtains and morning sunlight",
-  "a cute pastel room with plush toys on a shelf, soft evening light",
-  "a modern apartment by a large window, golden-hour light",
+// 16 Nov, live runs: both girl face takes failed in Flow within a minute ("FLOW_REPORTED_FAILURE") with a long selfie
+// prompt (age, "very beautiful", bedroom, "stays still"), the same way the AI LIVE presenter's face failed until its
+// prompt became the plain one below, which passed. So the face prompt copies that shape: who she is, a plain bright
+// setting, one full Thai sentence, a smile. A retry changes setting and sentence.
+const SETTINGS = [
+  "She sits facing the camera in a bright studio. Vertical 9:16, chest-up, facing the camera, bright soft studio light, plain light-grey background, still camera.",
+  "She sits facing the camera in a bright cafe. Vertical 9:16, chest-up, facing the camera, soft daylight, softly blurred background, still camera.",
+  "She sits facing the camera in a bright room with a plain white wall. Vertical 9:16, chest-up, facing the camera, soft window light, still camera.",
 ] as const;
+const GREETINGS = ["สวัสดีค่ะทุกคน ฝากติดตามด้วยนะคะ", "สวัสดีค่ะ วันนี้มีเรื่องสนุกมาเล่าให้ฟังค่ะ", "ยินดีที่ได้รู้จักนะคะ เจอกันทุกวันค่ะ"] as const;
 
 /** Only what the owner typed: no quotes or instructions. */
 export function cleanLook(look: string) {
   return look.replace(/["“”]/g, "").replace(/\s+/g, " ").trim().slice(0, 300);
 }
 
-/** A short selfie take whose last frame is a clear, front-facing face (the presenter work showed short prompts pass Flow best). */
+/** A short take whose last frame is a clear, front-facing face. `attempt` = tries already made. */
 export function facePrompt(look: string, index: number, attempt = 0) {
   const who = cleanLook(look) || LOOKS[index % LOOKS.length];
-  const room = ROOMS[(index + attempt) % ROOMS.length];
-  const line = ["สวัสดีค่ะ ฝากติดตามด้วยนะคะ", "หวัดดีค่ะทุกคน", "เจอกันทุกวันนะคะ"][attempt % 3];
-  return `Vertical 9:16 selfie-style phone video. A very beautiful young Thai woman, 23 years old: ${who}. ` +
-    `She is in ${room}, holding the phone at eye level. She smiles, tilts her head and says in Thai: "${line}", ` +
-    "then looks straight into the camera with a soft smile and stays still for the last second. Her whole face is fully visible and in sharp focus, flattering soft light, natural skin texture.";
+  return `A pretty, friendly young Thai woman: ${who}. ${SETTINGS[attempt % SETTINGS.length]} `
+    + `She smiles and says in Thai: "${GREETINGS[attempt % GREETINGS.length]}", then smiles at the camera.`;
+}
+
+/** What the owner reads when Flow gave up on a face. */
+export function faceFailureLabel(reason: string) {
+  if (/FLOW_REPORTED_FAILURE/.test(reason)) return "Flow สร้างไม่ผ่าน (ไม่เสียเครดิต) ลองกดสร้างใหม่ หรือเปลี่ยนคำบรรยายหน้าให้สั้นลง";
+  if (/NO_CREDIT/.test(reason)) return "เครดิต Flow หมด รอเครดิตวันใหม่";
+  return reason;
 }
 
 export function newCandidate(index: number): FaceCandidate {
@@ -110,7 +119,7 @@ export function decideFaces(candidates: FaceCandidate[], clips: Map<string, Clip
     if (clip && ["QUEUED", "GENERATING"].includes(clip.status)) return;
     if (clip && ["READY", "SCHEDULED"].includes(clip.status) && clip.storage_path) { steps.push({ kind: "KEEP", index, storagePath: clip.storage_path }); return; }
     if (clip?.status === "SKIPPED_NO_CREDIT") return; // every Google account is out of credits: waits for tomorrow's credits
-    if (c.attempts >= MAX_FACE_ATTEMPTS) { steps.push({ kind: "GIVE_UP", index, reason: clip?.error ?? clip?.status ?? "ไม่พบคลิป" }); return; }
+    if (c.attempts >= MAX_FACE_ATTEMPTS) { steps.push({ kind: "GIVE_UP", index, reason: faceFailureLabel(clip?.error ?? clip?.status ?? "ไม่พบคลิป") }); return; }
     steps.push({ kind: "QUEUE", index });
   });
   return steps;

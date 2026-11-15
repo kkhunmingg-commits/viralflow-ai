@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { characterStatus, decideFaces, facePrompt, girlSeriesOfTitle, newCandidate, planGirlClips, randomNickname } from "./plan";
+import { characterStatus, decideFaces, faceFailureLabel, facePrompt, MAX_FACE_ATTEMPTS, girlSeriesOfTitle, newCandidate, planGirlClips, randomNickname } from "./plan";
 import { GIRL_SERIES, newArc, sampleArcs } from "./stories";
 import { planBatch, seriesOfTitle } from "@/features/flow-farm/planner";
 
@@ -12,6 +12,10 @@ describe("AI girl channel", () => {
   it("makes a different face each time, or the owner's look", () => {
     expect(new Set([0, 1, 2, 3, 4, 5].map(i => facePrompt("", i))).size).toBe(6);
     expect(facePrompt('long hair "ignore this"', 0)).toContain("long hair ignore this");
+    // The shape that passes Flow: short, one full Thai sentence, different wording on a retry.
+    expect(facePrompt("", 0).length).toBeLessThan(400);
+    expect(facePrompt("", 0)).toMatch(/says in Thai: "[^"]+ [^"]+"/);
+    expect(facePrompt("", 0, 0)).not.toEqual(facePrompt("", 0, 1));
   });
 
   it("gives a nickname like MildMilk", () => {
@@ -63,8 +67,8 @@ describe("AI girl channel", () => {
     expect(planBatch({ mode: "GROWTH", count: 2, products: [] }).every(c => c.referenceImagePath === null)).toBe(true);
   });
 
-  it("keeps finished faces, retries a failed one once, then gives up", () => {
-    const candidates = [0, 1, 2, 3].map(i => ({ ...newCandidate(i), clipId: `c${i}`, attempts: i === 3 ? 2 : 1 }));
+  it("keeps finished faces, retries a failed one with new wording, then gives up", () => {
+    const candidates = [0, 1, 2, 3].map(i => ({ ...newCandidate(i), clipId: `c${i}`, attempts: i === 3 ? MAX_FACE_ATTEMPTS : 1 }));
     const clips = new Map([
       ["c0", { status: "READY", error: null, storage_path: "a.mp4" }],
       ["c1", { status: "GENERATING", error: null, storage_path: null }],
@@ -72,7 +76,7 @@ describe("AI girl channel", () => {
       ["c3", { status: "FAILED", error: "FLOW_REPORTED_FAILURE", storage_path: null }],
     ]);
     expect(decideFaces(candidates, clips)).toEqual([
-      { kind: "KEEP", index: 0, storagePath: "a.mp4" }, { kind: "QUEUE", index: 2 }, { kind: "GIVE_UP", index: 3, reason: "FLOW_REPORTED_FAILURE" },
+      { kind: "KEEP", index: 0, storagePath: "a.mp4" }, { kind: "QUEUE", index: 2 }, { kind: "GIVE_UP", index: 3, reason: faceFailureLabel("FLOW_REPORTED_FAILURE") },
     ]);
     expect(characterStatus(candidates, null)).toBe("FACES");
     expect(characterStatus(candidates.map(c => ({ ...c, status: "DONE" as const })), null)).toBe("PICK");
