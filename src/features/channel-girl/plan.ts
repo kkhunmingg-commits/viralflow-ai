@@ -67,14 +67,14 @@ export function randomNickname(random: () => number = Math.random) {
  * covered (no cleavage). The owner's own words replace the look when given.
  */
 const LOOKS = [
-  "long silky jet-black hair, porcelain glass skin, almond eyes with soft brown liner, coral gradient lips, a white smocked puff-sleeve top with a little ribbon; sitting on a soft grey sofa by dark curtains, moody warm evening light",
-  "doll-like face with see-through bangs and long wavy black hair tied with two navy satin ribbons, rosy cheeks and soft pink lips, a black high-neck qipao-style dress with a blue dragon print; in a modern apartment living room with warm ceiling lights",
-  "long layered chestnut-brown hair, natural sun-kissed glow, full lips with a soft red tint, small gold hoop earrings and a thin gold necklace, a cream lace blouse with a modest neckline; in a sunny tropical garden, film-photo look",
-  "long straight brown hair with a centre part, bright smile with dimples and braces-free white teeth, a crisp lilac short-sleeve blouse and black pencil skirt; sitting on a green park bench, soft daylight, blurred hedge behind",
-  "shoulder-length soft brown waves, fair skin with a dewy glow, cat-eye liner and nude-pink lips, small pearl earrings, an oversized cream knit cardigan over a white tee; in a cosy cafe by the window, golden-hour light",
-  "long black hair in a sleek high ponytail, warm tan Thai skin, bold brows and glossy lips, a fitted black ribbed long-sleeve top; on a city rooftop at sunset, warm rim light",
-  "long honey-brown hair with curtain bangs, peachy blush makeup, a pastel blue puff-sleeve dress; in a flower shop full of pink roses, bright soft light",
-  "short chic black bob with blunt bangs, porcelain skin, red lips, a white collared shirt under a beige vest; in a minimalist white room with a large window, clean daylight",
+  "small V-line face, large double-lidded doe eyes, slim high nose, porcelain glass skin, coral gradient lips; long silky jet-black hair; a white smocked puff-sleeve top; on a soft grey sofa by dark curtains, moody warm evening light",
+  "doll-like round face, big sparkly eyes with aegyo-sal, tiny nose, rosy blush, see-through bangs and long wavy black hair with two navy satin ribbons; a black high-neck qipao-style dress with a blue dragon print; in a modern apartment with warm ceiling lights",
+  "oval face, sultry almond eyes, full lips with a red tint, light freckles, long layered chestnut-brown hair; small gold hoops and a thin gold necklace; a cream lace blouse with a modest neckline; in a sunny tropical garden, film-photo look",
+  "heart-shaped face, bright eye-smile, dimples, fair skin, long straight brown hair with a centre part; a crisp lilac blouse and black pencil skirt; on a green park bench, soft daylight",
+  "delicate fox-eye shape with winged liner, sharp jawline, pale skin, nude-pink lips, shoulder-length ash-brown waves; pearl earrings, oversized cream knit cardigan; in a cosy cafe by the window, golden-hour light",
+  "striking mixed Thai-Korean features, sleek high black ponytail, glossy cherry lips, light tan glowing skin; a fitted black ribbed long-sleeve top; on a city rooftop at sunset, warm rim light",
+  "soft innocent baby face, wide round eyes, peachy blush, honey-brown hair with curtain bangs; a pastel blue puff-sleeve dress; in a flower shop full of pink roses, bright soft light",
+  "cool chic face with sharp cheekbones, monolid eyes with smoky liner, red lips, blunt black bob with bangs; a white collared shirt under a beige vest; in a minimalist white room, clean daylight",
 ] as const;
 const DEFAULT_PLACE = "in a cosy, stylish room with soft warm light";
 const GREETINGS = ["สวัสดีค่ะทุกคน ฝากติดตามด้วยนะคะ", "สวัสดีค่ะ วันนี้มีเรื่องสนุกมาเล่าให้ฟังค่ะ", "ยินดีที่ได้รู้จักนะคะ เจอกันทุกวันค่ะ", "หวัดดีค่ะ ดีใจที่ได้เจอกันนะคะ"] as const;
@@ -91,7 +91,7 @@ export function cleanLook(look: string) {
 export function facePrompt(look: string, index: number, attempt = 0) {
   const own = cleanLook(look);
   const who = own ? `${own}; ${DEFAULT_PLACE}` : LOOKS[index % LOOKS.length];
-  return `Vertical 9:16 photoreal smartphone video of a gorgeous young Thai woman, a popular beauty creator in her twenties: ${who}. `
+  return `Vertical 9:16 photoreal smartphone video of a stunning young Asian woman in her twenties, styled like a top Thai TikTok beauty creator with a soft beauty-filter look: ${who}. `
     + "Chest-up, natural skin texture, flattering light, shallow depth of field, still camera. "
     + `She looks into the camera, smiles softly and says in Thai: "${GREETINGS[attempt % GREETINGS.length]}", then smiles at the camera.`;
 }
