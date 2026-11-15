@@ -81,33 +81,46 @@ export async function renameGirl(admin: SupabaseClient, owner: string, name: str
   await saveGirl(admin, owner, { ...state, character: { ...state.character, name } });
 }
 
-/** Called on the Flow worker's minute poll: keeps finished faces (as a still), retries failed ones. */
+/**
+ * Called on the Flow worker's minute poll: keeps finished faces (as a still), retries failed ones, and keeps any face
+ * take that finished after a newer try was queued for it (it cost credits too, so it becomes one more face to pick).
+ */
 export async function tickGirl(admin: SupabaseClient, owner: string, now = new Date()) {
   const state = await readGirl(admin, owner);
   const character = state.character;
-  if (!character || !character.candidates.some(c => c.status === "QUEUED")) return;
-  const ids = character.candidates.map(c => c.clipId).filter((v): v is string => Boolean(v));
-  const result = ids.length ? await admin.from("flow_clips").select("id,status,error,storage_path").eq("owner_id", owner).in("id", ids) : { data: [], error: null };
+  if (!character) return;
+  const known = new Set(character.candidates.map(c => c.clipId).filter((v): v is string => Boolean(v)));
+  const result = await admin.from("flow_clips").select("id,status,error,storage_path,updated_at").eq("owner_id", owner).eq("batch_id", character.id)
+    .eq("kind", "PRESENTER_CLIP").order("created_at");
   if (result.error) return;
-  const clips = new Map((result.data as Array<{ id: string; status: string; error: string | null; storage_path: string | null }>).map(c => [c.id, c]));
+  const rows = (result.data ?? []) as Array<{ id: string; status: string; error: string | null; storage_path: string | null; updated_at: string | null }>;
+  const clips = new Map(rows.map(c => [c.id, c]));
+  const orphans = rows.filter(c => !known.has(c.id) && c.status === "READY" && c.storage_path);
+  if (!orphans.length && !character.candidates.some(c => c.status === "QUEUED")) return;
   const candidates = [...character.candidates];
+  const added: FaceCandidate[] = [];
   let changed = false;
-  for (const step of decideFaces(candidates, clips)) {
+  for (const step of decideFaces(candidates, clips, now.getTime())) {
     const candidate = candidates[step.index];
     changed = true;
     if (step.kind === "GIVE_UP") { candidates[step.index] = { ...candidate, status: "FAILED", error: step.reason.slice(0, 200) }; continue; }
     if (step.kind === "QUEUE") { candidates[step.index] = await queueFace(admin, owner, character, candidate, step.index, now); continue; }
     try {
-      const path = await saveStill(admin, owner, character.id, candidate.key, step.storagePath);
+      const path = await keepFace(admin, owner, character.id, candidate.key, candidate.clipId!, step.storagePath, now);
       candidates[step.index] = { ...candidate, status: "DONE", stillPath: path, error: null };
-      // The take itself is not a post: keep only the picture.
-      await admin.storage.from(BUCKET).remove([step.storagePath]).catch(() => {});
-      await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, file_deleted_at: now.toISOString(), updated_at: now.toISOString() })
-        .eq("owner_id", owner).eq("id", candidate.clipId!);
     } catch {
       candidates[step.index] = { ...candidate, status: candidate.attempts >= MAX_FACE_ATTEMPTS ? "FAILED" : "QUEUED", clipId: candidate.attempts >= MAX_FACE_ATTEMPTS ? candidate.clipId : null,
         error: "ดึงภาพหน้าจากคลิปไม่ได้" };
     }
+  }
+  let next = Math.max(0, ...candidates.map(c => Number(c.key.split("-")[1]) || 0));
+  for (const orphan of orphans) {
+    const key = `face-${++next}`;
+    try {
+      const path = await keepFace(admin, owner, character.id, key, orphan.id, orphan.storage_path!, now);
+      added.push({ key, clipId: orphan.id, attempts: 1, status: "DONE", stillPath: path, error: null });
+      changed = true;
+    } catch { /* tried again on the next poll */ }
   }
   if (!changed) return;
   // Re-read just before saving: the owner may have replaced or picked meanwhile.
@@ -115,9 +128,19 @@ export async function tickGirl(admin: SupabaseClient, owner: string, now = new D
   if (latest.character?.id !== character.id) return;
   // Keep any face the owner added meanwhile; only the ones this tick looked at are replaced.
   const byKey = new Map(candidates.map(c => [c.key, c]));
-  const merged = latest.character.candidates.map(c => byKey.get(c.key) ?? c);
+  const taken = new Set(latest.character.candidates.map(c => c.key));
+  const merged = [...latest.character.candidates.map(c => byKey.get(c.key) ?? c), ...added.filter(c => !taken.has(c.key))];
   await saveGirl(admin, owner, { ...latest, character: { ...latest.character, candidates: merged,
     status: characterStatus(merged, latest.character.facePath), updatedAt: now.toISOString() } });
+}
+
+/** The take's last frame becomes the face picture; the take itself is not a post, so only the picture is kept. */
+async function keepFace(admin: SupabaseClient, owner: string, characterId: string, key: string, clipId: string, storagePath: string, now: Date) {
+  const path = await saveStill(admin, owner, characterId, key, storagePath);
+  await admin.storage.from(BUCKET).remove([storagePath]).catch(() => {});
+  await admin.from("flow_clips").update({ status: "DISCARDED", storage_path: null, file_deleted_at: now.toISOString(), updated_at: now.toISOString() })
+    .eq("owner_id", owner).eq("id", clipId);
+  return path;
 }
 
 async function saveStill(admin: SupabaseClient, owner: string, characterId: string, key: string, storagePath: string) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { characterStatus, decideFaces, faceFailureLabel, facePrompt, MAX_FACE_ATTEMPTS, girlSeriesOfTitle, newCandidate, planGirlClips, randomNickname } from "./plan";
+import { ACCOUNT_RETRY_WAIT_MS, characterStatus, decideFaces, faceFailureLabel, facePrompt, MAX_FACE_ATTEMPTS, girlSeriesOfTitle, newCandidate, planGirlClips, randomNickname } from "./plan";
 import { GIRL_SERIES, newArc, sampleArcs } from "./stories";
 import { planBatch, seriesOfTitle } from "@/features/flow-farm/planner";
 
@@ -81,5 +81,14 @@ describe("AI girl channel", () => {
     expect(characterStatus(candidates, null)).toBe("FACES");
     expect(characterStatus(candidates.map(c => ({ ...c, status: "DONE" as const })), null)).toBe("PICK");
     expect(characterStatus(candidates, "face.jpg")).toBe("READY");
+  });
+
+  it("waits for the worker to try another Google account before making a new take", () => {
+    const now = Date.parse("2026-11-16T02:20:00Z");
+    const candidates = [{ ...newCandidate(0), clipId: "c0", attempts: 1 }];
+    const failed = (error: string, ago: number) => new Map([["c0", { status: "FAILED", error, storage_path: null, updated_at: new Date(now - ago).toISOString() }]]);
+    expect(decideFaces(candidates, failed("GENERATE_BUTTON_DISABLED", 60_000), now)).toEqual([]);
+    expect(decideFaces(candidates, failed("GENERATE_BUTTON_DISABLED", ACCOUNT_RETRY_WAIT_MS + 1), now)).toEqual([{ kind: "QUEUE", index: 0 }]);
+    expect(decideFaces(candidates, failed("FLOW_REPORTED_FAILURE", 60_000), now)).toEqual([{ kind: "QUEUE", index: 0 }]);
   });
 });

@@ -103,14 +103,19 @@ export function newCandidate(index: number): FaceCandidate {
   return { key: `face-${index + 1}`, clipId: null, attempts: 0, status: "QUEUED", stillPath: null, error: null };
 }
 
-type ClipView = { status: string; error: string | null; storage_path: string | null };
+type ClipView = { status: string; error: string | null; storage_path: string | null; updated_at?: string | null };
+/** A failure that is Flow's verdict on the take itself; anything else (an account problem) the worker may still hand to another account. */
+const flowVerdict = (error: string | null) => /FLOW_REPORTED_FAILURE|FLOW_UNUSUAL_ACTIVITY|POLICY/i.test(error ?? "");
+/** How long a face waits on an account-side failure before making a new take (16 Nov: a take marked GENERATE_BUTTON_DISABLED was finished by the
+ * second Google account two minutes later, after a new take had already been queued: 10 credits spent twice). */
+export const ACCOUNT_RETRY_WAIT_MS = 10 * 60_000;
 export type FaceStep =
   | { kind: "QUEUE"; index: number }
   | { kind: "KEEP"; index: number; storagePath: string }
   | { kind: "GIVE_UP"; index: number; reason: string };
 
 /** What to do with each face candidate given its Flow clip. Pure. */
-export function decideFaces(candidates: FaceCandidate[], clips: Map<string, ClipView>): FaceStep[] {
+export function decideFaces(candidates: FaceCandidate[], clips: Map<string, ClipView>, now = Date.now()): FaceStep[] {
   const steps: FaceStep[] = [];
   candidates.forEach((c, index) => {
     if (c.status !== "QUEUED") return;
@@ -118,7 +123,8 @@ export function decideFaces(candidates: FaceCandidate[], clips: Map<string, Clip
     const clip = clips.get(c.clipId);
     if (clip && ["QUEUED", "GENERATING"].includes(clip.status)) return;
     if (clip && ["READY", "SCHEDULED"].includes(clip.status) && clip.storage_path) { steps.push({ kind: "KEEP", index, storagePath: clip.storage_path }); return; }
-    if (clip?.status === "SKIPPED_NO_CREDIT") return; // every Google account is out of credits: waits for tomorrow's credits
+    if (clip?.status === "SKIPPED_NO_CREDIT") return;
+    if (clip?.status === "FAILED" && !flowVerdict(clip.error) && now - Date.parse(clip.updated_at ?? "") < ACCOUNT_RETRY_WAIT_MS) return; // every Google account is out of credits: waits for tomorrow's credits
     if (c.attempts >= MAX_FACE_ATTEMPTS) { steps.push({ kind: "GIVE_UP", index, reason: faceFailureLabel(clip?.error ?? clip?.status ?? "ไม่พบคลิป") }); return; }
     steps.push({ kind: "QUEUE", index });
   });
