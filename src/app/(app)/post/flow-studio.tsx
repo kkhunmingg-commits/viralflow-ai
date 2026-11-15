@@ -6,7 +6,7 @@ import { LiveClipProgressPanel } from "./live-clip-progress";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { addFlowAccountAction, flowAccountAction, startBatchAction } from "./flow-actions";
 import type { DraftReceipt } from "./tiktok-draft-button";
-import { LearningPanel } from "./learning-panel";
+import { GirlStudio } from "../girl/girl-studio";
 import { ClipLibrary } from "./clip-library";
 
 /** Lucky, 10 Nov: one short line per Google account, like the product-clips page (credits left today on the right). */
@@ -63,7 +63,7 @@ function loginLabel(f: FlowAccountView) {
 }
 
 export async function FlowStudio({ client, owner, account }: { client: SupabaseClient; owner: string; account: StudioAccount }) {
-  const { flowAccounts, live, library, lastSeen, unavailable, now, publishScope, scopes } = await dropDeliveredDrafts(owner, account.id, await loadStudio(client, owner, account.id));
+  const { flowAccounts, live, library, lastSeen, unavailable, now, publishScope } = await dropDeliveredDrafts(owner, account.id, await loadStudio(client, owner, account.id));
   // Every Google account serves every TikTok account: one list, one drain order.
   const own = flowAccounts;
   const capacity = remainingCapacity(flowAccounts);
@@ -122,25 +122,28 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
         หลังจากนั้นการสร้างคลิปทำงานเบื้องหลังทั้งหมด ไม่มีหน้าต่างโผล่ และไม่กดสร้างถ้าคลิปใช้เกิน 10 เครดิต</p>
     </section>
 
+    <section className="manual-panel" aria-labelledby="girl-title">
+      <div className="manual-section-head"><div><p className="manual-eyebrow">ขั้นที่ 2 · สาว AI ประจำช่อง</p><h2 id="girl-title">หน้าน้อง: คนเดิมทุกคลิป</h2></div></div>
+      <GirlStudio owner={owner} />
+    </section>
+
     <section className="manual-panel" aria-labelledby="make-title">
-      <div className="manual-section-head"><div><p className="manual-eyebrow">ขั้นที่ 2 · วันนี้ {bangkokDate()}</p><h2 id="make-title">สร้างคลิปฟรี</h2></div>
+      <div className="manual-section-head"><div><p className="manual-eyebrow">ขั้นที่ 3 · วันนี้ {bangkokDate()}</p><h2 id="make-title">สร้างคลิปสาว AI</h2></div>
         <span className="manual-private">เครดิตฟรีวันนี้ทำได้อีกประมาณ {capacity} คลิป</span></div>
       <form action={startBatchAction} className="library-start">
         <input type="hidden" name="accountId" value={account.id} />{back}
         <label className="manual-filter">จำนวนคลิปวันนี้<input name="count" type="number" min={1} max={30} defaultValue={defaultCount} /></label>
-        <button className="manual-primary" type="submit" disabled={!ready || waitingLogin}>{selling ? "ค้นหาสินค้าและสร้างคลิป" : "สร้างคลิปปั้นช่อง"}</button>
+        <button className="manual-primary" type="submit" disabled={!ready || waitingLogin}>{selling ? "ค้นหาสินค้าและสร้างคลิป" : "สร้างคลิปสาว AI"}</button>
       </form>
       {waitingLogin ? <p className="manual-warning">รอล็อกอินบัญชี Google ให้ครบก่อน แล้วค่อยกดสร้างคลิป</p>
         : !ready && <p className="manual-warning">ยังไม่มีบัญชี Google ที่ล็อกอินแล้ว ผูกบัญชีในขั้นที่ 1 ก่อน</p>}
       <p className="manual-muted">{selling
         ? "ระบบเลือกสินค้าขายดีที่มีรูปผ่านการตรวจสิทธิ์ (จาก TikTok Shop API เมื่อได้สิทธิ์ ระหว่างนี้จากสินค้าที่นำเข้า) แล้วทำคลิปโฆษณาไม่ซ้ำฉาก"
-        : "บัญชีช่วงอุ่นเครื่อง: ระบบทำคลิปปั้นช่องที่ไม่มีสินค้า เพื่อให้คนกดติดตาม"} ถ้าเครดิตทุกบัญชี Google หมด ระบบจะหยุดที่คลิปที่ทำได้แล้วรอโพสต์ คลิปที่เหลือข้ามไปวันถัดไป</p>
+        : "ทุกคลิปเป็นน้องคนเดิม เล่าเรื่องต่อเนื่องเรื่องละ 3–5 ตอน วันละ 2–3 คลิป เพื่อให้คนกดติดตามรอตอนต่อไป"} ถ้าเครดิตทุกบัญชี Google หมด ระบบจะหยุดที่คลิปที่ทำได้แล้วรอโพสต์ คลิปที่เหลือข้ามไปวันถัดไป</p>
       {live && <LiveClipProgressPanel key={account.id} accountId={account.id} initial={live} />}
     </section>
 
-    <ClipLibrary library={library} now={now} back={account.id} publishable={publishScope ? [account.id] : []} eyebrow="ขั้นที่ 3 · รอโพสต์" title="คลังคลิปโปรโมท"
+    <ClipLibrary library={library} now={now} back={account.id} publishable={publishScope ? [account.id] : []} eyebrow="ขั้นที่ 4 · รอโพสต์" title="คลังคลิปสาว AI"
       empty="คลิปที่สร้างเสร็จและผ่านการตรวจ (MP4 แนวตั้ง 9:16 ไม่ซ้ำ) จะมาอยู่ตรงนี้ ตอนละครอยู่ในแท็บ “ละครซีรีส์”" />
-
-    <LearningPanel owner={owner} accountId={account.id} scopes={scopes} />
   </>;
 }

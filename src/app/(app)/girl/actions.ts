@@ -8,7 +8,7 @@ import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { addFace, pickFace, renameGirl, resetOldClips } from "@/features/channel-girl/service";
 import { setNicheChoice } from "@/features/flow-farm/learning-store";
 
-const HOME = "/girl";
+const HOME = "/post";
 async function owner() {
   const client = await createClient(), { data, error } = await client.auth.getUser();
   if (error || !data.user) redirect(`/login?next=${HOME}`);
@@ -17,7 +17,7 @@ async function owner() {
 }
 function done(message: string): never {
   revalidatePath(HOME);
-  redirect(`${HOME}?msg=${encodeURIComponent(message)}`);
+  redirect(`${HOME}?msg=${encodeURIComponent(message)}#girl`);
 }
 const KNOWN: Record<string, string> = {
   account_not_found: "ต้องเชื่อมบัญชี TikTok อย่างน้อย 1 บัญชีก่อน",
@@ -67,7 +67,7 @@ export async function pickFaceAction(formData: FormData) {
     const accounts = await admin.from("tiktok_accounts").select("id").eq("owner_id", ownerId).is("hidden_at", null);
     for (const account of (accounts.data ?? []) as Array<{ id: string }>) await setNicheChoice(admin, ownerId, account.id, "AI_GIRL").catch(() => {});
   } catch (error) { fail(error); }
-  done("ล็อกหน้าแล้ว คลิปใหม่ทุกคลิปจะเป็นน้องคนนี้ กด “สร้างคลิป” ที่หน้าคลังคลิปได้เลย");
+  done("ล็อกหน้าแล้ว คลิปใหม่ทุกคลิปจะเป็นน้องคนนี้ กด “สร้างคลิป” ด้านล่างได้เลย");
 }
 
 export async function resetOldClipsAction(formData: FormData) {

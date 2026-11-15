@@ -35,10 +35,10 @@ export default async function ManualPostPage({ searchParams }: { searchParams: P
   try { clips = await listManualClips(client, data.user.id, accountId); } catch { unavailable = true; }
   return <div className="manual-page">
     <ClipStudioTabs />
-    <header className="manual-hero"><div><p className="manual-eyebrow">Viral Flow AI · Google Flow · คลิปสาว AI</p><h1>สร้างคลิป · คลังคลิป</h1>
-      <p>ไม่เสียเงินต่อคลิป ใช้เครดิตฟรีของบัญชี Google ที่ผูกไว้ หมุนเวียนทุกวัน ระบบสร้างอยู่เบื้องหลังในคอมพิวเตอร์ของคุณ แล้วเก็บคลิปไว้ในคลังรอโพสต์ ทุกคลิปปั้นช่องเป็นสาว AI ประจำช่อง (ตั้งหน้าน้องที่แท็บ “สาว AI ประจำช่อง” · ละครซีรีส์อยู่ในแท็บ “ละครซีรีส์”)</p></div>
+    <header className="manual-hero"><div><p className="manual-eyebrow">Viral Flow AI · Google Flow · คลิปสาว AI</p><h1>คลิปสาว AI ปั้นช่อง</h1>
+      <p>ไม่เสียเงินต่อคลิป ใช้เครดิตฟรีของบัญชี Google ที่ผูกไว้ หมุนเวียนทุกวัน ระบบสร้างอยู่เบื้องหลังในคอมพิวเตอร์ของคุณ แล้วเก็บคลิปไว้ในคลังรอโพสต์ ทุกคลิปปั้นช่องเป็นสาว AI คนเดียวกัน (คลิปสินค้าจากลิงก์และละครซีรีส์อยู่ในแท็บด้านบน)</p></div>
       <Link className="manual-back" href="/auto">← กลับหน้าหลัก</Link></header>
-    <ol className="manual-steps" aria-label="ขั้นตอน"><li><span>1</span>ผูกบัญชี Google (สูงสุด 5)</li><li><span>2</span>กดสร้างคลิปฟรี</li><li><span>3</span>ดาวน์โหลด/ตั้งเวลา แล้วโพสต์ (ลบไฟล์ให้เอง)</li></ol>
+    <ol className="manual-steps" aria-label="ขั้นตอน"><li><span>1</span>ผูกบัญชี Google</li><li><span>2</span>สร้างและเลือกหน้าน้อง</li><li><span>3</span>กดสร้างคลิป</li><li><span>4</span>โพสต์ (ลบไฟล์ให้เอง)</li></ol>
     {msg && <p className="library-message" role="status">{msg.slice(0, 300)}</p>}
 
     {accounts.length === 0 ? <section className="manual-panel"><div className="manual-empty"><h3>ยังไม่มีบัญชี TikTok</h3><p>เชื่อมบัญชี TikTok ก่อน แล้วกลับมาผูกบัญชี Google เพื่อสร้างคลิปฟรี</p>

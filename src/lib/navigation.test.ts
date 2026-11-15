@@ -4,7 +4,7 @@ import { clipStudioTabs, isNavActive, navigation, navigationGroups, primaryNavig
 describe("application navigation", () => {
   it("shows the everyday owner workflow without exposing internal feature pages", () => {
     const routes = navigation.map((item) => item.href);
-    expect(routes).toEqual(["/auto", "/girl", "/ai-live", "/accounts", "/analytics/finance", "/profile"]);
+    expect(routes).toEqual(["/auto", "/post", "/ai-live", "/accounts", "/analytics/finance", "/profile"]);
     expect(primaryNavigation).toBe(navigation);
   });
 
@@ -14,7 +14,7 @@ describe("application navigation", () => {
 
   it("keeps one clip entry; the AI girl and the clip library are tabs inside the page", () => {
     const clip = navigationGroups[0].items.find((item) => item.label === "สร้างคลิป")!;
-    expect(clipStudioTabs.map((tab) => [tab.href, tab.label])).toEqual([["/girl", "สาว AI ประจำช่อง"], ["/post", "สร้างคลิป · คลังคลิป"], ["/drama", "ละครซีรีส์"]]);
+    expect(clipStudioTabs.map((tab) => [tab.href, tab.label])).toEqual([["/post", "คลิปสาว AI"], ["/product-clips", "คลิปสินค้าจากลิงก์"], ["/drama", "ละครซีรีส์"]]);
     for (const path of ["/girl", "/post", "/drama", "/drama/abc"]) expect(isNavActive(path, clip)).toBe(true);
     expect(isNavActive("/postx", clip)).toBe(false);
     expect(isNavActive("/drama", navigation[0])).toBe(false);
