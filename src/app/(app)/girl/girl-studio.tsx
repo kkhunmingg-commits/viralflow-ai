@@ -39,11 +39,12 @@ export async function GirlStudio({ owner }: { owner: string }) {
       {character?.candidates.length ? <div className="girl-faces">
         <h2>{characterStatusLabels[character.status]}: {character.name}</h2>
         <p className="girl-note">สร้างทีละ 1 แบบ (10 เครดิต) ไม่ชอบก็กด “สร้างหน้าใหม่” แบบเก่ายังอยู่ให้เลือก · แต่ละหน้าใช้เวลาประมาณ 2–5 นาที รีเฟรชหน้านี้เพื่อดู</p>
+        {character.candidates.at(-1)?.status === "FAILED" ? <p className="girl-note">หน้าล่าสุดสร้างไม่สำเร็จ: Flow ทำไม่ผ่าน (ไม่เสียเครดิต) กดสร้างหน้าใหม่ได้เลย</p> : null}
         <div className="girl-grid">
-          {character.candidates.slice(-MAX_FACES_SHOWN).toReversed().map(c => <form key={c.key} action={pickFaceAction} className="girl-face">
+          {character.candidates.filter(c => c.status !== "FAILED").slice(-MAX_FACES_SHOWN).toReversed().map(c => <form key={c.key} action={pickFaceAction} className="girl-face">
             <input type="hidden" name="key" value={c.key} />
             {c.stillPath && links[c.stillPath] ? <img src={links[c.stillPath]} alt={`หน้าแบบที่ ${c.key.split("-")[1]}`} />
-              : <div className="girl-face-empty">{c.status === "FAILED" ? `ไม่สำเร็จ${c.error ? `: ${c.error}` : ""}` : "กำลังสร้าง…"}</div>}
+              : <div className="girl-face-empty">กำลังสร้าง…</div>}
             <button type="submit" disabled={c.status !== "DONE" || c.stillPath === character.facePath}>
               {c.stillPath && c.stillPath === character.facePath ? "ใช้หน้านี้อยู่" : `เลือกแบบที่ ${c.key.split("-")[1]}`}</button>
           </form>)}

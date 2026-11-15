@@ -60,36 +60,40 @@ export function randomNickname(random: () => number = Math.random) {
 
 // ---------------------------------------------------------------- Faces
 
-/** Different starting looks, so each new face is a real alternative. The owner's own words replace them when given. */
+/**
+ * Different looks, so each new face is a real alternative and not the same girl with another haircut (16 Nov, owner:
+ * "หน้าเหมือนกันเลยแค่เปลี่ยนทรงผม", with pictures of the wanted style: glossy Thai/Asian beauty-creator portraits in real
+ * places, not a stock-photo studio smile). Each look carries its own face shape, makeup, outfit and place. Outfits stay
+ * covered (no cleavage). The owner's own words replace the look when given.
+ */
 const LOOKS = [
-  "long straight dark-brown hair with soft bangs, fair skin, soft natural makeup, cream knit sweater",
-  "long black hair with gentle waves, warm Thai skin tone, sweet smile with dimples, pastel pink cardigan",
-  "shoulder-length black bob, fair skin, elegant and confident, white blouse",
-  "long dark hair in a high ponytail, healthy tan skin, bright playful smile, light-blue t-shirt",
-  "long chestnut-brown hair with curtain bangs, fair skin, peachy makeup, white lace-collar blouse",
-  "long black hair with a middle part, glowing Thai skin, confident smile, black square-neck top",
+  "long silky jet-black hair, porcelain glass skin, almond eyes with soft brown liner, coral gradient lips, a white smocked puff-sleeve top with a little ribbon; sitting on a soft grey sofa by dark curtains, moody warm evening light",
+  "doll-like face with see-through bangs and long wavy black hair tied with two navy satin ribbons, rosy cheeks and soft pink lips, a black high-neck qipao-style dress with a blue dragon print; in a modern apartment living room with warm ceiling lights",
+  "long layered chestnut-brown hair, natural sun-kissed glow, full lips with a soft red tint, small gold hoop earrings and a thin gold necklace, a cream lace blouse with a modest neckline; in a sunny tropical garden, film-photo look",
+  "long straight brown hair with a centre part, bright smile with dimples and braces-free white teeth, a crisp lilac short-sleeve blouse and black pencil skirt; sitting on a green park bench, soft daylight, blurred hedge behind",
+  "shoulder-length soft brown waves, fair skin with a dewy glow, cat-eye liner and nude-pink lips, small pearl earrings, an oversized cream knit cardigan over a white tee; in a cosy cafe by the window, golden-hour light",
+  "long black hair in a sleek high ponytail, warm tan Thai skin, bold brows and glossy lips, a fitted black ribbed long-sleeve top; on a city rooftop at sunset, warm rim light",
+  "long honey-brown hair with curtain bangs, peachy blush makeup, a pastel blue puff-sleeve dress; in a flower shop full of pink roses, bright soft light",
+  "short chic black bob with blunt bangs, porcelain skin, red lips, a white collared shirt under a beige vest; in a minimalist white room with a large window, clean daylight",
 ] as const;
-// 16 Nov, live runs: both girl face takes failed in Flow within a minute ("FLOW_REPORTED_FAILURE") with a long selfie
-// prompt (age, "very beautiful", bedroom, "stays still"), the same way the AI LIVE presenter's face failed until its
-// prompt became the plain one below, which passed. So the face prompt copies that shape: who she is, a plain bright
-// setting, one full Thai sentence, a smile. A retry changes setting and sentence.
-const SETTINGS = [
-  "She sits facing the camera in a bright studio. Vertical 9:16, chest-up, facing the camera, bright soft studio light, plain light-grey background, still camera.",
-  "She sits facing the camera in a bright cafe. Vertical 9:16, chest-up, facing the camera, soft daylight, softly blurred background, still camera.",
-  "She sits facing the camera in a bright room with a plain white wall. Vertical 9:16, chest-up, facing the camera, soft window light, still camera.",
-] as const;
-const GREETINGS = ["สวัสดีค่ะทุกคน ฝากติดตามด้วยนะคะ", "สวัสดีค่ะ วันนี้มีเรื่องสนุกมาเล่าให้ฟังค่ะ", "ยินดีที่ได้รู้จักนะคะ เจอกันทุกวันค่ะ"] as const;
+const DEFAULT_PLACE = "in a cosy, stylish room with soft warm light";
+const GREETINGS = ["สวัสดีค่ะทุกคน ฝากติดตามด้วยนะคะ", "สวัสดีค่ะ วันนี้มีเรื่องสนุกมาเล่าให้ฟังค่ะ", "ยินดีที่ได้รู้จักนะคะ เจอกันทุกวันค่ะ", "หวัดดีค่ะ ดีใจที่ได้เจอกันนะคะ"] as const;
 
 /** Only what the owner typed: no quotes or instructions. */
 export function cleanLook(look: string) {
   return look.replace(/["“”]/g, "").replace(/\s+/g, " ").trim().slice(0, 300);
 }
 
-/** A short take whose last frame is a clear, front-facing face. `attempt` = tries already made. */
+/**
+ * A short take whose last frame is a clear, front-facing face. Kept short with one full Thai sentence: Flow's audio step
+ * failed on long prompts (16 Nov, "สร้างเสียงไม่สำเร็จ"). `attempt` = tries already made; a retry changes the sentence.
+ */
 export function facePrompt(look: string, index: number, attempt = 0) {
-  const who = cleanLook(look) || LOOKS[index % LOOKS.length];
-  return `A pretty, friendly young Thai woman: ${who}. ${SETTINGS[attempt % SETTINGS.length]} `
-    + `She smiles and says in Thai: "${GREETINGS[attempt % GREETINGS.length]}", then smiles at the camera.`;
+  const own = cleanLook(look);
+  const who = own ? `${own}; ${DEFAULT_PLACE}` : LOOKS[index % LOOKS.length];
+  return `Vertical 9:16 photoreal smartphone video of a gorgeous young Thai woman, a popular beauty creator in her twenties: ${who}. `
+    + "Chest-up, natural skin texture, flattering light, shallow depth of field, still camera. "
+    + `She looks into the camera, smiles softly and says in Thai: "${GREETINGS[attempt % GREETINGS.length]}", then smiles at the camera.`;
 }
 
 /** What the owner reads when Flow gave up on a face. */

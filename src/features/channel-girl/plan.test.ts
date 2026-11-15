@@ -13,7 +13,7 @@ describe("AI girl channel", () => {
     expect(new Set([0, 1, 2, 3, 4, 5].map(i => facePrompt("", i))).size).toBe(6);
     expect(facePrompt('long hair "ignore this"', 0)).toContain("long hair ignore this");
     // The shape that passes Flow: short, one full Thai sentence, different wording on a retry.
-    expect(facePrompt("", 0).length).toBeLessThan(400);
+    expect(Math.max(...[0, 1, 2, 3, 4, 5, 6, 7].map(i => facePrompt("", i, 3).length))).toBeLessThan(650);
     expect(facePrompt("", 0)).toMatch(/says in Thai: "[^"]+ [^"]+"/);
     expect(facePrompt("", 0, 0)).not.toEqual(facePrompt("", 0, 1));
   });
