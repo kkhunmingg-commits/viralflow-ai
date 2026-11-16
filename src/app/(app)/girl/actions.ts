@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
-import { addFace, deleteFace, pickFace, renameGirl, resetOldClips } from "@/features/channel-girl/service";
+import { addFace, deleteFace, pickFace, renameGirl } from "@/features/channel-girl/service";
 import { setNicheChoice } from "@/features/flow-farm/learning-store";
 
 const HOME = "/post";
@@ -78,13 +78,4 @@ export async function deleteFaceAction(formData: FormData) {
   try { await deleteFace(createAdminClient(), ownerId, parsed.data.key); }
   catch (error) { fail(error); }
   done(`ลบหน้าแบบที่ ${parsed.data.key.split("-")[1]} แล้ว`);
-}
-
-export async function resetOldClipsAction(formData: FormData) {
-  if (formData.get("confirm") !== "on") done("ติ๊กยืนยันก่อนล้างคลิปเดิม");
-  const ownerId = await owner();
-  let cleared = 0;
-  try { cleared = (await resetOldClips(createAdminClient(), ownerId)).clips; }
-  catch (error) { fail(error); }
-  done(`ล้างแล้ว: เอาคลิปเดิม ${cleared} คลิปออกจากคิวและคลัง และเริ่มสถิติใหม่ (สำรองข้อมูลเดิมไว้แล้ว)`);
 }

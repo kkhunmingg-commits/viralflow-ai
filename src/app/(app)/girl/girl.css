@@ -15,7 +15,6 @@
 .girl-face button, .girl-button { min-height: 44px; padding: 8px 14px; border-radius: 10px; border: 0; font-weight: 700; color: #fff; cursor: pointer;
   background: linear-gradient(90deg, #7164f5, #428ee8); text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
 .girl-face button:disabled { opacity: .4; cursor: not-allowed; }
-.girl-button.danger { background: #a33a4a; }
 .girl-new summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; align-items: center; }
 .girl-form { display: grid; gap: 10px; max-width: 520px; }
 .girl-form label { display: grid; gap: 6px; font-size: 14px; }

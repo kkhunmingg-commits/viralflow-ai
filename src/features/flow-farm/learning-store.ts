@@ -185,14 +185,3 @@ export async function setNicheChoice(admin: SupabaseClient, owner: string, accou
   file.accounts[accountId] = { ...{ syncedAt: null }, ...file.accounts[accountId], nicheChoice: choice };
   await writeStats(admin, owner, file);
 }
-
-/** "โละสถิติ" (16 Nov, owner): the stats file is copied to a backup, then starts empty (sign-in sync state is kept). */
-export async function backupAndClearStats(admin: SupabaseClient, owner: string, stamp: string) {
-  const file = await readStats(admin, owner);
-  const backup = statsPath(owner).replace(/\.json$/, `.backup-${stamp}.json`);
-  await saveStateFile(admin, backup, file, "clip_stats_not_saved");
-  const accounts: StatsFile["accounts"] = {};
-  for (const [id, account] of Object.entries(file.accounts)) accounts[id] = { syncedAt: null, nicheChoice: account.nicheChoice === "AI_GIRL" ? "AI_GIRL" : "AUTO" };
-  await writeStats(admin, owner, { version: 1, clips: {}, accounts });
-  return backup;
-}

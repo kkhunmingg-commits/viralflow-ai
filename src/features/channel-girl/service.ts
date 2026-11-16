@@ -205,35 +205,6 @@ export async function faceLinks(admin: SupabaseClient, character: GirlCharacter 
 }
 
 /**
- * "โละของเก่า" (16 Nov, owner): old warm-up and product clips leave the queue and library, and the learning loop
- * starts over. Nothing is erased: the clip ids and the old stats file are saved to a backup file first, so it can
- * be undone, and posted clips stay posted on TikTok.
- */
-export async function resetOldClips(admin: SupabaseClient, owner: string, now = new Date()) {
-  const old = await admin.from("flow_clips").select("id,status").eq("owner_id", owner).in("kind", ["GROWTH", "AFFILIATE"])
-    .in("status", ["QUEUED", "READY", "SCHEDULED"]).lt("created_at", now.toISOString()).limit(2000);
-  if (old.error) throw new Error("flow_clips_unavailable");
-  const rows = (old.data ?? []) as Array<{ id: string; status: string }>;
-  const { backupAndClearStats } = await import("@/features/flow-farm/learning-store");
-  const stamp = now.toISOString().replace(/[:.]/g, "-");
-  const statsBackup = await backupAndClearStats(admin, owner, stamp);
-  // The state bucket takes files up to 64 KB: ids are saved 1,000 to a file.
-  for (let i = 0, part = 1; i < Math.max(rows.length, 1); i += 1000, part++) {
-    await saveStateFile(admin, `owner/${owner}/clip-reset-${stamp}-${part}.json`,
-      { at: now.toISOString(), statsBackup, status: rows.slice(i, i + 1000).map(r => `${r.id}:${r.status}`) }, "reset_backup_not_saved");
-  }
-  for (let i = 0; i < rows.length; i += 200) {
-    const ids = rows.slice(i, i + 200).map(r => r.id);
-    const update = await admin.from("flow_clips").update({ status: "DISCARDED", error: "ล้างระบบคลิปเดิม", updated_at: now.toISOString() })
-      .eq("owner_id", owner).in("id", ids).in("status", ["QUEUED", "READY", "SCHEDULED"]);
-    if (update.error) throw new Error("flow_clips_unavailable");
-  }
-  const state = await readGirl(admin, owner);
-  await saveGirl(admin, owner, { ...state, resetAt: now.toISOString() });
-  return { clips: rows.length };
-}
-
-/**
  * The next `count` clips of the girl for one channel, continuing the current story arc; the arc and the titles made
  * are saved so tomorrow picks up where today stopped. Null when no face is picked yet.
  */

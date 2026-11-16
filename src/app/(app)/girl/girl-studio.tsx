@@ -2,10 +2,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { characterStatusLabels, MAX_FACES_SHOWN, randomNickname } from "@/features/channel-girl/plan";
 import { sampleArcs } from "@/features/channel-girl/stories";
 import { faceLinks, readGirl } from "@/features/channel-girl/service";
-import { createGirlAction, pickFaceAction, deleteFaceAction, renameGirlAction, resetOldClipsAction } from "./actions";
+import { createGirlAction, pickFaceAction, deleteFaceAction, renameGirlAction } from "./actions";
 import "./girl.css";
 
-const bangkokTime = (iso: string) => new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
 
 /** Reads outside render (the clock included). */
 async function loadGirlStudio(owner: string) {
@@ -81,14 +80,5 @@ export async function GirlStudio({ owner }: { owner: string }) {
       <p className="girl-note">ชุดน่ารัก ไม่โป๊ เพราะคลิปโป๊ TikTok ไม่ดันขึ้นหน้า For You และ Flow มักไม่ยอมสร้าง</p>
     </section>
 
-    <section className="girl-card girl-reset" aria-label="ล้างคลิปเดิม">
-      <h2>ล้างระบบคลิปเดิม</h2>
-      <p>เอาคลิปแนวเดิมที่ยังไม่โพสต์ออกจากคิวและคลัง และเริ่มสถิติใหม่ เพื่อให้ระบบเรียนรู้จากคลิปน้องอย่างเดียว คลิปที่โพสต์ไปแล้วใน TikTok ไม่ถูกแตะ และระบบสำรองข้อมูลเดิมไว้ก่อนเสมอ</p>
-      {state.resetAt ? <p className="girl-note">ล้างครั้งล่าสุด {bangkokTime(state.resetAt)}</p> : null}
-      <form action={resetOldClipsAction} className="girl-form">
-        <label className="girl-check"><input type="checkbox" name="confirm" required /> ยืนยันล้างคลิปและสถิติเดิม</label>
-        <button type="submit" className="girl-button danger">ล้างคลิปเดิม</button>
-      </form>
-    </section>
   </div>;
 }
