@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getProductRadar } from "@/features/products/services";
 import { bangkokDate, bangkokDayRange, COUNTED_STATUSES, FLOW_CLIP_MAX_BYTES, LIBRARY_STATUSES, MAX_CLIPS_PER_BATCH, MAX_SHARED_FLOW_ACCOUNTS,
   decodeProgress, encodeProgress, type FlowAccountRow, type FlowClipStatus, type FlowLoginState, type FlowProgress, type FlowProgressStage } from "./contracts";
-import { clipsToAdd, flowAccountViews } from "./capacity";
+import { flowAccountViews } from "./capacity";
 export { draftDelivered } from "./contracts";
 import { planBatch, type FarmProduct } from "./planner";
 import { productsForNiche, type NicheKey } from "./niches";
@@ -189,7 +189,8 @@ export async function startBatch(admin: SupabaseClient, owner: string, accountId
     const existing = await admin.from("flow_clips").select("id", { count: "exact", head: true }).eq("owner_id", owner)
       .eq("tiktok_account_id", account.id).in("status", COUNTED_STATUSES).in("kind", ["GROWTH", "AFFILIATE"]).gte("created_at", start).lt("created_at", end);
     if (existing.error) throw new Error("flow_clips_unavailable");
-    const add = clipsToAdd(count, existing.count ?? 0, MAX_CLIPS_PER_BATCH);
+    // 16 Nov owner: no daily ceiling; the number typed is how many new clips to make now (a stock to choose from).
+    const add = Math.max(0, Math.min(MAX_CLIPS_PER_BATCH, Math.floor(count)));
     const mode = account.effective_mode === "AFFILIATE" ? "AFFILIATE" : "GROWTH";
     // What this account's posted clips taught (views, engagement, follows, discards) steers the batch and its niche.
     const learning = add ? await import("./learning-store").then(m => m.guideForBatch(admin, owner, account.id, now)).catch(() => undefined) : undefined;

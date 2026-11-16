@@ -67,7 +67,6 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
   // Every Google account serves every TikTok account: one list, one drain order.
   const own = flowAccounts;
   const capacity = remainingCapacity(flowAccounts);
-  const defaultCount = Math.min(30, Math.max(1, account.daily_post_target ?? 5));
   const online = lastSeen !== null && now - Date.parse(lastSeen) < 3 * 60_000;
   const selling = account.effective_mode === "AFFILIATE";
   const waitingLogin = flowAccounts.some(f => f.active && f.loginState === "PENDING");
@@ -132,7 +131,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
         <span className="manual-private">เครดิตฟรีวันนี้ทำได้อีกประมาณ {capacity} คลิป</span></div>
       <form action={startBatchAction} className="library-start">
         <input type="hidden" name="accountId" value={account.id} />{back}
-        <label className="manual-filter">จำนวนคลิปวันนี้<input name="count" type="number" min={1} max={30} defaultValue={defaultCount} /></label>
+        <label className="manual-filter">จำนวนคลิปที่จะสร้างเพิ่ม<input name="count" type="number" min={1} max={30} defaultValue={1} /></label>
         <button className="manual-primary" type="submit" disabled={!ready || waitingLogin}>{selling ? "ค้นหาสินค้าและสร้างคลิป" : "สร้างคลิปสาว AI"}</button>
       </form>
       {waitingLogin ? <p className="manual-warning">รอล็อกอินบัญชี Google ให้ครบก่อน แล้วค่อยกดสร้างคลิป</p>
