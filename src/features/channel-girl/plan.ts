@@ -186,30 +186,29 @@ export interface GirlGuide { seriesWeights?: Record<string, number>; strictSerie
 export interface PlannedGirlClip { title: string; prompt: string; caption: string; hashtags: string[]; series: GirlSeries }
 
 /**
- * The next `count` episodes. The current arc continues where it stopped (yesterday's "morning" is followed by today's
- * "lunch"); when it ends, a new arc starts in a different series, chosen by what the results liked. No episode title
- * in `made` is used again. Returns the clips and the state to save.
+ * The next `count` clips. 16 Nov owner: no more episodes ("episode 1 and 3 came out the same on one day"): every clip
+ * is a stand-alone idea from a different series than the last few clips, picked at random from a fresh story draw, so
+ * the channel keeps showing new content. No title in `made` is used again. `arc` is always null now (kept in the state
+ * shape for older saves).
  */
 export function planGirlClips(count: number, name: string, input: { guide?: GirlGuide; arc?: ArcProgress | null; made?: readonly string[] } = {},
   random: () => number = Math.random): { clips: PlannedGirlClip[]; arc: ArcProgress | null; made: string[] } {
   const made = [...(input.made ?? [])], seen = new Set(made), clips: PlannedGirlClip[] = [];
-  let arc = input.arc && input.arc.v === ARC_VERSION && input.arc.next < input.arc.episodes.length ? input.arc : null;
   const who = name.trim() || "น้อง";
   while (clips.length < count) {
-    if (!arc) {
-      const fresh: Arc = newArc(random, { made: seen, lastSeries: clips.at(-1)?.series ?? input.arc?.series ?? null, weights: input.guide?.seriesWeights });
-      arc = { series: fresh.series, name: fresh.name, episodes: fresh.episodes, next: 0, v: ARC_VERSION };
-    }
-    const episode = arc.episodes[arc.next], number = arc.next + 1, total = arc.episodes.length;
+    // The series of the last 4 clips (earlier batches included) are left out, so one day never repeats a series.
+    const recent = made.slice(-4).map(seriesFromTitle).filter((s): s is GirlSeries => Boolean(s));
+    const arc: Arc = newArc(random, { made: seen, avoid: recent, weights: input.guide?.seriesWeights });
+    const fresh = arc.episodes.filter(e => !seen.has(episodeTitle(arc.series, e)));
+    const pool = fresh.length ? fresh : arc.episodes;
+    const episode = pool[Math.floor(random() * pool.length) % pool.length];
     const title = episodeTitle(arc.series, episode);
     clips.push({
       series: arc.series, title, prompt: girlPrompt(episode, { strict: input.guide?.strictSeries?.includes(arc.series) }),
-      caption: `${who} · ${arc.name} ตอนที่ ${number}/${total}\n${episode.line} ${CTAS[Math.floor(random() * CTAS.length) % CTAS.length]}\n(ตัวละคร AI)`,
+      caption: `${who} · ${episode.label}\n${episode.line} ${CTAS[Math.floor(random() * CTAS.length) % CTAS.length]}\n(ตัวละคร AI)`,
       hashtags: [...episode.hashtags, "#สาวไทย", "#AIgirl", "#AI", "#fyp"],
     });
     made.push(title); seen.add(title);
-    arc = { ...arc, next: arc.next + 1 };
-    if (arc.next >= arc.episodes.length) arc = null;
   }
-  return { clips, arc, made: made.slice(-MAX_MADE_KEPT) };
+  return { clips, arc: null, made: made.slice(-MAX_MADE_KEPT) };
 }

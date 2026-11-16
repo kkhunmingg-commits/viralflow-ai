@@ -22,16 +22,15 @@ describe("AI girl channel", () => {
     for (let i = 0; i < 20; i++) expect(randomNickname(seeded(i))).toMatch(/^[A-Z][a-z]+[A-Z][a-z]+$/);
   });
 
-  it("tells a story in order and carries it over to the next day", () => {
-    const day1 = planGirlClips(2, "MildMilk", {}, seeded(7));
-    expect(day1.clips).toHaveLength(2);
-    expect(day1.arc?.next).toBe(2);
-    const day2 = planGirlClips(3, "MildMilk", { arc: day1.arc, made: day1.made }, seeded(8));
-    // Day 2 starts with episode 3 of the same story.
-    expect(day2.clips[0].series).toBe(day1.clips[0].series);
-    expect(day2.clips[0].caption).toMatch(/ตอนที่ 3\//);
-    for (const clip of [...day1.clips, ...day2.clips]) {
+  it("makes stand-alone clips, never the same series twice in a row of four, with no episode numbers", () => {
+    const day1 = planGirlClips(3, "MildMilk", {}, seeded(7));
+    const day2 = planGirlClips(3, "MildMilk", { made: day1.made }, seeded(8));
+    expect(day1.arc).toBeNull();
+    const all = [...day1.clips, ...day2.clips];
+    for (let i = 0; i < all.length; i++) for (let j = Math.max(0, i - 4); j < i; j++) expect(all[i].series).not.toBe(all[j].series);
+    for (const clip of all) {
       expect(clip.caption).toContain("(ตัวละคร AI)");
+      expect(clip.caption).not.toMatch(/ตอนที่/);
       expect(clip.prompt).toContain("reference image");
       expect(clip.prompt).toMatch(/no lingerie/);
       expect(clip.prompt.length).toBeLessThan(3000);

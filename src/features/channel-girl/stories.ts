@@ -304,9 +304,11 @@ export function seriesFromTitle(title: string): GirlSeries | null {
  * A new arc of `series` (or one chosen by weight, never the series of the arc just finished) whose episodes have not
  * been made before. Tries a few draws; with tens of thousands of combinations one is nearly always fresh.
  */
-export function newArc(random: Random, options: { made?: ReadonlySet<string>; lastSeries?: GirlSeries | null; weights?: Record<string, number> } = {}): Arc {
+export function newArc(random: Random, options: { made?: ReadonlySet<string>; lastSeries?: GirlSeries | null; avoid?: readonly GirlSeries[]; weights?: Record<string, number> } = {}): Arc {
   const made = options.made ?? new Set<string>();
-  const pool = GIRL_SERIES.filter(s => s !== options.lastSeries);
+  const avoid = new Set([...(options.avoid ?? []), ...(options.lastSeries ? [options.lastSeries] : [])]);
+  const open = GIRL_SERIES.filter(s => !avoid.has(s));
+  const pool = open.length ? open : GIRL_SERIES.filter(s => s !== options.lastSeries);
   let best: Arc | null = null, bestFresh = -1;
   for (let attempt = 0; attempt < 12; attempt++) {
     const total = pool.reduce((sum, s) => sum + Math.max(0.1, options.weights?.[s] ?? DEFAULT_WEIGHTS[s] ?? 1), 0);

@@ -70,14 +70,13 @@ export async function GirlStudio({ owner }: { owner: string }) {
     </section>
 
     <section className="girl-card" aria-label="แนวคลิป">
-      <h2>คลิปมาเป็นเรื่องต่อเนื่อง ตอนละ 3–5 คลิป ไม่ซ้ำ</h2>
-      <p className="girl-note">วันละ 2–3 คลิป เรื่องเล่าต่อจากเมื่อวาน จบเรื่องแล้วขึ้นเรื่องใหม่คนละแนว สุ่มจากสถานที่ ชุด อาหาร และท่าเต้นเป็นหมื่นแบบ ตัวอย่างเรื่องที่สุ่มได้:</p>
-      {state.arc ? <p className="girl-msg">เรื่องที่กำลังเล่าอยู่: <strong>{state.arc.name}</strong> (ทำไปแล้ว {state.arc.next}/{state.arc.episodes.length} ตอน)</p> : null}
+      <h2>ทุกคลิปเป็นคอนเทนต์ใหม่ ไม่มีตอน ไม่ซ้ำแนว</h2>
+      <p className="girl-note">แต่ละคลิปสุ่มแนวใหม่ ไม่ซ้ำกับ 4 คลิปล่าสุด และทุกคลิปจบที่ลุคสวยและเซ็กซี่ขึ้น ตัวอย่างไอเดียที่สุ่มได้:</p>
       <ul className="girl-series">
-        {samples.map(arc => <li key={arc.series}><strong>{arc.series}: {arc.name}</strong>
-          <span>{arc.episodes.map((e, i) => `${i + 1}. ${e.label}`).join(" → ")}</span></li>)}
+        {samples.map(arc => <li key={arc.series}><strong>{arc.series}</strong>
+          <span>{arc.episodes.slice(0, 3).map(e => e.label).join(" · ")}</span></li>)}
       </ul>
-      <p className="girl-note">ชุดน่ารัก ไม่โป๊ เพราะคลิปโป๊ TikTok ไม่ดันขึ้นหน้า For You และ Flow มักไม่ยอมสร้าง</p>
+      <p className="girl-note">ชุดเซ็กซี่แบบที่ TikTok ยังดันขึ้นหน้า For You: ครอป มินิ รัดรูป เปิดไหล่ ชุดว่ายน้ำเฉพาะที่ทะเลหรือสระ ไม่ใส่ชุดชั้นในหรือชุดซีทรู เพราะ Flow ไม่ยอมสร้างและ TikTok ซ่อนคลิป</p>
     </section>
 
   </div>;
