@@ -33,29 +33,33 @@ function pickSome<T>(list: readonly T[], n: number, random: Random): T[] {
 // ---------------------------------------------------------------- Pools
 
 interface Look { th: string; en: string }
+// 16 Nov owner (with TikTok examples): every clip must add sex appeal; a change of look always ends prettier and sexier.
+// Fitted, short and cropped street fashion; nothing see-through and no lingerie (Flow refuses, TikTok hides it).
 const OUTFITS: readonly Look[] = [
-  { th: "เดรสยาวสีขาว", en: "a flowy white long-sleeve midi dress" },
-  { th: "เสื้อไหมพรมครีม", en: "a soft cream knit sweater and a pleated skirt" },
-  { th: "ชุดเดนิม", en: "a light denim jacket over a white top and jeans" },
-  { th: "ชุดสายเกาหลี", en: "a pastel cardigan, a white blouse and a long skirt" },
-  { th: "ชุดสตรีท", en: "a plain cropped oversized hoodie, cargo pants and sneakers" },
-  { th: "ชุดวินเทจ", en: "a vintage floral blouse and high-waisted wide trousers" },
-  { th: "ชุดสปอร์ต", en: "a modest matching sports set with a zip-up jacket" },
-  { th: "ชุดทำงานเก๋ๆ", en: "a beige blazer, a silk shirt and tailored trousers" },
-  { th: "ชุดไทยประยุกต์", en: "an elegant modern Thai silk dress in gold and cream with a neat sash" },
-  { th: "ชุดผ้าซิ่น", en: "a Thai northern-style sinh skirt with a simple fitted blouse" },
-  { th: "ชุดปาร์ตี้วิบวับ", en: "a sparkly long-sleeve knee-length party dress" },
-  { th: "ชุดลายดอกไปทะเล", en: "a long-sleeve floral sundress and a straw hat" },
-  { th: "ชุดสีพาสเทล Y2K", en: "a pastel Y2K-style knit top, a long skirt and hair clips" },
-  { th: "ชุดมินิมอลขาวดำ", en: "a minimal black-and-white shirt dress" },
-  { th: "ชุดหน้าหนาว", en: "a long camel coat, a knit scarf and boots" },
-  { th: "ชุดนักศึกษาสไตล์ลำลอง", en: "a crisp white shirt, a long navy skirt and a tote bag" },
-  { th: "ชุดสีแดงสดใส", en: "a bright red long-sleeve midi dress" },
-  { th: "ชุดลูกไม้หวานๆ", en: "a sweet lace-collar blouse and a long tiered skirt" },
+  { th: "ครอปท็อปขาวกับยีนส์ขาสั้น", en: "a fitted white crop top and high-waisted denim shorts" },
+  { th: "เดรสรัดรูปสั้นสีดำ", en: "a sleek black bodycon mini dress" },
+  { th: "เสื้อเปิดไหล่กับกระโปรงสั้น", en: "a fitted off-the-shoulder top and a pleated mini skirt" },
+  { th: "สายเดี่ยวกับกางเกงขาสั้น", en: "a fitted spaghetti-strap tank top and short shorts" },
+  { th: "เดรสสายเดี่ยวซาติน", en: "a short satin slip dress" },
+  { th: "เชิ้ตผูกเอวกับยีนส์ขาสั้น", en: "a white shirt knotted above the waist and denim shorts" },
+  { th: "ชุดออกกำลังกายรัดรูป", en: "a matching fitted sports bra top and high-waisted leggings" },
+  { th: "ครอปไหมพรมกับกระโปรงสั้น", en: "a cropped knit cardigan top and a mini skirt" },
+  { th: "เดรสเว้าเอว", en: "a fitted mini dress with side cut-outs at the waist" },
+  { th: "คอร์เซ็ตท็อปกับยีนส์", en: "a fashion corset-style top and low-rise jeans" },
+  { th: "เดรสเปิดหลัง", en: "a fitted red backless mini dress" },
+  { th: "เสื้อกล้ามครอปกับกระโปรงหนัง", en: "a cropped ribbed tank top and a black leather mini skirt" },
+  { th: "เดรสผ่าข้างซาติน", en: "an emerald satin dress with a high side slit" },
+  { th: "ชุดไทยประยุกต์แซ่บ", en: "a fitted modern Thai silk crop top with a gold sash and a silk skirt with a side slit" },
+  { th: "เดรสวิบวับสั้น", en: "a sparkly sequin mini dress" },
+  { th: "เสื้อยืดครอปกับกางเกงยีนส์เอวต่ำ", en: "a tight baby-tee crop top and low-rise baggy jeans" },
+] as const;
+const BEACH_OUTFITS: readonly Look[] = [
+  { th: "บิกินี่กับผ้าคลุม", en: "a stylish bikini with a flowing sarong tied at the hip" },
+  { th: "ชุดว่ายน้ำวันพีซเว้า", en: "a chic cut-out one-piece swimsuit" },
 ] as const;
 const HOME_CLOTHES: readonly Look[] = [
   { th: "ชุดนอนลายการ์ตูน", en: "loose pastel cartoon-print pajamas" },
-  { th: "เสื้อยืดตัวโคร่ง", en: "an oversized grey t-shirt and shorts-length lounge pants that reach the knee" },
+  { th: "เสื้อยืดตัวโคร่ง", en: "an oversized grey t-shirt and baggy lounge pants" },
   { th: "ฮู้ดดี้ตัวใหญ่", en: "a huge cosy hoodie with the hood up" },
   { th: "ชุดอยู่บ้านผ้าฝ้าย", en: "a simple cotton lounge set" },
 ] as const;
@@ -150,18 +154,6 @@ const DANCE_MOVES = [
 
 // Fitted, fashionable and confident (16 Nov owner: "sexy, medium up to the limit"), still inside what TikTok shows on
 // For You and what Flow agrees to make: no lingerie, swimwear, see-through or deep cleavage.
-const GLAM_OUTFITS: readonly Look[] = [
-  { th: "เดรสรัดรูปสีดำ", en: "a sleek fitted black bodycon midi dress with a square neckline" },
-  { th: "เดรสเปิดไหล่สีแดง", en: "a fitted red off-the-shoulder midi dress" },
-  { th: "เดรสซาตินแชมเปญ", en: "a champagne satin slip midi dress with a light cropped jacket" },
-  { th: "ครอปท็อปกับยีนส์เอวสูง", en: "a fitted white crop top and high-waisted flared jeans" },
-  { th: "ชุดหนังเท่ๆ", en: "a cropped black leather jacket, a fitted top and a black mini skirt with boots" },
-  { th: "ชุดออกกำลังกาย", en: "a matching fitted sports top and high-waisted leggings" },
-  { th: "มินิเดรสวิบวับ", en: "a sparkly silver long-sleeve mini dress" },
-  { th: "เสื้อเชิ้ตผูกเอว", en: "an oversized white shirt knotted at the waist with denim shorts" },
-  { th: "เดรสผ่าข้าง", en: "an elegant emerald satin maxi dress with a side slit" },
-  { th: "ชุดไทยแซ่บ", en: "a fitted modern Thai silk top with a gold sash and a long silk skirt" },
-] as const;
 const GLAM_SPOTS = [
   { th: "ไฟนีออนกลางคืน", en: "a city street with neon lights at night" }, { th: "รูฟท็อปบาร์", en: "a rooftop lounge with city lights" },
   { th: "ทางเดินแฟชั่น", en: "a hotel corridor with warm lights, like a runway" }, { th: "ลิฟต์กระจก", en: "a mirrored elevator" },
@@ -210,41 +202,46 @@ function dayArc(random: Random): Arc {
 
 function tripArc(random: Random): Arc {
   const trip = pick(TRIPS, random), packing = pick(HOME_CLOTHES, random), [outfit, outfit2, outfit3] = pickSome(OUTFITS, 3, random);
+  // A beach or lagoon trip shows her in swimwear once, the way travel creators do (16 Nov owner's examples).
+  const beach = /beach|sand|lagoon|waterfall pool/.test(`${trip.arrive} ${trip.spot}`) ? pick(BEACH_OUTFITS, random) : null;
   const tags = ["#เที่ยวไทย", trip.tag, "#travel"];
   return { series: "เที่ยวกับน้อง", name: `ทริป${trip.th} (${outfit.th})`, episodes: [
     { label: `แพ็กกระเป๋าไป${trip.th} · ${outfit.th}`, start: `she sits on her bedroom floor in ${packing.en}, folding clothes into an open suitcase`, turn: "she zips the suitcase shut and snaps her fingers at the lens; the shot cuts on the beat",
-      end: `she is now in ${outfit.en}, pulling the suitcase out of the door with a big smile`, line: `ไป${trip.th}กันค่ะ`, music: true, hashtags: tags },
-    { label: `ถึง${trip.th}แล้ว · ${outfit.th}`, start: `she arrives at ${trip.arrive}, in ${outfit.en}`, turn: "she spreads her arms and takes a deep breath", end: "she turns to the camera with an excited smile",
-      line: `ถึง${trip.th}แล้ว สวยมาก`, music: true, hashtags: tags },
-    { label: `เที่ยว${trip.th} · ${outfit2.th}`, start: `she walks around ${trip.spot} in ${outfit2.en}`, turn: "she stops, looks around in wonder and points something out", end: "she poses happily for the camera", line: "ที่นี่ต้องมาสักครั้ง", music: true, hashtags: tags },
-    { label: `กิน${trip.food.th}ที่${trip.th} · ${outfit2.th}`, start: `she sits at a local table in ${outfit2.en} with ${trip.food.en}`, turn: "she tries it and her eyes widen", end: "she gives a big thumbs-up", line: `${trip.food.th}อร่อยมาก`, music: false, hashtags: [...tags, "#ของกิน"] },
-    { label: `คืนสุดท้ายที่${trip.th} · ${outfit3.th}`, start: `she strolls through ${trip.night} in ${outfit3.en}`, turn: "she slows down and looks back at the camera", end: "she waves goodbye softly", line: "ไว้มาอีกนะคะ", music: true, hashtags: tags },
+      end: `she is now in ${outfit.en} with glam makeup, pulling the suitcase out of the door and looking back at the lens with a flirty smile`, line: `ไป${trip.th}กันค่ะ`, music: true, hashtags: tags, vibe: "GLAM" },
+    { label: `ถึง${trip.th}แล้ว · ${(beach ?? outfit).th}`, start: `she arrives at ${trip.arrive}, in ${(beach ?? outfit).en}`, turn: "she lets the wind blow through her hair and turns to the lens", end: "she walks toward the camera with a confident smile and a wink",
+      line: `ถึง${trip.th}แล้ว สวยมาก`, music: true, hashtags: tags, vibe: "GLAM" },
+    { label: `เที่ยว${trip.th} · ${outfit2.th}`, start: `she walks around ${trip.spot} in ${outfit2.en}`, turn: "she stops, glances back over her shoulder at the lens", end: "she poses like a model and blows a kiss", line: "ที่นี่ต้องมาสักครั้ง", music: true, hashtags: tags },
+    { label: `กิน${trip.food.th}ที่${trip.th} · ${outfit2.th}`, start: `she sits at a local table in ${outfit2.en} with ${trip.food.en}`, turn: "she tries it and her eyes widen", end: "she licks her lips playfully and gives a thumbs-up", line: `${trip.food.th}อร่อยมาก`, music: false, hashtags: [...tags, "#ของกิน"] },
+    { label: `คืนสุดท้ายที่${trip.th} · ${outfit3.th}`, start: `she strolls through ${trip.night} in ${outfit3.en}`, turn: "she slows down and looks back at the camera", end: "she bites her lip lightly and waves goodbye", line: "ไว้มาอีกนะคะ", music: true, hashtags: tags, vibe: "GLAM" },
   ] };
 }
 
+/** Every change of look ends prettier and sexier than it began (16 Nov owner: the hoodie "after" was worse than the "before"). */
+const AFTER_POSE = "mid-thigh-up shot, she does a slow hair flip, then a confident model pose with one hand on her hip, looking straight into the lens";
+
 function flipArc(random: Random): Arc {
-  const pairs = pickSome(OUTFITS, 5, random), homes = pickSome(HOME_CLOTHES, 4, random), spots = pickSome(DANCE_SPOTS, 5, random);
+  const pairs = pickSome(OUTFITS, 5, random), homes = pickSome(HOME_CLOTHES, 4, random), spots = pickSome(GLAM_SPOTS, 5, random), makeup = pickSome(MAKEUP, 5, random);
   const tags = ["#แปลงร่าง", "#outfit", "#ootd"];
   return { series: "แปลงลุควับ", name: `แปลงลุค 5 สไตล์ (${pairs[0].th})`, episodes: pairs.map((look, i) => ({
     label: `${homes[i % homes.length].th} → ${look.th} ที่${spots[i].th}`,
-    start: `she stands at a mirror in ${homes[i % homes.length].en}, making a cute shy face at the camera`,
+    start: `she stands at a mirror in ${homes[i % homes.length].en}, no makeup, hair in a messy bun, making a cute shy face at the camera`,
     turn: ["she spins quickly and the shot cuts on the beat mid-spin", "she snaps her fingers at the lens and the shot cuts on the beat",
       "she covers the lens with her palm and the shot cuts on the beat", "she flips her hair toward the lens and the shot cuts on the beat"][i % 4],
-    end: `she now wears ${look.en} in ${spots[i].en}, posing and smiling at the camera`,
-    line: ["ลุคนี้ให้กี่คะแนน", "ชอบลุคนี้ไหม", "ชุดนี้ไปไหนดี", "ลุคไหนสวยกว่า", "แปลงร่างเสร็จแล้ว"][i % 5], music: true, hashtags: tags,
+    end: `she now wears ${look.en} with ${makeup[i].en} and glossy long hair, at ${spots[i].en}; ${AFTER_POSE}`,
+    line: ["ลุคนี้ให้กี่คะแนน", "ชอบลุคนี้ไหม", "แบบนี้ใจเต้นไหม", "ลุคไหนสวยกว่า", "แปลงร่างเสร็จแล้ว"][i % 5], music: true, hashtags: tags, vibe: "GLAM" as const,
   })) };
 }
 
 function beforeAfterArc(random: Random): Arc {
-  const looks = pickSome(MAKEUP, 3, random), hairs = pickSome(HAIR, 2, random), outfits = pickSome(OUTFITS, 5, random);
+  const looks = pickSome(MAKEUP, 3, random), hairs = pickSome(HAIR, 2, random), outfits = pickSome(OUTFITS, 5, random), spots = pickSome(GLAM_SPOTS, 5, random);
   const tags = ["#ก่อนหลัง", "#grwm", "#แต่งหน้า"];
   return { series: "ก่อน/หลัง", name: `ก่อน/หลัง (${looks[0].th})`, episodes: [
-    ...looks.map((look, i) => ({ label: `หน้าสด → ${look.th} · ${outfits[i].th}`, start: "she sits at a vanity with a fluffy headband and bare natural skin, shrugging playfully at the camera",
-      turn: "she swipes a big makeup brush across the lens and the shot cuts on the beat", end: `she now has ${look.en} and wears ${outfits[i].en}, smiling and blowing a small kiss`,
-      line: "หน้าสดกับหน้าแต่ง ชอบแบบไหน", music: true, hashtags: tags })),
-    ...hairs.map((hair, i) => ({ label: `ผมยุ่ง → ${hair.th} · ${outfits[3 + i].th}`, start: "she looks at the camera with frizzy messy morning hair, pulling a funny face",
-      turn: "she covers the lens with a comb and the shot cuts on the beat", end: `she now has ${hair.en} and wears ${outfits[3 + i].en}, turning her head slowly`,
-      line: "ผมพังแค่ไหนก็เอาอยู่", music: true, hashtags: [...tags, "#ทำผม"] })),
+    ...looks.map((look, i) => ({ label: `หน้าสด → ${look.th} · ${outfits[i].th}`, start: "she sits at a vanity with a fluffy headband, bare natural skin and an oversized t-shirt, shrugging playfully at the camera",
+      turn: "she swipes a big makeup brush across the lens and the shot cuts on the beat", end: `she now has ${look.en}, glossy long hair and wears ${outfits[i].en} at ${spots[i].en}; ${AFTER_POSE}`,
+      line: "หน้าสดกับหน้าแต่ง ชอบแบบไหน", music: true, hashtags: tags, vibe: "GLAM" as const })),
+    ...hairs.map((hair, i) => ({ label: `ผมยุ่ง → ${hair.th} · ${outfits[3 + i].th}`, start: "she looks at the camera with frizzy messy morning hair in baggy pyjamas, pulling a funny face",
+      turn: "she covers the lens with a comb and the shot cuts on the beat", end: `she now has ${hair.en}, full glam makeup and wears ${outfits[3 + i].en} at ${spots[3 + i].en}; ${AFTER_POSE}`,
+      line: "ผมพังแค่ไหนก็เอาอยู่", music: true, hashtags: [...tags, "#ทำผม"], vibe: "GLAM" as const })),
   ] };
 }
 
@@ -252,14 +249,14 @@ function danceArc(random: Random): Arc {
   const move = pick(DANCE_MOVES, random), spots = pickSome(DANCE_SPOTS, 4, random), outfits = pickSome(OUTFITS, 4, random);
   const tags = ["#เต้น", "#เต้นตามเทรนด์", "#dancechallenge"];
   return { series: "ชาเลนจ์เต้น", name: `ชาเลนจ์${move.th} 4 ที่`, episodes: spots.map((spot, i) => ({
-    label: `${move.th}ที่${spot.th} · ${outfits[i].th}`, start: `she is already dancing ${move.en} at ${spot.en}, wearing ${outfits[i].en}`,
-    turn: "the moves sync to the beat with small head tilts, a hair flip and a wink at the lens", vibe: "FLIRTY" as const, end: "she finishes the move with a cute pose and laughs at the camera",
+    label: `${move.th}ที่${spot.th} · ${outfits[i].th}`, start: `she is already dancing ${move.en} with hip sways at ${spot.en}, wearing ${outfits[i].en}`,
+    turn: "the moves sync to the beat with a body roll, a hair flip and a wink at the lens", vibe: "GLAM" as const, end: "she finishes with a confident pose, looking into the lens with a smirk",
     line: ["เต้นตามกันได้นะ", "วันนี้มาเต้นที่นี่", "ใครเต้นได้บ้าง", "อีกรอบไหม"][i % 4], music: true, hashtags: tags,
   })) };
 }
 
 function glamArc(random: Random): Arc {
-  const outfits = pickSome(GLAM_OUTFITS, 4, random), spots = pickSome(GLAM_SPOTS, 4, random), moves = pickSome(GLAM_MOVES, 4, random), lines = pickSome(GLAM_LINES, 4, random);
+  const outfits = pickSome(OUTFITS, 4, random), spots = pickSome(GLAM_SPOTS, 4, random), moves = pickSome(GLAM_MOVES, 4, random), lines = pickSome(GLAM_LINES, 4, random);
   const tags = ["#สายแซ่บ", "#ootd", "#สาวสวย"];
   return { series: "สายแซ่บ", name: `สายแซ่บ ${outfits.length} ลุค (${outfits[0].th})`, episodes: outfits.map((look, i) => ({
     label: `${look.th} · ${spots[i].th} · ${moves[i].th}`,
@@ -279,7 +276,7 @@ function povArc(random: Random): Arc {
 }
 
 function chooseArc(random: Random): Arc {
-  const pairs = pickSome([...GLAM_OUTFITS, ...OUTFITS], 8, random), spots = pickSome(GLAM_SPOTS, 4, random);
+  const pairs = pickSome(OUTFITS, 8, random), spots = pickSome(GLAM_SPOTS, 4, random);
   const tags = ["#เลือกชุด", "#ootd", "#1หรือ2"];
   return { series: "เลือก 1 หรือ 2", name: `ให้เลือกชุด 1 หรือ 2 (${pairs[0].th})`, episodes: [0, 1, 2, 3].map(i => ({
     label: `1 ${pairs[i * 2].th} หรือ 2 ${pairs[i * 2 + 1].th}`,

@@ -24,7 +24,9 @@ export interface GirlCharacter {
   facePath: string | null; createdAt: string; updatedAt: string;
 }
 /** The story being told: episodes left to make continue in the next batch, even on the next day. */
-export interface ArcProgress { series: GirlSeries; name: string; episodes: Episode[]; next: number }
+/** `v`: story version. Stories saved before the 16 Nov sexier rewrite (no v) are dropped instead of continued. */
+export interface ArcProgress { series: GirlSeries; name: string; episodes: Episode[]; next: number; v?: number }
+export const ARC_VERSION = 2;
 export interface GirlState {
   version: 1; character: GirlCharacter | null;
   /** When the owner cleared the old clips and stats: the learning loop only reads clips made after this. */
@@ -144,9 +146,10 @@ export function decideFaces(candidates: FaceCandidate[], clips: Map<string, Clip
 export const girlSeriesOfTitle = (title: string): GirlSeries | null => seriesFromTitle(title);
 
 /** Shared limits: an adult, nothing TikTok keeps off For You and nothing Flow refuses to make. */
-const LIMITS = "she is an adult; no nudity, no lingerie, no swimwear, no see-through, no deep cleavage, no close-ups of body parts";
+const LIMITS = "she is an adult; no nudity, no lingerie, no see-through clothing, nothing explicit; swimwear only at a beach or pool; no close-ups of body parts";
 const STYLES = {
-  CUTE: `STYLE: cute, stylish and tasteful; ${LIMITS}; every outfit fully covers her`,
+  // 16 Nov owner: every clip adds sex appeal, even the everyday ones.
+  CUTE: `STYLE: pretty, sexy and stylish like a top Thai TikTok creator, fitted fashionable outfit, playful flirty eye contact; ${LIMITS}`,
   // 16 Nov owner: "more exciting, teasing, medium sexy up to the limit, to pull follows".
   FLIRTY: `STYLE: playful and flirty, she teases the viewer with eye contact, a cheeky smile and little winks; ${LIMITS}`,
   GLAM: `STYLE: confident, glamorous and alluring like a fashion model in a music video, fitted fashionable outfit, slow seductive eye contact with the lens; ${LIMITS}`,
@@ -161,7 +164,7 @@ export function girlPrompt(episode: Episode, options: { strict?: boolean } = {})
     `3–4 s: ${episode.turn}.`,
     `4–8 s: ${episode.end}. Keep moving naturally until the last frame.`,
     // 16 Nov: after the cut of a before/after the camera jumped to a far full-body shot and her face was tiny and still.
-    "FRAMING: keep her face large and clearly visible the whole time; after any cut the camera stays just as close (waist-up), never a far wide shot; she keeps moving and reacting.",
+    "FRAMING: her face stays large and clearly visible the whole time; after any cut the camera stays close (mid-thigh-up at most), never a far wide shot; she keeps moving and posing.",
     `${STYLES[episode.vibe ?? "CUTE"]}; flattering light, rich colour, crisp focus on her face; smooth natural motion; hands with five fingers; respectful at temples and sacred places.`,
     ...(options.strict ? ["EXTRA CARE: keep movements simple and slow, her face clearly visible and unchanged throughout."] : []),
     `AUDIO: ${episode.music ? "an upbeat, catchy instrumental pop beat that her moves follow, and " : "natural ambient sound, and "}she says only "${episode.line}" in Thai.`,
@@ -190,12 +193,12 @@ export interface PlannedGirlClip { title: string; prompt: string; caption: strin
 export function planGirlClips(count: number, name: string, input: { guide?: GirlGuide; arc?: ArcProgress | null; made?: readonly string[] } = {},
   random: () => number = Math.random): { clips: PlannedGirlClip[]; arc: ArcProgress | null; made: string[] } {
   const made = [...(input.made ?? [])], seen = new Set(made), clips: PlannedGirlClip[] = [];
-  let arc = input.arc && input.arc.next < input.arc.episodes.length ? input.arc : null;
+  let arc = input.arc && input.arc.v === ARC_VERSION && input.arc.next < input.arc.episodes.length ? input.arc : null;
   const who = name.trim() || "น้อง";
   while (clips.length < count) {
     if (!arc) {
       const fresh: Arc = newArc(random, { made: seen, lastSeries: clips.at(-1)?.series ?? input.arc?.series ?? null, weights: input.guide?.seriesWeights });
-      arc = { series: fresh.series, name: fresh.name, episodes: fresh.episodes, next: 0 };
+      arc = { series: fresh.series, name: fresh.name, episodes: fresh.episodes, next: 0, v: ARC_VERSION };
     }
     const episode = arc.episodes[arc.next], number = arc.next + 1, total = arc.episodes.length;
     const title = episodeTitle(arc.series, episode);
