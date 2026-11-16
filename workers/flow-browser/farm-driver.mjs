@@ -242,42 +242,56 @@ async function attachReference(page, selectors, imageUrl, scratchDir, clipId, { 
     // Flow (Nov 2026): frames mode has a "เริ่ม" (start) slot, ingredients mode an "add" button; either opens a picker
     // whose "อัปโหลดสื่อ" button asks for a file.
     const startSlot = () => page.locator("button.empty-chip").filter({ hasText: /^\s*(เริ่ม|start)\s*$/i }).first();
-    let slot = frames ? startSlot() : page.getByRole("button", { name: /^add$/ }).last();
+    // 16 Nov: the ingredients "+" next to the prompt is named "เพิ่มองค์ประกอบลงในช่องพรอมต์" (its icon turns into
+    // "close" while the media picker is open), not "add".
+    const ADD_INGREDIENT = /^add$|เพิ่มองค์ประกอบ|add (an )?ingredients?|add (media )?to (the )?prompt box/i;
+    const addSlot = () => page.getByRole("button", { name: ADD_INGREDIENT }).last();
+    // The picker's own upload button (a sidebar button in the Nov 16 picker); visible means the picker is open.
+    const uploadButton = () => page.locator("button.sidebar-upload-btn").or(page.getByRole("button", { name: /อัปโหลดสื่อ|upload media/i })).last();
+    const pickerOpen = () => uploadButton().isVisible().catch(() => false);
+    let slot = frames ? startSlot() : addSlot();
     // Flow may keep the composer in frames mode (10 Nov: only "เริ่ม/สิ้นสุด" slots, no ingredients "add"): the product
     // photo then goes in as the start frame instead of failing the shot again and again.
-    if (!frames && !await slot.count()) {
-      // Ask for ingredients mode once more (radio, tab or button) before falling back: a start frame shows the shop's
-      // banner photo in the first frames of the take (10 Nov owner).
-      const INGREDIENTS = /องค์ประกอบ|ส่วนผสม|ส่วนประกอบ|วัตถุดิบ|ingredients?/i;
-      await pickRadio(page, INGREDIENTS);
-      for (const role of ["tab", "button"]) {
-        const other = page.getByRole(role, { name: INGREDIENTS }).first();
-        if (!await slot.count() && await other.count()) { await other.click({ timeout: 5_000 }).catch(() => {}); await page.waitForTimeout(800); }
-      }
-      slot = page.getByRole("button", { name: /^add$/ }).last();
+    if (!frames && !await slot.count() && !await pickerOpen()) {
+      // Ask for ingredients mode once more before falling back: a start frame shows the shop's banner photo in the
+      // first frames of the take (10 Nov owner).
+      await pickRadio(page, /องค์ประกอบ|ส่วนผสม|ส่วนประกอบ|วัตถุดิบ|ingredients?/i);
+      slot = addSlot();
     }
-    if (!frames && !await slot.count() && await startSlot().count()) { frames = true; slot = startSlot(); }
-    if (!await slot.count()) throw new Error("IMAGE_INPUT_NOT_FOUND");
-    await slot.click({ timeout: 10_000 });
-    await page.waitForTimeout(1000);
-    const upload = page.getByRole("button", { name: /อัปโหลดสื่อ|upload/i }).last();
+    if (!frames && !await slot.count() && !await pickerOpen() && await startSlot().count()) { frames = true; slot = startSlot(); }
+    // Pictures already in the composer, so a new one shows that the face went in.
+    const composer = page.locator(".settings-trigger-button").first().locator("xpath=ancestor::*[.//*[@role='textbox']][1]");
+    const attached = async () => composer.locator("img").count().catch(() => 0);
+    const before = await attached();
+    if (!await pickerOpen()) {
+      if (!await slot.count()) throw new Error("IMAGE_INPUT_NOT_FOUND");
+      await slot.click({ timeout: 10_000 });
+      await page.waitForTimeout(1200);
+    }
+    const upload = uploadButton();
     if (!await upload.count()) throw new Error("IMAGE_INPUT_NOT_FOUND");
     const [chooser] = await Promise.all([page.waitForEvent("filechooser", { timeout: 15_000 }), upload.click({ timeout: 10_000 })]);
     await chooser.setFiles(path);
-    // The picture uploads into the picker; when the picker stays open, pick the newest picture in it.
-    const deadline = Date.now() + 40_000;
-    let picked = false;
+    // The picture uploads into the picker. Old picker: "เลือกรูปภาพ" with "เพิ่มไปยังพรอมต์" under the preview. Nov 16
+    // picker: the upload shows as the newest tile in its grid; clicking the tile puts it in the prompt.
+    const deadline = Date.now() + 60_000;
+    let clicks = 0;
     while (Date.now() < deadline) {
       await page.waitForTimeout(2000);
       if (frames && !await startSlot().isVisible().catch(() => false)) return;
-      const picker = page.locator(':text("เลือกรูปภาพ"), :text("Select")').first();
-      if (!await picker.isVisible().catch(() => false)) { if (!frames) return; continue; }
-      // The uploaded picture shows in the picker's preview with "เพิ่มไปยังพรอมต์" (add to prompt) under it.
+      const open = await pickerOpen();
+      if (await attached() > before && !open) return;
+      if (!frames && !open && !await page.locator(':text("เลือกรูปภาพ")').first().isVisible().catch(() => false)) {
+        if (await attached() > before) return;
+        continue;
+      }
       const add = page.getByRole("button", { name: /เพิ่มไปยังพรอมต์|add to prompt/i }).last();
       if (await add.isVisible().catch(() => false)) { await add.click({ timeout: 5_000 }).catch(() => {}); continue; }
-      if (!picked) {
-        const image = picker.locator("xpath=ancestor::*[.//img][1]").locator("img").first();
-        if (await image.count()) { await image.click({ timeout: 5_000 }).catch(() => {}); picked = true; }
+      if (clicks < 3) {
+        // The picker's grid: the first picture next to its upload button (sorted newest first), never the account avatar.
+        const dialog = upload.locator("xpath=ancestor::*[.//img[not(contains(@src,'/ogw/'))]][1]");
+        const tile = dialog.locator("img:not([src*='/ogw/'])").first();
+        if (await tile.isVisible().catch(() => false)) { await tile.click({ timeout: 5_000 }).catch(() => {}); clicks++; }
       }
     }
     throw new Error("IMAGE_NOT_ATTACHED");
