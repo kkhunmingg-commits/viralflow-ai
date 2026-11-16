@@ -362,7 +362,7 @@ export async function completeClip(admin: SupabaseClient, owner: string, input: 
   if (createHash("sha256").update(bytes).digest("hex") !== input.sha256) return reject("CHECKSUM_MISMATCH");
   if (Math.abs(input.width / input.height - 9 / 16) > .02) return reject("NOT_PORTRAIT_9_16");
   const update = await admin.from("flow_clips").update({ status: "READY", storage_path: path, video_sha256: input.sha256, video_bytes: bytes.length,
-    width: input.width, height: input.height, duration_seconds: input.durationSeconds, ready_at: now.toISOString(), lease_until: null, error: null,
+    width: input.width, height: input.height, duration_seconds: input.durationSeconds > 0 ? input.durationSeconds : null, ready_at: now.toISOString(), lease_until: null, error: null,
     updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", input.clipId).eq("status", "GENERATING");
   if (update.error?.code === "23505") return reject("DUPLICATE_VIDEO");
   check(update, "flow_clip_not_saved");
