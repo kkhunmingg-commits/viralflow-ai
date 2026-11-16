@@ -224,7 +224,7 @@ export function planGirlClips(count: number, name: string, input: { guide?: Girl
     clips.push({
       series: arc.series, title, prompt: girlPrompt(episode, { strict: input.guide?.strictSeries?.includes(arc.series), camera: CAMERAS[Math.floor(random() * CAMERAS.length) % CAMERAS.length] }),
       caption: `${who} · ${episode.label}\n${episode.line} ${CTAS[Math.floor(random() * CTAS.length) % CTAS.length]}`,
-      hashtags: [...episode.hashtags, "#สาวไทย", "#AIgirl", "#AI", "#fyp"],
+      hashtags: [...episode.hashtags, "#สาวไทย", "#สาวสวย", "#fyp"].filter((t, i, all) => all.indexOf(t) === i),
     });
     made.push(title); seen.add(title);
   }

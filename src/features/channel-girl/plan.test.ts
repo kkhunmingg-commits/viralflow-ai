@@ -29,7 +29,7 @@ describe("AI girl channel", () => {
     const all = [...day1.clips, ...day2.clips];
     for (let i = 0; i < all.length; i++) for (let j = Math.max(0, i - 7); j < i; j++) expect(all[i].series).not.toBe(all[j].series);
     for (const clip of all) {
-      expect(clip.hashtags).toContain("#AI");
+      expect(clip.hashtags).not.toContain("#AI");
       expect(clip.caption).not.toMatch(/ตอนที่/);
       expect(clip.prompt).toContain("reference image");
       expect(clip.prompt).toMatch(/no lingerie/);
