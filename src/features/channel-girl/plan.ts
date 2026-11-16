@@ -155,7 +155,24 @@ const STYLES = {
   GLAM: `STYLE: confident, glamorous and alluring like a fashion model in a music video, fitted fashionable outfit, slow seductive eye contact with the lens; ${LIMITS}`,
 } as const;
 
-export function girlPrompt(episode: Episode, options: { strict?: boolean } = {}) {
+/**
+ * 16 Nov owner: "film her from many angles like a real person, so it is never boring". Each clip gets one way of
+ * filming, the way real creators shoot on a phone; every one keeps her face clear.
+ */
+export const CAMERAS = [
+  "handheld selfie at arm's length, the phone moving a little with her, then she turns it to show more of the room",
+  "phone propped on a shelf at a low angle looking slightly up at her, she steps toward it",
+  "a friend films her handheld from the side, then circles slowly around to the front",
+  "top-down shot from above while she lies back, then the camera tilts down to her face",
+  "mirror selfie: we see her and the phone in a full-length mirror, then a cut to a close handheld shot",
+  "starts as a close-up of her eyes and smile, then the camera pulls back smoothly to show the outfit",
+  "over-the-shoulder shot as she glances back at the lens, then a cut to a front close-up",
+  "slow push-in from waist-up to a close-up of her face, gentle natural handheld shake",
+  "two quick cuts like a real TikTok edit: a medium side angle, then a close front angle on the beat",
+  "low tripod shot from the floor level, then a cut to eye level as she leans toward the lens",
+] as const;
+
+export function girlPrompt(episode: Episode, options: { strict?: boolean; camera?: string } = {}) {
   return [
     "Vertical 9:16 TikTok video, a full 8 seconds, photoreal like a real smartphone video.",
     "The young Thai woman in the reference image is the only person in the video: keep her exact face, eyes, nose, lips, skin tone and hair colour from the picture in every frame.",
@@ -164,7 +181,7 @@ export function girlPrompt(episode: Episode, options: { strict?: boolean } = {})
     `3–4 s: ${episode.turn}.`,
     `4–8 s: ${episode.end}. Keep moving naturally until the last frame.`,
     // 16 Nov: after the cut of a before/after the camera jumped to a far full-body shot and her face was tiny and still.
-    "FRAMING: her face stays large and clearly visible the whole time; after any cut the camera stays close (mid-thigh-up at most), never a far wide shot; she keeps moving and posing.",
+    `CAMERA: ${options.camera ?? CAMERAS[0]}; her face stays large and clearly visible, never a far wide shot; she keeps moving and posing.`,
     `${STYLES[episode.vibe ?? "CUTE"]}; flattering light, rich colour, crisp focus on her face; smooth natural motion; hands with five fingers; respectful at temples and sacred places.`,
     ...(options.strict ? ["EXTRA CARE: keep movements simple and slow, her face clearly visible and unchanged throughout."] : []),
     `AUDIO: ${episode.music ? "an upbeat, catchy instrumental pop beat that her moves follow, and " : "natural ambient sound, and "}she says only "${episode.line}" in Thai.`,
@@ -205,7 +222,7 @@ export function planGirlClips(count: number, name: string, input: { guide?: Girl
     const episode = pool[Math.floor(random() * pool.length) % pool.length];
     const title = episodeTitle(arc.series, episode);
     clips.push({
-      series: arc.series, title, prompt: girlPrompt(episode, { strict: input.guide?.strictSeries?.includes(arc.series) }),
+      series: arc.series, title, prompt: girlPrompt(episode, { strict: input.guide?.strictSeries?.includes(arc.series), camera: CAMERAS[Math.floor(random() * CAMERAS.length) % CAMERAS.length] }),
       caption: `${who} · ${episode.label}\n${episode.line} ${CTAS[Math.floor(random() * CTAS.length) % CTAS.length]}\n(ตัวละคร AI)`,
       hashtags: [...episode.hashtags, "#สาวไทย", "#AIgirl", "#AI", "#fyp"],
     });

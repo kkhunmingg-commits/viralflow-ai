@@ -5,7 +5,7 @@
  * food and moves, so there are tens of thousands of combinations. Pure.
  */
 
-export const GIRL_SERIES = ["วันหนึ่งของน้อง", "เที่ยวกับน้อง", "แปลงลุควับ", "ก่อน/หลัง", "ชาเลนจ์เต้น", "สายแซ่บ", "POV แฟน", "เลือก 1 หรือ 2"] as const;
+export const GIRL_SERIES = ["วันหนึ่งของน้อง", "เที่ยวกับน้อง", "แปลงลุควับ", "ก่อน/หลัง", "ชาเลนจ์เต้น", "สายแซ่บ", "POV แฟน", "เลือก 1 หรือ 2", "ชิลๆ ที่บ้าน"] as const;
 export type GirlSeries = (typeof GIRL_SERIES)[number];
 
 export interface Episode {
@@ -158,7 +158,7 @@ const GLAM_SPOTS = [
   { th: "ไฟนีออนกลางคืน", en: "a city street with neon lights at night" }, { th: "รูฟท็อปบาร์", en: "a rooftop lounge with city lights" },
   { th: "ทางเดินแฟชั่น", en: "a hotel corridor with warm lights, like a runway" }, { th: "ลิฟต์กระจก", en: "a mirrored elevator" },
   { th: "ห้องแต่งตัว", en: "a glamorous dressing room with bulb mirrors" }, { th: "ริมสระยามค่ำ", en: "beside a glowing pool at a night party" },
-  { th: "ยิม", en: "a modern gym with mirrors" }, { th: "ถนนฝนตก", en: "a rainy street at night with reflections" },
+  { th: "ยิม", en: "a modern gym with mirrors" }, { th: "บนเตียง", en: "a big bed with white sheets in a sunny bedroom" }, { th: "โซฟากำมะหยี่", en: "a velvet sofa in a cosy living room" }, { th: "ถนนฝนตก", en: "a rainy street at night with reflections" },
 ] as const;
 const GLAM_MOVES = [
   { th: "เดินเข้าหากล้อง", en: "walks slowly toward the camera like a runway model", end: "stops close to the lens, tilts her head and gives a slow confident smile" },
@@ -178,6 +178,23 @@ const POV = [
   { th: "ทำกับข้าวให้แฟน", start: "she cooks in a bright kitchen wearing an apron, then turns to the lens", turn: "she blows on a spoonful of food", end: "she holds the spoon out toward the lens", line: "อ้ามม ชิมหน่อยค่ะ" },
   { th: "ดูหนังด้วยกัน", start: "she sits on a sofa in the light of a TV, eating popcorn", turn: "a jump scare makes her gasp and grab toward the lens", end: "she hides her face then peeks out laughing", line: "อย่าปล่อยมือนะ" },
 ] as const;
+
+// 16 Nov owner: more everyday actions, like lying on the bed or sitting on the sofa, so clips feel like a real girl.
+const LOUNGE = [
+  { th: "นอนคว่ำเล่นมือถือบนเตียง", en: "lying on her stomach on a bed with white sheets, scrolling her phone and kicking her feet up behind her", end: "she rests her chin on her hand and smiles slowly at the lens" },
+  { th: "นอนหงายบนเตียง", en: "lying on her back across the bed, hair spread on the pillow, holding the phone above her face", end: "she rolls onto her side toward the lens and winks" },
+  { th: "นั่งขดบนโซฟา", en: "curled up on a big sofa hugging a cushion, legs tucked under her", end: "she peeks over the cushion and laughs at the lens" },
+  { th: "เอนตัวบนโซฟา", en: "lounging sideways on a velvet sofa with one arm over the backrest", end: "she tilts her head and gives a slow smile" },
+  { th: "นั่งริมหน้าต่าง", en: "sitting on a window seat in golden afternoon light, knees up, sipping iced coffee", end: "she turns from the window and looks into the lens" },
+  { th: "นั่งบนเคาน์เตอร์ครัว", en: "sitting on a kitchen counter swinging her legs and eating strawberries", end: "she holds a strawberry out to the lens and grins" },
+  { th: "นั่งพื้นพิงเตียง", en: "sitting on a fluffy rug leaning against the bed, painting her nails", end: "she blows on her nails and shows them to the lens" },
+  { th: "เปลญวนที่ระเบียง", en: "swinging gently in a hammock on a leafy balcony", end: "she stretches lazily and smiles at the lens" },
+  { th: "นั่งเบาะหน้ารถ", en: "sitting in the passenger seat of a car with sunlight on her face, singing along to the radio", end: "she lowers her sunglasses and winks at the lens" },
+  { th: "นอนบนโซฟาดูหนัง", en: "lying on a sofa under soft TV light with a bowl of popcorn", end: "she throws a piece of popcorn at the lens and laughs" },
+  { th: "ยืดเส้นบนเสื่อโยคะ", en: "stretching slowly on a yoga mat in her living room", end: "she sits up, tucks her hair back and smiles at the lens" },
+  { th: "แต่งตัวหน้ากระจก", en: "standing at a full-length mirror trying on earrings", end: "she turns to the lens and asks with her eyes which one" },
+] as const;
+const LOUNGE_LINES = ["วันนี้ขี้เกียจจัง", "อยู่บ้านเหงาๆ", "มาคุยกันหน่อยสิ", "ทำอะไรอยู่คะ", "คิดถึงไหม", "ชิลๆ ไปด้วยกันไหม"] as const;
 
 // ---------------------------------------------------------------- Arcs
 
@@ -298,9 +315,19 @@ function chooseArc(random: Random): Arc {
   })) };
 }
 
+function loungeArc(random: Random): Arc {
+  const scenes = pickSome(LOUNGE, 4, random), outfits = pickSome([...OUTFITS, { th: "ชุดนอนซาติน", en: "a short satin cami pyjama set" }, { th: "เสื้อเชิ้ตตัวโคร่งตัวเดียว", en: "an oversized white shirt worn as a short dress" }], 4, random), lines = pickSome(LOUNGE_LINES, 4, random);
+  const tags = ["#อยู่บ้าน", "#ชิลๆ", "#สาวสวย"];
+  return { series: "ชิลๆ ที่บ้าน", name: `ชิลๆ ที่บ้าน (${scenes[0].th})`, episodes: scenes.map((scene, i) => ({
+    label: `${scene.th} · ${outfits[i].th}`, start: `she is ${scene.en}, wearing ${outfits[i].en}`,
+    turn: "she notices the camera and her expression turns playful", end: scene.end,
+    line: lines[i], music: false, hashtags: tags, vibe: "FLIRTY" as const,
+  })) };
+}
+
 const BUILDERS: Record<GirlSeries, (random: Random) => Arc> = {
   "วันหนึ่งของน้อง": dayArc, "เที่ยวกับน้อง": tripArc, "แปลงลุควับ": flipArc, "ก่อน/หลัง": beforeAfterArc, "ชาเลนจ์เต้น": danceArc,
-  "สายแซ่บ": glamArc, "POV แฟน": povArc, "เลือก 1 หรือ 2": chooseArc,
+  "สายแซ่บ": glamArc, "POV แฟน": povArc, "เลือก 1 หรือ 2": chooseArc, "ชิลๆ ที่บ้าน": loungeArc,
 };
 /** Until results say otherwise, the teasing series come up more often than the cute everyday ones (16 Nov owner). */
 const DEFAULT_WEIGHTS: Partial<Record<GirlSeries, number>> = { "สายแซ่บ": 2, "POV แฟน": 1.5, "เลือก 1 หรือ 2": 1.5, "ชาเลนจ์เต้น": 1.2 };
