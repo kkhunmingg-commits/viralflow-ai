@@ -151,7 +151,7 @@ const STYLES = {
   // 16 Nov owner: every clip adds sex appeal, even the everyday ones.
   CUTE: `STYLE: pretty, sexy and stylish like a top Thai TikTok creator, fitted fashionable outfit, playful flirty eye contact; ${LIMITS}`,
   // 16 Nov owner: "more exciting, teasing, medium sexy up to the limit, to pull follows".
-  FLIRTY: `STYLE: playful and flirty, she teases the viewer with eye contact, a cheeky smile and little winks; ${LIMITS}`,
+  FLIRTY: `STYLE: sexy, playful and flirty in a fitted fashionable outfit, she teases the viewer with eye contact, a cheeky smile and little winks; ${LIMITS}`,
   GLAM: `STYLE: confident, glamorous and alluring like a fashion model in a music video, fitted fashionable outfit, slow seductive eye contact with the lens; ${LIMITS}`,
 } as const;
 
