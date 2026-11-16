@@ -13,7 +13,8 @@ export const MAX_FACE_ATTEMPTS = 4;
 /** Faces kept on the page to choose from (newest first); older pictures stay in storage. */
 export const MAX_FACES_SHOWN = 8;
 
-export type CandidateStatus = "QUEUED" | "DONE" | "FAILED";
+/** DELETED: removed by the owner; kept in the list only so its number (and Flow clip ids) are never used again. */
+export type CandidateStatus = "QUEUED" | "DONE" | "FAILED" | "DELETED";
 export interface FaceCandidate {
   key: string; clipId: string | null; attempts: number; status: CandidateStatus; stillPath: string | null; error: string | null;
 }

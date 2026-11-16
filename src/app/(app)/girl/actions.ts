@@ -5,7 +5,7 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
-import { addFace, pickFace, renameGirl, resetOldClips } from "@/features/channel-girl/service";
+import { addFace, deleteFace, pickFace, renameGirl, resetOldClips } from "@/features/channel-girl/service";
 import { setNicheChoice } from "@/features/flow-farm/learning-store";
 
 const HOME = "/post";
@@ -24,6 +24,7 @@ const KNOWN: Record<string, string> = {
   flow_clips_not_queued: "เข้าคิว Flow ไม่ได้ ลองใหม่อีกครั้ง",
   girl_not_saved: "บันทึกไม่ได้ ลองใหม่อีกครั้ง",
   FACE_NOT_FOUND: "ไม่พบหน้าที่เลือก",
+  FACE_IN_USE: "หน้านี้ใช้อยู่ ลบไม่ได้ เลือกหน้าอื่นก่อนแล้วค่อยลบ",
   FACE_IN_PROGRESS: "กำลังสร้างหน้าอยู่ 1 แบบ รอให้เสร็จก่อนค่อยกดสร้างใหม่",
   flow_clips_unavailable: "อ่านคลิปเดิมไม่ได้ ลองใหม่อีกครั้ง",
   reset_backup_not_saved: "สำรองข้อมูลเดิมไม่สำเร็จ จึงยังไม่ล้างอะไร",
@@ -68,6 +69,15 @@ export async function pickFaceAction(formData: FormData) {
     for (const account of (accounts.data ?? []) as Array<{ id: string }>) await setNicheChoice(admin, ownerId, account.id, "AI_GIRL").catch(() => {});
   } catch (error) { fail(error); }
   done("ล็อกหน้าแล้ว คลิปใหม่ทุกคลิปจะเป็นน้องคนนี้ กด “สร้างคลิป” ด้านล่างได้เลย");
+}
+
+export async function deleteFaceAction(formData: FormData) {
+  const parsed = pickSchema.safeParse({ key: formData.get("key") });
+  if (!parsed.success) done("ไม่พบหน้าที่เลือก");
+  const ownerId = await owner();
+  try { await deleteFace(createAdminClient(), ownerId, parsed.data.key); }
+  catch (error) { fail(error); }
+  done(`ลบหน้าแบบที่ ${parsed.data.key.split("-")[1]} แล้ว`);
 }
 
 export async function resetOldClipsAction(formData: FormData) {

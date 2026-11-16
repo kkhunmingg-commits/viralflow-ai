@@ -181,9 +181,21 @@ export async function pickFace(admin: SupabaseClient, owner: string, key: string
   await saveGirl(admin, owner, { ...state, character: { ...character, status: "READY", facePath: candidate.stillPath, updatedAt: now.toISOString() } });
 }
 
+/** The owner removes a face they do not want (16 Nov). The face in use and one still being made stay. */
+export async function deleteFace(admin: SupabaseClient, owner: string, key: string, now = new Date()) {
+  const state = await readGirl(admin, owner);
+  const character = state.character;
+  const candidate = character?.candidates.find(c => c.key === key && (c.status === "DONE" || c.status === "FAILED"));
+  if (!character || !candidate) throw new Error("FACE_NOT_FOUND");
+  if (candidate.stillPath && candidate.stillPath === character.facePath) throw new Error("FACE_IN_USE");
+  if (candidate.stillPath) await admin.storage.from(BUCKET).remove([candidate.stillPath]).catch(() => {});
+  const candidates = character.candidates.map(c => c.key === key ? { ...c, status: "DELETED" as const, stillPath: null } : c);
+  await saveGirl(admin, owner, { ...state, character: { ...character, candidates, status: characterStatus(candidates, character.facePath), updatedAt: now.toISOString() } });
+}
+
 /** Signed links for the page: every candidate still and the chosen face. */
 export async function faceLinks(admin: SupabaseClient, character: GirlCharacter | null) {
-  const shown = (character?.candidates ?? []).slice(-MAX_FACES_SHOWN);
+  const shown = (character?.candidates ?? []).filter(c => c.status === "DONE").slice(-MAX_FACES_SHOWN);
   const paths = [...new Set([...shown.map(c => c.stillPath), character?.facePath ?? null].filter((p): p is string => Boolean(p)))];
   const links: Record<string, string> = {};
   if (!paths.length) return links;

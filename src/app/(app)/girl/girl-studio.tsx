@@ -2,7 +2,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { characterStatusLabels, MAX_FACES_SHOWN, randomNickname } from "@/features/channel-girl/plan";
 import { sampleArcs } from "@/features/channel-girl/stories";
 import { faceLinks, readGirl } from "@/features/channel-girl/service";
-import { createGirlAction, pickFaceAction, renameGirlAction, resetOldClipsAction } from "./actions";
+import { createGirlAction, pickFaceAction, deleteFaceAction, renameGirlAction, resetOldClipsAction } from "./actions";
 import "./girl.css";
 
 const bangkokTime = (iso: string) => new Intl.DateTimeFormat("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" }).format(new Date(iso));
@@ -41,12 +41,14 @@ export async function GirlStudio({ owner }: { owner: string }) {
         <p className="girl-note">สร้างทีละ 1 รูป (โหมดรูปใน Flow ฟรี ไม่เสียเครดิต) ไม่ชอบก็กด “สร้างหน้าใหม่” แบบเก่ายังอยู่ให้เลือก · แต่ละรูปใช้เวลาประมาณ 1–2 นาที รีเฟรชหน้านี้เพื่อดู</p>
         {character.candidates.at(-1)?.status === "FAILED" ? <p className="girl-note">หน้าล่าสุดสร้างไม่สำเร็จ: Flow ทำไม่ผ่าน (ไม่เสียเครดิต) กดสร้างหน้าใหม่ได้เลย</p> : null}
         <div className="girl-grid">
-          {character.candidates.filter(c => c.status !== "FAILED").slice(-MAX_FACES_SHOWN).toReversed().map(c => <form key={c.key} action={pickFaceAction} className="girl-face">
+          {character.candidates.filter(c => c.status === "DONE" || c.status === "QUEUED").slice(-MAX_FACES_SHOWN).toReversed().map(c => <form key={c.key} action={pickFaceAction} className="girl-face">
             <input type="hidden" name="key" value={c.key} />
             {c.stillPath && links[c.stillPath] ? <img src={links[c.stillPath]} alt={`หน้าแบบที่ ${c.key.split("-")[1]}`} />
               : <div className="girl-face-empty">กำลังสร้าง…</div>}
             <button type="submit" disabled={c.status !== "DONE" || c.stillPath === character.facePath}>
               {c.stillPath && c.stillPath === character.facePath ? "ใช้หน้านี้อยู่" : `เลือกแบบที่ ${c.key.split("-")[1]}`}</button>
+            {c.status === "DONE" && c.stillPath !== character.facePath
+              ? <button type="submit" formAction={deleteFaceAction} className="girl-delete">ลบรูปนี้</button> : null}
           </form>)}
         </div>
       </div> : null}

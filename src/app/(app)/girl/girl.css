@@ -26,3 +26,5 @@
 .girl-series span { display: block; color: #9aa7bc; font-size: 13px; }
 .girl-button.secondary { background: #2b3244; }
 .girl-rename { border-top: 1px solid #2b3244; padding-top: 12px; }
+.girl-face button.girl-delete { min-height: 36px; background: transparent; border: 1px solid #5a2a35; color: #ff9aa8; font-weight: 600; }
+.girl-face button.girl-delete:hover { background: #3a1a22; }
