@@ -160,10 +160,12 @@ export function girlPrompt(episode: Episode, options: { strict?: boolean } = {})
     `0–3 s: ${episode.start}; from the very first frame she looks straight into the lens.`,
     `3–4 s: ${episode.turn}.`,
     `4–8 s: ${episode.end}. Keep moving naturally until the last frame.`,
+    // 16 Nov: after the cut of a before/after the camera jumped to a far full-body shot and her face was tiny and still.
+    "FRAMING: keep her face large and clearly visible the whole time; after any cut the camera stays just as close (waist-up), never a far wide shot; she keeps moving and reacting.",
     `${STYLES[episode.vibe ?? "CUTE"]}; flattering light, rich colour, crisp focus on her face; smooth natural motion; hands with five fingers; respectful at temples and sacred places.`,
     ...(options.strict ? ["EXTRA CARE: keep movements simple and slow, her face clearly visible and unchanged throughout."] : []),
     `AUDIO: ${episode.music ? "an upbeat, catchy instrumental pop beat that her moves follow, and " : "natural ambient sound, and "}she says only "${episode.line}" in Thai.`,
-    "AVOID: on-screen text, captions, logos, brand names, watermarks, other people's faces, her face changing, extra limbs, distorted hands.",
+    "AVOID: on-screen text, captions, words or graphic prints on clothing, logos, brand names, watermarks, other people's faces, her face changing, extra limbs, distorted hands.",
   ].join("\n");
 }
 

@@ -38,7 +38,7 @@ const OUTFITS: readonly Look[] = [
   { th: "เสื้อไหมพรมครีม", en: "a soft cream knit sweater and a pleated skirt" },
   { th: "ชุดเดนิม", en: "a light denim jacket over a white top and jeans" },
   { th: "ชุดสายเกาหลี", en: "a pastel cardigan, a white blouse and a long skirt" },
-  { th: "ชุดสตรีท", en: "an oversized graphic hoodie, cargo pants and sneakers" },
+  { th: "ชุดสตรีท", en: "a plain cropped oversized hoodie, cargo pants and sneakers" },
   { th: "ชุดวินเทจ", en: "a vintage floral blouse and high-waisted wide trousers" },
   { th: "ชุดสปอร์ต", en: "a modest matching sports set with a zip-up jacket" },
   { th: "ชุดทำงานเก๋ๆ", en: "a beige blazer, a silk shirt and tailored trousers" },
