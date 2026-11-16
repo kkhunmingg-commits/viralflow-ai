@@ -143,14 +143,24 @@ export function decideFaces(candidates: FaceCandidate[], clips: Map<string, Clip
 /** The series a girl clip's title belongs to, for the learning loop. */
 export const girlSeriesOfTitle = (title: string): GirlSeries | null => seriesFromTitle(title);
 
+/** Shared limits: an adult, nothing TikTok keeps off For You and nothing Flow refuses to make. */
+const LIMITS = "she is an adult; no nudity, no lingerie, no swimwear, no see-through, no deep cleavage, no close-ups of body parts";
+const STYLES = {
+  CUTE: `STYLE: cute, stylish and tasteful; ${LIMITS}; every outfit fully covers her`,
+  // 16 Nov owner: "more exciting, teasing, medium sexy up to the limit, to pull follows".
+  FLIRTY: `STYLE: playful and flirty, she teases the viewer with eye contact, a cheeky smile and little winks; ${LIMITS}`,
+  GLAM: `STYLE: confident, glamorous and alluring like a fashion model in a music video, fitted fashionable outfit, slow seductive eye contact with the lens; ${LIMITS}`,
+} as const;
+
 export function girlPrompt(episode: Episode, options: { strict?: boolean } = {}) {
   return [
     "Vertical 9:16 TikTok video, a full 8 seconds, photoreal like a real smartphone video.",
     "The young Thai woman in the reference image is the only person in the video: keep her exact face, eyes, nose, lips, skin tone and hair colour from the picture in every frame.",
-    `0–3 s: ${episode.start}.`,
+    // The first second decides whether a viewer stays: she meets the lens straight away.
+    `0–3 s: ${episode.start}; from the very first frame she looks straight into the lens.`,
     `3–4 s: ${episode.turn}.`,
     `4–8 s: ${episode.end}. Keep moving naturally until the last frame.`,
-    "STYLE: cute, stylish and tasteful; she is an adult; every outfit fully covers her (no cleavage, no lingerie, no swimwear, no see-through); flattering soft light, rich colour, crisp focus on her face; smooth natural motion; hands with five fingers; respectful at temples and sacred places.",
+    `${STYLES[episode.vibe ?? "CUTE"]}; flattering light, rich colour, crisp focus on her face; smooth natural motion; hands with five fingers; respectful at temples and sacred places.`,
     ...(options.strict ? ["EXTRA CARE: keep movements simple and slow, her face clearly visible and unchanged throughout."] : []),
     `AUDIO: ${episode.music ? "an upbeat, catchy instrumental pop beat that her moves follow, and " : "natural ambient sound, and "}she says only "${episode.line}" in Thai.`,
     "AVOID: on-screen text, captions, logos, brand names, watermarks, other people's faces, her face changing, extra limbs, distorted hands.",
@@ -159,6 +169,9 @@ export function girlPrompt(episode: Episode, options: { strict?: boolean } = {})
 
 const CTAS = [
   "กดติดตามไว้ เจอกันทุกวันนะคะ",
+  "ตอนต่อไปแซ่บกว่านี้ กดติดตามรอเลย",
+  "ถ้าชอบน้อง กดหัวใจกับกดติดตามให้หน่อยนะ",
+  "คอมเมนต์บอกหน่อย อยากเห็นน้องแบบไหนต่อ",
   "อยากให้ไปไหนหรือใส่ชุดไหนต่อ คอมเมนต์มาเลย กดติดตามไว้ด้วยนะ",
   "ตอนต่อไปมาเร็วๆ นี้ ติดตามไว้ไม่พลาด",
   "ให้คะแนนเต็ม 10 กี่คะแนน ติดตามไว้นะคะ",

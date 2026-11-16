@@ -5,7 +5,7 @@
  * food and moves, so there are tens of thousands of combinations. Pure.
  */
 
-export const GIRL_SERIES = ["วันหนึ่งของน้อง", "เที่ยวกับน้อง", "แปลงลุควับ", "ก่อน/หลัง", "ชาเลนจ์เต้น"] as const;
+export const GIRL_SERIES = ["วันหนึ่งของน้อง", "เที่ยวกับน้อง", "แปลงลุควับ", "ก่อน/หลัง", "ชาเลนจ์เต้น", "สายแซ่บ", "POV แฟน", "เลือก 1 หรือ 2"] as const;
 export type GirlSeries = (typeof GIRL_SERIES)[number];
 
 export interface Episode {
@@ -16,6 +16,9 @@ export interface Episode {
   line: string;
   music: boolean;
   hashtags: readonly string[];
+  /** 16 Nov owner: "more exciting, teasing, medium sexy up to the limit". GLAM = confident, alluring and fitted;
+   * FLIRTY = playful teasing to the viewer; unset = cute. Each changes the STYLE line of the prompt. */
+  vibe?: "FLIRTY" | "GLAM";
 }
 export interface Arc { series: GirlSeries; name: string; episodes: Episode[] }
 
@@ -145,6 +148,45 @@ const DANCE_MOVES = [
   { th: "เต้นช้าๆ ชิลๆ", en: "a slow, smooth sway with arm waves" },
 ] as const;
 
+// Fitted, fashionable and confident (16 Nov owner: "sexy, medium up to the limit"), still inside what TikTok shows on
+// For You and what Flow agrees to make: no lingerie, swimwear, see-through or deep cleavage.
+const GLAM_OUTFITS: readonly Look[] = [
+  { th: "เดรสรัดรูปสีดำ", en: "a sleek fitted black bodycon midi dress with a square neckline" },
+  { th: "เดรสเปิดไหล่สีแดง", en: "a fitted red off-the-shoulder midi dress" },
+  { th: "เดรสซาตินแชมเปญ", en: "a champagne satin slip midi dress with a light cropped jacket" },
+  { th: "ครอปท็อปกับยีนส์เอวสูง", en: "a fitted white crop top and high-waisted flared jeans" },
+  { th: "ชุดหนังเท่ๆ", en: "a cropped black leather jacket, a fitted top and a black mini skirt with boots" },
+  { th: "ชุดออกกำลังกาย", en: "a matching fitted sports top and high-waisted leggings" },
+  { th: "มินิเดรสวิบวับ", en: "a sparkly silver long-sleeve mini dress" },
+  { th: "เสื้อเชิ้ตผูกเอว", en: "an oversized white shirt knotted at the waist with denim shorts" },
+  { th: "เดรสผ่าข้าง", en: "an elegant emerald satin maxi dress with a side slit" },
+  { th: "ชุดไทยแซ่บ", en: "a fitted modern Thai silk top with a gold sash and a long silk skirt" },
+] as const;
+const GLAM_SPOTS = [
+  { th: "ไฟนีออนกลางคืน", en: "a city street with neon lights at night" }, { th: "รูฟท็อปบาร์", en: "a rooftop lounge with city lights" },
+  { th: "ทางเดินแฟชั่น", en: "a hotel corridor with warm lights, like a runway" }, { th: "ลิฟต์กระจก", en: "a mirrored elevator" },
+  { th: "ห้องแต่งตัว", en: "a glamorous dressing room with bulb mirrors" }, { th: "ริมสระยามค่ำ", en: "beside a glowing pool at a night party" },
+  { th: "ยิม", en: "a modern gym with mirrors" }, { th: "ถนนฝนตก", en: "a rainy street at night with reflections" },
+] as const;
+const GLAM_MOVES = [
+  { th: "เดินเข้าหากล้อง", en: "walks slowly toward the camera like a runway model", end: "stops close to the lens, tilts her head and gives a slow confident smile" },
+  { th: "สะบัดผม", en: "flips her long hair over one shoulder", end: "looks back over her shoulder at the camera and winks" },
+  { th: "ส่งสายตา", en: "leans on the wall and slowly lifts her eyes to the lens", end: "smirks, bites her lip lightly and looks away shyly" },
+  { th: "หมุนตัวโชว์ชุด", en: "does a slow spin to show the outfit", end: "ends with one hand on her hip and a playful eyebrow raise" },
+  { th: "เต้นเอวช้าๆ", en: "sways her hips slowly to the beat", end: "points at the camera and blows a kiss" },
+] as const;
+const GLAM_LINES = ["มองนานๆ ระวังหลงนะ", "ใจเต้นแรงไหมคะ", "กดติดตามก่อน แล้วค่อยมองต่อ", "ชุดนี้แรงไปไหม", "คืนนี้ว่างไหมคะ"] as const;
+const POV = [
+  { th: "รอแฟนกลับบ้าน", start: "she leans in the doorway in a cosy oversized shirt, arms folded, pretending to be cross", turn: "she squints at the lens suspiciously", end: "she breaks into a smile and opens her arms for a hug", line: "ไปไหนมาคะ ไม่คิดถึงเหรอ" },
+  { th: "หึงแฟน", start: "she sits on a sofa hugging a cushion, pouting at the lens", turn: "she leans closer to the lens and narrows her eyes", end: "she pokes the lens with one finger and laughs", line: "เมื่อกี้มองใครคะ" },
+  { th: "เดตแรก", start: "she sits across a candlelit café table, resting her chin on her hand and gazing at the lens", turn: "she tucks her hair behind her ear shyly", end: "she slides her drink toward the lens and smiles", line: "ลองชิมของเค้าไหม" },
+  { th: "ปลุกแฟน", start: "she leans over the lens in soft morning light, hair falling around her face", turn: "she taps the lens gently with a finger", end: "she laughs and pulls back the curtains", line: "ตื่นได้แล้วค่ะ คนขี้เซา" },
+  { th: "แฟนง้อ", start: "she turns her back to the lens, arms folded", turn: "she peeks over her shoulder, trying not to smile", end: "she turns around and holds out her pinky finger to the lens", line: "ง้อดีๆ ก่อนสิ" },
+  { th: "ขอให้ไปส่ง", start: "she stands by a car at night in a pretty outfit, swinging her bag", turn: "she walks closer to the lens", end: "she tugs the lens gently by an imaginary sleeve and smiles", line: "ไปส่งหน่อยได้ไหมคะ" },
+  { th: "ทำกับข้าวให้แฟน", start: "she cooks in a bright kitchen wearing an apron, then turns to the lens", turn: "she blows on a spoonful of food", end: "she holds the spoon out toward the lens", line: "อ้ามม ชิมหน่อยค่ะ" },
+  { th: "ดูหนังด้วยกัน", start: "she sits on a sofa under a blanket in the light of a TV, eating popcorn", turn: "a jump scare makes her gasp and grab toward the lens", end: "she hides her face then peeks out laughing", line: "อย่าปล่อยมือนะ" },
+] as const;
+
 // ---------------------------------------------------------------- Arcs
 
 function dayArc(random: Random): Arc {
@@ -211,14 +253,49 @@ function danceArc(random: Random): Arc {
   const tags = ["#เต้น", "#เต้นตามเทรนด์", "#dancechallenge"];
   return { series: "ชาเลนจ์เต้น", name: `ชาเลนจ์${move.th} 4 ที่`, episodes: spots.map((spot, i) => ({
     label: `${move.th}ที่${spot.th} · ${outfits[i].th}`, start: `she is already dancing ${move.en} at ${spot.en}, wearing ${outfits[i].en}`,
-    turn: "the moves sync to the beat with small head tilts and a wink", end: "she finishes the move with a cute pose and laughs at the camera",
+    turn: "the moves sync to the beat with small head tilts, a hair flip and a wink at the lens", vibe: "FLIRTY" as const, end: "she finishes the move with a cute pose and laughs at the camera",
     line: ["เต้นตามกันได้นะ", "วันนี้มาเต้นที่นี่", "ใครเต้นได้บ้าง", "อีกรอบไหม"][i % 4], music: true, hashtags: tags,
+  })) };
+}
+
+function glamArc(random: Random): Arc {
+  const outfits = pickSome(GLAM_OUTFITS, 4, random), spots = pickSome(GLAM_SPOTS, 4, random), moves = pickSome(GLAM_MOVES, 4, random), lines = pickSome(GLAM_LINES, 4, random);
+  const tags = ["#สายแซ่บ", "#ootd", "#สาวสวย"];
+  return { series: "สายแซ่บ", name: `สายแซ่บ ${outfits.length} ลุค (${outfits[0].th})`, episodes: outfits.map((look, i) => ({
+    label: `${look.th} · ${spots[i].th} · ${moves[i].th}`,
+    start: `she ${moves[i].en} at ${spots[i].en}, wearing ${look.en}`,
+    turn: "she locks eyes with the camera as the beat drops", end: moves[i].end,
+    line: lines[i], music: true, hashtags: tags, vibe: "GLAM" as const,
+  })) };
+}
+
+function povArc(random: Random): Arc {
+  const scenes = pickSome(POV, 4, random);
+  const tags = ["#POV", "#แฟน", "#คนรัก"];
+  return { series: "POV แฟน", name: `POV เป็นแฟนน้อง (${scenes[0].th})`, episodes: scenes.map(scene => ({
+    label: `POV: ${scene.th}`, start: `POV, the camera is her boyfriend's eyes: ${scene.start}`, turn: scene.turn, end: scene.end,
+    line: scene.line, music: false, hashtags: tags, vibe: "FLIRTY" as const,
+  })) };
+}
+
+function chooseArc(random: Random): Arc {
+  const pairs = pickSome([...GLAM_OUTFITS, ...OUTFITS], 8, random), spots = pickSome(GLAM_SPOTS, 4, random);
+  const tags = ["#เลือกชุด", "#ootd", "#1หรือ2"];
+  return { series: "เลือก 1 หรือ 2", name: `ให้เลือกชุด 1 หรือ 2 (${pairs[0].th})`, episodes: [0, 1, 2, 3].map(i => ({
+    label: `1 ${pairs[i * 2].th} หรือ 2 ${pairs[i * 2 + 1].th}`,
+    start: `at ${spots[i].en}, she holds up one finger to the camera, wearing ${pairs[i * 2].en}, and does a little pose`,
+    turn: "she spins and the shot cuts on the beat mid-spin",
+    end: `she now wears ${pairs[i * 2 + 1].en}, holds up two fingers and raises her eyebrows at the camera`,
+    line: "1 หรือ 2 คะ คอมเมนต์มา", music: true, hashtags: tags, vibe: "FLIRTY" as const,
   })) };
 }
 
 const BUILDERS: Record<GirlSeries, (random: Random) => Arc> = {
   "วันหนึ่งของน้อง": dayArc, "เที่ยวกับน้อง": tripArc, "แปลงลุควับ": flipArc, "ก่อน/หลัง": beforeAfterArc, "ชาเลนจ์เต้น": danceArc,
+  "สายแซ่บ": glamArc, "POV แฟน": povArc, "เลือก 1 หรือ 2": chooseArc,
 };
+/** Until results say otherwise, the teasing series come up more often than the cute everyday ones (16 Nov owner). */
+const DEFAULT_WEIGHTS: Partial<Record<GirlSeries, number>> = { "สายแซ่บ": 2, "POV แฟน": 1.5, "เลือก 1 หรือ 2": 1.5, "ชาเลนจ์เต้น": 1.2 };
 
 export const episodeTitle = (series: GirlSeries, episode: Pick<Episode, "label">) => `สาว AI: ${series} | ${episode.label}`;
 export function seriesFromTitle(title: string): GirlSeries | null {
@@ -235,9 +312,9 @@ export function newArc(random: Random, options: { made?: ReadonlySet<string>; la
   const pool = GIRL_SERIES.filter(s => s !== options.lastSeries);
   let best: Arc | null = null, bestFresh = -1;
   for (let attempt = 0; attempt < 12; attempt++) {
-    const total = pool.reduce((sum, s) => sum + Math.max(0.1, options.weights?.[s] ?? 1), 0);
+    const total = pool.reduce((sum, s) => sum + Math.max(0.1, options.weights?.[s] ?? DEFAULT_WEIGHTS[s] ?? 1), 0);
     let roll = random() * total, series = pool[pool.length - 1];
-    for (const s of pool) { roll -= Math.max(0.1, options.weights?.[s] ?? 1); if (roll <= 0) { series = s; break; } }
+    for (const s of pool) { roll -= Math.max(0.1, options.weights?.[s] ?? DEFAULT_WEIGHTS[s] ?? 1); if (roll <= 0) { series = s; break; } }
     const arc = BUILDERS[series](random);
     const fresh = arc.episodes.filter(e => !made.has(episodeTitle(arc.series, e))).length;
     if (fresh === arc.episodes.length) return arc;

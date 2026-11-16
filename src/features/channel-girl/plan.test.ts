@@ -33,7 +33,7 @@ describe("AI girl channel", () => {
     for (const clip of [...day1.clips, ...day2.clips]) {
       expect(clip.caption).toContain("(ตัวละคร AI)");
       expect(clip.prompt).toContain("reference image");
-      expect(clip.prompt).toMatch(/no cleavage/);
+      expect(clip.prompt).toMatch(/no deep cleavage/);
       expect(clip.prompt.length).toBeLessThan(3000);
       expect(girlSeriesOfTitle(clip.title)).toBe(clip.series);
       expect(seriesOfTitle(clip.title)).toBe(clip.series);

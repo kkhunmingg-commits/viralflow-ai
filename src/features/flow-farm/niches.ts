@@ -41,7 +41,7 @@ export const NICHES: Record<NicheKey, Niche> = {
   FASHION: { label: "แฟชั่น แต่งตัว", series: ["แฟชั่นแปลงร่าง"],
     products: /fashion|cloth|apparel|เสื้อ|กางเกง|รองเท้า|กระเป๋า|bag|shoe|นาฬิกา|watch|เครื่องประดับ|jewel|หมวก|hat/i, productLabel: "เสื้อผ้า รองเท้า กระเป๋า และเครื่องประดับ" },
   // 16 Nov owner: one recurring AI Thai girl (outfit flips, before/after, dances). Made only once a face is picked.
-  AI_GIRL: { label: "สาวไทย AI", series: ["วันหนึ่งของน้อง", "เที่ยวกับน้อง", "แปลงลุควับ", "ก่อน/หลัง", "ชาเลนจ์เต้น"],
+  AI_GIRL: { label: "สาวไทย AI", series: ["วันหนึ่งของน้อง", "เที่ยวกับน้อง", "แปลงลุควับ", "ก่อน/หลัง", "ชาเลนจ์เต้น", "สายแซ่บ", "POV แฟน", "เลือก 1 หรือ 2"],
     products: /fashion|cloth|apparel|เสื้อ|กางเกง|เดรส|dress|รองเท้า|กระเป๋า|bag|beauty|skin|cosmetic|ความงาม|สกินแคร์|เครื่องสำอาง|ลิป|lip|ครีม|น้ำหอม|hair|ผม/i,
     productLabel: "เสื้อผ้า เครื่องสำอาง และของใช้สาวๆ" },
   FITNESS: { label: "สุขภาพ ออกกำลังกาย", series: ["ฟิตจิ๋ว"],
