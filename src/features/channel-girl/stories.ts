@@ -264,7 +264,7 @@ function glamArc(random: Random): Arc {
   return { series: "สายแซ่บ", name: `สายแซ่บ ${outfits.length} ลุค (${outfits[0].th})`, episodes: outfits.map((look, i) => ({
     label: `${look.th} · ${spots[i].th} · ${moves[i].th}`,
     start: `she ${moves[i].en} at ${spots[i].en}, wearing ${look.en}`,
-    turn: "she locks eyes with the camera as the beat drops", end: moves[i].end,
+    turn: "she locks eyes with the camera as the beat drops", end: `she ${moves[i].end}`,
     line: lines[i], music: true, hashtags: tags, vibe: "GLAM" as const,
   })) };
 }
