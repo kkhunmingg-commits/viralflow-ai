@@ -367,7 +367,8 @@ export async function completeClip(admin: SupabaseClient, owner: string, input: 
     updated_at: now.toISOString() }).eq("owner_id", owner).eq("id", input.clipId).eq("status", "GENERATING");
   if (update.error?.code === "23505") return reject("DUPLICATE_VIDEO");
   check(update, "flow_clip_not_saved");
-  if (clip.flow_account_id) await countFlowUse(admin, owner, clip.flow_account_id, now);
+  // Only videos spend Flow credits (Veo Lite 10 each, 50 a day = ~5 clips); face pictures (image mode) are free, so they are not a shot.
+  if (clip.flow_account_id && !picture) await countFlowUse(admin, owner, clip.flow_account_id, now);
   return { status: "READY" as const };
 }
 
