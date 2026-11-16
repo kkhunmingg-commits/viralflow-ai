@@ -148,8 +148,10 @@ export function videoPlan(kind) {
 /** The composer's settings chip: "วิดีโอ · 720p · 8 วินาที crop_9_16 x1" (or "Nano Banana … x2" on a fresh account). */
 async function settingsChip(page, selectors) {
   // In a narrow window Flow folds the chip ("Nano Banana 2.1 crop x2" on a fresh account) into a "tune" icon button.
+  // 16 Nov: the composer's own trigger can be an empty button (class settings-trigger-button); the "tune" icon next to
+  // it opens the Agent's settings, so it is the last resort.
   return await firstVisible(page, selectors.settingsChip) ?? await firstVisible(page, 'button:has-text("crop_")')
-    ?? await firstVisible(page, 'button:has-text("tune")');
+    ?? await firstVisible(page, "button.settings-trigger-button") ?? await firstVisible(page, 'button:has-text("tune")');
 }
 /** Moves Flow's length slider ("ความยาว 10 วินาที") to `seconds` with the arrow keys. Never clicks Generate. */
 async function setLength(page, seconds) {
@@ -175,6 +177,23 @@ async function pickRadio(page, name) {
 // Flow's Agent (chat) side panel, seen on newly added accounts (7 Nov, ninokuniman2/3): "สวัสดี คุณ nino / คุณต้องการสร้างอะไร"
 // in an untitled session, with its own "tune" button that opens the Agent's settings instead of the video composer's.
 const AGENT_PANEL = /เซสชันที่ไม่มีชื่อ|untitled session/i, AGENT_SETTINGS = /การตั้งค่า\s*Agent|Agent settings/i;
+/**
+ * Closes Flow's "การตั้งค่า Agent" panel when it is open (16 Nov: on a second account the settings button opened it,
+ * Escape left it open and it hid the whole composer, so the face picture could not be attached). True when closed.
+ */
+export async function closeAgentSettings(page) {
+  if (!AGENT_SETTINGS.test(await bodyText(page))) return false;
+  await page.keyboard.press("Escape").catch(() => {});
+  await page.waitForTimeout(400);
+  if (!AGENT_SETTINGS.test(await bodyText(page))) return true;
+  const close = page.getByRole("button", { name: /^(ปิด|close)$/i }).first();
+  if (await close.count()) { await close.click({ timeout: 5_000 }).catch(() => {}); await page.waitForTimeout(600); }
+  if (AGENT_SETTINGS.test(await bodyText(page))) {
+    const back = page.getByRole("button", { name: /^(กลับ|back)$/i }).first();
+    if (await back.count()) { await back.click({ timeout: 5_000 }).catch(() => {}); await page.waitForTimeout(600); }
+  }
+  return !AGENT_SETTINGS.test(await bodyText(page));
+}
 /** Closes the Agent chat panel when it is open, so the video composer (frames, 720p chip) is what the worker uses. */
 export async function closeAgentPanel(page) {
   if (!AGENT_PANEL.test(await bodyText(page))) return false;
@@ -193,8 +212,7 @@ export async function chooseVideoSettings(page, selectors, { frames = false, pla
   await page.waitForTimeout(800);
   // The folded "tune" button can belong to the Agent: its settings are not the video composer's, so leave them alone.
   if (AGENT_SETTINGS.test(await bodyText(page))) {
-    await page.keyboard.press("Escape").catch(() => {});
-    await page.waitForTimeout(400);
+    await closeAgentSettings(page);
     return false;
   }
   try {
@@ -237,6 +255,7 @@ async function attachReference(page, selectors, imageUrl, scratchDir, clipId, { 
   const path = join(scratchDir, `ingredient-${clipId}${type.includes("png") ? ".png" : type.includes("webp") ? ".webp" : ".jpg"}`);
   await writeFile(path, bytes);
   try {
+    await closeAgentSettings(page);
     const input = page.locator(selectors.imageInput).first();
     if (selectors.imageInput && await input.count()) { await input.setInputFiles(path); await page.waitForTimeout(4000); return; }
     // Flow (Nov 2026): frames mode has a "เริ่ม" (start) slot, ingredients mode an "add" button; either opens a picker
@@ -566,7 +585,7 @@ export async function chooseImageSettings(page, selectors) {
   if (!chip) return false;
   await chip.click({ timeout: 10_000 }).catch(() => {});
   await page.waitForTimeout(800);
-  if (AGENT_SETTINGS.test(await bodyText(page))) { await page.keyboard.press("Escape").catch(() => {}); await page.waitForTimeout(400); return false; }
+  if (AGENT_SETTINGS.test(await bodyText(page))) { await closeAgentSettings(page); return false; }
   try {
     await pickRadio(page, /รูปภาพ|^\s*(image|images)\s*$/i);
     await page.waitForTimeout(600);
