@@ -223,7 +223,7 @@ export function planGirlClips(count: number, name: string, input: { guide?: Girl
     const title = episodeTitle(arc.series, episode);
     clips.push({
       series: arc.series, title, prompt: girlPrompt(episode, { strict: input.guide?.strictSeries?.includes(arc.series), camera: CAMERAS[Math.floor(random() * CAMERAS.length) % CAMERAS.length] }),
-      caption: `${who} · ${episode.label}\n${episode.line} ${CTAS[Math.floor(random() * CTAS.length) % CTAS.length]}\n(ตัวละคร AI)`,
+      caption: `${who} · ${episode.label}\n${episode.line} ${CTAS[Math.floor(random() * CTAS.length) % CTAS.length]}`,
       hashtags: [...episode.hashtags, "#สาวไทย", "#AIgirl", "#AI", "#fyp"],
     });
     made.push(title); seen.add(title);
