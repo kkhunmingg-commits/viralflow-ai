@@ -169,14 +169,14 @@ const GLAM_MOVES = [
 ] as const;
 const GLAM_LINES = ["มองนานๆ ระวังหลงนะ", "ใจเต้นแรงไหมคะ", "กดติดตามก่อน แล้วค่อยมองต่อ", "ชุดนี้แรงไปไหม", "คืนนี้ว่างไหมคะ"] as const;
 const POV = [
-  { th: "รอแฟนกลับบ้าน", start: "she leans in the doorway in a cosy oversized shirt, arms folded, pretending to be cross", turn: "she squints at the lens suspiciously", end: "she breaks into a smile and opens her arms for a hug", line: "ไปไหนมาคะ ไม่คิดถึงเหรอ" },
+  { th: "รอแฟนกลับบ้าน", start: "she leans in the doorway, arms folded, pretending to be cross", turn: "she squints at the lens suspiciously", end: "she breaks into a smile and opens her arms for a hug", line: "ไปไหนมาคะ ไม่คิดถึงเหรอ" },
   { th: "หึงแฟน", start: "she sits on a sofa hugging a cushion, pouting at the lens", turn: "she leans closer to the lens and narrows her eyes", end: "she pokes the lens with one finger and laughs", line: "เมื่อกี้มองใครคะ" },
   { th: "เดตแรก", start: "she sits across a candlelit café table, resting her chin on her hand and gazing at the lens", turn: "she tucks her hair behind her ear shyly", end: "she slides her drink toward the lens and smiles", line: "ลองชิมของเค้าไหม" },
   { th: "ปลุกแฟน", start: "she leans over the lens in soft morning light, hair falling around her face", turn: "she taps the lens gently with a finger", end: "she laughs and pulls back the curtains", line: "ตื่นได้แล้วค่ะ คนขี้เซา" },
   { th: "แฟนง้อ", start: "she turns her back to the lens, arms folded", turn: "she peeks over her shoulder, trying not to smile", end: "she turns around and holds out her pinky finger to the lens", line: "ง้อดีๆ ก่อนสิ" },
-  { th: "ขอให้ไปส่ง", start: "she stands by a car at night in a pretty outfit, swinging her bag", turn: "she walks closer to the lens", end: "she tugs the lens gently by an imaginary sleeve and smiles", line: "ไปส่งหน่อยได้ไหมคะ" },
+  { th: "ขอให้ไปส่ง", start: "she stands by a car at night, swinging her bag", turn: "she walks closer to the lens", end: "she tugs the lens gently by an imaginary sleeve and smiles", line: "ไปส่งหน่อยได้ไหมคะ" },
   { th: "ทำกับข้าวให้แฟน", start: "she cooks in a bright kitchen wearing an apron, then turns to the lens", turn: "she blows on a spoonful of food", end: "she holds the spoon out toward the lens", line: "อ้ามม ชิมหน่อยค่ะ" },
-  { th: "ดูหนังด้วยกัน", start: "she sits on a sofa under a blanket in the light of a TV, eating popcorn", turn: "a jump scare makes her gasp and grab toward the lens", end: "she hides her face then peeks out laughing", line: "อย่าปล่อยมือนะ" },
+  { th: "ดูหนังด้วยกัน", start: "she sits on a sofa in the light of a TV, eating popcorn", turn: "a jump scare makes her gasp and grab toward the lens", end: "she hides her face then peeks out laughing", line: "อย่าปล่อยมือนะ" },
 ] as const;
 
 // ---------------------------------------------------------------- Arcs
@@ -232,14 +232,25 @@ function flipArc(random: Random): Arc {
   })) };
 }
 
+/** Different "before" scenes, so two before/after clips never open the same way. */
+const BEFORES = [
+  "she sits at a vanity with a fluffy headband, bare natural skin and an oversized t-shirt, shrugging playfully at the camera",
+  "she lies on her bed in a baggy hoodie, no makeup, scrolling her phone, then rolls over and looks at the lens with a sleepy pout",
+  "she stands in a bathroom in a loose t-shirt with a hair towel on her head and a face mask, waving at the lens",
+  "she sits on the sofa in big glasses and a baggy sweatshirt, eating chips, then notices the camera and covers her face",
+  "she walks into frame in oversized pyjamas with a messy bun, yawning and stretching",
+  "she sits on the floor of her room in a plain grey hoodie, hair tied up, surrounded by clothes she cannot choose from",
+] as const;
+
 function beforeAfterArc(random: Random): Arc {
+  const befores = pickSome(BEFORES, 5, random);
   const looks = pickSome(MAKEUP, 3, random), hairs = pickSome(HAIR, 2, random), outfits = pickSome(OUTFITS, 5, random), spots = pickSome(GLAM_SPOTS, 5, random);
   const tags = ["#ก่อนหลัง", "#grwm", "#แต่งหน้า"];
   return { series: "ก่อน/หลัง", name: `ก่อน/หลัง (${looks[0].th})`, episodes: [
-    ...looks.map((look, i) => ({ label: `หน้าสด → ${look.th} · ${outfits[i].th}`, start: "she sits at a vanity with a fluffy headband, bare natural skin and an oversized t-shirt, shrugging playfully at the camera",
+    ...looks.map((look, i) => ({ label: `หน้าสด → ${look.th} · ${outfits[i].th}`, start: befores[i],
       turn: "she swipes a big makeup brush across the lens and the shot cuts on the beat", end: `she now has ${look.en}, glossy long hair and wears ${outfits[i].en} at ${spots[i].en}; ${AFTER_POSE}`,
       line: "หน้าสดกับหน้าแต่ง ชอบแบบไหน", music: true, hashtags: tags, vibe: "GLAM" as const })),
-    ...hairs.map((hair, i) => ({ label: `ผมยุ่ง → ${hair.th} · ${outfits[3 + i].th}`, start: "she looks at the camera with frizzy messy morning hair in baggy pyjamas, pulling a funny face",
+    ...hairs.map((hair, i) => ({ label: `ผมยุ่ง → ${hair.th} · ${outfits[3 + i].th}`, start: `${befores[3 + i]}; her hair is frizzy and messy`,
       turn: "she covers the lens with a comb and the shot cuts on the beat", end: `she now has ${hair.en}, full glam makeup and wears ${outfits[3 + i].en} at ${spots[3 + i].en}; ${AFTER_POSE}`,
       line: "ผมพังแค่ไหนก็เอาอยู่", music: true, hashtags: [...tags, "#ทำผม"], vibe: "GLAM" as const })),
   ] };
@@ -267,10 +278,10 @@ function glamArc(random: Random): Arc {
 }
 
 function povArc(random: Random): Arc {
-  const scenes = pickSome(POV, 4, random);
+  const scenes = pickSome(POV, 4, random), outfits = pickSome(OUTFITS, 4, random);
   const tags = ["#POV", "#แฟน", "#คนรัก"];
-  return { series: "POV แฟน", name: `POV เป็นแฟนน้อง (${scenes[0].th})`, episodes: scenes.map(scene => ({
-    label: `POV: ${scene.th}`, start: `POV, the camera is her boyfriend's eyes: ${scene.start}`, turn: scene.turn, end: scene.end,
+  return { series: "POV แฟน", name: `POV เป็นแฟนน้อง (${scenes[0].th})`, episodes: scenes.map((scene, i) => ({
+    label: `POV: ${scene.th} · ${outfits[i].th}`, start: `POV, the camera is her boyfriend's eyes; she wears ${outfits[i].en}: ${scene.start}`, turn: scene.turn, end: scene.end,
     line: scene.line, music: false, hashtags: tags, vibe: "FLIRTY" as const,
   })) };
 }

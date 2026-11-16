@@ -22,12 +22,12 @@ describe("AI girl channel", () => {
     for (let i = 0; i < 20; i++) expect(randomNickname(seeded(i))).toMatch(/^[A-Z][a-z]+[A-Z][a-z]+$/);
   });
 
-  it("makes stand-alone clips, never the same series twice in a row of four, with no episode numbers", () => {
-    const day1 = planGirlClips(3, "MildMilk", {}, seeded(7));
+  it("makes stand-alone clips, every series once before any repeats, with no episode numbers", () => {
+    const day1 = planGirlClips(5, "MildMilk", {}, seeded(7));
     const day2 = planGirlClips(3, "MildMilk", { made: day1.made }, seeded(8));
     expect(day1.arc).toBeNull();
     const all = [...day1.clips, ...day2.clips];
-    for (let i = 0; i < all.length; i++) for (let j = Math.max(0, i - 4); j < i; j++) expect(all[i].series).not.toBe(all[j].series);
+    for (let i = 0; i < all.length; i++) for (let j = Math.max(0, i - 7); j < i; j++) expect(all[i].series).not.toBe(all[j].series);
     for (const clip of all) {
       expect(clip.caption).toContain("(ตัวละคร AI)");
       expect(clip.caption).not.toMatch(/ตอนที่/);

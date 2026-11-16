@@ -5,7 +5,7 @@
  * that attaches that picture as Flow's ingredient image so it is always the same girl. Clips come as short story
  * arcs (stories.ts) that continue across days. Pure: prompts, state shapes and the batch plan.
  */
-import { episodeTitle, newArc, seriesFromTitle, type Arc, type Episode, type GirlSeries } from "./stories";
+import { GIRL_SERIES, episodeTitle, newArc, seriesFromTitle, type Arc, type Episode, type GirlSeries } from "./stories";
 
 export { GIRL_SERIES, type GirlSeries } from "./stories";
 /** Flow refuses fast and refunds the credits, so a face gets a few reworded tries before giving up. */
@@ -196,8 +196,9 @@ export function planGirlClips(count: number, name: string, input: { guide?: Girl
   const made = [...(input.made ?? [])], seen = new Set(made), clips: PlannedGirlClip[] = [];
   const who = name.trim() || "น้อง";
   while (clips.length < count) {
-    // The series of the last 4 clips (earlier batches included) are left out, so one day never repeats a series.
-    const recent = made.slice(-4).map(seriesFromTitle).filter((s): s is GirlSeries => Boolean(s));
+    // 16 Nov owner ("5 clips, 3 were before/after"): every series is used once before any comes back, so even a big
+    // stock made in one day never repeats a kind of clip until all of them were shown.
+    const recent = made.slice(-(GIRL_SERIES.length - 1)).map(seriesFromTitle).filter((s): s is GirlSeries => Boolean(s));
     const arc: Arc = newArc(random, { made: seen, avoid: recent, weights: input.guide?.seriesWeights });
     const fresh = arc.episodes.filter(e => !seen.has(episodeTitle(arc.series, e)));
     const pool = fresh.length ? fresh : arc.episodes;
