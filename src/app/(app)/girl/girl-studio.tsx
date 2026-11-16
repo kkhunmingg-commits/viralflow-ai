@@ -38,7 +38,7 @@ export async function GirlStudio({ owner }: { owner: string }) {
 
       {character?.candidates.length ? <div className="girl-faces">
         <h2>{characterStatusLabels[character.status]}: {character.name}</h2>
-        <p className="girl-note">สร้างทีละ 1 รูป (โหมดรูปใน Flow ไม่เกิน 10 เครดิต) ไม่ชอบก็กด “สร้างหน้าใหม่” แบบเก่ายังอยู่ให้เลือก · แต่ละรูปใช้เวลาประมาณ 1–3 นาที รีเฟรชหน้านี้เพื่อดู</p>
+        <p className="girl-note">สร้างทีละ 1 รูป (โหมดรูปใน Flow ฟรี ไม่เสียเครดิต) ไม่ชอบก็กด “สร้างหน้าใหม่” แบบเก่ายังอยู่ให้เลือก · แต่ละรูปใช้เวลาประมาณ 1–2 นาที รีเฟรชหน้านี้เพื่อดู</p>
         {character.candidates.at(-1)?.status === "FAILED" ? <p className="girl-note">หน้าล่าสุดสร้างไม่สำเร็จ: Flow ทำไม่ผ่าน (ไม่เสียเครดิต) กดสร้างหน้าใหม่ได้เลย</p> : null}
         <div className="girl-grid">
           {character.candidates.filter(c => c.status !== "FAILED").slice(-MAX_FACES_SHOWN).toReversed().map(c => <form key={c.key} action={pickFaceAction} className="girl-face">
@@ -57,7 +57,7 @@ export async function GirlStudio({ owner }: { owner: string }) {
         <label>ลุค (ไม่ใส่ก็ได้ ระบบเปลี่ยนลุคให้ทุกครั้งที่กด)
           <textarea name="look" maxLength={300} rows={2} placeholder="เช่น long straight dark-brown hair, fair skin, sweet smile" defaultValue={character?.look ?? ""} />
         </label>
-        <label className="girl-check"><input type="checkbox" name="credits" required /> ใช้เครดิต Flow ไม่เกิน 10 เครดิต (1 รูป)</label>
+        <label className="girl-check"><input type="checkbox" name="credits" required /> ยืนยันสร้าง 1 รูป (ฟรี)</label>
         <button type="submit" className="girl-button" disabled={busy}>{busy ? "กำลังสร้างหน้าอยู่…" : "สร้างหน้า 1 แบบ"}</button>
         <p className="girl-note">เป็นหน้าคนใหม่ที่ AI สร้าง ไม่ลอกหน้าคนจริงหรือดาราคนไหน ตอนโพสต์ให้เปิด “ป้ายเนื้อหา AI” ใน TikTok ทุกครั้ง</p>
       </form>
