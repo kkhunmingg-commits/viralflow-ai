@@ -57,7 +57,8 @@ export const clipRefSchema = z.object({ clipId: z.uuid() });
 export const completeSchema = z.object({
   clipId: z.uuid(), sha256: z.string().regex(/^[0-9a-f]{64}$/),
   width: z.number().int().positive().max(10_000), height: z.number().int().positive().max(10_000),
-  durationSeconds: z.number().positive().max(600),
+  // 0 for a picture (an AI girl face made in Flow's image mode).
+  durationSeconds: z.number().min(0).max(600),
 });
 export const failSchema = z.object({
   clipId: z.uuid(), reason: z.string().trim().min(1).max(300),

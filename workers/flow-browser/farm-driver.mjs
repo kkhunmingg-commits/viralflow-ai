@@ -420,6 +420,8 @@ export async function openFlowAccount(account, config) {
       // No early "out of credits" here: Flow keeps old credit notices on the page after the credits renew (6 Nov: the
       // main account renewed at 23:09 and three shots were still turned away as out of credits). Only a Generate
       // button Flow has disabled, or a notice that appears after the click, counts.
+      // An AI girl face (16 Nov): a portrait picture in Flow's image mode instead of a video take.
+      if (clip.media === "IMAGE") return generatePicture(page, { ...config, selectors }, clip, prompt, step);
       if (clip.imageUrl) await step("ATTACHING_IMAGE");
       // A drama shot continues from a picture (the last frame, or the key still): Flow's "frames" mode, start slot.
       // An AI LIVE presenter take starts from the presenter's face picture the same way, so every take is the same person.
@@ -537,6 +539,130 @@ export async function openFlowAccount(account, config) {
       }
     },
   };
+}
+
+/**
+ * Flow's image mode for one 9:16 picture (the AI girl's face, 16 Nov). Same composer as video: the settings chip switches
+ * to "รูปภาพ/Image", 9:16, one output; the new result tile's picture is downloaded. Never spends more than the video
+ * limit; an unreadable cost is allowed here, since Flow shows none for some image models.
+ */
+export async function chooseImageSettings(page, selectors) {
+  await closeAgentPanel(page);
+  const chip = await settingsChip(page, selectors);
+  if (!chip) return false;
+  await chip.click({ timeout: 10_000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  if (AGENT_SETTINGS.test(await bodyText(page))) { await page.keyboard.press("Escape").catch(() => {}); await page.waitForTimeout(400); return false; }
+  try {
+    await pickRadio(page, /รูปภาพ|^\s*(image|images)\s*$/i);
+    await page.waitForTimeout(600);
+    await pickRadio(page, /9:16/);
+    await pickRadio(page, /^x1$/);
+  } finally {
+    await page.keyboard.press("Escape").catch(() => {});
+    await page.waitForTimeout(400);
+  }
+  return true;
+}
+
+/** Width and height of a JPEG, PNG or WebP, or null. */
+export function pictureSize(bytes) {
+  const b = Buffer.from(bytes);
+  if (b.length > 24 && b.readUInt32BE(0) === 0x89504e47) return { width: b.readUInt32BE(16), height: b.readUInt32BE(20), type: "image/png", ext: ".png" };
+  if (b.length > 30 && b.toString("ascii", 0, 4) === "RIFF" && b.toString("ascii", 8, 12) === "WEBP") {
+    const chunk = b.toString("ascii", 12, 16);
+    if (chunk === "VP8X") return { width: 1 + b.readUIntLE(24, 3), height: 1 + b.readUIntLE(27, 3), type: "image/webp", ext: ".webp" };
+    if (chunk === "VP8 ") return { width: b.readUInt16LE(26) & 0x3fff, height: b.readUInt16LE(28) & 0x3fff, type: "image/webp", ext: ".webp" };
+    if (chunk === "VP8L") { const v = b.readUInt32LE(21); return { width: (v & 0x3fff) + 1, height: ((v >> 14) & 0x3fff) + 1, type: "image/webp", ext: ".webp" }; }
+    return null;
+  }
+  if (b[0] === 0xff && b[1] === 0xd8) {
+    for (let i = 2; i + 9 < b.length;) {
+      if (b[i] !== 0xff) { i++; continue; }
+      const marker = b[i + 1], length = b.readUInt16BE(i + 2);
+      if (marker >= 0xc0 && marker <= 0xcf && ![0xc4, 0xc8, 0xcc].includes(marker)) return { width: b.readUInt16BE(i + 7), height: b.readUInt16BE(i + 5), type: "image/jpeg", ext: ".jpg" };
+      i += 2 + length;
+    }
+  }
+  return null;
+}
+
+/** Big pictures on the page (Flow's result tiles), by source. */
+async function pagePictures(page) {
+  return page.evaluate(() => [...document.querySelectorAll("img")].filter(img => img.naturalWidth >= 300 && img.naturalHeight >= 300)
+    .map(img => img.currentSrc || img.src).filter(Boolean)).catch(() => []);
+}
+
+async function fetchPicture(page, src) {
+  if (src.startsWith("blob:") || src.startsWith("data:")) {
+    const base64 = await page.evaluate(async url => {
+      const blob = await (await fetch(url)).blob();
+      return await new Promise(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(",")[1]); reader.readAsDataURL(blob); });
+    }, src);
+    return Buffer.from(base64, "base64");
+  }
+  const response = await page.request.get(src, { timeout: 60_000 });
+  if (!response.ok()) throw new Error("IMAGE_DOWNLOAD_FAILED");
+  return response.body();
+}
+
+async function generatePicture(page, config, clip, prompt, step) {
+  if (!await chooseImageSettings(page, config.selectors)) return fail("IMAGE_SETTINGS_NOT_FOUND");
+  await step("CHECKING_COST");
+  await chooseSingleOutput(page, config.selectors);
+  const cost = await readCost(page, config.selectors);
+  const decision = costDecision(cost, { ...config.costPolicy, requireKnownCost: false });
+  if (!decision.ok) { await saveDebug(page, config.debugDir, clip.id, "image-cost"); return fail(decision.reason); }
+  const chipText = (await firstVisible(page, config.selectors.settingsChip).then(c => c?.innerText()).catch(() => "") ?? "").replace(/\s+/g, " ").trim();
+  await step("TYPING_PROMPT", ["รูปภาพ", cost != null ? `${cost} เครดิต` : "", chipText.slice(0, 60)].filter(Boolean).join(" · "));
+  prompt = await firstVisible(page, config.selectors.prompt) ?? prompt;
+  await prompt.click();
+  await prompt.fill(clip.prompt);
+  const button = await generateButton(page, config.selectors);
+  if (!button) {
+    const noCredit = appeared("", await bodyText(page), NO_CREDIT_PATTERNS);
+    await saveDebug(page, config.debugDir, clip.id, noCredit ? "image-no-credit" : "image-no-button");
+    return noCredit ? { status: "NO_CREDIT" } : fail("GENERATE_BUTTON_NOT_FOUND");
+  }
+  if (await button.isDisabled().catch(() => false)) {
+    const noCredit = appeared("", await bodyText(page), NO_CREDIT_PATTERNS);
+    await saveDebug(page, config.debugDir, clip.id, noCredit ? "image-no-credit" : "image-button-disabled");
+    return noCredit ? { status: "NO_CREDIT" } : fail("GENERATE_BUTTON_DISABLED");
+  }
+  if (config.dryRun) return { status: "DRY_RUN", detail: `โหมดรูป เจอปุ่มสร้าง ค่าเครดิต ${cost ?? "ไม่ทราบ"}` };
+  const beforeText = await bodyText(page), before = new Set(await pagePictures(page));
+  await config.journal?.(clip.id, { state: "GENERATING", account: "image", cost, clickedAt: new Date().toISOString() });
+  await button.click({ timeout: 15_000 });
+  await step("WAITING_FLOW", "ส่งงานรูปให้ Google แล้ว");
+  const clickedAt = Date.now(), deadline = clickedAt + Math.min(config.maxWaitMs, 5 * 60_000);
+  try {
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(config.pollMs);
+      const text = await bodyText(page);
+      if (appeared(beforeText, text, FAILED_PATTERNS)) {
+        await saveDebug(page, config.debugDir, clip.id, "image-failed");
+        return fail(appeared(beforeText, text, UNUSUAL_ACTIVITY_PATTERNS) ? "FLOW_UNUSUAL_ACTIVITY" : "FLOW_REPORTED_FAILURE", true);
+      }
+      const fresh = (await pagePictures(page)).filter(src => !before.has(src) && !/googleusercontent\.com\/a\//.test(src));
+      for (const src of fresh) {
+        await step("DOWNLOADING");
+        const bytes = await fetchPicture(page, src).catch(() => null);
+        const size = bytes && pictureSize(bytes);
+        // A thumbnail still loading or the wrong picture: keep looking.
+        if (!size || Math.min(size.width, size.height) < 500 || Math.abs(size.width / size.height - 9 / 16) > .03) { before.add(src); continue; }
+        const path = join(config.readyDir, `${clip.id}${size.ext}`);
+        await writeFile(path, bytes);
+        const sha256 = createHash("sha256").update(bytes).digest("hex");
+        await config.journal?.(clip.id, { state: "DOWNLOADED", path, sha256 });
+        return { status: "OK", path, sha256, bytes: bytes.length, contentType: size.type, media: { width: size.width, height: size.height, durationSeconds: 0 }, cost };
+      }
+    }
+  } catch (error) {
+    await saveDebug(page, config.debugDir, clip.id, "image-error");
+    return fail(`WAIT_ERROR:${error?.message ?? error}`.slice(0, 200), true);
+  }
+  await saveDebug(page, config.debugDir, clip.id, "image-timeout");
+  return fail("NEW_IMAGE_TIMEOUT_CHECK_FLOW", true);
 }
 
 /** The highest new "NN%" Flow shows on the page since the click (its progress on a tile), or null. */

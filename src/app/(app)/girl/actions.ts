@@ -42,7 +42,7 @@ export async function createGirlAction(formData: FormData) {
   const ownerId = await owner();
   try { await addFace(createAdminClient(), ownerId, parsed.data); }
   catch (error) { fail(error); }
-  done("เข้าคิวแล้ว เครื่องสร้างคลิปกำลังทำหน้าน้อง 1 แบบ (10 เครดิต) ประมาณ 2–5 นาที");
+  done("เข้าคิวแล้ว เครื่องสร้างคลิปกำลังทำรูปหน้าน้อง 1 แบบใน Flow (โหมดรูป) ประมาณ 1–3 นาที");
 }
 
 const nameSchema = z.object({ name: z.string().trim().min(1).max(40) });

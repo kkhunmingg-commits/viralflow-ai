@@ -1,4 +1,5 @@
 import "server-only";
+import { FACE_PICTURE_MARK } from "@/features/channel-girl/marks";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getProductRadar } from "@/features/products/services";
@@ -290,7 +291,10 @@ export async function claimClip(admin: SupabaseClient, owner: string, flowAccoun
   // AI LIVE presenter takes do not: their sameness comes from the face picture, and reopening a project that holds a
   // failed take made the worker read the old failure card as a new one (14 Nov), so each take gets a fresh project.
   const projectKey = clip.kind === "DRAMA_SHOT" ? clip.batch_id : null;
-  return { id: clip.id, title: clip.title, prompt: clip.prompt, kind: clip.kind, imageUrl, projectKey };
+  // An AI girl face is a picture from Flow's image mode, not a video (16 Nov). An older worker ignores this and makes a
+  // video from the same prompt, whose last frame still gives a face.
+  const media = isPictureClip(clip) ? "IMAGE" as const : "VIDEO" as const;
+  return { id: clip.id, title: clip.title, prompt: clip.prompt, kind: clip.kind, imageUrl, projectKey, media };
 }
 
 /**
@@ -325,9 +329,24 @@ export async function clipUploadUrl(admin: SupabaseClient, owner: string, clipId
   return { path, signedUrl: signed.data.signedUrl };
 }
 
+/** Flow image-mode clips: the AI girl's face pictures. */
+export function isPictureClip(clip: { kind: string; title: string }) {
+  return clip.kind === "PRESENTER_CLIP" && clip.title.includes(FACE_PICTURE_MARK);
+}
+/** JPEG, PNG or WebP by its first bytes. */
+export function pictureType(bytes: Uint8Array) {
+  if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return "image/png";
+  if (Buffer.from(bytes.subarray(0, 4)).toString("ascii") === "RIFF" && Buffer.from(bytes.subarray(8, 12)).toString("ascii") === "WEBP") return "image/webp";
+  return null;
+}
+
 /** Re-checks the uploaded file on the server (size, MP4 signature, checksum) before it enters the library. */
 export async function completeClip(admin: SupabaseClient, owner: string, input: { clipId: string; sha256: string; width: number; height: number; durationSeconds: number }, now = new Date()) {
   const clip = await generatingClip(admin, owner, input.clipId);
+  const row = check(await admin.from("flow_clips").select("kind,title").eq("owner_id", owner).eq("id", input.clipId).maybeSingle(), "flow_clips_unavailable") as
+    { kind: string; title: string } | null;
+  const picture = Boolean(row && isPictureClip(row));
   const path = clipStoragePath(owner, input.clipId);
   const file = await admin.storage.from(BUCKET).download(path);
   if (file.error || !file.data) throw new Error("UPLOADED_VIDEO_MISSING");
@@ -337,7 +356,9 @@ export async function completeClip(admin: SupabaseClient, owner: string, input: 
     await failClip(admin, owner, { clipId: input.clipId, reason, notStarted: false });
     throw new Error(reason);
   };
-  if (bytes.length < 32 || bytes.length > FLOW_CLIP_MAX_BYTES || bytes.toString("ascii", 4, 8) !== "ftyp") return reject("INVALID_MP4");
+  if (bytes.length < 32 || bytes.length > FLOW_CLIP_MAX_BYTES) return reject("INVALID_MP4");
+  if (picture ? !pictureType(bytes) && bytes.toString("ascii", 4, 8) !== "ftyp" : bytes.toString("ascii", 4, 8) !== "ftyp") return reject(picture ? "INVALID_PICTURE" : "INVALID_MP4");
+  if (!pictureType(bytes) && input.durationSeconds <= 0) return reject("INVALID_MP4");
   if (createHash("sha256").update(bytes).digest("hex") !== input.sha256) return reject("CHECKSUM_MISMATCH");
   if (Math.abs(input.width / input.height - 9 / 16) > .02) return reject("NOT_PORTRAIT_9_16");
   const update = await admin.from("flow_clips").update({ status: "READY", storage_path: path, video_sha256: input.sha256, video_bytes: bytes.length,

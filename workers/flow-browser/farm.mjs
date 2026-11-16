@@ -85,7 +85,7 @@ export function portalApi({ portal, token }, fetchImpl = fetch) {
     async upload(clip, result) {
       const slot = await call("upload-url", { clipId: clip.id });
       const bytes = await readFile(result.path);
-      const put = await fetchImpl(slot.signedUrl, { method: "PUT", headers: { "content-type": "video/mp4", "x-upsert": "true" }, body: bytes });
+      const put = await fetchImpl(slot.signedUrl, { method: "PUT", headers: { "content-type": result.contentType ?? "video/mp4", "x-upsert": "true" }, body: bytes });
       if (!put.ok) throw new Error(`STORAGE_UPLOAD_${put.status}`);
       await call("complete", { clipId: clip.id, sha256: result.sha256, width: result.media.width, height: result.media.height,
         durationSeconds: result.media.durationSeconds });

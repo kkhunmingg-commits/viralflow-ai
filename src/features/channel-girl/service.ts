@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { readStateFile, saveStateFile } from "@/features/flow-farm/service";
+import { pictureType, readStateFile, saveStateFile } from "@/features/flow-farm/service";
+import { FACE_PICTURE_MARK } from "./marks";
 import {
   characterStatus, decideFaces, emptyGirlState, facePrompt, MAX_FACE_ATTEMPTS, MAX_FACES_SHOWN, newCandidate, planGirlClips, type FaceCandidate, type GirlCharacter,
   type GirlGuide, type GirlState,
@@ -60,7 +61,7 @@ async function queueFace(admin: SupabaseClient, owner: string, character: GirlCh
   const insert = await admin.from("flow_clips").insert({
     id: clipId, owner_id: owner, tiktok_account_id: await firstAccount(admin, owner), batch_id: character.id, product_id: null, kind: "PRESENTER_CLIP",
     created_at: new Date(now.getTime() + index).toISOString(),
-    title: `สาว AI ${character.name} · หน้าแบบที่ ${index + 1}`.slice(0, 200), prompt: facePrompt(character.look, index, candidate.attempts).slice(0, 12000),
+    title: `สาว AI ${character.name} ${FACE_PICTURE_MARK} แบบที่ ${index + 1}`.slice(0, 200), prompt: facePrompt(character.look, index, candidate.attempts).slice(0, 12000),
     caption: `สาว AI ${character.name}`.slice(0, 2200), hashtags: [], reference_image_path: null,
   });
   // 23505: this very try was already queued by a tick running at the same time.
@@ -161,10 +162,12 @@ async function keepFace(admin: SupabaseClient, owner: string, characterId: strin
 async function saveStill(admin: SupabaseClient, owner: string, characterId: string, key: string, storagePath: string) {
   const file = await admin.storage.from(BUCKET).download(storagePath);
   if (file.error || !file.data) throw new Error("FACE_VIDEO_MISSING");
-  const { lastFrameJpeg } = await import("@/features/drama/media");
-  const frame = await lastFrameJpeg(new Uint8Array(await file.data.arrayBuffer()));
+  const bytes = new Uint8Array(await file.data.arrayBuffer());
+  // A picture from Flow's image mode is the face as it is; an older worker's video gives its last frame.
+  const type = pictureType(bytes);
+  const frame = type ? bytes : await import("@/features/drama/media").then(m => m.lastFrameJpeg(bytes));
   const path = stillPath(owner, characterId, key);
-  const upload = await admin.storage.from(BUCKET).upload(path, frame, { contentType: "image/jpeg", upsert: true });
+  const upload = await admin.storage.from(BUCKET).upload(path, frame, { contentType: type ?? "image/jpeg", upsert: true });
   if (upload.error) throw new Error("FACE_NOT_SAVED");
   return path;
 }

@@ -77,7 +77,6 @@ const LOOKS = [
   "cool chic face with sharp cheekbones, monolid eyes with smoky liner, red lips, blunt black bob with bangs; a white collared shirt under a beige vest; in a minimalist white room, clean daylight",
 ] as const;
 const DEFAULT_PLACE = "in a cosy, stylish room with soft warm light";
-const GREETINGS = ["สวัสดีค่ะทุกคน ฝากติดตามด้วยนะคะ", "สวัสดีค่ะ วันนี้มีเรื่องสนุกมาเล่าให้ฟังค่ะ", "ยินดีที่ได้รู้จักนะคะ เจอกันทุกวันค่ะ", "หวัดดีค่ะ ดีใจที่ได้เจอกันนะคะ"] as const;
 
 /** Only what the owner typed: no quotes or instructions. */
 export function cleanLook(look: string) {
@@ -85,15 +84,17 @@ export function cleanLook(look: string) {
 }
 
 /**
- * A short take whose last frame is a clear, front-facing face. Kept short with one full Thai sentence: Flow's audio step
- * failed on long prompts (16 Nov, "สร้างเสียงไม่สำเร็จ"). `attempt` = tries already made; a retry changes the sentence.
+ * A portrait photo made in Flow's image mode (16 Nov, owner: the video takes' last frames all gave the same stock face;
+ * "make the model as a picture, then make videos from the picture"). No sound, so Flow's audio step cannot fail it.
+ * `attempt` = tries already made; a retry changes the camera wording a little.
  */
 export function facePrompt(look: string, index: number, attempt = 0) {
   const own = cleanLook(look);
   const who = own ? `${own}; ${DEFAULT_PLACE}` : LOOKS[index % LOOKS.length];
-  return `Vertical 9:16 photoreal smartphone video of a stunning young Asian woman in her twenties, styled like a top Thai TikTok beauty creator with a soft beauty-filter look: ${who}. `
-    + "Chest-up, natural skin texture, flattering light, shallow depth of field, still camera. "
-    + `She looks into the camera, smiles softly and says in Thai: "${GREETINGS[attempt % GREETINGS.length]}", then smiles at the camera.`;
+  const camera = ["shot on a full-frame camera with an 85mm lens", "shot on an iPhone in portrait mode", "editorial photo, 50mm lens"][attempt % 3];
+  return `Photorealistic vertical 9:16 portrait photo of a stunning young Asian woman in her twenties, a top Thai Instagram and TikTok beauty creator: ${who}. `
+    + `Waist-up, she looks straight into the camera with a soft confident expression, her whole face clearly visible and in sharp focus, ${camera}, `
+    + "flattering soft light, natural skin texture with a light glow, shallow depth of field, high-end beauty photography. One person only, no text, no watermark.";
 }
 
 /** What the owner reads when Flow gave up on a face. */
