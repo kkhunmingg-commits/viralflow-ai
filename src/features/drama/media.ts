@@ -108,8 +108,15 @@ const hasAudio = async (dir: string, file: string) => {
  * Cuts an episode: the shots in order at 720x1280, Thai subtitles for each line, the series/episode tag at the start
  * and "next episode" (or "the end") over the last seconds. Shots without sound get silence so the cut never fails.
  */
-export function assembleEpisode(input: { shots: Array<{ bytes: Uint8Array; durationSeconds: number; subtitle: string; trimStartSeconds?: number }>; cut?: Omit<EpisodeCut, "shots">;
+export function assembleEpisode(input: { shots: Array<{ bytes: Uint8Array; durationSeconds: number; subtitle: string; trimStartSeconds?: number;
+  /** Where the take is cut off (seconds from its own start): drops a slow settle at the end of a take. */
+  maxSeconds?: number }>; cut?: Omit<EpisodeCut, "shots">;
   fontPath?: string;
+  /**
+   * 17 Nov (Lucky, after a competitor's clips): a short cross-dissolve between takes instead of a hard jump, picture
+   * and sound together. 0 or unset keeps hard cuts.
+   */
+  transitionSeconds?: number;
   /** Ready-made subtitles (product clips); otherwise the episode's own are built from `cut`. */
   ass?: (durations: number[]) => string }) {
   if (!input.shots.length) throw new Error("NO_SHOTS");
@@ -118,24 +125,40 @@ export function assembleEpisode(input: { shots: Array<{ bytes: Uint8Array; durat
     await copyFile(input.fontPath ?? join(process.cwd(), "assets", "fonts", "NotoSansThai-Bold.ttf"), join(dir, "fonts", "NotoSansThai-Bold.ttf"));
     // A cut from the start of a take (product clips: Flow's first frames can still show the reference photo).
     const starts = input.shots.map(shot => Math.max(0, Math.min(2, shot.trimStartSeconds ?? 0)));
-    const durations = input.shots.map((shot, i) => Math.max(1, Math.min(10, shot.durationSeconds || 8) - starts[i]));
+    const durations = input.shots.map((shot, i) => Math.max(1, Math.min(10, shot.durationSeconds || 8, shot.maxSeconds ?? 10) - starts[i]));
+    // The dissolve overlaps neighbouring takes, so it can never be longer than a third of the shortest one.
+    const fade = input.shots.length > 1 ? Math.max(0, Math.min(input.transitionSeconds ?? 0, Math.min(...durations) / 3)) : 0;
+    // How long each take is on screen on its own once the overlaps are taken out (the subtitles follow these).
+    const shown = durations.map((d, i) => i < durations.length - 1 ? d - fade : d);
     const args = ["-nostdin", "-hide_banner", "-loglevel", "error", "-y"];
     const chains: string[] = [];
     for (const [i, shot] of input.shots.entries()) {
       const file = `shot-${i}.mp4`;
       await writeFile(join(dir, file), shot.bytes);
       args.push("-i", file);
-      chains.push(`[${i}:v]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT},fps=${FPS},setsar=1,format=yuv420p,trim=start=${starts[i]}:duration=${durations[i]},setpts=PTS-STARTPTS[v${i}]`);
+      chains.push(`[${i}:v]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT},fps=${FPS},setsar=1,format=yuv420p,trim=start=${starts[i]}:duration=${durations[i]},setpts=PTS-STARTPTS,settb=AVTB[v${i}]`);
       chains.push(await hasAudio(dir, file)
         ? `[${i}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=start=${starts[i]}:duration=${durations[i]},asetpts=PTS-STARTPTS,apad=whole_dur=${durations[i]}[a${i}]`
         : `aevalsrc=0:c=stereo:s=48000:d=${durations[i]}[a${i}]`);
     }
-    const total = durations.reduce((sum, d) => sum + d, 0);
+    const total = shown.reduce((sum, d) => sum + d, 0);
     if (!input.ass && !input.cut) throw new Error("NO_SUBTITLES");
-    await writeFile(join(dir, "episode.ass"), input.ass ? input.ass(durations)
-      : buildEpisodeSubtitles({ ...input.cut!, shots: input.shots.map((shot, i) => ({ durationSeconds: durations[i], subtitle: shot.subtitle })) }), "utf8");
-    const joined = input.shots.map((_, i) => `[v${i}][a${i}]`).join("");
-    const filter = [...chains, `${joined}concat=n=${input.shots.length}:v=1:a=1[cv][ca]`, "[cv]ass=episode.ass:fontsdir=fonts,format=yuv420p[v]"].join(";");
+    await writeFile(join(dir, "episode.ass"), input.ass ? input.ass(shown)
+      : buildEpisodeSubtitles({ ...input.cut!, shots: input.shots.map((shot, i) => ({ durationSeconds: shown[i], subtitle: shot.subtitle })) }), "utf8");
+    const joins: string[] = [];
+    if (fade > 0) {
+      let video = "v0", audio = "a0", offset = 0;
+      for (let i = 1; i < input.shots.length; i++) {
+        offset += shown[i - 1];
+        const v = i === input.shots.length - 1 ? "cv" : `xv${i}`, a = i === input.shots.length - 1 ? "ca" : `xa${i}`;
+        joins.push(`[${video}][v${i}]xfade=transition=fade:duration=${fade.toFixed(3)}:offset=${offset.toFixed(3)}[${v}]`);
+        joins.push(`[${audio}][a${i}]acrossfade=d=${fade.toFixed(3)}:c1=tri:c2=tri[${a}]`);
+        video = v; audio = a;
+      }
+    } else {
+      joins.push(`${input.shots.map((_, i) => `[v${i}][a${i}]`).join("")}concat=n=${input.shots.length}:v=1:a=1[cv][ca]`);
+    }
+    const filter = [...chains, ...joins, "[cv]ass=episode.ass:fontsdir=fonts,format=yuv420p[v]"].join(";");
     args.push("-filter_complex", filter, "-map", "[v]", "-map", "[ca]", "-t", total.toFixed(3), "-r", String(FPS),
       "-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-ar", "48000", "-movflags", "+faststart", "episode.mp4");
     await run(args, dir);

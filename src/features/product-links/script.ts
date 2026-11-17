@@ -12,10 +12,10 @@ import { PLATFORM_LABEL, type ProductPlatform } from "./link";
  * shares one set, light and pair of hands (continuity), while the framing, the hand action and the listing photo
  * used as reference change from take to take, so the product is seen from different sides.
  */
-export const PRODUCT_SCRIPT_VERSION = "product-link-script-v2";
+export const PRODUCT_SCRIPT_VERSION = "product-link-script-v3";
 export const CLIP_LENGTHS = [8, 16, 24, 32, 40] as const;
 export type ClipLength = typeof CLIP_LENGTHS[number];
-export type ShotRole = "HERO" | "HOOK" | "DETAIL" | "IN_USE" | "OVERVIEW" | "CLOSE";
+export type ShotRole = "HERO" | "HOOK" | "DETAIL" | "IN_USE" | "OVERVIEW" | "CLOSE" | "PRESENTER" | "LIFESTYLE" | "PRESENTER_CLOSE";
 
 export interface ProductShot {
   position: number; role: ShotRole; roleTh: string; action: HandAction; camera: string;
@@ -47,11 +47,41 @@ export interface ScriptInput {
   now?: Date;
 }
 
-const ROLE_TH: Record<ShotRole, string> = { HERO: "โชว์สินค้า", HOOK: "เปิดเรื่อง", DETAIL: "ซูมรายละเอียด", IN_USE: "มุมใช้งาน", OVERVIEW: "มุมกว้างอีกด้าน", CLOSE: "ปิดท้าย + ลิงก์" };
-/** One 8-second Flow take per role; each added take shows the product from a new side. */
+const ROLE_TH: Record<ShotRole, string> = { HERO: "โชว์สินค้า", HOOK: "เปิดเรื่อง", DETAIL: "ซูมรายละเอียด", IN_USE: "มุมใช้งาน", OVERVIEW: "มุมกว้างอีกด้าน", CLOSE: "ปิดท้าย + ลิงก์",
+  PRESENTER: "คนจริงพูดเปิด", LIFESTYLE: "ใช้จริงในชีวิตประจำวัน", PRESENTER_CLOSE: "คนจริงปิดท้าย + ลิงก์" };
+/**
+ * One 8-second Flow take per role; each added take shows the product from a new side.
+ * 17 Nov (Lucky, after a competitor's clips): a real-looking presenter opens and closes, and the takes in between
+ * change shot size every cut (selfie medium close-up -> hands macro -> person using it on the sofa/bed -> wide), so the
+ * cut feels like an edited advert instead of one table seen five times. Supplements stay hands only (a person
+ * holding a supplement and talking reads as a testimonial).
+ */
 export const ROLES: Record<ClipLength, ShotRole[]> = {
+  8: ["PRESENTER"], 16: ["PRESENTER", "DETAIL"], 24: ["PRESENTER", "DETAIL", "LIFESTYLE"], 32: ["PRESENTER", "DETAIL", "LIFESTYLE", "PRESENTER_CLOSE"],
+  40: ["PRESENTER", "DETAIL", "LIFESTYLE", "IN_USE", "PRESENTER_CLOSE"],
+};
+/** The hands-only plan (supplements, or a variant without a person). */
+export const HANDS_ROLES: Record<ClipLength, ShotRole[]> = {
   8: ["HERO"], 16: ["HOOK", "CLOSE"], 24: ["HOOK", "DETAIL", "CLOSE"], 32: ["HOOK", "DETAIL", "IN_USE", "CLOSE"], 40: ["HOOK", "DETAIL", "IN_USE", "OVERVIEW", "CLOSE"],
 };
+const PERSON_ROLES: ShotRole[] = ["PRESENTER", "LIFESTYLE", "PRESENTER_CLOSE"];
+
+/** The one person who appears in every person take of a clip, described the same way word for word so Flow keeps them. */
+export const PRESENTERS = [
+  "a Thai woman in her late twenties, natural everyday beauty, straight black hair just past the shoulders with soft see-through bangs, light natural makeup, wearing a cream ribbed knit top",
+  "a Thai woman around thirty, warm friendly face, dark brown hair tied in a loose low ponytail, minimal makeup, wearing a pale blue linen shirt",
+  "a Thai woman in her mid twenties, bright smile, long wavy dark hair, dewy natural makeup, wearing a white cotton camisole under an open beige cardigan",
+  "a Thai man in his late twenties, clean short black hair, friendly relaxed face, wearing a plain heather-grey crew-neck t-shirt",
+];
+/** Where and how the person uses the product: real home life, a different pose each clip (sofa, bed, window seat, desk). */
+const LIFESTYLE_POSES = [
+  "sitting cross-legged on a soft beige sofa with a cushion on the lap, using the product naturally and glancing at it with a small satisfied smile",
+  "lying on the stomach across a made bed with white linen, propped up on the elbows, holding and using the product, feet relaxed in the air",
+  "sitting on a cushioned window seat with knees drawn up, daylight on the face, turning the product in the hands and using it",
+  "leaning back against the headboard of a bed with a pillow behind the back, legs under a light blanket, using the product calmly",
+  "sitting at a small desk by the window, turning sideways on the chair toward the camera, using the product as part of the routine",
+  "standing in the kitchen leaning a hip against the counter, using the product in an easy, unposed way",
+];
 
 /** Per-role framing and how each take starts and ends, so the cut from one take to the next reads as one movement. */
 const ROLE_SHOT: Record<ShotRole, { action: HandAction; camera: string; framing: string; start: string; end: string; timing: string }> = {
@@ -66,15 +96,27 @@ const ROLE_SHOT: Record<ShotRole, { action: HandAction; camera: string; framing:
   DETAIL: { action: "POINT_TO_DETAIL", camera: "locked-off macro shot with a gentle rack focus onto the detail",
     framing: "macro close-up on the product's most distinctive detail exactly as it appears in the reference image",
     start: "the product is already held in the hand close to the camera (continuing from the previous shot)", end: "the hand keeps the product still with the detail in sharp focus",
-    timing: "the finger reaches the detail by second 2 and hovers there without pressing; hold still from second 4 to second 8" },
+    timing: "hands already moving in the first frame; the finger reaches the detail by second 2 and traces slowly across it without pressing; the camera keeps a slow drift so the frame is never frozen" },
   IN_USE: { action: "TURN_TO_LIGHT", camera: "slow lateral slide at table height from a three-quarter angle",
     framing: "three-quarter angle from a lower camera height, showing the product's shape and size against the hands",
     start: "the product is held in both hands in the same set", end: "the product faces the camera again, steady",
-    timing: "a slow quarter turn between second 1 and second 5, then hold still facing the camera to the end" },
+    timing: "the turn is already starting in the first frame; a slow quarter turn until second 5, then a gentle settle facing the camera while the camera keeps sliding" },
   OVERVIEW: { action: "LIFT_AND_PRESENT", camera: "slow arc around the product from a high three-quarter angle",
     framing: "wider shot from a higher angle showing the whole product and its other side on the same set",
     start: "the product is held a little above the set, turned to show the side not seen yet", end: "the product is held steady, whole shape visible",
     timing: "the camera arc and a slight lift happen between second 1 and second 5; hold steady to the end" },
+  PRESENTER: { action: "LIFT_AND_PRESENT", camera: "handheld phone-selfie feel at eye level, a slow gentle push-in, tiny natural sway, never shaky",
+    framing: "vertical medium close-up of the presenter from the chest up, face in the upper third, the product held up beside the cheek in the lower third, both sharp",
+    start: "the presenter is already mid-gesture, bringing the product up beside the face while starting to talk", end: "the presenter holds the product toward the lens and smiles, still moving slightly",
+    timing: "talking and moving from the very first frame; the product is beside the face by second 1; small natural head and hand movements the whole time, never a frozen pose; the line is finished by second 6" },
+  LIFESTYLE: { action: "TURN_TO_LIGHT", camera: "slow lateral dolly at seated eye level, like a lifestyle advert, softly following the person",
+    framing: "medium-wide shot showing the whole upper body and the room around the person, the product clearly visible in the hands",
+    start: "the person is already in the pose and moving, product in hand", end: "the person looks up from the product toward the camera with a relaxed smile",
+    timing: "continuous gentle movement from the first frame to the last; no frozen moment" },
+  PRESENTER_CLOSE: { action: "LIFT_AND_PRESENT", camera: "slow pull-back from a close-up to a medium shot, smooth and steady",
+    framing: "medium shot of the presenter holding the product at chest height facing the camera, a little empty space at the bottom of the frame for the end caption",
+    start: "the presenter is close to the lens holding the product", end: "the presenter gives a small nod and smile with the product still facing the camera; the last second is calm",
+    timing: "talking from the first frame, line finished by second 6, then a calm smile to the end" },
   CLOSE: { action: "PLACE_ON_SURFACE", camera: "slow pull-back that settles into a locked-off hero frame",
     framing: "clean hero shot, the product a little above the centre of the set with empty space below it for the end caption",
     start: "the hand is holding the product just above the set", end: "the product sits centred on the set, hands gone, frame perfectly still",
@@ -84,7 +126,7 @@ const ROLE_SHOT: Record<ShotRole, { action: HandAction; camera: string; framing:
 const NEGATIVE = [
   "any change to the product's shape, colours, logo, model name or printed text versus the reference image",
   "changing, animating or flickering digits or screen content", "extra buttons, extra text, extra logos or a different product",
-  "gloves or covered hands", "faces, testimonials, captions, subtitles, watermarks, price tags or any on-screen text",
+  "gloves or covered hands", "testimonials, captions, subtitles, watermarks, price tags or any on-screen text",
   "the product performing a function, result or before/after effect not shown in the reference", "cuts or scene changes inside the take",
   "objects morphing, duplicating, or appearing and vanishing on their own",
   // 10 Nov: a take began on the shop's banner (text, swatches, white card) and faded into the set.
@@ -192,34 +234,44 @@ export function narrationFor(role: ShotRole, name: string, facts: string[], seed
   const usable = family === "HEALTH_SUPPLEMENT" ? [] : facts;
   const hook = trendHook || pick(HOOKS, seed).replace("{n}", name);
   switch (role) {
+    case "PRESENTER": if (total > 1) return shorten(hook, 64);
+    // falls through: an 8-second clip's presenter take carries the name, a fact and the link like the hero take.
     case "HERO": return shorten(usable[0] ? `${name} ${usable[0]} ${CTA_SHORT}` : `${hook} ${CTA_SHORT}`, 70);
     case "HOOK": return shorten(hook, 64);
     case "DETAIL": return shorten(usable[0] ?? "ดูรายละเอียดตรงนี้กันชัด ๆ", 50);
     case "IN_USE": return shorten(usable[1] ?? usable[0] ?? "มุมนี้ให้เห็นทรงกับขนาดชัด ๆ", 50);
+    case "LIFESTYLE": return shorten(usable[1] ?? usable[0] ?? "ใช้จริงทุกวัน หยิบง่าย ใช้ง่าย", 50);
     case "OVERVIEW": return shorten(usable[2] ?? "อีกมุม ให้เห็นทรงเต็ม ๆ", 50);
     // In a 16-second clip the closing take is the only one left to carry a fact; in 32 seconds the facts came earlier.
+    case "PRESENTER_CLOSE":
     case "CLOSE": return shorten(total === 2 && usable[0] ? `${usable[0]} ${CTA_SHORT}` : CTA_LONG, 70);
   }
 }
 
-export function shotPrompt(input: { title: string; style: SetStyle; role: ShotRole; position: number; total: number; narration: string; trend?: TrendFormat; setTouch?: string }) {
+export function shotPrompt(input: { title: string; style: SetStyle; role: ShotRole; position: number; total: number; narration: string; trend?: TrendFormat; setTouch?: string;
+  presenter?: string; pose?: string; nextRole?: ShotRole }) {
   const shot = ROLE_SHOT[input.role], s = input.style, first = input.position === 0, last = input.position === input.total - 1;
+  const person = PERSON_ROLES.includes(input.role) && input.presenter;
   return [
     `Use the attached reference image as the exact product (${input.title}). The reference may be a shop banner: take only the product from it and ignore its background, badges, colour swatches and any words printed around the product. Show only this product itself: leave out anything else in the reference photo (spatula, spoon, brush, puff, box, cable or other bundled extra). The video never shows the reference photo itself: the very first frame is already the real set in motion. Photoreal vertical 9:16 video, 8 seconds, one continuous take.`,
     // The first second decides whether people keep watching: open on the format's scroll-stopping beat, already in motion.
-    ...(first && input.trend ? [`OPENING (first second, made to stop the scroll on Reels/Shorts/TikTok): ${input.trend.opening}. Never start on a still frame.`] : []),
+    ...(first && input.trend && !person ? [`OPENING (first second, made to stop the scroll on Reels/Shorts/TikTok): ${input.trend.opening}. Never start on a still frame.`] : []),
+    ...(first && person ? ["OPENING (first second, made to stop the scroll): the presenter is already talking straight into the lens with eye contact and lively expression, product coming up beside the face. Never start on a still frame."] : []),
     ...(last && input.total > 1 ? ["LOOP: the final frame mirrors the composition of the advert's first frame, so the clip loops seamlessly when it replays."] : []),
-    ...(input.total > 1 ? [`ADVERT CONTINUITY: this is shot ${input.position + 1} of ${input.total} of one product advert that is cut together. Every shot uses the same set, props, light, palette and the same hands and sleeve, so the cuts feel like one place and one person. START: ${shot.start}. END: ${shot.end}.`] : []),
+    ...(input.total > 1 ? [`ADVERT EDIT: this is shot ${input.position + 1} of ${input.total} of one fast, smoothly edited product advert. Each shot is a clearly different camera set-up (shot size and angle change at every cut: selfie medium close-up, macro of the hands, lifestyle wide), while the place, light, palette${input.presenter ? ", the presenter" : ""} and the same hands stay the same, so the cuts feel like one shoot of one person. Motion carries across the cut: START: ${shot.start}. END: ${shot.end}${input.nextRole && !last ? `, still in gentle motion so the cut to the next shot flows` : ""}. Speech is finished by second 6, because the edit cuts each shot at about second 7.`] : []),
+    ...(person ? [`PRESENTER (identical in every shot): ${input.presenter}. A real person filmed on a phone: natural skin texture, real expressions, relaxed and genuine like a friend recommending something, not a model posing.`] : []),
     `SET: ${s.set}; props: ${s.props}${input.setTouch ? `; ${input.setTouch}` : ""}. Styled like a premium product advert, uncluttered.`,
-    `SHOT: ${shot.framing}.`,
-    `ACTION: ${ACTIONS[shot.action].en}. Hands: ${s.hands}.`,
-    "CONTINUITY: the same pair of hands in every take — natural skin, short clean bare nails, no nail polish, no rings or jewellery. There is exactly one product, the same single object from the moment it is in frame to the last frame; it never appears, multiplies or changes on its own. The set and props stay fixed for the whole take.",
-    `CAMERA: ${first && input.trend ? input.trend.camera : shot.camera}. Shallow depth of field, product always in sharp focus.`,
+    `SHOT: ${shot.framing}${input.role === "LIFESTYLE" ? "; a lived-in corner of the same home, real and tidy" : ""}.`,
+    `ACTION: ${input.role === "LIFESTYLE" && input.pose ? `the presenter is ${input.pose}` : person ? `${ACTIONS[shot.action].en.replace(/^a hand|^two hands|^one hand/i, "the presenter's hand")}` : ACTIONS[shot.action].en}.${person ? "" : ` Hands: ${s.hands}.`}`,
+    `CONTINUITY: the same pair of hands in every take — natural skin, short clean bare nails, no nail polish, no rings or jewellery. There is exactly one product, the same single object from the moment it is in frame to the last frame; it never appears, multiplies or changes on its own. The set and props stay fixed for the whole take.${person ? " The presenter's face, hair and clothes never change." : ""}`,
+    `CAMERA: ${first && input.trend && !person ? input.trend.camera : shot.camera}. Shallow depth of field, product always in sharp focus. The camera is never perfectly static: a slow, smooth, motivated move the whole take.`,
     `TIMING: ${shot.timing}.`,
-    `LIGHT & COLOUR: ${s.lighting}; palette ${s.palette}; mood ${s.mood}.`,
+    `LIGHT & COLOUR: ${s.lighting}; palette ${s.palette}; mood ${s.mood}. The same light and colour grade as every other shot of this advert.`,
     "PRODUCT FIDELITY: keep the product identical to the reference — same shape, proportions, colours, logo and every printed word; any display shows exactly the same characters as the reference and stays perfectly still.",
-    `AUDIO: one warm, natural, upbeat female voice speaking Thai (ภาษาไทย) with native central Thai pronunciation, like a friend sharing a find, not an announcer. She says exactly this Thai line, word for word, in Thai: "${input.narration}" — no English or any other language, no other words; soft room ambience and crisp, satisfying handling sounds${first && input.trend ? `; ${input.trend.audio}` : ""}, no music.`,
-    `AVOID: ${NEGATIVE.join("; ")}.`,
+    person && input.role !== "LIFESTYLE"
+      ? `AUDIO: the presenter speaks Thai (ภาษาไทย) to camera, lip-synced, in a warm, natural, upbeat ${/\bman\b/.test(input.presenter ?? "") ? "male" : "female"} voice with native central Thai pronunciation, like a friend sharing a find, not an announcer. The presenter says exactly this Thai line, word for word, in Thai: "${input.narration}" — no English or any other language, no other words; soft room ambience, no music.`
+      : `AUDIO: one warm, natural, upbeat ${/\bman\b/.test(input.presenter ?? "") ? "male" : "female"} voice-over speaking Thai (ภาษาไทย) with native central Thai pronunciation, like a friend sharing a find, not an announcer${person ? "; the presenter's mouth stays closed (this is a voice-over)" : ""}. The voice says exactly this Thai line, word for word, in Thai: "${input.narration}" — no English or any other language, no other words; soft room ambience and crisp, satisfying handling sounds${first && input.trend ? `; ${input.trend.audio}` : ""}, no music.`,
+    `AVOID: ${[...NEGATIVE, ...(person ? ["a different person, a second person, a face that changes between shots, distorted hands or fingers", "the presenter showing a result, a before/after or touching the face to show an effect"] : ["faces or people"])].join("; ")}.`,
   ].join("\n");
 }
 
@@ -231,7 +283,11 @@ export function writeProductClip(input: ScriptInput): ProductClipScript {
   const name = EFFECT_FAMILIES.includes(family)
     ? shorten(mainProductTitle(input.title).split(" ").filter(w => !EFFECT.test(w)).join(" "), 34) || shortProductName(input.title) : shortProductName(mainProductTitle(input.title));
   const { kept, dropped } = screenFacts(input.facts, family);
-  const roles = ROLES[input.lengthSeconds];
+  // Supplements stay hands only; every other family gets the presenter plan, and one variant in four keeps the
+  // hands-only look so a product's remakes do not all look alike.
+  const handsOnly = family === "HEALTH_SUPPLEMENT" || (input.variant ?? 0) % 4 === 3;
+  const roles = (handsOnly ? HANDS_ROLES : ROLES)[input.lengthSeconds];
+  const presenter = handsOnly ? undefined : pick(PRESENTERS, seed >> 2), pose = pick(LIFESTYLE_POSES, seed >> 4);
   const trend = pickTrend(input.title, family, name, kept, seed);
   const moment = shoppingMoment(input.now ?? new Date());
   const shots: ProductShot[] = roles.map((role, position) => {
@@ -242,7 +298,8 @@ export function writeProductClip(input: ScriptInput): ProductClipScript {
     return { position, role, roleTh: ROLE_TH[role], action, camera: shot.camera, narration,
       // One photo for every take (10 Nov: a different listing photo per take showed a puff, a pink case, a white case).
       imageIndex: 0,
-      prompt: shotPrompt({ title: mainProductTitle(input.title).slice(0, 200), style, role, position, total: roles.length, narration, trend: trend.format, setTouch: moment?.setTouch || undefined }) };
+      prompt: shotPrompt({ title: mainProductTitle(input.title).slice(0, 200), style, role, position, total: roles.length, narration, trend: trend.format, setTouch: moment?.setTouch || undefined,
+        presenter, pose, nextRole: roles[position + 1] }) };
   });
   const store = PLATFORM_LABEL[input.platform];
   const hashtags = [...new Set([`#${store}`, "#ป้ายยา", FAMILY_TAG[family], ...(moment ? [moment.hashtag] : []), `#${store}Affiliate`, "#Reels", "#Shorts"])];

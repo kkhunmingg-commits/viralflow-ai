@@ -1,4 +1,5 @@
 import "server-only";
+import { ANGLE_REFERENCE } from "@/features/drama/showrunner";
 import { FACE_PICTURE_MARK } from "@/features/channel-girl/marks";
 import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -295,7 +296,10 @@ export async function claimClip(admin: SupabaseClient, owner: string, flowAccoun
   // An AI girl face is a picture from Flow's image mode, not a video (16 Nov). An older worker ignores this and makes a
   // video from the same prompt, whose last frame still gives a face.
   const media = isPictureClip(clip) ? "IMAGE" as const : "VIDEO" as const;
-  return { id: clip.id, title: clip.title, prompt: clip.prompt, kind: clip.kind, imageUrl, projectKey, media };
+  // 17 Nov: a drama shot that changes camera angle in the same place gets the previous frame as a reference
+  // (ingredients), not as its first frame. An older worker ignores this and starts on the frame as before.
+  const imageAs = clip.kind === "DRAMA_SHOT" && imageUrl && clip.prompt.includes(ANGLE_REFERENCE) ? "INGREDIENT" as const : undefined;
+  return { id: clip.id, title: clip.title, prompt: clip.prompt, kind: clip.kind, imageUrl, projectKey, media, ...(imageAs ? { imageAs } : {}) };
 }
 
 /**

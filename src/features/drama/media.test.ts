@@ -62,6 +62,20 @@ describe.skipIf(!binary)("drama media (real ffmpeg)", () => {
     expect(info).toMatch(/Video: h264.*720x1280/);
     expect(info).toMatch(/Audio: aac/);
   }, 180_000);
+
+  it("dissolves between shots and cuts a take short when asked (17 Nov)", async () => {
+    const shots = [
+      { bytes: source("x1.mp4", "testsrc2=s=720x1280", 3), durationSeconds: 3, subtitle: "", maxSeconds: 2.5 },
+      { bytes: clip("x2.mp4", "720x1280", true, "blue"), durationSeconds: 2, subtitle: "" },
+      { bytes: clip("x3.mp4", "720x1280", false, "green"), durationSeconds: 2, subtitle: "" },
+    ];
+    const result = await assembleEpisode({ shots, transitionSeconds: 0.4, cut: { seriesTitle: "ทดสอบ", episodeNumber: 1, totalEpisodes: 3, episodeTitle: "ตัดต่อ", finale: false } });
+    // 2.5 + 2 + 2 seconds less two 0.4 s overlaps.
+    expect(result.durationSeconds).toBeCloseTo(5.7, 1);
+    const info = probe(result.bytes);
+    expect(info).toMatch(/Video: h264.*720x1280/);
+    expect(info).toMatch(/Audio: aac/);
+  }, 180_000);
 });
 
 describe("isDecodeFailure", () => {

@@ -86,11 +86,52 @@ function lineOf(say: Say | undefined, kit: GenreKit): Line | null {
 }
 
 const CAMERA = {
-  hook: "medium shot, slow push-in, steady",
+  hook: "medium two-shot, slow push-in, steady",
   body: ["over-the-shoulder medium close-up, gentle handheld", "close-up on faces, shallow depth of field", "medium-wide two-shot, slow lateral dolly"],
   cliff: "slow push-in ending on a tight close-up, hold the final frame",
-  intro: "medium-wide establishing shot, every face clearly visible and well lit",
+  intro: "wide establishing shot of the whole place with a slow push-in, every face clearly visible and well lit",
 };
+
+/**
+ * 17 Nov (Lucky, after a competitor's drama clips): every cut changes the camera set-up, like a TV drama's coverage:
+ * establishing wide, then shot / reverse shot over the listener's shoulder for each line, reaction close-ups for the
+ * silent beats, and a push-in for the cliffhanger. The size never repeats twice in a row, and screen direction is kept
+ * (the lead always frame-left, everyone else frame-right) so the cuts read as one scene.
+ */
+export function coverageCamera(input: { index: number; total: number; intro: boolean; hook: boolean; cliff: boolean; speaker: string | null; listeners: string[]; others: string[];
+  previous: string | null }) {
+  if (input.intro) return "wide establishing shot of the whole place with a slow push-in, every face clearly visible and well lit";
+  if (input.cliff) return "slow push-in ending on a tight close-up of the face that reacts, hold the final frame";
+  const options: string[] = [];
+  if (input.speaker && input.listeners.length) {
+    options.push(`over-the-shoulder medium close-up on ${input.speaker} past ${input.listeners[0]}'s shoulder, slow push-in`);
+    options.push(`medium close-up on ${input.speaker}, ${input.listeners[0]} soft at the frame edge, slight handheld`);
+  }
+  if (input.speaker && !input.listeners.length) options.push(`medium close-up on ${input.speaker}, slow push-in, eyes catching the light`);
+  if (!input.speaker && input.others.length) {
+    options.push(`close-up reaction on ${input.others[0]}'s face, shallow depth of field, slow drift`);
+    options.push("medium-wide shot from a low three-quarter angle, slow lateral dolly");
+  }
+  options.push("medium-wide two-shot, slow lateral dolly", "close-up on faces, shallow depth of field, gentle handheld");
+  const size = (camera: string) => /^wide|medium-wide/.test(camera) ? "wide" : /close-up/.test(camera) && !/medium/.test(camera) ? "close" : "medium";
+  const fresh = options.filter(camera => !input.previous || size(camera) !== size(input.previous));
+  const list = fresh.length ? fresh : options;
+  return list[(input.index + (input.hook ? 1 : 0)) % list.length];
+}
+
+/** Body positions that vary from shot to shot by the kind of place (Lucky: lying on the bed, sitting on the sofa...). */
+const POSTURES: Array<[RegExp, string[]]> = [
+  [/bed(room)?|dorm|hospital/i, ["sitting on the edge of the bed", "lying on the bed propped up on one elbow", "standing by the window of the room"]],
+  [/living room|sofa|couch|condo|apartment|house|home/i, ["sitting on the sofa", "standing behind the sofa, hands on its back", "sitting on the floor leaning against the sofa"]],
+  [/kitchen/i, ["leaning against the kitchen counter", "standing at the counter, busy with the hands", "sitting on a stool at the counter"]],
+  [/office|meeting|desk|company/i, ["standing by the big window", "sitting on the edge of the desk", "standing at the coffee counter"]],
+  [/cafe|café|restaurant|shop|store|market/i, ["sitting at a table", "standing at the counter", "walking in through the door"]],
+  [/street|road|alley|park|garden|beach|field|forest|temple|car|parking/i, ["walking slowly", "standing still, turning", "sitting on a bench or low wall"]],
+];
+export function postureHint(placeLook: string, index: number) {
+  const list = POSTURES.find(([re]) => re.test(placeLook))?.[1];
+  return list ? list[index % list.length] : null;
+}
 
 /** Words in a move that mean other people (a crowd, customers, a one-off extra) belong in the shot. */
 const CROWD = /\b(crowd|customers?|class|students|children|kids|passengers|people|guests|audience|villagers|everyone|strangers?|men|women|man|woman|officers?|police|figure)\b/i;
@@ -137,7 +178,11 @@ export function shotRoles(move: Move, kit: GenreKit) {
   return { named, joins, all: joins ? [...named, joins] : named };
 }
 
-export interface ShotDraft { move: Move; place: PlaceKey; camera: string; hook?: boolean; from?: string }
+export interface ShotDraft { move: Move; place: PlaceKey; camera: string; hook?: boolean; from?: string;
+  /** A new camera set-up: the attached previous frame is a reference (Flow ingredients), not the first frame. */
+  angle?: boolean; posture?: string | null }
+/** The line the worker looks for to attach the picture as a reference instead of the first frame. Keep in sync with flow-farm/service.ts. */
+export const ANGLE_REFERENCE = "Use the attached image only as a reference";
 
 /** The English prompt the Flow worker types. Character and place descriptions are repeated word for word every time. */
 export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<StoryState, "conditions">, mode: ReferenceMode, kit = kitFor(bible), carried: Role[] = []) {
@@ -163,10 +208,15 @@ export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<Sto
   // Omni makes one 10-second take: spell out where it starts, what happens when, and the frame it ends on, so the next
   // shot (which starts from that last frame) continues the same moment instead of starting over.
   const from = mode === "PREVIOUS_FRAME" && draft.from ? `Continues directly from the previous shot, which ended on: ${fill(draft.from, bible, "en")}.` : "";
-  const timeline = `Timeline (10 seconds): 0-2s the shot opens with everyone already in place; 2-8s the action happens${line ? " and the line is spoken once, clearly, around the middle of the shot" : ""}; 8-10s the movement settles and the camera holds still on the final frame, every face still in view, the same people in the same place.`;
-  const reference = mode === "PREVIOUS_FRAME" ? "Begin exactly on the attached image (same people, same place, same light) and continue the action from there."
+  const timeline = `Timeline (10 seconds): 0-2s everyone already in place and moving; 2-8s the action happens${line ? " and the line is spoken once, clearly, around the middle of the shot" : ""}; 8-10s the action eases on as the camera finishes its move, every face still in view, same people, same place.`;
+  // A new camera set-up in the same place: the previous frame is only a reference for faces, clothes, place and light,
+  // so the cut changes angle like a real edit instead of starting again on the same picture.
+  const reference = mode === "PREVIOUS_FRAME" && draft.angle ? `${ANGLE_REFERENCE} for faces, clothes, place and light; NEW camera angle (see Camera), not the image's framing.`
+    : mode === "PREVIOUS_FRAME" ? "Begin exactly on the attached image (same people, same place, same light) and continue the action from there."
     : mode === "KEY_STILL" ? "Begin on the attached image of this same place and continue from there; keep every face, hair and outfit as shown." : "";
-  return [
+  const posture = draft.posture ? `Blocking: unless the action says otherwise, ${names[0] ?? "the lead"} is ${draft.posture}.` : "";
+  const direction = names.length > 1 ? `Screen direction: ${names[0]} frame-left, ${names.slice(1).join(" and ")} frame-right.` : "";
+  const lines = [
     `${bible.style}. Vertical 9:16, one continuous 10-second shot.`,
     `Setting: ${place.look}.`,
     ...(cast.length ? ["Characters (keep faces, hair, clothes and voices identical in every shot):", ...cast] : []),
@@ -176,14 +226,20 @@ export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<Sto
     `Action: ${fill(draft.move.en, bible, "en")}${joins ? `; ${castOf(bible, joins).nameEn} is right there in the shot, reacting, and says the line` : ""}.`,
     timeline,
     dialogue,
+    ...(posture ? [posture] : []),
     `Camera: ${draft.camera}.`,
+    ...(direction ? [direction] : []),
     CONTINUITY,
     `Sound: ${bible.sound}.`,
     ...(reference ? [reference] : []),
     ANATOMY,
     "No on-screen text, no captions, no subtitles, no watermark, no logo. Realistic human motion and expressions.",
-  ].join("\n");
+  ];
+  // Flow's prompt box takes under 4000 characters: the blocking and screen-direction hints go first when it is full.
+  for (const optional of [posture, direction]) if (lines.join("\n").length >= PROMPT_LIMIT && optional) lines.splice(lines.indexOf(optional), 1);
+  return lines.join("\n");
 }
+const PROMPT_LIMIT = 3990;
 
 function pickMoves(kit: GenreKit, state: StoryState, phase: EpisodePhase, count: number, rand: () => number, pulse: number) {
   const levels = phase === "ESCALATION" ? [2, 3] : pulse > .2 ? [2, 3] : [1, 2];
@@ -276,6 +332,19 @@ export function planEpisode(input: { bible: SeriesBible; state: StoryState; numb
   } else cliff = finale ? null : script.shots[script.shots.length - 1];
   // Each shot knows how the one before it ended, for the prompt's "continues from".
   drafts.forEach((draft, i) => { if (i > 0) draft.from = drafts[i - 1].move.en; else if (state.lastCliff) draft.from = state.lastCliff.en; });
+  // Coverage: a different camera set-up at every cut (wide -> over-the-shoulder -> reaction close-up -> push-in).
+  drafts.forEach((draft, i) => {
+    const line = lineOf(draft.move.say, kit), { all } = shotRoles(draft.move, kit);
+    const speaker = line ? castOf(bible, line.who).nameEn : null;
+    const others = all.filter(role => role !== line?.who).map(role => castOf(bible, role).nameEn);
+    const isCliff = !finale && i === drafts.length - 1 && drafts.length > 1;
+    draft.camera = coverageCamera({ index: i, total: drafts.length, intro: number === 1 && i === 0, hook: !!draft.hook, cliff: isCliff,
+      speaker, listeners: speaker ? others : [], others, previous: i > 0 ? drafts[i - 1].camera : null });
+    // Inside one place every later shot is a new angle on the same moment; the first shot of an episode 2+ still
+    // continues straight on from the last frame of the episode before (the "previously" feel).
+    draft.angle = i > 0 && draft.place === drafts[i - 1].place;
+    draft.posture = postureHint(placeOf(bible, draft.place, kit).look, i + number);
+  });
 
   // Memory: lasting changes apply from the shot they happen in, so later shots (and episodes) keep them.
   const next: StoryState = { ...state, conditions: { ...state.conditions }, clues: [...state.clues], usedMoves: [...state.usedMoves], usedCliffs: [...state.usedCliffs] };

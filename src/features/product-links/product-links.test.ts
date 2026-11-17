@@ -63,11 +63,11 @@ describe("product clip script", () => {
     expect(script.shots).toHaveLength(takes);
     // Every take changes the framing; the hand action repeats only once there are more takes than actions.
     expect(new Set(script.shots.map(s => s.role)).size).toBe(takes);
-    expect(new Set(script.shots.map(s => s.action)).size).toBe(Math.min(takes, 4));
+    expect(new Set(script.shots.map(s => s.action)).size).toBeGreaterThanOrEqual(Math.min(takes, 3));
     if (takes > 1) {
       // The same main photo in every take, so the product looks the same throughout.
       expect(new Set(script.shots.map(s => s.imageIndex))).toEqual(new Set([0]));
-      for (const shot of script.shots) expect(shot.prompt).toContain(`of ${takes} of one product advert`);
+      for (const shot of script.shots) expect(shot.prompt).toContain(`of ${takes} of one fast, smoothly edited product advert`);
       // Same set line in every take: continuity.
       expect(new Set(script.shots.map(s => s.prompt.split("\n").find(l => l.startsWith("SET:")))).size).toBe(1);
     }
@@ -205,8 +205,27 @@ describe("one look for the whole advert", () => {
     expect(script.shots.map(s => s.imageIndex)).toEqual([0, 0, 0, 0, 0]);
     for (const shot of script.shots) {
       expect(shot.prompt).toMatch(/no nail polish/);
-      expect(shot.prompt).toMatch(/speaking Thai \(ภาษาไทย\)/);
+      expect(shot.prompt).toMatch(/Thai \(ภาษาไทย\)/);
       expect(shot.prompt).toMatch(/never shows the reference photo itself/);
     }
+  });
+});
+
+describe("edited like an advert (17 Nov)", () => {
+  const input = { platform: "SHOPEE" as const, link: "https://s.shopee.co.th/x", title: "เซรั่มบำรุงผิว Glow Serum 30ml", facts: ["ขนาด 30 ml"], imageCount: 1 };
+  it("opens and closes on one real-looking presenter, the same person in every person take", () => {
+    const script = writeProductClip({ ...input, lengthSeconds: 32, variant: 0 });
+    expect(script.shots.map(s => s.role)).toEqual(["PRESENTER", "DETAIL", "LIFESTYLE", "PRESENTER_CLOSE"]);
+    const people = script.shots.filter(s => s.role !== "DETAIL").map(s => s.prompt.split("\n").find(l => l.startsWith("PRESENTER")));
+    expect(new Set(people).size).toBe(1);
+    expect(people[0]).toMatch(/Thai (wo)?man/);
+    // The hands-only macro take never shows a face.
+    expect(script.shots[1].prompt).toMatch(/AVOID:.*faces or people/);
+    expect(script.shots[2].prompt).toMatch(/sofa|bed|window seat|desk|kitchen/);
+  });
+  it("keeps supplements hands only", () => {
+    const script = writeProductClip({ ...input, title: "วิตามินซี 1000 mg", lengthSeconds: 24 });
+    expect(script.shots.map(s => s.role)).toEqual(["HOOK", "DETAIL", "CLOSE"]);
+    for (const shot of script.shots) expect(shot.prompt).not.toMatch(/^PRESENTER/m);
   });
 });

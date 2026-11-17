@@ -340,7 +340,7 @@ async function produceStep(admin: SupabaseClient, owner: string, job: ProductCli
   await assemble(admin, owner, job, ids.map(id => byId.get(id)!), now);
 }
 
-const SHOT_TRIM_START = 0.75;
+const SHOT_TRIM_START = 0.75, SHOT_CUT_AT = 7, SHOT_DISSOLVE = 0.25;
 async function assemble(admin: SupabaseClient, owner: string, job: ProductClipJob, shots: Array<{ id: string; storage_path: string | null; duration_seconds: number | null }>, now: Date) {
   const claimed = check(await admin.from("product_link_clips").update({ status: "ASSEMBLING", assemble_attempts: job.assemble_attempts + 1, updated_at: now.toISOString() })
     .eq("owner_id", owner).eq("id", job.id).in("status", ["PRODUCING", "ASSEMBLING"]).select("id"), "product_clips_unavailable") as unknown[] | null;
@@ -354,10 +354,12 @@ async function assemble(admin: SupabaseClient, owner: string, job: ProductClipJo
       if (file.error || !file.data) throw new Error("SHOT_VIDEO_MISSING");
       // 10 Nov (owner): the first frames showed the shop's banner photo fading into the scene; each take starts after it.
       inputs.push({ bytes: new Uint8Array(await file.data.arrayBuffer()), durationSeconds: Number(shot.duration_seconds ?? 8), subtitle: job.script.shots[i]?.narration ?? "",
-        trimStartSeconds: SHOT_TRIM_START });
+        trimStartSeconds: SHOT_TRIM_START,
+        // 17 Nov: every take but the last is cut at 7 s (speech ends by 6 s), so the edit keeps moving.
+        ...(i < shots.length - 1 && !/-v[12]$/.test(job.script.version) ? { maxSeconds: SHOT_CUT_AT } : {}) });
     }
     const { assembleEpisode } = await import("@/features/drama/media");
-    const video = await assembleEpisode({ shots: inputs, ass: durations => buildProductSubtitles({ lines: [], durations,
+    const video = await assembleEpisode({ shots: inputs, transitionSeconds: SHOT_DISSOLVE, ass: durations => buildProductSubtitles({ lines: [], durations,
       // 10 Nov (owner): no subtitles or headline on the video; only the AI disclosure and the end "link" card stay.
       endCard: "ลิงก์สินค้าอยู่ในคอมเมนต์", aiLabel: "สร้างด้วย AI" }) });
     const sha256 = createHash("sha256").update(video.bytes).digest("hex");

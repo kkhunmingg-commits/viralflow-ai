@@ -458,7 +458,8 @@ export async function openFlowAccount(account, config) {
       if (clip.imageUrl) await step("ATTACHING_IMAGE");
       // A drama shot continues from a picture (the last frame, or the key still): Flow's "frames" mode, start slot.
       // An AI LIVE presenter take starts from the presenter's face picture the same way, so every take is the same person.
-      const frames = (clip.kind === "DRAMA_SHOT" || clip.kind === "PRESENTER_CLIP") && Boolean(clip.imageUrl);
+      // 17 Nov: a drama shot from a new camera angle uses the picture as a reference (ingredients) instead.
+      const frames = (clip.kind === "DRAMA_SHOT" || clip.kind === "PRESENTER_CLIP") && Boolean(clip.imageUrl) && clip.imageAs !== "INGREDIENT";
       const plan = videoPlan(clip.kind);
       // The prompt box found may be the Agent chat's: close that panel and take the composer's own box.
       if (await closeAgentPanel(page)) prompt = await firstVisible(page, selectors.prompt) ?? prompt;

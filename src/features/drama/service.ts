@@ -725,7 +725,8 @@ async function assemble(admin: SupabaseClient, owner: string, series: SeriesRow,
       inputs.push({ bytes: new Uint8Array(await file.data.arrayBuffer()), durationSeconds: Number(shot.duration_seconds ?? 8), subtitle: shot.subtitle });
     }
     const { assembleEpisode } = await import("./media");
-    const video = await assembleEpisode({ shots: inputs, cut: { seriesTitle: series.title, episodeNumber: episode.number, totalEpisodes: series.total_episodes,
+    // 17 Nov: a short dissolve between shots (each shot is a new camera angle now), like a TV drama edit.
+    const video = await assembleEpisode({ shots: inputs, transitionSeconds: 0.4, cut: { seriesTitle: series.title, episodeNumber: episode.number, totalEpisodes: series.total_episodes,
       episodeTitle: episode.title, finale: episode.number >= series.total_episodes, speakers: series.bible.cast.map(c => c.name) } });
     const sha256 = createHash("sha256").update(video.bytes).digest("hex");
     const upload = await admin.storage.from(BUCKET).upload(path, video.bytes, { contentType: "video/mp4", upsert: true });
