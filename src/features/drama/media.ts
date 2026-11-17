@@ -136,7 +136,7 @@ export function assembleEpisode(input: { shots: Array<{ bytes: Uint8Array; durat
       const file = `shot-${i}.mp4`;
       await writeFile(join(dir, file), shot.bytes);
       args.push("-i", file);
-      chains.push(`[${i}:v]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT},fps=${FPS},setsar=1,format=yuv420p,trim=start=${starts[i]}:duration=${durations[i]},setpts=PTS-STARTPTS,settb=AVTB[v${i}]`);
+      chains.push(`[${i}:v]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT},fps=${FPS},setsar=1,format=yuv420p,trim=start=${starts[i]}:duration=${durations[i]},setpts=PTS-STARTPTS,fps=${FPS}[v${i}]`);
       chains.push(await hasAudio(dir, file)
         ? `[${i}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=start=${starts[i]}:duration=${durations[i]},asetpts=PTS-STARTPTS,apad=whole_dur=${durations[i]}[a${i}]`
         : `aevalsrc=0:c=stereo:s=48000:d=${durations[i]}[a${i}]`);
