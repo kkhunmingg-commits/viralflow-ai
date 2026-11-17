@@ -4,11 +4,11 @@ import { createProductClipAction, previewLinkAction, startProductClipAction, typ
 
 interface Account { id: string; name: string }
 const LENGTHS = [
-  { value: 8, label: "8 วิ", shots: 1, note: "1 ช็อต: โชว์สินค้า + ลิงก์ · ใช้เครดิต 1 คลิป" },
-  { value: 16, label: "16 วิ", shots: 2, note: "2 ช็อต: เปิดเรื่อง → ปิดท้าย + ลิงก์" },
-  { value: 24, label: "24 วิ", shots: 3, note: "3 ช็อต: เปิดเรื่อง → ซูมรายละเอียด → ปิดท้าย + ลิงก์" },
-  { value: 32, label: "32 วิ", shots: 4, note: "4 ช็อต: เปิดเรื่อง → ซูม → มุมใช้งาน → ปิดท้าย + ลิงก์" },
-  { value: 40, label: "40 วิ", shots: 5, note: "5 ช็อต: เปิดเรื่อง → ซูม → มุมใช้งาน → มุมกว้างอีกด้าน → ปิดท้าย + ลิงก์" },
+  { value: 8, label: "8 วิ", shots: 1, note: "1 ช็อต: คนจริงถือสินค้าพูด + ลิงก์ · ใช้เครดิต 1 คลิป" },
+  { value: 16, label: "16 วิ", shots: 2, note: "2 ช็อต: คนจริงพูดเปิด → มือซูมรายละเอียด" },
+  { value: 24, label: "24 วิ", shots: 3, note: "3 ช็อต: คนจริงพูดเปิด → มือซูม → ใช้จริงบนโซฟา/เตียง" },
+  { value: 32, label: "32 วิ", shots: 4, note: "4 ช็อต: คนจริงพูดเปิด → มือซูม → ใช้จริงบนโซฟา/เตียง → คนจริงปิดท้าย + ลิงก์" },
+  { value: 40, label: "40 วิ", shots: 5, note: "5 ช็อต: คนจริงพูดเปิด → มือซูม → ใช้จริง → มุมหมุนสินค้า → คนจริงปิดท้าย + ลิงก์" },
 ];
 
 function LengthPicker() {
