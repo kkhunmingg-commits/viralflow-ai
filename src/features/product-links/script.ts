@@ -225,8 +225,8 @@ export function pickTrend(title: string, family: CategoryFamily, name: string, f
 }
 
 const HOOKS = ["เจอ{n}ตัวนี้มา ขอโชว์ให้ดูหน่อย", "ใครกำลังหา{n}อยู่ ดูตัวนี้ก่อน", "{n} หน้าตาแบบนี้ ดูกันชัด ๆ"];
-const CTA_SHORT = "ลิงก์สินค้าอยู่ในคอมเมนต์";
-const CTA_LONG = "รายละเอียดกับราคาล่าสุด ดูที่ลิงก์ในคอมเมนต์นะ";
+const CTA_SHORT = "พิกัดอยู่ในเม้นเลย";
+const CTA_LONG = "ใครเล็งอยู่ ไปส่องพิกัดในเม้นได้เลย";
 
 /** The Thai line spoken in each take, from the product name and the kept facts only. */
 export function narrationFor(role: ShotRole, name: string, facts: string[], seed: number, family: CategoryFamily, total = 1, trendHook?: string) {
