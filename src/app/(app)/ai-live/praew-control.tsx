@@ -38,12 +38,16 @@ export function PraewControl() {
   const [tiktok, setTiktok] = useState<string | null>(null);
   const [followers, setFollowers] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The picture is only a preview: fetch it every 30 s (every 10th poll), the status every 3 s.
+  const polls = useRef(0);
 
   const refresh = useCallback(async () => {
     try {
-      const response = await fetch("/api/praew-live", { cache: "no-store" });
+      const picture = polls.current++ % 10 === 0;
+      const response = await fetch(`/api/praew-live${picture ? "" : "?picture=0"}`, { cache: "no-store" });
       if (!response.ok) throw new Error(String(response.status));
-      setStatus(await response.json() as Status);
+      const next = await response.json() as Status;
+      setStatus(previous => picture ? next : { ...next, snapshot: previous?.snapshot ?? null });
       setLoadError(false);
     } catch { setLoadError(true); }
   }, []);
@@ -98,7 +102,7 @@ export function PraewControl() {
           ? <img src={`data:image/jpeg;base64,${status.snapshot.jpeg}`} alt="ภาพไลฟ์แพรวล่าสุด" />
           : <div className="praew-screen-empty"><span>แพรว</span><p>{online ? "รอภาพจากคอม…" : "เปิดคอมที่บ้านแล้วภาพจะขึ้นตรงนี้"}</p></div>}
         <b className="praew-badge">{state === "running" ? "● ออนแอร์" : online ? "คอมออนไลน์" : "ออฟไลน์"}</b>
-        {status?.snapshot && online ? <small className="praew-shot-age">ภาพเมื่อ {ago(status.snapshot.at)}</small> : null}
+        {status?.snapshot && online ? <small className="praew-shot-age">ภาพตัวอย่าง · {ago(status.snapshot.at)}</small> : null}
       </div>
 
       <div className="praew-main">
