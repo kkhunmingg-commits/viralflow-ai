@@ -186,3 +186,5 @@
 .ai-live-advanced > div { padding: 0 16px 16px; }
 @media (max-width: 900px) { .praew-top { grid-template-columns: 1fr; } .praew-screen { width: min(100%, 300px); justify-self: center; } .praew-grid { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .praew-top { padding: 14px; } .praew-toggles { grid-template-columns: 1fr; } .praew-big .praew-btn { flex: 1; min-width: 0; } }
+.praew-stream { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s; }
+.praew-stream.on { opacity: 1; }
