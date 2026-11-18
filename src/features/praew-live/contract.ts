@@ -47,21 +47,21 @@ export function enqueue(desired: PraewDesired, command: PraewCommand, now = new 
 }
 export const commandsAfter = (desired: PraewDesired, after: number) => desired.commands.filter(c => c.id > after);
 
-const line = z.object({ text: z.string().max(400), at: z.string().max(40).optional(), source: z.string().max(20).optional() });
-const comment = z.object({ user: z.string().max(60), text: z.string().max(300), verdict: z.string().max(20).optional(), at: z.string().max(40).optional() });
+const line = z.object({ text: z.string().max(400), at: z.string().max(40).nullish(), source: z.string().max(20).nullish() });
+const comment = z.object({ user: z.string().max(60), text: z.string().max(300), verdict: z.string().max(20).nullish(), at: z.string().max(40).nullish() });
 const num = z.number().finite().nullable().optional();
 
 /** What the bridge reports every few seconds. Every field is optional so an older bridge still reports. */
 export const reportSchema = z.object({
   state: z.enum(["stopped", "starting", "running", "stopping", "error"]).default("stopped"),
-  detail: z.string().max(300).optional(),
+  detail: z.string().max(300).nullish(),
   lastCommandId: z.number().int().min(0).default(0),
   speaking: z.string().max(400).nullable().optional(),
   queue: z.array(z.string().max(400)).max(20).default([]),
   recent: z.array(line).max(15).default([]),
   comments: z.array(comment).max(15).default([]),
   parts: z.record(z.string().max(30), z.enum(["ok", "down", "starting", "off"])).optional(),
-  voice: z.string().max(60).optional(),
+  voice: z.string().max(60).nullish(),
   muted: z.boolean().optional(),
   chatter: z.boolean().optional(),
   overlay: z.boolean().optional(),
