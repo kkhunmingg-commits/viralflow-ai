@@ -229,3 +229,11 @@ describe("edited like an advert (17 Nov)", () => {
     for (const shot of script.shots) expect(shot.prompt).not.toMatch(/^PRESENTER/m);
   });
 });
+
+describe("no AI corner label (18 Nov)", () => {
+  it("leaves the label out when none is given", () => {
+    const ass = buildProductSubtitles({ lines: [], durations: [7, 8], endCard: "พิกัดในเม้นเลย" });
+    expect(ass).not.toMatch(/Label,,/);
+    expect(ass).toContain("พิกัดในเม้นเลย");
+  });
+});

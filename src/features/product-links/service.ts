@@ -361,7 +361,7 @@ async function assemble(admin: SupabaseClient, owner: string, job: ProductClipJo
     const { assembleEpisode } = await import("@/features/drama/media");
     const video = await assembleEpisode({ shots: inputs, transitionSeconds: SHOT_DISSOLVE, ass: durations => buildProductSubtitles({ lines: [], durations,
       // 10 Nov (owner): no subtitles or headline on the video; only the AI disclosure and the end "link" card stay.
-      endCard: "พิกัดในเม้นเลย", aiLabel: "สร้างด้วย AI" }) });
+      endCard: "พิกัดในเม้นเลย" }) });
     const sha256 = createHash("sha256").update(video.bytes).digest("hex");
     const upload = await admin.storage.from(BUCKET).upload(path, video.bytes, { contentType: "video/mp4", upsert: true });
     if (upload.error) throw new Error("CLIP_NOT_SAVED");

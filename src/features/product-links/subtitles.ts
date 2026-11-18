@@ -19,7 +19,7 @@ function endFontSize(text: string) {
  * whole clip (platform disclosure), and "link in the comments" over the last seconds. Reels and Shorts start muted,
  * so the words have to be readable.
  */
-export function buildProductSubtitles(input: { lines: string[]; durations: number[]; endCard: string; aiLabel: string; hookText?: string }) {
+export function buildProductSubtitles(input: { lines: string[]; durations: number[]; endCard: string; aiLabel?: string; hookText?: string }) {
   const events: string[] = [];
   // Big words at the top for the first seconds: the reason to keep watching, readable with the sound off.
   if (input.hookText?.trim()) events.push(`Dialogue: 3,${assTime(0)},${assTime(Math.min(3, input.durations[0] ?? 3))},Hook,,0,0,0,,{\\fad(0,250)}${wrapLine(input.hookText.trim(), 16)}`);
@@ -30,7 +30,8 @@ export function buildProductSubtitles(input: { lines: string[]; durations: numbe
     start = end;
   });
   const total = start;
-  events.push(`Dialogue: 0,${assTime(0)},${assTime(total)},Label,,0,0,0,,${assClean(input.aiLabel)}`);
+  // 18 Nov (Lucky): no "made with AI" corner label on the picture; the caption and the platform's own AI label say it.
+  if (input.aiLabel?.trim()) events.push(`Dialogue: 0,${assTime(0)},${assTime(total)},Label,,0,0,0,,${assClean(input.aiLabel)}`);
   // The end card: one line (never broken inside a Thai word) on a rounded brand-pink pill in the lower third,
   // below the product, fading in (10 Nov owner: the old two-line black box split "อยู่" and was hard to read).
   const endStart = Math.max(0, total - 2.8), endText = assClean(input.endCard);
