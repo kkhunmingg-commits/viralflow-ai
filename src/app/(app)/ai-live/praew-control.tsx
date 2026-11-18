@@ -8,6 +8,7 @@ import type { PraewCommand, PraewDesired, PraewReport } from "@/features/praew-l
 
 type Status = { online: boolean; report: PraewReport | null; settings: PraewDesired["settings"]; pending: number; snapshot: { jpeg: string; at: string } | null };
 
+const LOCAL_STREAM = "http://127.0.0.1:8766/stream.mjpg";
 const QUICK = [
   { label: "👋 ทักทาย", text: "สวัสดีค่า ยินดีต้อนรับเข้าไลฟ์แพรวนะคะ คุยกับแพรวได้เลยค่ะ" },
   { label: "➕ ชวนกดติดตาม", text: "ใครยังไม่ได้กดติดตาม กดติดตามแพรวไว้นะคะ จะได้ไม่พลาดไลฟ์ต่อไปค่ะ" },
@@ -38,8 +39,12 @@ export function PraewControl() {
   const [tiktok, setTiktok] = useState<string | null>(null);
   const [followers, setFollowers] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The picture is only a preview: fetch it every 30 s (every 10th poll), the status every 3 s.
+  // The bridge's picture is only a preview: fetch it every 30 s (every 10th poll), the status every 3 s.
   const polls = useRef(0);
+  // On the home PC the page shows the engine's own 25 fps stream straight from 127.0.0.1 (no internet data);
+  // elsewhere, or if Chrome blocks it, the preview picture stays.
+  const [stream, setStream] = useState<"trying" | "ok" | "failed">("trying");
+  const [streamKey, setStreamKey] = useState(0);
 
   const refresh = useCallback(async () => {
     try {
@@ -89,6 +94,13 @@ export function PraewControl() {
   const chatter = report?.chatter ?? settings?.chatter ?? true;
   const overlay = report?.overlay ?? settings?.overlay ?? true;
   const testVoice = /test/i.test(report?.voice ?? "");
+  const engineUp = online && state === "running";
+  // The engine just came up (or came back): try the local stream again.
+  const [wasUp, setWasUp] = useState(false);
+  if (engineUp !== wasUp) {
+    setWasUp(engineUp);
+    if (engineUp) { setStream("trying"); setStreamKey(k => k + 1); }
+  }
 
   const say = async () => {
     if (!text.trim()) return;
@@ -101,8 +113,13 @@ export function PraewControl() {
         {status?.snapshot && online
           ? <img src={`data:image/jpeg;base64,${status.snapshot.jpeg}`} alt="ภาพไลฟ์แพรวล่าสุด" />
           : <div className="praew-screen-empty"><span>แพรว</span><p>{online ? "รอภาพจากคอม…" : "เปิดคอมที่บ้านแล้วภาพจะขึ้นตรงนี้"}</p></div>}
+        {engineUp && stream !== "failed"
+          ? <img key={streamKey} className={`praew-stream${stream === "ok" ? " on" : ""}`} src={LOCAL_STREAM} alt="ภาพไลฟ์แพรวสด"
+              onLoad={() => setStream("ok")} onError={() => setStream("failed")} />
+          : null}
         <b className="praew-badge">{state === "running" ? "● ออนแอร์" : online ? "คอมออนไลน์" : "ออฟไลน์"}</b>
-        {status?.snapshot && online ? <small className="praew-shot-age">ภาพตัวอย่าง · {ago(status.snapshot.at)}</small> : null}
+        {engineUp && stream === "ok" ? <small className="praew-shot-age">ภาพสด 25 เฟรม/วิ</small>
+          : status?.snapshot && online ? <small className="praew-shot-age">ภาพตัวอย่าง · {ago(status.snapshot.at)}</small> : null}
       </div>
 
       <div className="praew-main">
