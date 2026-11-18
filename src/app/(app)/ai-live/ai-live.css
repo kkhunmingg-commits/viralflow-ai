@@ -43,3 +43,22 @@
 .ai-live-roadmap { margin: 18px 0 0; color: #a8b6ca; font-size: 11px; line-height: 1.6; }
 @media (max-width: 1040px) { .ai-live-grid { grid-template-columns: 1fr; } .ai-live-readiness-grid { grid-template-columns: repeat(3, minmax(0,1fr)); } }
 @media (max-width: 620px) { .ai-live-hero { flex-direction: column; padding: 21px; } .ai-live-panel { padding: 18px; } .ai-live-context-grid { grid-template-columns: 1fr; } .ai-live-stage { min-height: 380px; } .ai-live-metrics, .ai-live-readiness-grid { grid-template-columns: repeat(2, minmax(0,1fr)); } .ai-live-actions button { flex: 1; } }
+
+/* Praew AI Live (runs on this PC; panel talks to the local supervisor) */
+.praew-live { margin-bottom: 26px; }
+.praew-offline { display: grid; gap: 8px; margin: 0 0 16px; }
+.praew-offline p { margin: 0; }
+.praew-offline code { display: block; padding: 10px 12px; border-radius: 8px; background: #1b1f2a; color: #f1e6c8; font-size: 11px; overflow-wrap: anywhere; user-select: all; }
+.praew-stage { min-height: 560px; }
+.praew-stage > img { max-height: 720px; }
+.praew-actions { border-top: 0; padding-top: 0; margin-bottom: 16px; }
+.praew-actions button { min-height: 42px; }
+.praew-row { display: flex; align-items: flex-end; gap: 10px; }
+.praew-row .ai-live-field { flex: 1; margin-bottom: 12px; }
+.praew-row button { min-height: 44px; margin-bottom: 12px; flex: none; }
+.praew-test { color: #ffd2d6; border-color: #8a3a46; background: #4a242c; }
+.praew-lists { margin-top: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.praew-lists .data-list small { color: #9eaec3; }
+.praew-lists h3 { margin: 18px 0 8px; font-size: 13px; }
+@media (max-width: 1040px) { .praew-lists { grid-template-columns: 1fr; } }
+@media (max-width: 620px) { .praew-row { flex-direction: column; align-items: stretch; } .praew-stage { min-height: 420px; } }
