@@ -15,6 +15,14 @@ const QUICK = [
   { label: "💬 ชวนคอมเมนต์", text: "พิมพ์คอมเมนต์มาคุยกับแพรวได้เลยนะคะ อยากรู้อะไรถามได้ค่ะ" },
   { label: "🙏 ขอบคุณ", text: "ขอบคุณทุกคนที่แวะมาดูนะคะ แพรวดีใจมากเลยค่ะ" },
 ];
+const VOICES = [
+  { name: "vachana-f2", label: "C · ใส ชัดสุด" },
+  { name: "vachana-f2-jane", label: "E · โทนเสียงเจนเดิม" },
+  { name: "vachana-f1", label: "B · นุ่ม" },
+  { name: "vachana-f1-jane", label: "D · นุ่ม โทนเจน" },
+  { name: "edge-premwadee", label: "Premwadee (ตอนนี้ใช้ไม่ได้)" },
+  { name: "test-voice", label: "เสียงทดสอบ" },
+] as const;
 const PARTS: Record<string, string> = { engine: "ภาพ", llm: "สมองตอบ", tts: "เสียง", tiktok: "TikTok", obs: "ภาพออก OBS", bridge: "ตัวเชื่อม" };
 const STATE_TEXT: Record<string, { title: string; tone: string }> = {
   running: { title: "แพรวกำลังออนแอร์", tone: "live" },
@@ -209,6 +217,15 @@ export function PraewControl() {
             <button type="submit" className="praew-btn small" disabled={!!busy}>บันทึก</button></div>
           <small>แพรวใช้ตัวเลขนี้ตอนชวนกดติดตามให้ถึง 50 คน</small>
         </form>
+        <div className="praew-field">
+          <label htmlFor="praew-voice">เสียงของแพรว</label>
+          <div><select id="praew-voice" value={report?.voice ?? settings?.voice ?? ""} disabled={!online || !!busy}
+            onChange={e => { const v = VOICES.find(x => x.name === e.target.value); if (v) void send({ type: "voice", name: v.name }, `เปลี่ยนเป็นเสียง ${v.label} แล้ว`); }}>
+            {!VOICES.some(v => v.name === (report?.voice ?? settings?.voice)) ? <option value="">{report?.voice ?? "เลือกเสียง"}</option> : null}
+            {VOICES.map(v => <option key={v.name} value={v.name}>{v.label}</option>)}
+          </select></div>
+          <small>เสียงฟรีทั้งหมด รันในคอมเอง สลับได้ทันทีไม่ต้องปิดแพรว</small>
+        </div>
         <details className="praew-help">
           <summary>ใช้งานยังไง</summary>
           <ol>

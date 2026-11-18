@@ -188,3 +188,4 @@
 @media (max-width: 560px) { .praew-top { padding: 14px; } .praew-toggles { grid-template-columns: 1fr; } .praew-big .praew-btn { flex: 1; min-width: 0; } }
 .praew-stream { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity .3s; }
 .praew-stream.on { opacity: 1; }
+.praew-field select { flex: 1; min-width: 0; min-height: 40px; padding: 8px 12px; border: 1px solid #455066; border-radius: 10px; color: #eaf0fa; background: #151b27; }
