@@ -106,3 +106,83 @@
 .presenter-actions button { min-height: 36px; padding: 6px 14px; font-size: 12px; }
 @media (max-width: 860px) { .pstudio-grid { grid-template-columns: 1fr; } .pstudio-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 520px) { .pstudio-item { grid-template-columns: 64px minmax(0, 1fr); gap: 12px; } .pstudio-face { width: 64px; } }
+
+/* Praew live control (PC bridge) */
+.praew { display: grid; gap: 16px; margin-bottom: 22px; }
+.praew-top { display: grid; grid-template-columns: minmax(200px, 300px) minmax(0, 1fr); gap: 20px; padding: 20px; border: 1px solid #3f3a63; border-radius: 22px; background: radial-gradient(circle at 92% 0%, rgba(236, 72, 153, .16), transparent 40%), radial-gradient(circle at 0% 100%, rgba(124, 108, 255, .2), transparent 45%), linear-gradient(140deg, #23223a, #161c29 80%); }
+.praew-screen { position: relative; aspect-ratio: 9 / 16; overflow: hidden; border: 2px solid #3a4658; border-radius: 18px; background: radial-gradient(circle at 50% 30%, #2b3550, #0f1520 72%); }
+.praew-screen.tone-live { border-color: #f43f5e; box-shadow: 0 0 0 4px rgb(244 63 94 / .15); }
+.praew-screen img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.praew-screen-empty { display: grid; height: 100%; place-content: center; justify-items: center; gap: 12px; padding: 20px; text-align: center; }
+.praew-screen-empty span { display: grid; width: 74px; height: 74px; place-items: center; border-radius: 50%; color: #fff; background: linear-gradient(135deg, #ec4899, #7c6cff); font-size: 18px; font-weight: 850; }
+.praew-screen-empty p { margin: 0; color: #a5b4c8; font-size: 12px; line-height: 1.6; }
+.praew-badge { position: absolute; top: 10px; left: 10px; padding: 5px 10px; border-radius: 999px; color: #e2e8f0; background: rgb(15 21 32 / .8); font-size: 11px; font-weight: 800; }
+.tone-live .praew-badge { color: #fff; background: #e11d48; }
+.praew-shot-age { position: absolute; right: 10px; bottom: 10px; padding: 3px 8px; border-radius: 6px; color: #cbd5e1; background: rgb(15 21 32 / .75); font-size: 10px; }
+.praew-main { display: grid; align-content: start; gap: 12px; min-width: 0; }
+.praew-eyebrow { margin: 0; color: #f0abfc; font-size: 11px; font-weight: 800; letter-spacing: .08em; }
+.praew-state { margin: 0; font-size: clamp(24px, 3vw, 34px); letter-spacing: -.03em; }
+.praew-state.tone-live { color: #fda4af; } .praew-state.tone-busy { color: #fcd34d; } .praew-state.tone-bad { color: #fca5a5; } .praew-state.tone-off { color: #cbd5e1; }
+.praew-sub { margin: 0; color: #b6c2d4; font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.praew-pending { margin: 0; color: #fcd34d; font-size: 12px; }
+.praew-big { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.praew-btn { min-height: 44px; padding: 10px 18px; border: 1px solid #4b5568; border-radius: 12px; color: #eef2fb; background: #273042; font-size: 13px; font-weight: 800; cursor: pointer; }
+.praew-btn:disabled { opacity: .45; cursor: not-allowed; }
+.praew-big .praew-btn { min-height: 56px; min-width: 190px; font-size: 15px; }
+.praew-btn.go { border-color: transparent; color: #fff; background: linear-gradient(135deg, #7c6cff, #ec4899); }
+.praew-btn.stop { border-color: #64748b; background: #334155; }
+.praew-btn.panic { border-color: #b91c1c; color: #fff; background: #dc2626; }
+.praew-btn.small { min-height: 40px; padding: 8px 16px; }
+.praew-toggles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.praew-toggle { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1px solid #363f51; border-radius: 12px; color: #dae2ee; background: #1a202c; text-align: left; cursor: pointer; }
+.praew-toggle:disabled { opacity: .5; cursor: not-allowed; }
+.praew-toggle i { position: relative; flex: none; width: 36px; height: 20px; border-radius: 999px; background: #3b4558; transition: background .2s; }
+.praew-toggle i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.praew-toggle.on i { background: #8b5cf6; } .praew-toggle.on i::after { transform: translateX(16px); }
+.praew-toggle span { display: grid; gap: 2px; font-size: 12px; font-weight: 800; }
+.praew-toggle small { color: #8f9db2; font-size: 10px; font-weight: 500; }
+.praew-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.praew-chips li { padding: 5px 10px; border-radius: 999px; color: #c9d3e3; background: #262e3d; font-size: 11px; font-weight: 750; }
+.praew-chips li::before { content: "● "; }
+.praew-chips .chip-ok { color: #86efac; background: rgb(74 222 128 / .1); }
+.praew-chips .chip-starting, .praew-chips .chip-warn { color: #fcd34d; background: rgb(251 191 36 / .12); }
+.praew-chips .chip-down { color: #fca5a5; background: rgb(248 113 113 / .12); }
+.praew-chips .chip-off { color: #94a3b8; }
+.praew-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.praew-card { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 18px; border: 1px solid #363f51; border-radius: 18px; background: linear-gradient(155deg, #222836, #1a202b 78%); }
+.praew-card h3 { margin: 0; font-size: 16px; } .praew-card h4 { margin: 6px 0 0; color: #cbd5e1; font-size: 13px; }
+.praew-note { margin: -4px 0 0; color: #8f9db2; font-size: 11px; line-height: 1.6; }
+.praew-empty { margin: 0; padding: 18px; border: 1px dashed #3a4658; border-radius: 12px; color: #8f9db2; font-size: 12px; text-align: center; }
+.praew-say textarea { width: 100%; padding: 12px; border: 1px solid #455066; border-radius: 12px; color: #eaf0fa; background: #151b27; font: inherit; font-size: 14px; resize: vertical; }
+.praew-say-row { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; color: #8f9db2; }
+.praew-quick { display: flex; flex-wrap: wrap; gap: 6px; }
+.praew-quick button { min-height: 36px; padding: 6px 12px; border: 1px solid #4c4a7a; border-radius: 999px; color: #e9e5ff; background: #2a2848; font-size: 12px; font-weight: 700; cursor: pointer; }
+.praew-quick.muted button { border-color: #3f4a5e; color: #cbd5e1; background: #1f2633; }
+.praew-quick button:disabled { opacity: .45; cursor: not-allowed; }
+.praew-now { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.praew-now div { padding: 10px 12px; border-radius: 12px; background: #171c27; }
+.praew-now dt { color: #8f9db2; font-size: 10px; } .praew-now dd { margin: 4px 0 0; color: #eef2fb; font-size: 13px; overflow-wrap: anywhere; }
+.praew-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.praew-list li { display: flex; gap: 8px; align-items: baseline; padding: 8px 10px; border-radius: 10px; background: rgb(255 255 255 / .04); color: #dfe6f1; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
+.praew-list li span { flex: 1; min-width: 0; }
+.praew-list em { flex: none; padding: 1px 7px; border-radius: 6px; color: #a5b4c8; background: #262e3d; font-size: 10px; font-style: normal; }
+.praew-list.queue li { color: #fde68a; }
+.praew-list.comments b { flex: none; color: #c4b5fd; }
+.praew-list.comments li.dropped { opacity: .55; } .praew-list.comments li.dropped span { text-decoration: line-through; }
+.praew-field { display: grid; gap: 6px; }
+.praew-field label { color: #dae2ee; font-size: 12px; font-weight: 750; }
+.praew-field > div { display: flex; gap: 8px; align-items: center; }
+.praew-field > div > span { color: #8f9db2; font-weight: 800; }
+.praew-field input { flex: 1; min-width: 0; min-height: 40px; padding: 8px 12px; border: 1px solid #455066; border-radius: 10px; color: #eaf0fa; background: #151b27; }
+.praew-field small { color: #8f9db2; font-size: 11px; }
+.praew-help { padding: 10px 12px; border-radius: 12px; background: #171c27; color: #cbd5e1; font-size: 12px; line-height: 1.7; }
+.praew-help summary { cursor: pointer; font-weight: 800; }
+.praew-help ol { margin: 8px 0 0; padding-left: 18px; }
+.praew-help code { overflow-wrap: anywhere; color: #f0abfc; }
+.praew-toast { position: fixed; right: 16px; bottom: 16px; z-index: 50; max-width: calc(100vw - 32px); margin: 0; padding: 12px 16px; border-radius: 12px; color: #fff; background: #4c1d95; box-shadow: 0 12px 30px rgba(0,0,0,.35); font-size: 13px; font-weight: 700; }
+.ai-live-advanced { margin-top: 8px; border: 1px solid #363f51; border-radius: 18px; background: #171c27; }
+.ai-live-advanced > summary { padding: 16px 20px; color: #cbd5e1; font-size: 14px; font-weight: 800; cursor: pointer; }
+.ai-live-advanced > summary small { display: block; margin-top: 2px; color: #8f9db2; font-size: 11px; font-weight: 500; }
+.ai-live-advanced > div { padding: 0 16px 16px; }
+@media (max-width: 900px) { .praew-top { grid-template-columns: 1fr; } .praew-screen { width: min(100%, 300px); justify-self: center; } .praew-grid { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .praew-top { padding: 14px; } .praew-toggles { grid-template-columns: 1fr; } .praew-big .praew-btn { flex: 1; min-width: 0; } }

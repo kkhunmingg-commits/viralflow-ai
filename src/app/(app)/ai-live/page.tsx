@@ -7,6 +7,7 @@ import { liveBlockStart, selectLiveLineup } from "@/features/ai-live/live-direct
 import { createClient } from "@/lib/supabase/server";
 import { LivePlan } from "./live-plan";
 import { LivePresenterConsole } from "./presenter-console";
+import { PraewControl } from "./praew-control";
 import { PresenterStudio } from "./presenter-studio";
 import "./ai-live.css";
 
@@ -32,10 +33,16 @@ export default async function AiLivePage({ searchParams }: { searchParams: Promi
 
   return <>
     <PageHeading eyebrow="AI LIVE" title="ไลฟ์ขายของด้วย AI"
-      description="ระบบเลือกสินค้าที่ขายดีจากคลิป 3–4 ตัว เปลี่ยนทุก 4 ชั่วโมง และตอบแชทจากข้อมูลสินค้าที่ยืนยันแล้ว ไลฟ์ตรงเข้า TikTok ไม่ใช้ OBS หรือ Stream key"
-      action={<span className="phase-chip">รอ TikTok อนุมัติ LIVE API</span>} />
-    <LivePlan lineup={selectLiveLineup(candidates, blockStart)} candidates={candidates} blockStart={blockStart} />
-    <PresenterStudio owner={data.user.id} hasTikTok={accounts.length > 0} message={msg} />
-    <LivePresenterConsole accounts={connectedAccounts} products={productsResult.data ?? []} />
+      description="แพรวไลฟ์อยู่บนคอมที่บ้าน (การ์ดจอ RTX) แล้วคุมจากหน้านี้ได้ทุกที่ ทั้งเริ่ม/หยุด พิมพ์ให้พูด และดูคอมเมนต์ ภาพออกไป TikTok ผ่าน OBS"
+      action={<span className="phase-chip">ทดสอบ · ยังใช้เสียงทดสอบ</span>} />
+    <PraewControl />
+    <details className="ai-live-advanced" open={Boolean(msg)}>
+      <summary>เครื่องมืออื่นของ AI LIVE<small>ลำดับสินค้า · สร้างพรีเซนเตอร์จาก Flow · ตัวต้นแบบเก่า</small></summary>
+      <div>
+        <LivePlan lineup={selectLiveLineup(candidates, blockStart)} candidates={candidates} blockStart={blockStart} />
+        <PresenterStudio owner={data.user.id} hasTikTok={accounts.length > 0} message={msg} />
+        <LivePresenterConsole accounts={connectedAccounts} products={productsResult.data ?? []} />
+      </div>
+    </details>
   </>;
 }
