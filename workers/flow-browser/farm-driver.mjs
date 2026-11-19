@@ -142,9 +142,11 @@ const LITE_MODEL = /Veo\s*3\.1\s*[-–]?\s*Lite/i;
 // the lower picture quality is accepted. Promo clips stay on Veo 3.1 Lite.
 const OMNI_MODEL = /Omni\s*1\.2\s*Flash/i;
 /** Flow settings for a clip: what model, resolution and length every account must use for it. */
-// 19 Nov (Lucky): the owner picks 8 or 10 seconds per shot; the portal sends it with the clip.
+// 19 Nov (Lucky): the owner picks 8 or 10 seconds per shot; the portal sends it with the clip. An 8-second shot is
+// Veo 3.1 Lite at 720p (sharper); a 10-second shot stays Omni 1.2 Flash at 360p.
 export function videoPlan(kind, seconds) {
-  return kind === "DRAMA_SHOT" ? { model: OMNI_MODEL, resolution: /^\s*360p/, seconds: seconds === 8 ? 8 : 10 } : { model: LITE_MODEL, resolution: null, seconds: null };
+  if (kind === "DRAMA_SHOT" && seconds === 8) return { model: LITE_MODEL, resolution: null, seconds: null };
+  return kind === "DRAMA_SHOT" ? { model: OMNI_MODEL, resolution: /^\s*360p/, seconds: 10 } : { model: LITE_MODEL, resolution: null, seconds: null };
 }
 /** The composer's settings chip: "วิดีโอ · 720p · 8 วินาที crop_9_16 x1" (or "Nano Banana … x2" on a fresh account). */
 async function settingsChip(page, selectors) {

@@ -120,7 +120,7 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
           <label className="manual-filter">จำนวนตอนทั้งซีซัน<select name="totalEpisodes" defaultValue="30">
             {[6, 10, 15, 20, 30].map(n => <option key={n} value={n}>{n} ตอน</option>)}</select></label>
           <label className="manual-filter">ความยาวต่อซีน<select name="shotSeconds" defaultValue="10">
-            <option value="10">ซีนละ 10 วิ</option><option value="8">ซีนละ 8 วิ</option></select></label>
+            <option value="10">ซีนละ 10 วิ (Omni 360p)</option><option value="8">ซีนละ 8 วิ (Veo 720p ชัดกว่า)</option></select></label>
           <label className="manual-filter">ช็อตต่อตอน<select name="shotsPerEpisode" defaultValue="5">
             {[3, 4, 5, 6].map(n => <option key={n} value={n}>{n} ช็อต ≈ {n * 8}–{n * 10} วิ</option>)}</select></label>
           <label className="manual-filter">ตอนต่อวัน<select name="episodesPerDay" defaultValue="1">

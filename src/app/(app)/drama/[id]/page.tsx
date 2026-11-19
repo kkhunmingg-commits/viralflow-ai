@@ -82,7 +82,7 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
         <button className="manual-secondary" type="submit">ลบทั้งเรื่อง</button></form>
       {series.status !== "ARCHIVED" && series.status !== "COMPLETED" && <form action={shotSecondsAction} className="drama-seconds"><input type="hidden" name="id" value={series.id} />
         <label className="manual-filter">ความยาวต่อซีน<select name="seconds" defaultValue={String(shotSecondsOf(bible))}>
-          <option value="10">ซีนละ 10 วิ</option><option value="8">ซีนละ 8 วิ</option></select></label>
+          <option value="10">ซีนละ 10 วิ (Omni 360p)</option><option value="8">ซีนละ 8 วิ (Veo 720p ชัดกว่า)</option></select></label>
         <button className="manual-secondary" type="submit">บันทึก (ใช้ตอนถัดไป)</button></form>}
       <span className="manual-muted">ตอนละ {series.shots_per_episode} ช็อต · ซีนละ {shotSecondsOf(bible)} วิ · {series.episodes_per_day} ตอน/วัน · ตัวเขียนบท {series.writer}
         {mainLabel ? ` · บัญชีหลัก ${mainLabel}` : " · ระบบเลือกบัญชี Google ให้เองทุกตอน"}{series.flow_account_id && (pool.length === 0 ? " · ไม่มีบัญชีซ่อม" : poolLeft > 0 ? ` · บัญชีซ่อมกองกลาง ${pool.length} บัญชี ซ่อมได้อีก ${poolLeft} ช็อตวันนี้` : ` · บัญชีซ่อม ${pool.length} บัญชี เครดิตหมดแล้ว`)}

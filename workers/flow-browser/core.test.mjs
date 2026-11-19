@@ -60,3 +60,13 @@ test("reads Flow's progress percent only when it is new since the click", async 
   assert.equal(generationPercent("x1 100%", "x1 100% 42%"), 42);
   assert.equal(generationPercent("", "วิดีโอ · 720p"), null);
 });
+
+test("drama shots: 8 seconds is Veo 3.1 Lite (720p), 10 seconds is Omni 1.2 Flash at 360p", async () => {
+  const { videoPlan } = await import("./farm-driver.mjs");
+  assert.match("Veo 3.1 - Lite", videoPlan("DRAMA_SHOT", 8).model);
+  assert.equal(videoPlan("DRAMA_SHOT", 8).seconds, null);
+  assert.match("Omni 1.2 Flash", videoPlan("DRAMA_SHOT", 10).model);
+  assert.equal(videoPlan("DRAMA_SHOT", 10).seconds, 10);
+  assert.match("Omni 1.2 Flash", videoPlan("DRAMA_SHOT").model);
+  assert.match("Veo 3.1 - Lite", videoPlan("PROMO").model);
+});
