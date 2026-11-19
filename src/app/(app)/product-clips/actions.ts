@@ -148,7 +148,9 @@ export async function remakeProductClipAction(formData: FormData) {
   if (!parsed.success) done("คำขอไม่ถูกต้อง");
   const ownerId = await owner();
   try {
-    const { script } = await remakeProductClip(createAdminClient(), ownerId, parsed.data.id);
+    const made = await remakeProductClip(createAdminClient(), ownerId, parsed.data.id);
+    const { script } = made;
+    if ("recut" in made) done("กำลังตัดต่อใหม่จากช็อตเดิม (ไม่ใช้เครดิต Flow) รอ 1–3 นาที");
     done(script ? `ทำใหม่แล้ว ${script.shots.length} ช็อต ฉาก “${script.setTh}”` : "ส่งให้เครื่องสร้างคลิปเปิดหน้าสินค้าอีกครั้งแล้ว");
   }
   catch (error) { const message = label(error); if (message) done(message); throw error; }

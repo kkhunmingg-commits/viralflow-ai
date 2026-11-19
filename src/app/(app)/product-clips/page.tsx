@@ -9,7 +9,7 @@ import { ClipStudioTabs } from "@/components/clip-studio-tabs";
 import { flowClipStatusLabels, flowErrorLabel, type FlowClipStatus } from "@/features/flow-farm/contracts";
 import { flowLogins, listFlowAccounts, shareFlowAccounts, workerLastSeen } from "@/features/flow-farm/service";
 import type { FlowAccountView } from "@/features/flow-farm/capacity";
-import { listProductClips, tickProductClips, type ProductClipView } from "@/features/product-links/service";
+import { canRecut, listProductClips, tickProductClips, type ProductClipView } from "@/features/product-links/service";
 import { SOCIAL_LABEL, SOCIAL_PLATFORMS, socialReadiness } from "@/features/social-publish/config";
 import { postErrorLabel } from "@/features/social-publish/publishers";
 import { ClipPhoneActions } from "../post/clip-phone-actions";
@@ -201,7 +201,7 @@ function DoneCard({ job }: { job: ProductClipView }) {
         <a className="manual-secondary" href={`/api/library/${job.final_clip_id}/video?download=1`}>ดาวน์โหลด MP4</a></div>}
     </div>
     <div className="library-inline">
-      <form action={remakeProductClipAction}><input type="hidden" name="id" value={job.id} /><button className="manual-secondary" type="submit">{job.image_paths.length ? "ทำใหม่ (ฉากใหม่)" : "ลองดึงข้อมูลใหม่"}</button></form>
+      <form action={remakeProductClipAction}><input type="hidden" name="id" value={job.id} /><button className="manual-secondary" type="submit">{canRecut(job) ? "ตัดต่อใหม่ (ไม่เสียเครดิต)" : job.image_paths.length ? "ทำใหม่ (ฉากใหม่)" : "ลองดึงข้อมูลใหม่"}</button></form>
       <form action={deleteProductClipAction}><input type="hidden" name="id" value={job.id} /><button className="library-link danger" type="submit">ลบ</button></form>
     </div>
   </article>;

@@ -485,6 +485,10 @@ async function discardFiles(admin: SupabaseClient, owner: string, job: ProductCl
 }
 
 /** Make the same product again with another set and hook (after a rejected or failed clip). Uses the saved photos. */
+/** A clip whose takes were all made but whose cut failed can be cut again from the same takes. */
+export function canRecut(job: Pick<ProductClipJob, "status" | "error" | "final_clip_id" | "shot_clip_ids">) {
+  return job.status === "FAILED" && !job.final_clip_id && job.shot_clip_ids.length > 0 && /^ตัดต่อไม่สำเร็จ/.test(job.error ?? "");
+}
 export async function remakeProductClip(admin: SupabaseClient, owner: string, id: string, now = new Date()) {
   const job = await loadJob(admin, owner, id);
   if (!["REJECTED", "FAILED", "APPROVED", "PUBLISHED"].includes(job.status)) throw new Error("STILL_IN_PROGRESS");
@@ -493,6 +497,15 @@ export async function remakeProductClip(admin: SupabaseClient, owner: string, id
     const lookup: LookupState = { state: "PENDING", attempts: 0, requestedAt: now.toISOString(), claimedAt: null, note: null };
     await save(admin, owner, id, { status: "PRODUCING", script: { lookup }, shot_clip_ids: [], shot_attempts: [], error: null, updated_at: now.toISOString() });
     return { id, script: null };
+  }
+  // 19 Nov: only the cut failed (e.g. the old NaN-audio bug) and every take is still there: cut it again, no Flow credits.
+  if (canRecut(job)) {
+    const shots = check(await admin.from("flow_clips").select("id,status,storage_path").eq("owner_id", owner).in("id", job.shot_clip_ids), "flow_clips_unavailable") as
+      Array<{ id: string; status: string; storage_path: string | null }>;
+    if (shots.length === job.shot_clip_ids.length && shots.every(s => s.status === "READY" && s.storage_path)) {
+      await save(admin, owner, id, { status: "PRODUCING", assemble_attempts: 0, error: null, updated_at: new Date(now.getTime() - LOCK_MS).toISOString() });
+      return { id, script: null, recut: true };
+    }
   }
   const created = await createProductClip(admin, owner, { tiktokAccountId: job.tiktok_account_id, platform: job.platform, source: job.source === "AFFILIATE_API" ? "AFFILIATE_API" : "MANUAL_LINK",
     link: job.link, productUrl: job.product_url, externalId: job.external_id, title: job.title, facts: job.facts, lengthSeconds: job.length_seconds,
