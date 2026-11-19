@@ -1,6 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authorizeFlowWorker } from "@/features/flow-farm/worker-auth";
 import { commandsAfter, reportSchema, snapshotSchema } from "@/features/praew-live/contract";
+import { overlayToken } from "@/features/live-overlay/model";
+import { ownOverlay } from "@/features/live-overlay/service";
 import { productFeed, readDesired, saveReport, saveSnapshot } from "@/features/praew-live/service";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,12 +13,19 @@ const reply = (body: unknown, status = 200) => Response.json(body, { status, hea
 /**
  * The live bridge on the owner's PC (same computer token as the Flow worker).
  * GET poll?after=N → settings + commands with id > N + the products Praew presents (empty while "พูดถึงสินค้า" is off).
+ * GET overlay → the OBS Browser Source link of the live overlay.
  * POST report / snapshot → what the show is doing.
  */
 export async function GET(request: Request, context: { params: Promise<{ action: string }> }) {
   const auth = await authorizeFlowWorker(request);
   if (!auth.ok) return reply({ error: "unauthorized" }, auth.status);
-  if ((await context.params).action !== "poll") return reply({ error: "not_found" }, 404);
+  const action = (await context.params).action;
+  // The OBS setup script on the PC asks for the overlay's Browser Source link (it holds the overlay secret).
+  if (action === "overlay") {
+    const overlay = await ownOverlay(createAdminClient(), auth.owner);
+    return reply({ url: `${new URL(request.url).origin}/live-overlay?k=${overlayToken(auth.owner, overlay.secret)}`, width: 720, height: 1280 });
+  }
+  if (action !== "poll") return reply({ error: "not_found" }, 404);
   const after = Number(new URL(request.url).searchParams.get("after") ?? 0);
   const admin = createAdminClient();
   const desired = await readDesired(admin, auth.owner);
