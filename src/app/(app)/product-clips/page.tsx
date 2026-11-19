@@ -121,7 +121,7 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
         <li>ใน Chrome เดียวกัน ล็อกอิน <a href="https://www.facebook.com/" target="_blank" rel="noreferrer">Facebook</a>, <a href="https://www.instagram.com/" target="_blank" rel="noreferrer">Instagram</a> และ <a href="https://studio.youtube.com/" target="_blank" rel="noreferrer">YouTube</a> ไว้ (ล็อกอินครั้งเดียว)</li>
         <li>กด “ผ่าน · โพสต์” ที่คลิป ส่วนขยายจะเปิดแท็บของแต่ละแพลตฟอร์ม อัปโหลด ใส่แคปชัน + ลิงก์สินค้า แล้วกดโพสต์ให้เอง ทีละแพลตฟอร์ม (เปิด Chrome ทิ้งไว้ กด STOP บนจอเพื่อหยุดได้)</li>
       </ol>
-      <p className="manual-muted">Facebook: โพสต์ลงโปรไฟล์ที่ใช้อยู่ ถ้าอยากลงเพจ ให้สลับเป็นเพจใน Facebook ก่อน · ลิงก์สินค้าอยู่ท้ายแคปชัน (Instagram กดลิงก์ในแคปชันไม่ได้ คนต้องคัดลอกไปเปิด) · TikTok ยังต้องแชร์จากมือถือเป็นแบบร่าง เพราะต้องปักตะกร้าในแอป</p>
+      <p className="manual-muted">Facebook: โพสต์ลงโปรไฟล์ที่ใช้อยู่ ถ้าอยากลงเพจ ให้สลับเป็นเพจใน Facebook ก่อน · ลิงก์สินค้าอยู่ท้ายแคปชัน (Instagram กดลิงก์ในแคปชันไม่ได้ คนต้องคัดลอกไปเปิด) · TikTok และ Shopee Video ต้องแชร์จากมือถือ เพราะ Shopee ให้ครีเอเตอร์/Affiliate ลงวิดีโอและเพิ่มสินค้าได้ในแอปเท่านั้น (บนเว็บมีเฉพาะ Seller Centre ของร้านตัวเอง)</p>
       {readiness.ready.length > 0 && <p className="manual-muted">โพสต์ผ่านคีย์ของระบบ (ไม่ต้องใช้ Chrome): {readiness.ready.map(p => SOCIAL_LABEL[p]).join(", ")}</p>}
     </section>
   </div>;
@@ -197,7 +197,7 @@ function DoneCard({ job }: { job: ProductClipView }) {
         ? <>{p.url ? <a href={p.url} target="_blank" rel="noreferrer noopener">✓ ดูโพสต์</a> : "✓ โพสต์แล้ว"}{p.via === "BROWSER" ? " · ลิงก์สินค้าอยู่ในแคปชัน" : p.commented ? " · คอมเมนต์ลิงก์แล้ว" : ` · ${postErrorLabel(p.error) ?? "ยังไม่ได้คอมเมนต์ลิงก์"}`}</>
         : `✗ ${postErrorLabel(p.error)}`}</li>)}</ul>}
       {job.error && <p className="manual-warning">{job.error}</p>}
-      {job.final_clip_id && (job.status === "APPROVED" || job.status === "PUBLISHED") && <div className="pl-tiktok"><p className="manual-muted">TikTok: แชร์จากมือถือเป็นแบบร่าง แล้วปักตะกร้าในแอปเอง</p>
+      {job.final_clip_id && (job.status === "APPROVED" || job.status === "PUBLISHED") && <div className="pl-tiktok"><p className="manual-muted">TikTok / Shopee Video: เปิดหน้านี้ในมือถือ กดแชร์ แล้วเลือกแอป TikTok หรือ Shopee (ไม่มีให้เลือก กด “บันทึกวิดีโอ” แล้วอัปในแอป Shopee) แคปชันคัดลอกให้แล้ว วางได้เลย แล้วปักตะกร้า/เพิ่มสินค้าในแอป</p>
         <ClipPhoneActions clipId={job.final_clip_id} caption={caption} />
         <a className="manual-secondary" href={`/api/library/${job.final_clip_id}/video?download=1`}>ดาวน์โหลด MP4</a></div>}
     </div>
