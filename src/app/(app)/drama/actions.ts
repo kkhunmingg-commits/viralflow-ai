@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { enforceOwnerMutationRateLimit } from "@/lib/security/rate-limit";
 import { createSeriesSchema, seriesRefSchema, shotRefSchema } from "@/features/drama/contracts";
-import { MAX_TAKES, TAKE_CREDIT_BUDGET, beginCutRestore, chooseTake, finishCutRestore, continueAfterCredits, createSeries, deleteRejectedTake, redoShot, remakeOpenTake, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextEpisode, deleteSeries, startNextStory } from "@/features/drama/service";
+import { MAX_TAKES, TAKE_CREDIT_BUDGET, beginCutRestore, chooseTake, finishCutRestore, continueAfterCredits, createSeries, deleteRejectedTake, redoShot, remakeOpenTake, retryEpisode, reviewEpisode, setSeriesStatus, skipShot, startNextEpisode, deleteSeries, startNextStory, setShotSeconds } from "@/features/drama/service";
 
 async function owner() {
   const client = await createClient(), { data, error } = await client.auth.getUser();
@@ -58,6 +58,16 @@ export async function seriesStatusAction(formData: FormData) {
   catch (error) { const message = known(error); if (message) done(`/drama/${parsed.data.id}`, message); throw error; }
   if (parsed.data.status === "ARCHIVED") done(HOME, "เก็บเรื่องนี้เข้ากรุแล้ว ตอนที่ตัดเสร็จยังอยู่ในคลัง");
   done(`/drama/${parsed.data.id}`, parsed.data.status === "ACTIVE" ? "ผลิตต่อแล้ว" : "พักการผลิตไว้แล้ว ช็อตที่อยู่ในคิวจะสร้างให้เสร็จก่อน");
+}
+
+/** Owner: 8 or 10 seconds a shot, from the next episode on (19 Nov, Lucky). */
+export async function shotSecondsAction(formData: FormData) {
+  const parsed = seriesRefSchema.extend({ seconds: z.coerce.number().pipe(z.union([z.literal(8), z.literal(10)])) }).safeParse(Object.fromEntries(formData));
+  if (!parsed.success) done(HOME, "เลือกได้ 8 หรือ 10 วินาที");
+  const ownerId = await owner();
+  try { await setShotSeconds(createAdminClient(), ownerId, parsed.data.id, parsed.data.seconds); }
+  catch (error) { const message = known(error); if (message) done(`/drama/${parsed.data.id}`, message); throw error; }
+  done(`/drama/${parsed.data.id}`, `ตั้งเป็นซีนละ ${parsed.data.seconds} วินาทีแล้ว ใช้ตั้งแต่ตอนถัดไป`);
 }
 
 /** Owner: delete a whole story and its files for good (the form needs the confirm box ticked). */

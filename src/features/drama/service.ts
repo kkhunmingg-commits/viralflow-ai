@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { bangkokDate } from "@/features/flow-farm/contracts";
 import { REFUSED_ASIDE_MS, MAX_ASSEMBLE_ATTEMPTS, emptyStoryState, type DramaGenre, type EpisodeStatus, type SeriesBible, type SeriesStatus,
-  type ShotStatus, type StoryState } from "./contracts";
+  type ShotStatus, type StoryState, type ShotSeconds, shotSecondsOf } from "./contracts";
 import { ASSEMBLY_STALE_MS, clipVerdict, failureKind, episodeShotsFinished, mayStartEpisode, nextBangkokMorning, nextShotToQueue, pickEpisodeAccount, planRetry, promptFor, referencePath,
   repairAccounts, repairShotsLeft, isCreditReason, SET_ASIDE_MS, setAsideNow, firstBackAt, type RepairAccountRow, type ShotRow } from "./engine";
 import { flowLogins, readStateFile, saveStateFile } from "@/features/flow-farm/service";
@@ -51,7 +51,7 @@ export async function dramaAvailable(client: SupabaseClient) {
 
 export interface NewSeries {
   tiktokAccountId: string; flowAccountId?: string; repairFlowAccountId?: string; genre: DramaGenre; totalEpisodes: number; shotsPerEpisode: number;
-  episodesPerDay: number;
+  episodesPerDay: number; shotSeconds?: ShotSeconds;
 }
 /** The stories of this genre the owner already made, oldest first, so the next one is new. */
 async function usedStories(admin: SupabaseClient, owner: string, genre: DramaGenre) {
@@ -66,7 +66,7 @@ export async function createSeries(admin: SupabaseClient, owner: string, input: 
   if (!account) throw new Error("ACCOUNT_NOT_FOUND");
   // Lucky, 8 Nov: no Google account is locked to a series any more; each episode picks one from the whole pool.
   const story = pickStory(input.genre, await usedStories(admin, owner, input.genre));
-  const bible = createBible(input.genre, input.totalEpisodes, story);
+  const bible = createBible(input.genre, input.totalEpisodes, story, input.shotSeconds ?? 10);
   const inserted = await admin.from("drama_series").insert({
     owner_id: owner, tiktok_account_id: input.tiktokAccountId, genre: input.genre, title: bible.title, logline: bible.logline,
     total_episodes: input.totalEpisodes, shots_per_episode: input.shotsPerEpisode, episodes_per_day: input.episodesPerDay,
@@ -88,7 +88,14 @@ export async function startNextStory(admin: SupabaseClient, owner: string, serie
     "drama_unavailable") as Array<{ id: string }>;
   if (next.length) throw new Error("NEXT_STORY_EXISTS");
   return createSeries(admin, owner, { tiktokAccountId: series.tiktok_account_id, genre: series.genre, totalEpisodes: series.total_episodes,
-    shotsPerEpisode: series.shots_per_episode, episodesPerDay: series.episodes_per_day }, now, series.id);
+    shotsPerEpisode: series.shots_per_episode, episodesPerDay: series.episodes_per_day, shotSeconds: shotSecondsOf(series.bible) }, now, series.id);
+}
+
+/** Owner: 8 or 10 seconds a shot from the next episode on (19 Nov, Lucky). Shots already written keep their length. */
+export async function setShotSeconds(admin: SupabaseClient, owner: string, seriesId: string, seconds: ShotSeconds) {
+  const series = await loadSeries(admin, owner, seriesId);
+  check(await admin.from("drama_series").update({ bible: { ...series.bible, shotSeconds: seconds }, updated_at: new Date().toISOString() })
+    .eq("owner_id", owner).eq("id", series.id), "series_not_saved");
 }
 
 /**

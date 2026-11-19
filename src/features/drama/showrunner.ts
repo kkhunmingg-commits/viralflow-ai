@@ -1,5 +1,6 @@
 import { emptyStoryState, type CastMember, type DramaGenre, type EpisodePhase, type Line, type PlaceKey, type PlannedEpisode,
-  type PlannedShot, type ReferenceMode, type Role, type SeriesBible, type StoryState } from "./contracts";
+  type PlannedShot, type ReferenceMode, type Role, type SeriesBible, type ShotSeconds, type StoryState, shotSecondsOf } from "./contracts";
+import { isMixKey, mixKey, mixStory } from "./story-mixer";
 import { GENRE_STORIES, type Beat, type EpisodeScript, type FixedPhase, type GenreKit, type Move, type Say } from "./genres";
 
 /**
@@ -26,25 +27,31 @@ export function seasonArc(total: number): EpisodePhase[] {
 }
 
 /** The story kit a series was written from (its premise key), or the genre's first story. */
-export function kitFor(bible: Pick<SeriesBible, "genre" | "premiseKey">): GenreKit {
+export function kitFor(bible: Pick<SeriesBible, "genre" | "premiseKey"> & Partial<Pick<SeriesBible, "kit">>): GenreKit {
+  if (bible.kit?.premise?.key === bible.premiseKey) return bible.kit;
+  if (isMixKey(bible.premiseKey)) return mixStory(bible.genre, mixNumber(bible.premiseKey));
   const stories = GENRE_STORIES[bible.genre];
   return stories.find(kit => kit.premise.key === bible.premiseKey) ?? stories[0];
 }
 
-/** The next story for a genre: the first one not made yet, otherwise the one made longest ago. */
+const mixNumber = (key: string) => Number(key.split("-").at(-1)) || 1;
+/**
+ * The next story for a genre: the first written one not made yet; once all are made (19 Nov, Lucky: new stories
+ * without end), a new mixed story with a new cast, places and plot every time.
+ */
 export function pickStory(genre: DramaGenre, used: string[]) {
   const stories = GENRE_STORIES[genre];
   const fresh = stories.find(kit => !used.includes(kit.premise.key));
   if (fresh) return fresh.premise.key;
-  const lastUse = (key: string) => used.lastIndexOf(key);
-  return stories.toSorted((a, b) => lastUse(a.premise.key) - lastUse(b.premise.key))[0].premise.key;
+  const mixed = used.filter(key => isMixKey(key) && key.startsWith(mixKey(genre, 0).slice(0, -1))).map(mixNumber);
+  return mixKey(genre, Math.max(0, ...mixed) + 1);
 }
 
-export function createBible(genre: DramaGenre, totalEpisodes: number, storyKey?: string): SeriesBible {
+export function createBible(genre: DramaGenre, totalEpisodes: number, storyKey?: string, shotSeconds: ShotSeconds = 10): SeriesBible {
   const kit = kitFor({ genre, premiseKey: storyKey ?? "" }), p = kit.premise;
   return { version: 1, genre, premiseKey: p.key, title: p.title, logline: p.logline, style: kit.style, sound: kit.sound,
     hashtags: [...kit.hashtags, `#${p.title.replace(/\s+/g, "")}`], cast: p.cast, places: p.places, object: p.object,
-    truth: p.truth, ending: p.ending, arc: seasonArc(totalEpisodes) };
+    truth: p.truth, ending: p.ending, arc: seasonArc(totalEpisodes), shotSeconds, ...(isMixKey(p.key) ? { kit } : {}) };
 }
 
 /** Small deterministic random source so a series always writes the same episode from the same memory. */
@@ -180,7 +187,9 @@ export function shotRoles(move: Move, kit: GenreKit) {
 
 export interface ShotDraft { move: Move; place: PlaceKey; camera: string; hook?: boolean; from?: string;
   /** A new camera set-up: the attached previous frame is a reference (Flow ingredients), not the first frame. */
-  angle?: boolean; posture?: string | null }
+  angle?: boolean; posture?: string | null;
+  /** 19 Nov: where this shot sits in the episode's story, so each cut plays the next beat of one scene. */
+  scene?: string }
 /** The line the worker looks for to attach the picture as a reference instead of the first frame. Keep in sync with flow-farm/service.ts. */
 export const ANGLE_REFERENCE = "Use the attached image only as a reference";
 
@@ -208,7 +217,8 @@ export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<Sto
   // Omni makes one 10-second take: spell out where it starts, what happens when, and the frame it ends on, so the next
   // shot (which starts from that last frame) continues the same moment instead of starting over.
   const from = mode === "PREVIOUS_FRAME" && draft.from ? `Continues directly from the previous shot, which ended on: ${fill(draft.from, bible, "en")}.` : "";
-  const timeline = `Timeline (10 seconds): 0-2s everyone already in place and moving; 2-8s the action happens${line ? " and the line is spoken once, clearly, around the middle of the shot" : ""}; 8-10s the action eases on as the camera finishes its move, every face still in view, same people, same place.`;
+  const secs = shotSecondsOf(bible), ease = secs - 2;
+  const timeline = `Timeline (${secs} seconds): 0-2s everyone already in place and moving; 2-${ease}s the action happens${line ? " and the line is spoken once, clearly, around the middle of the shot" : ""}; ${ease}-${secs}s the action eases on as the camera finishes its move, every face still in view, same people, same place.`;
   // A new camera set-up in the same place: the previous frame is only a reference for faces, clothes, place and light,
   // so the cut changes angle like a real edit instead of starting again on the same picture.
   const reference = mode === "PREVIOUS_FRAME" && draft.angle ? `${ANGLE_REFERENCE} for faces, clothes, place and light; NEW camera angle (see Camera), not the image's framing.`
@@ -217,12 +227,13 @@ export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<Sto
   const posture = draft.posture ? `Blocking: unless the action says otherwise, ${names[0] ?? "the lead"} is ${draft.posture}.` : "";
   const direction = names.length > 1 ? `Screen direction: ${names[0]} frame-left, ${names.slice(1).join(" and ")} frame-right.` : "";
   const lines = [
-    `${bible.style}. Vertical 9:16, one continuous 10-second shot.`,
+    `${bible.style}. Vertical 9:16, one continuous ${secs}-second shot.`,
     `Setting: ${place.look}.`,
     ...(cast.length ? ["Characters (keep faces, hair, clothes and voices identical in every shot):", ...cast] : []),
     ...(people ? [people] : []),
     ...(draft.move.en.includes("{OBJ}") ? [`Key object, always identical: ${bible.object.look}.`] : []),
     ...(from ? [from] : []),
+    ...(draft.scene ? [draft.scene] : []),
     `Action: ${fill(draft.move.en, bible, "en")}${joins ? `; ${castOf(bible, joins).nameEn} is right there in the shot, reacting, and says the line` : ""}.`,
     timeline,
     dialogue,
@@ -236,7 +247,7 @@ export function shotPrompt(bible: SeriesBible, draft: ShotDraft, state: Pick<Sto
     "No on-screen text, no captions, no subtitles, no watermark, no logo. Realistic human motion and expressions.",
   ];
   // Flow's prompt box takes under 4000 characters: the blocking and screen-direction hints go first when it is full.
-  for (const optional of [posture, direction]) if (lines.join("\n").length >= PROMPT_LIMIT && optional) lines.splice(lines.indexOf(optional), 1);
+  for (const optional of [draft.scene ?? "", posture, direction]) if (lines.join("\n").length >= PROMPT_LIMIT && optional) lines.splice(lines.indexOf(optional), 1);
   return lines.join("\n");
 }
 const PROMPT_LIMIT = 3990;
@@ -344,6 +355,12 @@ export function planEpisode(input: { bible: SeriesBible; state: StoryState; numb
     // continues straight on from the last frame of the episode before (the "previously" feel).
     draft.angle = i > 0 && draft.place === drafts[i - 1].place;
     draft.posture = postureHint(placeOf(bible, draft.place, kit).look, i + number);
+  });
+  // Story so far, in one line: Veo plays each cut as the next beat of the same scene (the right mood and reactions),
+  // not as a fresh clip. Cuts may change place and angle; the story must not jump.
+  drafts.forEach((draft, i) => {
+    const before = drafts.slice(Math.max(0, i - 2), i).map(d => fill(d.move.en, bible, "en").split(/[;,.]/)[0]).join("; then ");
+    if (before) draft.scene = `Story so far in this scene (shot ${i + 1} of ${drafts.length}): ${before}. This shot is the very next moment; keep the same mood and the same emotions on every face.`.slice(0, 420);
   });
 
   // Memory: lasting changes apply from the shot they happen in, so later shots (and episodes) keep them.

@@ -159,12 +159,12 @@ describe("stories", () => {
     }
   });
 
-  it("picks an unused story first, then the one made longest ago", () => {
+  it("picks an unused written story first, then a new mixed story every time", () => {
     const [first, second] = GENRE_STORIES.HORROR.map(k => k.premise.key);
     expect(pickStory("HORROR", [])).toBe(first);
     expect(pickStory("HORROR", [first])).toBe(second);
-    expect(pickStory("HORROR", [first, second])).toBe(first);
-    expect(pickStory("HORROR", [second, first])).toBe(second);
+    expect(pickStory("HORROR", [first, second])).toBe("mix-horror-1");
+    expect(pickStory("HORROR", [second, first, "mix-horror-1", "mix-horror-2"])).toBe("mix-horror-3");
   });
 
   it("keeps old series on their own story and falls back to the first", () => {
@@ -209,4 +209,39 @@ describe("written seasons", () => {
       expect(used.size).toBeLessThanOrEqual(10);
     });
   }
+});
+
+describe("mixed stories (19 Nov: new stories without end)", () => {
+  for (const genre of DRAMA_GENRES) {
+    it(`${genre}: twelve new stories in a row are all different, with whole seasons and no loose placeholders`, () => {
+      const seen = new Set<string>();
+      for (let n = 1; n <= 12; n++) {
+        const key = `mix-${genre.toLowerCase()}-${n}`;
+        const bible = createBible(genre, 10, key, n % 2 ? 10 : 8);
+        expect(bible.premiseKey).toBe(key);
+        expect(bible.kit?.premise.key).toBe(key);
+        expect(new Set(bible.cast.map(c => c.name)).size).toBe(3);
+        const fingerprint = `${bible.title}|${bible.places[0].name}|${bible.object.name}|${bible.cast.map(c => c.name).join()}`;
+        expect(seen.has(fingerprint)).toBe(false);
+        seen.add(fingerprint);
+        expect(`${bible.title}${bible.logline}${bible.truth}${bible.ending}`).not.toMatch(/\{[A-Z]+\}/);
+        let state = emptyStoryState();
+        for (let ep = 1; ep <= 10; ep++) {
+          const plan = planEpisode({ bible, state, number: ep, shotsPerEpisode: 5, seed: key });
+          for (const shot of plan.shots) {
+            expect(shot.prompt).not.toMatch(/\{(LEAD|ALLY|RIVAL|OBJ)\}/);
+            expect(shot.subtitle).not.toMatch(/\{(LEAD|ALLY|RIVAL|OBJ)\}/);
+            expect(shot.prompt.length).toBeLessThan(4000);
+            expect(shot.prompt).toContain(`one continuous ${bible.shotSeconds}-second shot`);
+          }
+          state = plan.stateAfter;
+        }
+      }
+    });
+  }
+  it("a running mixed story keeps the kit stored in its bible", () => {
+    const bible = createBible("ROMANCE", 6, "mix-romance-4");
+    expect(kitFor(bible)).toBe(bible.kit);
+    expect(kitFor({ genre: "ROMANCE", premiseKey: "mix-romance-4" }).premise.title).toBe(bible.title);
+  });
 });

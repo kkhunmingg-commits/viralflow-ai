@@ -4,11 +4,11 @@ import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { dramaGenreLabels, episodePhaseLabels, episodeStatusLabels, seriesStatusLabels, type EpisodePhase } from "@/features/drama/contracts";
+import { dramaGenreLabels, episodePhaseLabels, episodeStatusLabels, seriesStatusLabels, type EpisodePhase, shotSecondsOf } from "@/features/drama/contracts";
 import { repairPool, seriesDetail, signedImage } from "@/features/drama/service";
 import { repairShotsLeft } from "@/features/drama/engine";
 import { seriesPlaces } from "@/features/drama/showrunner";
-import { continueAfterCreditsAction, deleteSeriesAction, newStoryAction, redoShotAction, remakeTakeAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, skipShotAction, startNextEpisodeAction, takeAction } from "../actions";
+import { continueAfterCreditsAction, deleteSeriesAction, newStoryAction, redoShotAction, remakeTakeAction, retryEpisodeAction, reviewEpisodeAction, seriesStatusAction, shotSecondsAction, skipShotAction, startNextEpisodeAction, takeAction } from "../actions";
 import { OneVideoAtATime } from "../one-video";
 import { RestoreCut } from "../restore-cut";
 import { ClipStudioTabs } from "@/components/clip-studio-tabs";
@@ -80,7 +80,11 @@ export default async function DramaSeriesPage({ params, searchParams }: { params
       <form action={deleteSeriesAction} className="drama-delete"><input type="hidden" name="id" value={series.id} />
         <label className="manual-muted"><input type="checkbox" name="confirm" value="yes" required /> ยืนยันลบทั้งเรื่อง (ลบคลิปและไฟล์ทุกตอน กู้คืนไม่ได้)</label>
         <button className="manual-secondary" type="submit">ลบทั้งเรื่อง</button></form>
-      <span className="manual-muted">ตอนละ {series.shots_per_episode} ช็อต · {series.episodes_per_day} ตอน/วัน · ตัวเขียนบท {series.writer}
+      {series.status !== "ARCHIVED" && series.status !== "COMPLETED" && <form action={shotSecondsAction} className="drama-seconds"><input type="hidden" name="id" value={series.id} />
+        <label className="manual-filter">ความยาวต่อซีน<select name="seconds" defaultValue={String(shotSecondsOf(bible))}>
+          <option value="10">ซีนละ 10 วิ</option><option value="8">ซีนละ 8 วิ</option></select></label>
+        <button className="manual-secondary" type="submit">บันทึก (ใช้ตอนถัดไป)</button></form>}
+      <span className="manual-muted">ตอนละ {series.shots_per_episode} ช็อต · ซีนละ {shotSecondsOf(bible)} วิ · {series.episodes_per_day} ตอน/วัน · ตัวเขียนบท {series.writer}
         {mainLabel ? ` · บัญชีหลัก ${mainLabel}` : " · ระบบเลือกบัญชี Google ให้เองทุกตอน"}{series.flow_account_id && (pool.length === 0 ? " · ไม่มีบัญชีซ่อม" : poolLeft > 0 ? ` · บัญชีซ่อมกองกลาง ${pool.length} บัญชี ซ่อมได้อีก ${poolLeft} ช็อตวันนี้` : ` · บัญชีซ่อม ${pool.length} บัญชี เครดิตหมดแล้ว`)}
         {series.auto_next && series.flow_account_id ? " · จบแล้วเริ่มเรื่องใหม่แนวเดิมให้เอง" : ""}</span>
     </div>

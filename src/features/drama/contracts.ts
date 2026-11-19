@@ -29,7 +29,14 @@ export interface SeriesBible {
   truth: string; ending: string;
   /** Phase of every episode, decided up front so the season always reaches its ending on the last episode. */
   arc: EpisodePhase[];
+  /** 19 Nov: a story the mixer wrote (story-mixer.ts) keeps its whole kit here, so it never changes mid-season. */
+  kit?: import("./genres").GenreKit;
+  /** 19 Nov (Lucky): length of every shot, 8 or 10 seconds. Missing means 10. */
+  shotSeconds?: ShotSeconds;
 }
+export const SHOT_SECONDS = [8, 10] as const;
+export type ShotSeconds = (typeof SHOT_SECONDS)[number];
+export const shotSecondsOf = (bible: Pick<SeriesBible, "shotSeconds"> | null | undefined): ShotSeconds => bible?.shotSeconds === 8 ? 8 : 10;
 
 export const EPISODE_PHASES = ["OPENING", "INCITING", "RISING", "MIDPOINT", "ESCALATION", "CRISIS", "CLIMAX", "FINALE"] as const;
 export type EpisodePhase = (typeof EPISODE_PHASES)[number];
@@ -93,6 +100,7 @@ export const createSeriesSchema = z.object({
   totalEpisodes: z.coerce.number().int().min(3).max(60).default(30),
   shotsPerEpisode: z.coerce.number().int().min(2).max(6).default(5),
   episodesPerDay: z.coerce.number().int().min(1).max(5).default(1),
+  shotSeconds: z.coerce.number().pipe(z.union([z.literal(8), z.literal(10)])).default(10),
 }).refine(input => !input.repairFlowAccountId || input.repairFlowAccountId !== input.flowAccountId, { message: "REPAIR_SAME_AS_MAIN", path: ["repairFlowAccountId"] });
 export const seriesRefSchema = z.object({ id: z.uuid() });
 export const shotRefSchema = z.object({ seriesId: z.uuid(), shotId: z.uuid() });

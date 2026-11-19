@@ -299,7 +299,9 @@ export async function claimClip(admin: SupabaseClient, owner: string, flowAccoun
   // 17 Nov: a drama shot that changes camera angle in the same place gets the previous frame as a reference
   // (ingredients), not as its first frame. An older worker ignores this and starts on the frame as before.
   const imageAs = clip.kind === "DRAMA_SHOT" && imageUrl && clip.prompt.includes(ANGLE_REFERENCE) ? "INGREDIENT" as const : undefined;
-  return { id: clip.id, title: clip.title, prompt: clip.prompt, kind: clip.kind, imageUrl, projectKey, media, ...(imageAs ? { imageAs } : {}) };
+  // 19 Nov (Lucky): a drama shot is 8 or 10 seconds; the prompt says which, and the worker sets Flow's length to match.
+  const seconds = clip.kind === "DRAMA_SHOT" ? Number(/one continuous (8|10)-second shot/.exec(clip.prompt)?.[1] ?? 10) : undefined;
+  return { id: clip.id, title: clip.title, prompt: clip.prompt, kind: clip.kind, imageUrl, projectKey, media, ...(imageAs ? { imageAs } : {}), ...(seconds ? { seconds } : {}) };
 }
 
 /**

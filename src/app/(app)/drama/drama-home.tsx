@@ -5,7 +5,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DRAMA_GENRES, dramaGenreLabels, episodeStatusLabels, seriesStatusLabels } from "@/features/drama/contracts";
 import { GENRE_STORIES } from "@/features/drama/genres";
 import { OneVideoAtATime } from "./one-video";
-import { pickStory } from "@/features/drama/showrunner";
+import { kitFor, pickStory } from "@/features/drama/showrunner";
+import { isMixKey } from "@/features/drama/story-mixer";
 import { dramaAvailable, listSeries, repairPool, signedImage, type SeriesSummary } from "@/features/drama/service";
 import { repairShotsLeft } from "@/features/drama/engine";
 import { bangkokDate } from "@/features/flow-farm/contracts";
@@ -104,11 +105,12 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
         <fieldset className="drama-genres"><legend>แนวละคร</legend>
           {DRAMA_GENRES.map((genre, i) => {
             const used = series.filter(s => s.series.genre === genre).map(s => s.series.bible.premiseKey);
-            const stories = GENRE_STORIES[genre], next = stories.find(k => k.premise.key === pickStory(genre, used)) ?? stories[0];
+            const stories = GENRE_STORIES[genre], nextKey = pickStory(genre, used), next = kitFor({ genre, premiseKey: nextKey });
             return <label key={genre} className="drama-genre-option">
               <input type="radio" name="genre" value={genre} defaultChecked={i === 0} required />
-              <span><strong>{dramaGenreLabels[genre]} · {next.premise.title}</strong><small>{next.premise.logline}</small>
-                <small>มี {stories.length} เรื่องในแนวนี้: {stories.map(k => k.premise.title).join(" · ")}</small></span>
+              <span><strong>{dramaGenreLabels[genre]} · {next.premise.title}{isMixKey(nextKey) ? " (เรื่องใหม่ที่ระบบแต่ง)" : ""}</strong><small>{next.premise.logline}</small>
+                <small>{isMixKey(nextKey) ? `ตัวละคร: ${next.premise.cast.map(c => c.name).join(" · ")} · ทำครบ ${stories.length} เรื่องที่เขียนไว้แล้ว จากนี้แต่งเรื่องใหม่ให้ไม่ซ้ำเรื่อยๆ`
+                  : `มี ${stories.length} เรื่องที่เขียนไว้: ${stories.map(k => k.premise.title).join(" · ")} · ครบแล้วระบบแต่งเรื่องใหม่ให้เรื่อยๆ`}</small></span>
             </label>;
           })}
         </fieldset>
@@ -117,8 +119,10 @@ export async function DramaHome({ client, owner, library, libraryCount = 0 }: { 
             {accounts.map(a => <option key={a.id} value={a.id}>{a.display_name}</option>)}</select></label>
           <label className="manual-filter">จำนวนตอนทั้งซีซัน<select name="totalEpisodes" defaultValue="30">
             {[6, 10, 15, 20, 30].map(n => <option key={n} value={n}>{n} ตอน</option>)}</select></label>
-          <label className="manual-filter">ช็อตต่อตอน (ช็อตละ 10 วิ)<select name="shotsPerEpisode" defaultValue="5">
-            {[3, 4, 5].map(n => <option key={n} value={n}>{n} ช็อต ≈ {n * 10} วิ · {n * 10} เครดิต</option>)}</select></label>
+          <label className="manual-filter">ความยาวต่อซีน<select name="shotSeconds" defaultValue="10">
+            <option value="10">ซีนละ 10 วิ</option><option value="8">ซีนละ 8 วิ</option></select></label>
+          <label className="manual-filter">ช็อตต่อตอน<select name="shotsPerEpisode" defaultValue="5">
+            {[3, 4, 5, 6].map(n => <option key={n} value={n}>{n} ช็อต ≈ {n * 8}–{n * 10} วิ</option>)}</select></label>
           <label className="manual-filter">ตอนต่อวัน<select name="episodesPerDay" defaultValue="1">
             {[1, 2].map(n => <option key={n} value={n}>{n} ตอน/วัน</option>)}</select></label>
         </div>
