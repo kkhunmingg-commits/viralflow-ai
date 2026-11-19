@@ -390,9 +390,9 @@ function socialPage() {
     typeInto(text, task.caption, true);
     await wait(1200);
     const publish = await until(() => button(["Publish", "เผยแพร่", "Share now", "แชร์เลย", "Post", "โพสต์"]), 10 * 60_000, "UI: no Publish button");
+    const start = location.href;
     step("กำลังเผยแพร่…", true);
     click(publish);
-    const start = location.href;
     await until(() => location.href !== start || pageSays(/Your reel (is|was) (published|shared|live)|reel.{0,20}published|เผยแพร่รีล.{0,20}แล้ว|รีลของคุณ.{0,30}(แล้ว|เผยแพร่)/i)
       || !document.contains(publish) || !shown(publish), 5 * 60_000, "TIMEOUT");
     await wait(3000);
