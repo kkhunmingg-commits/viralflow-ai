@@ -86,7 +86,8 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
         {STORE_URL && <p><a className="manual-primary" href={STORE_URL} target="_blank" rel="noreferrer">ติดตั้งส่วนขยาย ViralFlow (กดครั้งเดียว)</a> แล้วกด “เพิ่มไปยัง Chrome”</p>}
         <h3 className="pl-extension-title">แบบที่ 1 · ปุ่มบุ๊กมาร์ก (ง่ายสุด ไม่ต้องติดตั้ง)</h3>
         <CaptureButton href={capture} />
-        <h3 className="pl-extension-title">แบบที่ 2 · ส่วนขยาย Chrome (อัตโนมัติ วางลิงก์อย่างเดียว)</h3>
+        <h3 className="pl-extension-title">แบบที่ 2 · ส่วนขยาย Chrome (อัตโนมัติ วางลิงก์อย่างเดียว + โพสต์ออโต้)</h3>
+        <p className="manual-muted">ง่ายสุด: ส่วนขยายมาพร้อม <Link href="/post">ตัวติดตั้งเครื่องสร้างคลิป (Windows)</Link> ตัวเดียวกับที่ผูกบัญชี Google Flow ติดตั้งครั้งเดียวได้ทั้งหมด และอัปเดตเอง · หรือจะติดตั้งเฉพาะส่วนขยายเองตามขั้นตอนนี้</p>
         <p><a className="manual-secondary" href="/downloads/viralflow-chrome-extension.zip" download>⬇ ดาวน์โหลดส่วนขยาย ViralFlow</a></p>
         <ol>
           <li>คลิกขวาไฟล์ที่โหลดมา → <strong>แตกไฟล์ทั้งหมด (Extract All)</strong> จะได้โฟลเดอร์ <code>ViralFlow-extension</code></li>
@@ -116,7 +117,7 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
       <div className="manual-section-head"><div><p className="manual-eyebrow">ฟรี · ไม่ต้องขอคีย์หรือตั้งค่าอะไร</p><h2 id="pl-autopost">โพสต์ออโต้ทุกแพลตฟอร์ม</h2></div></div>
       <ExtensionPostingStatus />
       <ol className="pl-setup-steps">
-        <li>ติดตั้งส่วนขยาย ViralFlow ใน Chrome (ปุ่มดาวน์โหลดอยู่ในหัวข้อ “ตัวเชื่อม Shopee/Lazada” ด้านบน)</li>
+        <li>ติดตั้งส่วนขยาย ViralFlow ใน Chrome: มากับ <Link href="/post">ตัวติดตั้งเครื่องสร้างคลิป</Link> อยู่แล้ว (ติดตั้งครั้งเดียว อัปเดตเอง) หรือดาวน์โหลดแยกในหัวข้อ “ตัวเชื่อม Shopee/Lazada” ด้านบน</li>
         <li>ใน Chrome เดียวกัน ล็อกอิน <a href="https://www.facebook.com/" target="_blank" rel="noreferrer">Facebook</a>, <a href="https://www.instagram.com/" target="_blank" rel="noreferrer">Instagram</a> และ <a href="https://studio.youtube.com/" target="_blank" rel="noreferrer">YouTube</a> ไว้ (ล็อกอินครั้งเดียว)</li>
         <li>กด “ผ่าน · โพสต์” ที่คลิป ส่วนขยายจะเปิดแท็บของแต่ละแพลตฟอร์ม อัปโหลด ใส่แคปชัน + ลิงก์สินค้า แล้วกดโพสต์ให้เอง ทีละแพลตฟอร์ม (เปิด Chrome ทิ้งไว้ กด STOP บนจอเพื่อหยุดได้)</li>
       </ol>

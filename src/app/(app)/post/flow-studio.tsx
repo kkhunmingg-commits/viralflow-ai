@@ -90,6 +90,7 @@ export async function FlowStudio({ client, owner, account }: { client: SupabaseC
         <ol className="manual-muted">
           <li>กดดาวน์โหลด แล้วเปิดไฟล์ <code>ViralFlow-Setup.zip</code> ที่ได้ แล้วดับเบิลคลิก <code>ViralFlow-Setup.cmd</code> ข้างใน (ถ้า Windows ถามหรือขึ้นหน้าจอเตือนสีน้ำเงิน กด “เรียกใช้” หรือ “ข้อมูลเพิ่มเติม” แล้ว “เรียกใช้”)</li>
           <li>รอ 2-5 นาทีจนขึ้นว่าติดตั้งเสร็จ ไม่ต้องตั้งค่าอะไร โปรแกรมจะทำงานเบื้องหลังและเปิดเองทุกครั้งที่เปิดคอม</li>
+          <li>ตัวติดตั้งจะเปิดหน้าส่วนขยายของ Chrome ให้ เพิ่มส่วนขยาย ViralFlow ครั้งเดียวตามที่หน้าต่างบอก (ใช้ดึงสินค้า Shopee/Lazada และโพสต์ออโต้ Facebook, Instagram, YouTube) ต่อไปอัปเดตเอง</li>
           <li>ผูกบัญชี Google ด้านล่าง Chrome จะเปิดหน้าล็อกอินให้ครั้งเดียว ล็อกอินเสร็จแล้วปิดหน้าต่างนั้น</li>
         </ol>{installer}
         <p className="manual-muted">ไฟล์นี้ผูกกับบัญชีเว็บที่ล็อกอินอยู่ ให้เพื่อนล็อกอินเว็บด้วยบัญชีของตัวเองแล้วดาวน์โหลดเอง ถอนการติดตั้งได้ที่ Settings &gt; Apps</p>

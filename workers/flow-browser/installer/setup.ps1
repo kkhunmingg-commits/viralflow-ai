@@ -96,6 +96,13 @@ try {
   finally { Pop-Location }
   if ($LASTEXITCODE -ne 0) { throw "NPM_INSTALL_FAILED ($LASTEXITCODE)" }
 
+  # 19 Nov (Lucky: one install for everything): the ViralFlow Chrome extension (Shopee/Lazada + auto-post to Facebook,
+  # Instagram, YouTube) lives in the app folder; the worker rewrites it on every update and it reloads itself.
+  $extension = Join-Path $app 'chrome-extension'
+  $writeExtension = "const [app, portal] = process.argv.slice(1); import(require('url').pathToFileURL(require('path').join(app, 'extension.mjs')).href).then(m => m.writeExtension(app, portal)).catch(e => { console.error(e); process.exit(1); })"
+  & $node -e $writeExtension $app $portal | Out-Null
+  if ($LASTEXITCODE -ne 0) { Say 'เขียนส่วนขยาย Chrome ไม่สำเร็จ (เครื่องสร้างคลิปจะเขียนให้ตอนเริ่มทำงาน)' }
+
   Say '3/3 ตั้งให้เปิดเองแบบซ่อนทุกครั้งที่เปิดคอม ...'
   # wscript runs the worker with no window and starts it again a minute after it stops.
   $command = 'cmd /c ""' + $node + '" farm.mjs --watch > "' + $log + '" 2>&1"'
@@ -154,7 +161,24 @@ Start-Process cmd.exe -ArgumentList ('/c timeout /t 2 /nobreak >nul & rmdir /s /
   }
   if ($text -match 'PORTAL_ACCOUNTS_401') { throw 'TOKEN_REJECTED: ดาวน์โหลดไฟล์ติดตั้งใหม่จากหน้าเว็บ (ไฟล์เก่าใช้ไม่ได้เมื่อดาวน์โหลดไฟล์ใหม่)' }
   if ($text -notmatch '"made"|ล็อกอิน') { throw ("WORKER_DID_NOT_START`n" + (($text -split "`n" | Select-Object -Last 5) -join "`n")) }
-  Box "ติดตั้งเสร็จแล้ว เครื่องสร้างคลิปทำงานเบื้องหลังและจะเปิดเองทุกครั้งที่เปิดคอม`n`nขั้นต่อไป: ในหน้าเว็บ (สร้างคลิปฟรี) กด + ผูกบัญชี Google`nภายใน 1 นาที Chrome จะเปิดหน้าล็อกอิน Google ให้ ล็อกอินเสร็จแล้วปิดหน้าต่างนั้นได้เลย`n`nถอนการติดตั้ง: Settings > Apps > ViralFlow สร้างคลิป"
+  # Chrome only lets a person add an extension from a folder: if this Chrome does not have it yet, open the page and
+  # the folder for them and put the folder's address on the clipboard (done once; later updates need nothing).
+  $loaded = $false
+  $chromeData = Join-Path $env:LOCALAPPDATA 'Google\Chrome\User Data'
+  $needle = $extension.Replace('\', '\\')
+  if (Test-Path -LiteralPath $chromeData) {
+    foreach ($prefs in Get-ChildItem -LiteralPath $chromeData -Directory -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'Secure Preferences' }) {
+      if ((Test-Path -LiteralPath $prefs) -and ([IO.File]::ReadAllText($prefs)).IndexOf($needle, [StringComparison]::OrdinalIgnoreCase) -ge 0) { $loaded = $true; break }
+    }
+  }
+  $extensionNote = 'ส่วนขยาย ViralFlow ใน Chrome: ติดตั้งไว้แล้ว อัปเดตเองอัตโนมัติ'
+  if ((Test-Path -LiteralPath (Join-Path $extension 'manifest.json')) -and -not $loaded) {
+    try { Set-Clipboard -Value $extension } catch {}
+    Start-Process $chrome -ArgumentList 'chrome://extensions/'
+    Start-Process explorer.exe -ArgumentList ('"' + $extension + '"')
+    $extensionNote = "อีกขั้นเดียว (ครั้งเดียว) ติดตั้งส่วนขยาย ViralFlow ใน Chrome ที่เปิดให้:`n1. เปิดสวิตช์ 'โหมดนักพัฒนาซอฟต์แวร์' มุมขวาบน`n2. กด 'โหลดส่วนขยายที่แยกไว้'`n3. กด Ctrl+V ที่ช่องที่อยู่ (คัดลอกให้แล้ว) แล้วกด 'เลือกโฟลเดอร์'`n`nโฟลเดอร์: $extension`nต่อไปส่วนขยายอัปเดตเอง ไม่ต้องติดตั้งซ้ำ"
+  }
+  Box "ติดตั้งเสร็จแล้ว เครื่องสร้างคลิปทำงานเบื้องหลังและจะเปิดเองทุกครั้งที่เปิดคอม`n`n$extensionNote`n`nขั้นต่อไป: ในหน้าเว็บ (สร้างคลิปฟรี) กด + ผูกบัญชี Google`nภายใน 1 นาที Chrome จะเปิดหน้าล็อกอิน Google ให้ ล็อกอินเสร็จแล้วปิดหน้าต่างนั้นได้เลย`n`nถอนการติดตั้ง: Settings > Apps > ViralFlow สร้างคลิป"
   exit 0
 } catch {
   Box ("ติดตั้งไม่สำเร็จ`n`n" + $_.Exception.Message + "`n`nบันทึก: $log") 'Error'

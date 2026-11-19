@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { crc32 } from "node:zlib";
 import { createHash } from "node:crypto";
 
-export const INSTALLER_VERSION = "1.0.2";
+export const INSTALLER_VERSION = "1.0.3";
 /** The worker files the installed copy runs; farm.mjs imports only these. */
 export const INSTALLED_WORKER_FILES = ["farm.mjs", "farm-core.mjs", "farm-driver.mjs", "core.mjs", "media.mjs", "extension.mjs"] as const;
 /** The files the version hashes: the set every installed worker knows (one from before extension.mjs must still update). */

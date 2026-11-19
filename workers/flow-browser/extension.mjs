@@ -1,5 +1,7 @@
 /**
- * The "ViralFlow ส่งสินค้า" Chrome extension, written by the worker into chrome-extension/ next to this file.
+ * The "ViralFlow" Chrome extension, written by the worker into chrome-extension/ next to this file (the Windows
+ * installer writes it there too and asks once to load that folder in Chrome; updates of the worker rewrite it and the
+ * extension reloads itself).
  *
  * Shopee shows its product pages to the owner's own Chrome but blocks automated windows. So for a Shopee link the worker
  * opens ViralFlow's /product-clips/fetch?job=… page in the owner's normal Chrome (their own sign-ins); this extension
@@ -12,7 +14,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const EXTENSION_VERSION = "1.2.0";
+export const EXTENSION_VERSION = "1.2.1";
 export const EXTENSION_DIR = "chrome-extension";
 
 const SHOPEE = ["co.th", "com.my", "sg", "ph", "vn", "co.id", "com", "tw", "com.br"].flatMap(tld => [`https://shopee.${tld}/*`, `https://*.shopee.${tld}/*`]);
@@ -67,8 +69,19 @@ function background({ portal, start }) {
     const tab = await chrome.tabs.create({ url: start[task.platform], active: true });
     await store.set({ posting: { tabId: tab.id, task, at: Date.now(), started: false, published: false } });
   }
+  /**
+   * 19 Nov (Lucky: install once): the clip maker on this computer rewrites this folder whenever it updates itself.
+   * An unpacked extension serves its files straight from the folder, so a newer manifest there means: reload now.
+   */
+  async function reloadIfUpdated() {
+    try {
+      const disk = await (await fetch(chrome.runtime.getURL("manifest.json"), { cache: "no-store" })).json();
+      if (disk.version && disk.version !== chrome.runtime.getManifest().version && !(await get("posting"))) { chrome.runtime.reload(); return true; }
+    } catch { /* folder being rewritten: try next minute */ }
+    return false;
+  }
   chrome.alarms.create("vf-post", { periodInMinutes: 1 });
-  chrome.alarms.onAlarm.addListener(alarm => { if (alarm.name === "vf-post") poll(); });
+  chrome.alarms.onAlarm.addListener(async alarm => { if (alarm.name === "vf-post" && !(await reloadIfUpdated())) poll(); });
   chrome.runtime.onStartup.addListener(poll);
   chrome.runtime.onInstalled.addListener(poll);
   chrome.tabs.onRemoved.addListener(async tabId => {
