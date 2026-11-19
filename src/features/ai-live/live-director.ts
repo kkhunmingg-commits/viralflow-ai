@@ -22,6 +22,8 @@ export interface LiveCandidate {
   videoOrders: number; videoGmv: number; settledCommission: number;
   lastOrderAt: string | null;
   facts: string[];
+  /** Listing photo (https), shown on the live's promo overlay. */
+  imageUrl?: string | null;
 }
 export interface LiveLineup { productIds: string[]; chosenAt: string; reason: "INITIAL" | "REFRESHED" | "KEPT" | "WAIT_FOR_DATA" }
 
@@ -141,6 +143,8 @@ export interface PostedProduct {
   approvedAt: string;
   /** Platforms it went out on automatically and succeeded (Facebook / Instagram / YouTube). */
   postedOn: number;
+  /** First listing photo copied to private Storage, shown on the live's promo overlay. */
+  imagePath?: string | null;
 }
 
 /** One product as Praew's show on the PC reads it (presenter-lab/live/products.json). She states only these facts. */

@@ -6,6 +6,7 @@ import { liveCandidates, postedProducts } from "@/features/ai-live/lineup-servic
 import { liveBlockStart, praewProducts, selectLiveLineup } from "@/features/ai-live/live-director";
 import { createClient } from "@/lib/supabase/server";
 import { LivePlan } from "./live-plan";
+import { OverlayEditor } from "./overlay-editor";
 import { LivePresenterConsole } from "./presenter-console";
 import { PraewControl } from "./praew-control";
 import { PresenterStudio } from "./presenter-studio";
@@ -38,6 +39,10 @@ export default async function AiLivePage({ searchParams }: { searchParams: Promi
       description="แพรวไลฟ์อยู่บนคอมที่บ้าน (การ์ดจอ RTX) แล้วคุมจากหน้านี้ได้ทุกที่ ทั้งเริ่ม/หยุด พิมพ์ให้พูด และดูคอมเมนต์ ภาพออกไป TikTok ผ่าน OBS"
       action={<span className="phase-chip">ทดสอบ · ยังใช้เสียงทดสอบ</span>} />
     <PraewControl products={praewProducts(lineup, candidates, posted)} postedCount={posted.length} />
+    <details className="praew-card lo-section" id="live-overlay" open>
+      <summary>องค์ประกอบบนจอไลฟ์<small>ข้อความโปร · นาฬิกา · รูป · อีโมจิเด้ง · ป้ายสินค้าอัตโนมัติ — ขึ้นบนไลฟ์ผ่าน OBS</small></summary>
+      <OverlayEditor />
+    </details>
     <details className="ai-live-advanced" open={Boolean(msg)}>
       <summary>เครื่องมืออื่นของ AI LIVE<small>ลำดับสินค้า · สร้างพรีเซนเตอร์จาก Flow · ตัวต้นแบบเก่า</small></summary>
       <div>

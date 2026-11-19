@@ -10,7 +10,7 @@ export async function liveCandidates(client: SupabaseClient, ownerId: string, no
   const ids = [...new Set(orders.map(o => o.product_id!))];
   if (!ids.length) return [];
   const [products, facts] = await Promise.all([
-    client.from("products").select("id,title,current_price").eq("owner_id", ownerId).in("id", ids),
+    client.from("products").select("id,title,current_price,image_url").eq("owner_id", ownerId).in("id", ids),
     client.from("content_evidence").select("product_id,statement").eq("owner_id", ownerId).in("product_id", ids).is("revoked_at", null),
   ]);
   // content_evidence arrives with migration 20261018120000; without it there are simply no verified facts yet.
@@ -19,6 +19,7 @@ export async function liveCandidates(client: SupabaseClient, ownerId: string, no
   return (products.data ?? []).map(p => {
     const own = orders.filter(o => o.product_id === p.id), ledger = financeLedger(own);
     return { productId: p.id, title: p.title, price: p.current_price === null ? null : Number(p.current_price),
+      imageUrl: typeof p.image_url === "string" && p.image_url.startsWith("https://") ? p.image_url : null,
       videoOrders: ledger.video.orders, videoGmv: ledger.video.gmv, settledCommission: ledger.video.settledCommission,
       lastOrderAt: own.filter(o => o.event_type !== "ORDER_CANCELLED").map(o => o.occurred_at).sort().at(-1) ?? null,
       facts: (factsMissing ? [] : facts.data ?? []).filter(f => f.product_id === p.id).map(f => String(f.statement)) };
@@ -30,13 +31,14 @@ export async function liveCandidates(client: SupabaseClient, ownerId: string, no
  * hand). Their facts are the ones the owner kept from the product page.
  */
 export async function postedProducts(client: SupabaseClient, ownerId: string, limit = 30): Promise<PostedProduct[]> {
-  const result = await client.from("product_link_clips").select("platform,external_id,link,title,facts,posts,reviewed_at,updated_at")
+  const result = await client.from("product_link_clips").select("platform,external_id,link,title,facts,image_paths,posts,reviewed_at,updated_at")
     .eq("owner_id", ownerId).in("status", ["APPROVED", "PUBLISHING", "PUBLISHED"]).order("reviewed_at", { ascending: false, nullsFirst: false }).limit(limit);
   // product_link_clips arrives with migration 20261108160000; without it nothing has been posted from a link yet.
   if (result.error) { if (["42P01", "PGRST205"].includes(result.error.code ?? "")) return []; throw new Error("Posted products query failed"); }
   return (result.data ?? []).map(r => ({
     key: `${r.platform}:${r.external_id ?? r.link}`, title: String(r.title), platform: r.platform === "LAZADA" ? "LAZADA" : "SHOPEE",
     facts: Array.isArray(r.facts) ? r.facts.map(String) : [], approvedAt: String(r.reviewed_at ?? r.updated_at),
+    imagePath: Array.isArray(r.image_paths) && typeof r.image_paths[0] === "string" ? r.image_paths[0] : null,
     postedOn: Array.isArray(r.posts) ? r.posts.filter((p: { status?: string }) => p?.status === "DONE").length : 0,
   }));
 }

@@ -17,6 +17,8 @@ export async function updateSession(request: NextRequest) {
     || request.nextUrl.pathname.startsWith("/api/flow-worker/")) return NextResponse.next({ request });
   // The "ส่งเข้า ViralFlow" bookmark posts from a shop's page (no sign-in cookie); the handler checks origin and sign-in itself.
   if (request.nextUrl.pathname === "/api/product-capture" && request.method === "POST") return NextResponse.next({ request });
+  // OBS on the home PC loads the live overlay with no sign-in; its handlers check the secret in the link.
+  if (request.nextUrl.pathname === "/live-overlay" || request.nextUrl.pathname.startsWith("/live-overlay/")) return NextResponse.next({ request });
   // Install files must load signed out and fast (the phone fetches them before login).
   if (["/manifest.webmanifest", "/sw.js", "/offline.html"].includes(request.nextUrl.pathname)) return NextResponse.next({ request });
   let response = NextResponse.next({ request });
