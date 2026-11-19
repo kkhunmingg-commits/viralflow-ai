@@ -15,6 +15,8 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("mute"), on: z.boolean() }),
   z.object({ type: z.literal("chatter"), on: z.boolean() }),
   z.object({ type: z.literal("overlay"), on: z.boolean() }),
+  // Praew presents the products the owner posted for sale (TikTok Shop best-sellers first, then link-clip products).
+  z.object({ type: z.literal("products"), on: z.boolean() }),
   z.object({ type: z.literal("voice"), name: z.enum(["vachana-f1", "vachana-f2", "vachana-f1-jane", "vachana-f2-jane", "edge-premwadee", "test-voice"]) }),
   z.object({ type: z.literal("followers"), count: z.number().int().min(0).max(10_000_000) }),
   z.object({ type: z.literal("tiktok"), username: z.string().trim().transform(v => v.replace(/^@/, "")).pipe(z.string().regex(/^[A-Za-z0-9._]{0,24}$/)) }),
@@ -26,7 +28,7 @@ export type QueuedCommand = PraewCommand & { id: number; at: string };
 export interface PraewDesired {
   seq: number;
   commands: QueuedCommand[];
-  settings: { running: boolean; muted: boolean; chatter: boolean; overlay: boolean; tiktok: string; followers: number | null; voice?: string };
+  settings: { running: boolean; muted: boolean; chatter: boolean; overlay: boolean; tiktok: string; followers: number | null; voice?: string; products?: boolean };
 }
 export const emptyDesired = (): PraewDesired => ({ seq: 0, commands: [], settings: { running: false, muted: false, chatter: true, overlay: true, tiktok: "", followers: null } });
 const KEEP_COMMANDS = 40;
@@ -41,6 +43,7 @@ export function enqueue(desired: PraewDesired, command: PraewCommand, now = new 
   if (command.type === "chatter") settings.chatter = command.on;
   if (command.type === "tiktok") settings.tiktok = command.username;
   if (command.type === "overlay") settings.overlay = command.on;
+  if (command.type === "products") settings.products = command.on;
   if (command.type === "voice") settings.voice = command.name;
   if (command.type === "followers") settings.followers = command.count;
   return { seq: id, settings, commands: [...desired.commands, { ...command, id, at: now.toISOString() }].slice(-KEEP_COMMANDS) };

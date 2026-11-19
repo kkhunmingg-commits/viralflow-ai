@@ -133,3 +133,49 @@ export function liveBlockStart(at: Date = new Date()) {
   const block = LIVE_POLICY.refreshHours * 3600000;
   return new Date(Math.floor(at.getTime() / block) * block);
 }
+
+/** A product the owner approved for sale through a Shopee / Lazada link clip (no order data reaches the app for these). */
+export interface PostedProduct {
+  key: string; title: string; platform: "SHOPEE" | "LAZADA"; facts: string[];
+  /** When the owner pressed "ผ่าน · โพสต์". */
+  approvedAt: string;
+  /** Platforms it went out on automatically and succeeded (Facebook / Instagram / YouTube). */
+  postedOn: number;
+}
+
+/** One product as Praew's show on the PC reads it (presenter-lab/live/products.json). She states only these facts. */
+export interface PraewProduct { name: string; facts: string[]; where: string; price?: string; never_say: string[]; source: "TIKTOK_SALES" | "POSTED_CLIP" }
+
+/** Claims Praew never makes about any product (TikTok LIVE rules on misleading and health claims). */
+export const PRAEW_NEVER_SAY = ["ดีที่สุด", "อันดับ 1", "ขายดีที่สุด", "รักษา", "หายขาด", "100%", "รับประกันผล", "ของแท้แน่นอน"] as const;
+const MAX_FACTS = 6;
+const cleanFacts = (facts: readonly string[]) => [...new Set(facts.map(f => String(f).replace(/\s+/g, " ").trim().slice(0, 160)).filter(Boolean))].slice(0, MAX_FACTS);
+const MARKET = { SHOPEE: "Shopee", LAZADA: "Lazada" } as const;
+
+/**
+ * What Praew presents: best-sellers with real TikTok Shop VIDEO orders first (in lineup order), then the newest products
+ * the owner approved for sale from link clips, up to the lineup size. Nothing without an owner-kept fact is put live.
+ */
+export function praewProducts(lineup: LiveLineup, candidates: readonly LiveCandidate[], posted: readonly PostedProduct[], max: number = LIVE_POLICY.maxProducts): PraewProduct[] {
+  const out: PraewProduct[] = [], names = new Set<string>();
+  const add = (p: PraewProduct) => {
+    const key = p.name.toLowerCase();
+    if (out.length >= max || !p.facts.length || names.has(key)) return;
+    names.add(key); out.push(p);
+  };
+  const byId = new Map(candidates.map(c => [c.productId, c]));
+  for (const id of lineup.productIds) {
+    const c = byId.get(id);
+    if (!c) continue;
+    add({ name: c.title.slice(0, 120), facts: cleanFacts(c.facts), where: "ตะกร้าสีส้มในไลฟ์", source: "TIKTOK_SALES", never_say: [...PRAEW_NEVER_SAY],
+      ...(c.price ? { price: `${c.price.toLocaleString("th-TH")} บาท (ราคาสุดท้ายดูที่ตะกร้า)` } : {}) });
+  }
+  const seen = new Set<string>();
+  for (const p of [...posted].sort((a, b) => b.approvedAt.localeCompare(a.approvedAt) || b.postedOn - a.postedOn)) {
+    if (seen.has(p.key)) continue;
+    seen.add(p.key);
+    // Link-clip prices are never kept (they change); viewers are sent to the listing for the price.
+    add({ name: p.title.slice(0, 120), facts: cleanFacts(p.facts), where: `ลิงก์ ${MARKET[p.platform]} ในโพสต์คลิปสินค้าของช่อง`, source: "POSTED_CLIP", never_say: [...PRAEW_NEVER_SAY] });
+  }
+  return out;
+}

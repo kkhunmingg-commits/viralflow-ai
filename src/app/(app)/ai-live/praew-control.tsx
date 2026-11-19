@@ -4,6 +4,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { PraewProduct } from "@/features/ai-live/live-director";
 import type { PraewCommand, PraewDesired, PraewReport } from "@/features/praew-live/contract";
 
 type Status = { online: boolean; report: PraewReport | null; settings: PraewDesired["settings"]; pending: number; snapshot: { jpeg: string; at: string } | null };
@@ -38,7 +39,7 @@ const ago = (iso?: string) => {
 };
 const fmt = (n: number | null | undefined, unit: string, digits = 0) => (n === null || n === undefined ? "–" : `${n.toFixed(digits)}${unit}`);
 
-export function PraewControl() {
+export function PraewControl({ products, postedCount }: { products: PraewProduct[]; postedCount: number }) {
   const [status, setStatus] = useState<Status | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
@@ -101,6 +102,7 @@ export function PraewControl() {
   const muted = report?.muted ?? settings?.muted ?? false;
   const chatter = report?.chatter ?? settings?.chatter ?? true;
   const overlay = report?.overlay ?? settings?.overlay ?? true;
+  const talkProducts = settings?.products ?? false;
   const testVoice = /test/i.test(report?.voice ?? "");
   const engineUp = online && state === "running";
   // The engine just came up (or came back): try the local stream again.
@@ -201,6 +203,16 @@ export function PraewControl() {
         {report?.comments.length
           ? <ol className="praew-list comments">{report.comments.slice().reverse().slice(0, 8).map((c, i) => <li key={i} className={c.verdict && c.verdict !== "ok" && c.verdict !== "answer" ? "dropped" : ""}><b>{c.user}</b><span>{c.text}</span>{c.verdict ? <em>{c.verdict}</em> : null}</li>)}</ol>
           : <p className="praew-empty">ยังไม่มีคอมเมนต์{report?.tiktok?.connected ? "" : " (ยังไม่ได้ต่อ TikTok)"}</p>}
+      </div>
+
+      <div className="praew-card praew-products">
+        <h3>สินค้าที่แพรวพูดถึง</h3>
+        <Toggle label="พูดถึงสินค้า" hint="ส่งรายการด้านล่างให้แพรว ปิด = คุยเล่นอย่างเดียว" on={talkProducts} disabled={!!busy}
+          onChange={on => send({ type: "products", on }, on ? "ส่งรายการสินค้าให้แพรวแล้ว ใช้ได้ภายใน 1 นาที" : "แพรวเลิกพูดถึงสินค้าแล้ว")} />
+        <p className="praew-note">เลือกให้เองทุก 4 ชม.: สินค้าที่ขายได้จริงจากคลิป TikTok ก่อน แล้วตามด้วยสินค้าที่กด “ผ่าน · โพสต์” ล่าสุดจากคลิปลิงก์ Shopee/Lazada สูงสุด 4 ตัว แพรวพูดได้เฉพาะข้อมูลที่เก็บไว้ ไม่พูดราคา Shopee/Lazada</p>
+        {products.length
+          ? <ol className="praew-list">{products.map(p => <li key={p.name}><span><b>{p.name}</b> · ข้อมูล {p.facts.length} ข้อ{p.price ? ` · ${p.price}` : ""}</span><em>{p.source === "TIKTOK_SALES" ? "ขายได้จริง" : "โพสต์ขายแล้ว"}</em></li>)}</ol>
+          : <p className="praew-empty">{postedCount ? "สินค้าที่โพสต์ไว้ยังไม่มีข้อมูลสินค้าให้แพรวพูด" : "ยังไม่มีสินค้าที่โพสต์ขาย ทำคลิปสินค้าจากลิงก์แล้วกด “ผ่าน · โพสต์” ก่อน"}</p>}
       </div>
 
       <div className="praew-card">

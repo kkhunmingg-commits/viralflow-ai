@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ownerOrderEvents } from "@/features/analytics/finance-service";
 import { financeLedger } from "@/features/analytics/finance-ledger";
-import { LIVE_POLICY, type LiveCandidate } from "./live-director";
+import { LIVE_POLICY, liveBlockStart, praewProducts, selectLiveLineup, type LiveCandidate, type PostedProduct, type PraewProduct } from "./live-director";
 
 /** Products with real VIDEO sales in the window, each with its owner-verified facts; nothing is estimated. */
 export async function liveCandidates(client: SupabaseClient, ownerId: string, now = new Date()): Promise<LiveCandidate[]> {
@@ -23,4 +23,27 @@ export async function liveCandidates(client: SupabaseClient, ownerId: string, no
       lastOrderAt: own.filter(o => o.event_type !== "ORDER_CANCELLED").map(o => o.occurred_at).sort().at(-1) ?? null,
       facts: (factsMissing ? [] : facts.data ?? []).filter(f => f.product_id === p.id).map(f => String(f.statement)) };
   });
+}
+
+/**
+ * Products the owner approved for sale from Shopee / Lazada link clips (posted automatically, posting, or left to post by
+ * hand). Their facts are the ones the owner kept from the product page.
+ */
+export async function postedProducts(client: SupabaseClient, ownerId: string, limit = 30): Promise<PostedProduct[]> {
+  const result = await client.from("product_link_clips").select("platform,external_id,link,title,facts,posts,reviewed_at,updated_at")
+    .eq("owner_id", ownerId).in("status", ["APPROVED", "PUBLISHING", "PUBLISHED"]).order("reviewed_at", { ascending: false, nullsFirst: false }).limit(limit);
+  // product_link_clips arrives with migration 20261108160000; without it nothing has been posted from a link yet.
+  if (result.error) { if (["42P01", "PGRST205"].includes(result.error.code ?? "")) return []; throw new Error("Posted products query failed"); }
+  return (result.data ?? []).map(r => ({
+    key: `${r.platform}:${r.external_id ?? r.link}`, title: String(r.title), platform: r.platform === "LAZADA" ? "LAZADA" : "SHOPEE",
+    facts: Array.isArray(r.facts) ? r.facts.map(String) : [], approvedAt: String(r.reviewed_at ?? r.updated_at),
+    postedOn: Array.isArray(r.posts) ? r.posts.filter((p: { status?: string }) => p?.status === "DONE").length : 0,
+  }));
+}
+
+/** The products Praew presents right now: TikTok Shop best-sellers of this 4-hour block, then the newest posted products. */
+export async function praewFeed(client: SupabaseClient, ownerId: string, now = new Date()): Promise<PraewProduct[]> {
+  const blockStart = liveBlockStart(now);
+  const [candidates, posted] = await Promise.all([liveCandidates(client, ownerId, blockStart), postedProducts(client, ownerId)]);
+  return praewProducts(selectLiveLineup(candidates, blockStart), candidates, posted);
 }

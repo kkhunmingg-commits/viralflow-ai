@@ -10,6 +10,8 @@ describe("praew live commands", () => {
     expect(d.seq).toBe(4);
     expect(d.settings).toMatchObject({ running: true, muted: true, tiktok: "praew" });
     expect(commandsAfter(d, 2).map(c => c.type)).toEqual(["mute", "tiktok"]);
+    expect(enqueue(d, { type: "products", on: true }).settings.products).toBe(true);
+    expect(emptyDesired().settings.products).toBeUndefined();
   });
   it("keeps only the latest commands", () => {
     let d = emptyDesired();
