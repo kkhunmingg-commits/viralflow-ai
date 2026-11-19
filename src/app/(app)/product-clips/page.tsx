@@ -15,6 +15,7 @@ import { postErrorLabel } from "@/features/social-publish/publishers";
 import { ClipPhoneActions } from "../post/clip-phone-actions";
 import { ProductLinkForm } from "./link-form";
 import { CaptureButton } from "./capture-button";
+import { ExtensionPostingStatus } from "./extension-status";
 import { bookmarkletHref } from "@/features/product-links/capture";
 import { lookupErrorLabel } from "@/features/product-links/browser-lookup";
 import { deleteProductClipAction, remakeProductClipAction, reviewProductClipAction } from "./actions";
@@ -111,13 +112,17 @@ export default async function ProductClipsPage({ searchParams }: { searchParams:
       <div className="pl-cards">{finished.map(job => <DoneCard key={job.id} job={job} />)}</div>
     </section>}
 
-    <details className="manual-panel" open={readiness.ready.length === 0}><summary><strong>ตั้งค่าโพสต์อัตโนมัติ</strong>
-      <small>{readiness.ready.length ? `พร้อม: ${readiness.ready.map(p => SOCIAL_LABEL[p]).join(", ")}` : "ยังไม่ได้ตั้งค่าแพลตฟอร์มใด"}</small></summary>
-      <ul className="pl-setup">{SOCIAL_PLATFORMS.map(p => <li key={p}><strong>{SOCIAL_LABEL[p]}</strong>{readiness.missing[p].length
-        ? <> · ยังขาดค่าใน Vercel: <code>{readiness.missing[p].join(", ")}</code></> : readiness.ownerOk ? " · ✓ พร้อมโพสต์" : " · ตั้งค่าแล้ว แต่บัญชีเว็บนี้ไม่ได้รับอนุญาต (SOCIAL_PUBLISH_OWNER_IDS)"}</li>)}
-        <li><strong>TikTok</strong> · ส่งเป็นแบบร่าง/แชร์จากมือถือเท่านั้น (API ของ TikTok ใส่ตะกร้าสินค้าไม่ได้)</li></ul>
-      <p className="manual-muted">ขั้นตอนขอสิทธิ์ Meta และ Google อยู่ในคู่มือ docs/PRODUCT_LINK_CLIPS.md</p>
-    </details>
+    <section className="manual-panel" aria-labelledby="pl-autopost">
+      <div className="manual-section-head"><div><p className="manual-eyebrow">ฟรี · ไม่ต้องขอคีย์หรือตั้งค่าอะไร</p><h2 id="pl-autopost">โพสต์ออโต้ทุกแพลตฟอร์ม</h2></div></div>
+      <ExtensionPostingStatus />
+      <ol className="pl-setup-steps">
+        <li>ติดตั้งส่วนขยาย ViralFlow ใน Chrome (ปุ่มดาวน์โหลดอยู่ในหัวข้อ “ตัวเชื่อม Shopee/Lazada” ด้านบน)</li>
+        <li>ใน Chrome เดียวกัน ล็อกอิน <a href="https://www.facebook.com/" target="_blank" rel="noreferrer">Facebook</a>, <a href="https://www.instagram.com/" target="_blank" rel="noreferrer">Instagram</a> และ <a href="https://studio.youtube.com/" target="_blank" rel="noreferrer">YouTube</a> ไว้ (ล็อกอินครั้งเดียว)</li>
+        <li>กด “ผ่าน · โพสต์” ที่คลิป ส่วนขยายจะเปิดแท็บของแต่ละแพลตฟอร์ม อัปโหลด ใส่แคปชัน + ลิงก์สินค้า แล้วกดโพสต์ให้เอง ทีละแพลตฟอร์ม (เปิด Chrome ทิ้งไว้ กด STOP บนจอเพื่อหยุดได้)</li>
+      </ol>
+      <p className="manual-muted">Facebook: โพสต์ลงโปรไฟล์ที่ใช้อยู่ ถ้าอยากลงเพจ ให้สลับเป็นเพจใน Facebook ก่อน · ลิงก์สินค้าอยู่ท้ายแคปชัน (Instagram กดลิงก์ในแคปชันไม่ได้ คนต้องคัดลอกไปเปิด) · TikTok ยังต้องแชร์จากมือถือเป็นแบบร่าง เพราะต้องปักตะกร้าในแอป</p>
+      {readiness.ready.length > 0 && <p className="manual-muted">โพสต์ผ่านคีย์ของระบบ (ไม่ต้องใช้ Chrome): {readiness.ready.map(p => SOCIAL_LABEL[p]).join(", ")}</p>}
+    </section>
   </div>;
 }
 
@@ -146,8 +151,8 @@ function ReviewCard({ job, ready }: { job: ProductClipView; ready: string[] }) {
       <form action={reviewProductClipAction} className="pl-review">
         <input type="hidden" name="id" value={job.id} />
         <fieldset><legend>โพสต์อัตโนมัติไปที่</legend>{SOCIAL_PLATFORMS.map(p => <label key={p} className="manual-check">
-          <input type="checkbox" name="target" value={p} defaultChecked={ready.includes(p)} disabled={!ready.includes(p)} />
-          {SOCIAL_LABEL[p]}{ready.includes(p) ? "" : " (ยังไม่ได้ตั้งค่า)"}</label>)}</fieldset>
+          <input type="checkbox" name="target" value={p} defaultChecked />
+          {SOCIAL_LABEL[p]}{ready.includes(p) ? "" : " (ผ่าน Chrome)"}</label>)}</fieldset>
         <div className="library-inline">
           <button className="manual-primary" name="decision" value="APPROVE" type="submit">ผ่าน · โพสต์</button>
           <button className="manual-secondary" name="decision" value="REJECT" type="submit" title="ลบคลิปนี้ทิ้ง ไม่สร้างใหม่">ไม่ผ่าน · ลบทิ้ง</button>
@@ -175,7 +180,8 @@ function WorkingCard({ job }: { job: ProductClipView }) {
         const label = state ? flowClipStatusLabels[state.status as FlowClipStatus] ?? state.status : "รอคิว";
         return <li key={i}>{shot.roleTh}: {label}{state?.error && state.status !== "READY" ? ` · ${flowErrorLabel(state.error)}` : ""}{(job.shot_attempts[i] ?? 1) > 1 ? ` (ครั้งที่ ${job.shot_attempts[i]})` : ""}</li>;
       })}</ol>}
-      {job.status === "PUBLISHING" && <ul className="pl-shots">{job.posts.map(p => <li key={p.platform}>{SOCIAL_LABEL[p.platform]}: {p.status === "DONE" ? "✓ โพสต์แล้ว" : p.status === "FAILED" ? `✗ ${postErrorLabel(p.error)}` : "กำลังส่ง…"}</li>)}</ul>}
+      {job.status === "PUBLISHING" && <ul className="pl-shots">{job.posts.map(p => <li key={p.platform}>{SOCIAL_LABEL[p.platform]}: {p.status === "DONE" ? "✓ โพสต์แล้ว" : p.status === "FAILED" ? `✗ ${postErrorLabel(p.error)}`
+        : p.via === "BROWSER" ? (p.status === "PENDING" ? "รอ Chrome ที่มีส่วนขยาย ViralFlow (เปิด Chrome ทิ้งไว้)" : "Chrome กำลังโพสต์…") : "กำลังส่ง…"}</li>)}</ul>}
       {job.error && lookup?.state !== "LOGIN" && <p className="manual-warning">{job.error}</p>}
     </div>
     {job.status === "PRODUCING" && <form action={deleteProductClipAction}><input type="hidden" name="id" value={job.id} /><button className="library-link danger" type="submit">ยกเลิก</button></form>}
@@ -187,7 +193,7 @@ function DoneCard({ job }: { job: ProductClipView }) {
   return <article className="pl-row">
     <div><strong>{nameOf(job)}</strong> · {job.length_seconds} วิ · {STATUS_TH[job.status]}{job.published_at ? ` · ${bangkokTime(job.published_at)}` : ""}
       {job.posts.length > 0 && <ul className="pl-shots">{job.posts.map(p => <li key={p.platform}>{SOCIAL_LABEL[p.platform]}: {p.status === "DONE"
-        ? <>{p.url ? <a href={p.url} target="_blank" rel="noreferrer noopener">✓ ดูโพสต์</a> : "✓ โพสต์แล้ว"}{p.commented ? " · คอมเมนต์ลิงก์แล้ว" : ` · ${postErrorLabel(p.error) ?? "ยังไม่ได้คอมเมนต์ลิงก์"}`}</>
+        ? <>{p.url ? <a href={p.url} target="_blank" rel="noreferrer noopener">✓ ดูโพสต์</a> : "✓ โพสต์แล้ว"}{p.via === "BROWSER" ? " · ลิงก์สินค้าอยู่ในแคปชัน" : p.commented ? " · คอมเมนต์ลิงก์แล้ว" : ` · ${postErrorLabel(p.error) ?? "ยังไม่ได้คอมเมนต์ลิงก์"}`}</>
         : `✗ ${postErrorLabel(p.error)}`}</li>)}</ul>}
       {job.error && <p className="manual-warning">{job.error}</p>}
       {job.final_clip_id && (job.status === "APPROVED" || job.status === "PUBLISHED") && <div className="pl-tiktok"><p className="manual-muted">TikTok: แชร์จากมือถือเป็นแบบร่าง แล้วปักตะกร้าในแอปเอง</p>

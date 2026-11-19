@@ -137,8 +137,10 @@ export function assembleEpisode(input: { shots: Array<{ bytes: Uint8Array; durat
       await writeFile(join(dir, file), shot.bytes);
       args.push("-i", file);
       chains.push(`[${i}:v]scale=${WIDTH}:${HEIGHT}:force_original_aspect_ratio=increase,crop=${WIDTH}:${HEIGHT},fps=${FPS},setsar=1,format=yuv420p,trim=start=${starts[i]}:duration=${durations[i]},setpts=PTS-STARTPTS,fps=${FPS}[v${i}]`);
+      // 19 Nov (KAGE VELVET CLOUD): a Flow take whose sound decoded to NaN/Inf samples made the AAC encoder refuse the
+      // whole cut (FFMPEG_FAILED(234), aac -22). 16-bit samples are always finite, so the take's sound is kept, clipped.
       chains.push(await hasAudio(dir, file)
-        ? `[${i}:a]aresample=48000,aformat=channel_layouts=stereo,atrim=start=${starts[i]}:duration=${durations[i]},asetpts=PTS-STARTPTS,apad=whole_dur=${durations[i]}[a${i}]`
+        ? `[${i}:a]aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo,atrim=start=${starts[i]}:duration=${durations[i]},asetpts=PTS-STARTPTS,apad=whole_dur=${durations[i]}[a${i}]`
         : `aevalsrc=0:c=stereo:s=48000:d=${durations[i]}[a${i}]`);
     }
     const total = shown.reduce((sum, d) => sum + d, 0);

@@ -3,8 +3,9 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { bangkokDate } from "@/features/flow-farm/contracts";
 import { clipStoragePath } from "@/features/flow-farm/service";
-import { metaConfig, socialReadiness, youtubeConfig, type SocialPlatform } from "@/features/social-publish/config";
+import { metaConfig, SOCIAL_PLATFORMS, socialReadiness, youtubeConfig, type SocialPlatform } from "@/features/social-publish/config";
 import { advancePost, newPost, type PlatformPost } from "@/features/social-publish/publishers";
+import { browserCaption, claimBrowserPost, expireBrowserPosts, finishBrowserPost, isBrowserPost, type BrowserResult } from "@/features/social-publish/browser";
 import { PLATFORM_LABEL, productIdFromUrl, type ProductPlatform } from "./link";
 import type { ProductCapture } from "./capture";
 import { detailsFromBrowser, LOOKUP_MAX_ATTEMPTS, lookupErrorLabel, type LookupResult, type LookupState } from "./browser-lookup";
@@ -381,42 +382,94 @@ async function assemble(admin: SupabaseClient, owner: string, job: ProductClipJo
 }
 
 async function publishStep(admin: SupabaseClient, owner: string, job: ProductClipJob, now: Date) {
-  const clip = job.final_clip_id ? check(await admin.from("flow_clips").select("storage_path").eq("owner_id", owner).eq("id", job.final_clip_id).maybeSingle(), "flow_clips_unavailable") as
-    { storage_path: string | null } | null : null;
-  if (!clip?.storage_path) return save(admin, owner, job.id, { status: "FAILED", error: "ไม่พบไฟล์คลิป", updated_at: now.toISOString() });
-  const signed = await admin.storage.from(BUCKET).createSignedUrl(clip.storage_path, 3600);
-  if (signed.error || !signed.data) throw new Error("SIGNED_URL_UNAVAILABLE");
-  let bytes: Uint8Array | null = null;
-  const ctx = { videoUrl: signed.data.signedUrl, caption: job.script.caption, comment: job.script.comment, youtubeTitle: job.script.youtubeTitle,
-    meta: metaConfig(), youtube: youtubeConfig(), now,
-    videoBytes: async () => {
-      if (bytes) return bytes;
-      const file = await admin.storage.from(BUCKET).download(clip.storage_path!);
-      if (file.error || !file.data) throw new Error("CLIP_FILE_MISSING");
-      return (bytes = new Uint8Array(await file.data.arrayBuffer()));
-    } };
-  const posts: PlatformPost[] = [];
-  for (const post of job.posts) posts.push(await advancePost(post, ctx));
+  let posts = expireBrowserPosts(job.posts, now) ?? job.posts;
+  if (posts.some(p => !isBrowserPost(p) && p.status !== "DONE" && p.status !== "FAILED")) {
+    const clip = job.final_clip_id ? check(await admin.from("flow_clips").select("storage_path").eq("owner_id", owner).eq("id", job.final_clip_id).maybeSingle(), "flow_clips_unavailable") as
+      { storage_path: string | null } | null : null;
+    if (!clip?.storage_path) return save(admin, owner, job.id, { status: "FAILED", error: "ไม่พบไฟล์คลิป", updated_at: now.toISOString() });
+    const signed = await admin.storage.from(BUCKET).createSignedUrl(clip.storage_path, 3600);
+    if (signed.error || !signed.data) throw new Error("SIGNED_URL_UNAVAILABLE");
+    let bytes: Uint8Array | null = null;
+    const ctx = { videoUrl: signed.data.signedUrl, caption: job.script.caption, comment: job.script.comment, youtubeTitle: job.script.youtubeTitle,
+      meta: metaConfig(), youtube: youtubeConfig(), now,
+      videoBytes: async () => {
+        if (bytes) return bytes;
+        const file = await admin.storage.from(BUCKET).download(clip.storage_path!);
+        if (file.error || !file.data) throw new Error("CLIP_FILE_MISSING");
+        return (bytes = new Uint8Array(await file.data.arrayBuffer()));
+      } };
+    const advanced: PlatformPost[] = [];
+    for (const post of posts) advanced.push(await advancePost(post, ctx));
+    posts = advanced;
+  } else if (posts === job.posts) return;
+  // Saved only if Chrome did not claim or finish a browser post meanwhile (the lock set updated_at to `now`).
+  check(await admin.from("product_link_clips").update(publishPatch(posts, now)).eq("owner_id", owner).eq("id", job.id).eq("updated_at", now.toISOString()), "product_clip_not_saved");
+}
+function publishPatch(posts: PlatformPost[], now: Date) {
   const finished = posts.every(p => p.status === "DONE" || p.status === "FAILED");
-  await save(admin, owner, job.id, { posts, status: finished ? "PUBLISHED" : "PUBLISHING", published_at: finished ? now.toISOString() : null, updated_at: now.toISOString() });
+  return { posts, status: finished ? "PUBLISHED" : "PUBLISHING", published_at: finished ? now.toISOString() : null, updated_at: now.toISOString() };
+}
+
+// ---------------------------------------------------------------- Posting from the user's Chrome (ViralFlow extension)
+
+export interface BrowserPostTask { jobId: string; platform: SocialPlatform; videoUrl: string; caption: string; title: string; name: string }
+/** Hands the next waiting browser post of this user to their Chrome (one at a time), or null. */
+export async function nextBrowserPost(admin: SupabaseClient, owner: string, now = new Date()): Promise<BrowserPostTask | null> {
+  const jobs = check(await admin.from("product_link_clips").select(COLUMNS).eq("owner_id", owner).eq("status", "PUBLISHING")
+    .order("reviewed_at", { ascending: true }).limit(20), "product_clips_unavailable") as ProductClipJob[];
+  for (const job of jobs) {
+    const live = expireBrowserPosts(job.posts, now) ?? job.posts, claim = claimBrowserPost(live, now);
+    if (!claim) continue;
+    const clip = job.final_clip_id ? check(await admin.from("flow_clips").select("storage_path").eq("owner_id", owner).eq("id", job.final_clip_id).maybeSingle(), "flow_clips_unavailable") as
+      { storage_path: string | null } | null : null;
+    if (!clip?.storage_path) continue;
+    const signed = await admin.storage.from(BUCKET).createSignedUrl(clip.storage_path, 2 * 3600);
+    if (signed.error || !signed.data) throw new Error("SIGNED_URL_UNAVAILABLE");
+    // Only if nothing else changed the clip since it was read: two Chromes never get the same post.
+    const saved = check(await admin.from("product_link_clips").update(publishPatch(claim.posts, now)).eq("owner_id", owner).eq("id", job.id)
+      .eq("updated_at", job.updated_at).select("id"), "product_clip_not_saved") as unknown[] | null;
+    if (!saved?.length) continue;
+    return { jobId: job.id, platform: claim.platform, videoUrl: signed.data.signedUrl, caption: browserCaption(job.script.caption, job.script.comment),
+      title: (job.script.youtubeTitle || job.title).slice(0, 100), name: (job.script.shortName ?? job.title).slice(0, 120) };
+  }
+  return null;
+}
+
+/** Records what the extension reported for a post it was given. */
+export async function reportBrowserPost(admin: SupabaseClient, owner: string, jobId: string, result: BrowserResult, now = new Date()) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const job = await loadJob(admin, owner, jobId);
+    if (job.status !== "PUBLISHING") return false;
+    const posts = finishBrowserPost(job.posts, result, now);
+    if (!posts) return false;
+    // Never in the past of the row: the conditional save below must see a newer time than any lock.
+    const at = new Date(Math.max(now.getTime(), Date.parse(job.updated_at) + 1));
+    const saved = check(await admin.from("product_link_clips").update(publishPatch(posts, at)).eq("owner_id", owner).eq("id", jobId)
+      .eq("updated_at", job.updated_at).select("id"), "product_clip_not_saved") as unknown[] | null;
+    if (saved?.length) return true;
+  }
+  throw new Error("PRODUCT_CLIP_BUSY");
 }
 
 // ---------------------------------------------------------------- Review
 
-/** Approve: post to the chosen platforms that are set up (others are left for posting by hand). Reject: the cut is thrown away. */
+/**
+ * Approve: post to the chosen platforms: with the operator's keys where Vercel has them, otherwise from the user's own
+ * Chrome through the ViralFlow extension. Reject: the cut is thrown away.
+ */
 export async function reviewProductClip(admin: SupabaseClient, owner: string, id: string, decision: { approved: boolean; targets: SocialPlatform[] }, now = new Date()) {
   const job = await loadJob(admin, owner, id);
   if (job.status !== "REVIEW") throw new Error("NOT_WAITING_FOR_REVIEW");
   if (!decision.approved) {
     await save(admin, owner, id, { status: "REJECTED", reviewed_at: now.toISOString(), updated_at: now.toISOString() });
     await discardFiles(admin, owner, job, true);
-    return { posting: [] as SocialPlatform[] };
+    return { posting: [] as SocialPlatform[], browser: [] as SocialPlatform[] };
   }
-  const ready = socialReadiness(owner).ready, targets = [...new Set(decision.targets)].filter(t => ready.includes(t));
-  await save(admin, owner, id, { status: targets.length ? "PUBLISHING" : "APPROVED", targets, posts: targets.map(t => newPost(t, now)), reviewed_at: now.toISOString(),
+  const ready = socialReadiness(owner).ready, targets = [...new Set(decision.targets)].filter(t => (SOCIAL_PLATFORMS as string[]).includes(t));
+  await save(admin, owner, id, { status: targets.length ? "PUBLISHING" : "APPROVED", targets, posts: targets.map(t => newPost(t, now, ready.includes(t) ? "API" : "BROWSER")), reviewed_at: now.toISOString(),
     updated_at: new Date(now.getTime() - LOCK_MS).toISOString() });
   await discardFiles(admin, owner, job, false);
-  return { posting: targets };
+  return { posting: targets, browser: targets.filter(t => !ready.includes(t)) };
 }
 
 /** Shot MP4s are no longer needed once the cut is reviewed; a rejected cut goes too. */

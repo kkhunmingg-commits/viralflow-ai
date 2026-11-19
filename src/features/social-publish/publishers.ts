@@ -1,4 +1,5 @@
 import type { MetaConfig, SocialPlatform, YouTubeConfig } from "./config";
+import { browserErrorLabel } from "./browser-labels";
 
 /**
  * Posting one finished clip to Facebook Page Reels, Instagram Reels and YouTube Shorts, then leaving the product link
@@ -14,7 +15,14 @@ export interface PlatformPost {
   /** Instagram media container (before publishing). */
   containerId: string | null;
   url: string | null; commented: boolean; error: string | null; attempts: number; updatedAt: string;
+  /**
+   * 19 Nov (Lucky): "API" posts with the operator's page/channel keys from Vercel; "BROWSER" is posted by the ViralFlow
+   * Chrome extension in the user's own Chrome, signed in to their own Facebook/Instagram/YouTube (no keys at all).
+   * Older rows have no value and are API posts.
+   */
+  via?: PostVia;
 }
+export type PostVia = "API" | "BROWSER";
 export interface PostContext {
   /** Signed HTTPS link to the MP4 (Meta downloads it). */
   videoUrl: string;
@@ -26,8 +34,8 @@ export interface PostContext {
 }
 
 export const MAX_TICKS = 40;
-export function newPost(platform: SocialPlatform, now = new Date()): PlatformPost {
-  return { platform, status: "PENDING", remoteId: null, containerId: null, url: null, commented: false, error: null, attempts: 0, updatedAt: now.toISOString() };
+export function newPost(platform: SocialPlatform, now = new Date(), via: PostVia = "API"): PlatformPost {
+  return { platform, status: "PENDING", remoteId: null, containerId: null, url: null, commented: false, error: null, attempts: 0, updatedAt: now.toISOString(), via };
 }
 
 class PlatformError extends Error {}
@@ -142,6 +150,8 @@ const RUNNERS: Record<SocialPlatform, (post: PlatformPost, ctx: PostContext, fet
  */
 export async function advancePost(post: PlatformPost, ctx: PostContext): Promise<PlatformPost> {
   if (post.status === "DONE" || post.status === "FAILED") return post;
+  // The extension in the user's Chrome moves these on (see ./browser.ts); the server never posts them.
+  if (post.via === "BROWSER") return post;
   const now = (ctx.now ?? new Date()).toISOString(), fetcher = ctx.fetcher ?? fetch;
   const attempts = post.attempts + 1;
   try {
@@ -161,6 +171,7 @@ export async function advancePost(post: PlatformPost, ctx: PostContext): Promise
 
 export function postErrorLabel(error: string | null) {
   if (!error) return null;
+  if (/^BROWSER_/.test(error)) return browserErrorLabel(error);
   if (/NOT_CONFIGURED/.test(error)) return "ยังไม่ได้ตั้งค่าบัญชีแพลตฟอร์มนี้";
   if (/COMMENT_FAILED/.test(error)) return "โพสต์คลิปแล้ว แต่คอมเมนต์ลิงก์ไม่สำเร็จ ใส่ลิงก์เองในคอมเมนต์";
   if (/HTTP_401|HTTP_403|OAuth|token/i.test(error)) return "สิทธิ์/โทเคนหมดอายุหรือไม่พอ ตรวจการตั้งค่า (ดูคู่มือ)";

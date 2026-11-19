@@ -135,9 +135,10 @@ export async function reviewProductClipAction(formData: FormData) {
       await deleteProductClip(createAdminClient(), ownerId, parsed.data.id);
       done("ไม่ผ่าน: ลบคลิปนี้ทิ้งแล้ว ไม่มีการสร้างใหม่ วางลิงก์ใหม่เมื่อต้องการทำอีกครั้ง");
     }
-    const { posting } = await reviewProductClip(createAdminClient(), ownerId, parsed.data.id, { approved: parsed.data.decision === "APPROVE", targets });
-    done(posting.length ? `อนุมัติแล้ว กำลังโพสต์ไป ${posting.map(p => SOCIAL_LABEL[p]).join(", ")} พร้อมคอมเมนต์ลิงก์ (ใช้เวลา 1–5 นาที)`
-      : "อนุมัติแล้ว ยังไม่ได้ตั้งค่าแพลตฟอร์มให้โพสต์อัตโนมัติ ดาวน์โหลดหรือแชร์ไปโพสต์เองได้");
+    const { posting, browser } = await reviewProductClip(createAdminClient(), ownerId, parsed.data.id, { approved: parsed.data.decision === "APPROVE", targets });
+    done(posting.length ? `อนุมัติแล้ว กำลังโพสต์ไป ${posting.map(p => SOCIAL_LABEL[p]).join(", ")}${browser.length
+      ? " · ส่วนขยาย ViralFlow ใน Chrome จะเปิดแท็บโพสต์ให้เอง (เปิด Chrome ทิ้งไว้ อย่าปิดแท็บที่มันเปิด)" : " พร้อมคอมเมนต์ลิงก์ (ใช้เวลา 1–5 นาที)"}`
+      : "อนุมัติแล้ว ไม่ได้เลือกแพลตฟอร์ม ดาวน์โหลดหรือแชร์ไปโพสต์เองได้");
   } catch (error) { const message = label(error); if (message) done(message); throw error; }
 }
 
