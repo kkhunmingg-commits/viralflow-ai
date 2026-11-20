@@ -16,7 +16,7 @@ from worker_core import LiveError, image_dimensions
 
 from .hardware import (HardwareAssessment, HardwareSnapshot, HardwareTiers, assess_hardware, assess_lite_hardware,
                        inspect_hardware)
-from .security import Grant, PairingStore, SecurityError, verify_device_message, verify_ed25519, verify_grant, verify_signed_envelope
+from .security import Grant, PairingStore, RememberedPairings, SecurityError, verify_device_message, verify_ed25519, verify_grant, verify_signed_envelope
 from .device_identity import DeviceIdentity
 from .updater import SafeUpdater
 from .stream_credentials import StreamCredentialStore
@@ -135,6 +135,7 @@ class AgentConfig:
     hardware_tiers: HardwareTiers = field(default_factory=HardwareTiers)
     trusted_keys: dict[str, bytes] = field(default_factory=dict)
     retired_key_ids: frozenset[str] = frozenset()
+    remembered_pairings: Path | None = None
 
     def __post_init__(self) -> None:
         try:
@@ -199,7 +200,8 @@ class LocalAgent:
     ) -> None:
         self.config = config
         self._now = now
-        self._pairings = PairingStore(config.pairing_code, now=now)
+        self._pairings = PairingStore(config.pairing_code, now=now, remembered=(
+            RememberedPairings(config.remembered_pairings) if config.remembered_pairings is not None else None))
         self._worker = worker or UnavailableWorker()
         self._hardware_probe = hardware_probe or (lambda: inspect_hardware(config.data_dir))
         self._grant_signature_verifier = grant_signature_verifier
@@ -261,8 +263,21 @@ class LocalAgent:
             token, pairing = self._pairings.pair(code, origin)
         except SecurityError as exc:
             raise self._safe_error(exc) from exc
+        remember = self._pairings.remember(origin)
+        return {"token": token, "expiresAt": int(pairing.expires_at),
+                "deviceId": self.config.device_id, **({"remember": remember} if remember else {})}
+
+    def resume(self, secret: str, origin: str) -> dict[str, object]:
+        """A browser that paired once reconnects after either side restarts."""
+        try:
+            token, pairing = self._pairings.resume(secret, origin)
+        except SecurityError as exc:
+            raise self._safe_error(exc) from exc
         return {"token": token, "expiresAt": int(pairing.expires_at),
                 "deviceId": self.config.device_id}
+
+    def remembers(self, origin: str) -> bool:
+        return self._pairings.remembers(origin)
 
     def authenticate(self, token: str, origin: str) -> None:
         try:

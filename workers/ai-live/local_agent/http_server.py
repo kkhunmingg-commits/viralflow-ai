@@ -206,6 +206,12 @@ class _Handler(BaseHTTPRequestHandler):
                     raise AgentError(400, "INVALID_PAIRING_REQUEST", "ข้อมูลไม่ถูกต้อง")
                 self._send_json(200, agent.pair(body["code"], origin), origin)
                 return
+            if method == "POST" and self.path == "/v1/resume":
+                body = self._json_body()
+                if set(body) != {"remember"} or not isinstance(body["remember"], str):
+                    raise AgentError(400, "INVALID_PAIRING_REQUEST", "ข้อมูลไม่ถูกต้อง")
+                self._send_json(200, agent.resume(body["remember"], origin), origin)
+                return
             token = self._token(origin)
             if method == "GET" and self.path == "/v1/challenge":
                 self._send_json(200, agent.challenge(token, origin), origin)

@@ -257,6 +257,31 @@ describe("browser to local companion boundary", () => {
     client.dispose();
   });
 
+  it("remembers a pairing so a restarted page or companion reconnects without a code", async () => {
+    const saved = new Map<string, string>();
+    vi.stubGlobal("localStorage", { getItem: (key: string) => saved.get(key) ?? null,
+      setItem: (key: string, value: string) => { saved.set(key, value); }, removeItem: (key: string) => { saved.delete(key); } });
+    const remember = "m".repeat(43);
+    try {
+      const first = responseSequence({ token, expiresAt: nowSeconds + 900, deviceId, remember }, ready, unregistered);
+      await new LocalLiveClient(first.fetcher, () => nowSeconds * 1000).pair("ABCDEF");
+      expect([...saved.values()]).toEqual([remember]);
+
+      const later = responseSequence({ token: renewedToken, expiresAt: nowSeconds + 900, deviceId }, ready, unregistered);
+      const restarted = new LocalLiveClient(later.fetcher, () => nowSeconds * 1000);
+      expect(await restarted.discover()).toMatchObject({ paired: true });
+      assertLoopbackCall(later.mock.mock.calls[0], "/v1/resume", false);
+      expect(JSON.parse((later.mock.mock.calls[0][1]?.body ?? "") as string)).toEqual({ remember });
+      assertLoopbackCall(later.mock.mock.calls[1], "/v1/status", true, renewedToken);
+
+      // A companion that refuses the secret makes the page forget it.
+      const refused = vi.fn(async (input: RequestInfo | URL) => String(input).endsWith("/v1/resume")
+        ? new Response("{}", { status: 401 }) : Response.json(ready));
+      expect(await new LocalLiveClient(refused as unknown as typeof fetch, () => nowSeconds * 1000).discover()).toMatchObject({ paired: false });
+      expect(saved.size).toBe(0);
+    } finally { vi.unstubAllGlobals(); }
+  });
+
   it("renews a nearly expired pairing before a protected machine request", async () => {
     let clock = nowSeconds * 1000;
     const { mock, fetcher } = responseSequence(

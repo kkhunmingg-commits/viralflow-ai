@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import hmac
 import json
 import re
@@ -11,6 +12,7 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Callable, Mapping
 
 SIGNING_KEY_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}")
@@ -241,13 +243,69 @@ class Pairing:
     challenge_expires_at: float = 0.0
 
 
+REMEMBERED_LIMIT = 8
+
+
+class RememberedPairings:
+    """Browsers that paired once, kept as hashes so a restart needs no new code.
+
+    Only SHA-256 digests of the browser-held secrets are written, each bound to
+    the exact origin that paired. A copied file therefore grants nothing.
+    """
+
+    def __init__(self, path: Path):
+        self._path = path
+        self._lock = threading.RLock()
+
+    def _load(self) -> list[dict[str, str]]:
+        try:
+            if self._path.is_symlink() or not self._path.is_file() or self._path.stat().st_size > 16 * 1024:
+                return []
+            raw = json.loads(self._path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return []
+        if not isinstance(raw, list):
+            return []
+        return [entry for entry in raw if isinstance(entry, dict) and set(entry) == {"origin", "digest"}
+                and isinstance(entry["origin"], str) and isinstance(entry["digest"], str)
+                and re.fullmatch(r"[0-9a-f]{64}", entry["digest"])][-REMEMBERED_LIMIT:]
+
+    @staticmethod
+    def _digest(secret: str) -> str:
+        return hashlib.sha256(secret.encode("ascii")).hexdigest()
+
+    def remember(self, origin: str) -> str:
+        secret = secrets.token_urlsafe(32)
+        with self._lock:
+            entries = [entry for entry in self._load() if entry["origin"] != origin]
+            entries.append({"origin": origin, "digest": self._digest(secret)})
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            partial = self._path.with_suffix(".part")
+            partial.write_text(json.dumps(entries[-REMEMBERED_LIMIT:]), encoding="utf-8")
+            partial.replace(self._path)
+        return secret
+
+    def known(self, secret: str, origin: str) -> bool:
+        if not isinstance(secret, str) or not re.fullmatch(r"[A-Za-z0-9_-]{32,128}", secret):
+            return False
+        digest = self._digest(secret)
+        with self._lock:
+            return any(hmac.compare_digest(entry["digest"], digest) and hmac.compare_digest(entry["origin"], origin)
+                       for entry in self._load())
+
+    def has(self, origin: str) -> bool:
+        with self._lock:
+            return any(entry["origin"] == origin for entry in self._load())
+
+
 class PairingStore:
     def __init__(self, code: str, *, token_ttl: int = 900, challenge_ttl: int = 120,
-                 now: Callable[[], float] = time.time):
+                 now: Callable[[], float] = time.time, remembered: RememberedPairings | None = None):
         if not isinstance(code, str) or len(code) < 8 or len(code) > 128:
             raise ValueError("Pairing code must be 8-128 characters supplied by the installer")
         self._code = code
         self._used = False
+        self._remembered = remembered
         self._tokens: dict[str, Pairing] = {}
         self._lock = threading.RLock()
         self._token_ttl = token_ttl
@@ -260,10 +318,27 @@ class PairingStore:
                 raise SecurityError("PAIRING_DENIED")
             self._used = True
             self._code = ""  # never retained once redeemed
-            token = secrets.token_urlsafe(32)
-            pairing = Pairing(origin, self._now() + self._token_ttl)
-            self._tokens[token] = pairing
-            return token, pairing
+            return self._issue(origin)
+
+    def _issue(self, origin: str) -> tuple[str, Pairing]:
+        token = secrets.token_urlsafe(32)
+        pairing = Pairing(origin, self._now() + self._token_ttl)
+        self._tokens[token] = pairing
+        return token, pairing
+
+    def remember(self, origin: str) -> str | None:
+        """A long-lived browser secret for this origin, or None when not persisted."""
+        return self._remembered.remember(origin) if self._remembered is not None else None
+
+    def remembers(self, origin: str) -> bool:
+        return self._remembered is not None and self._remembered.has(origin)
+
+    def resume(self, secret: str, origin: str) -> tuple[str, Pairing]:
+        """Reconnect a browser that paired before, without a new code."""
+        with self._lock:
+            if self._remembered is None or not self._remembered.known(secret, origin):
+                raise SecurityError("PAIRING_DENIED")
+            return self._issue(origin)
 
     def authenticate(self, token: str, origin: str) -> Pairing:
         with self._lock:

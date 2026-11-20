@@ -324,8 +324,8 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
     } finally { stream?.getTracks().forEach((track) => track.stop()); }
   }
 
-  async function pairMachine() {
-    const code = pairCode.trim();
+  async function pairMachine(fromLink?: string) {
+    const code = (fromLink ?? pairCode).trim();
     if (!code || action) return;
     setAction("pair"); setError(null);
     try {
@@ -386,6 +386,30 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
     } catch { if (mountedRef.current) setError("ยังอนุญาตเครื่องนี้ไม่ได้ กรุณาตรวจสอบสิทธิ์การใช้งานหรือลองอีกครั้ง"); }
     finally { if (mountedRef.current) setAction(null); }
   }
+
+  // The companion opens this page with its one-time code in the URL fragment
+  // (the fragment never reaches a server), so nobody types a code.
+  const linkPairingRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (linkPairingRef.current === undefined) {
+      const match = /^#pair=([A-Za-z0-9-]{6,64})$/.exec(window.location.hash);
+      linkPairingRef.current = match ? match[1] : null;
+      if (match) window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
+    const code = linkPairingRef.current;
+    if (!code || action || machine === null || machine.paired) return;
+    linkPairingRef.current = null;
+    void pairMachine(code);
+  });
+  // A paired machine on a supported membership is registered without an extra click.
+  const automaticRegistrationRef = useRef(false);
+  useEffect(() => {
+    if (automaticRegistrationRef.current || action || !machine?.paired || machine.deviceAuthorized
+      || machine.membershipStatus !== "SUPPORTED" || machine.deviceStatus !== "UNREGISTERED"
+      || ["REQUIRED", "UPDATING"].includes(machine.updateStatus)) return;
+    automaticRegistrationRef.current = true;
+    void registerMachine();
+  });
 
   async function configureLive() {
     if (action || !clientRef.current || !machine?.paired || !machine.deviceAuthorized
@@ -626,7 +650,7 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
               <input type="text" autoComplete="one-time-code" value={pairCode} disabled={!!action} onChange={(event) => setPairCode(event.target.value)} placeholder="กรอกรหัสที่แสดงในส่วนเสริม" />
             </label>
             <button type="button" className="ai-live-secondary" disabled={!pairCode.trim() || !!action} onClick={() => void pairMachine()}>{action === "pair" ? "กำลังเชื่อมต่อ..." : "เชื่อมต่อเครื่อง"}</button>
-            <p className="ai-live-context-note">เปิดส่วนเสริม ViralFlow บนเครื่องนี้เพื่อดูรหัส แล้วเชื่อมต่อก่อนตรวจสอบเครื่อง ไม่ต้องเปิดหน้าคำสั่ง</p>
+            <p className="ai-live-context-note">เปิดโปรแกรม ViralFlow AI LIVE บนเครื่องนี้ แล้วกด “เปิดหน้า AI LIVE Lite” ระบบจะเชื่อมให้เองโดยไม่ต้องกรอกรหัส เชื่อมครั้งเดียว ครั้งต่อไปจะต่อให้อัตโนมัติ</p>
           </div>}
           {machine?.paired && <div className="ai-live-authorization-actions">
             {!machine.deviceAuthorized && <button type="button" className="ai-live-secondary" disabled={!!action || machine.membershipStatus !== "SUPPORTED" || ["REQUIRED", "UPDATING"].includes(machine.updateStatus)} onClick={() => void registerMachine()}>{action === "register" ? "กำลังลงทะเบียน..." : "ลงทะเบียนเครื่อง"}</button>}

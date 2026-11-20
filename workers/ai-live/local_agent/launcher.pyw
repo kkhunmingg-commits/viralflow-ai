@@ -34,6 +34,8 @@ from local_agent.stream_credentials import StreamCredentialStore  # noqa: E402
 from local_agent.components import BootstrapManager  # noqa: E402
 from local_agent.managed_runtime import ManagedRuntimeWorker  # noqa: E402
 
+WEB_ORIGIN = "https://viralflow-ai-blond.vercel.app"
+
 
 def packaged_config() -> dict[str, object]:
     """Fixed trusted package location, never a path accepted from a web command."""
@@ -105,6 +107,7 @@ def main() -> None:
             trusted_keys={key: value.encode("ascii") for key, value in keyring.items()},
             retired_key_ids=frozenset(retired),
             hardware_tiers=HardwareTiers(minimum_driver_version=minimum_driver),
+            remembered_pairings=managed_root / "pairings.json",
         )
         # The bundled executable directory is trusted package content. This PATH
         # edit is process-local, does not install or modify the user's runtime.
@@ -202,19 +205,17 @@ def main() -> None:
                               kwargs={"poll_interval": 0.2}, daemon=True)
     thread.start()
     tk.Label(root, text="ยินดีต้อนรับสู่ ViralFlow AI", font=("Segoe UI", 15, "bold")).pack(pady=(16, 8))
-    tk.Button(root, text="เข้าสู่ระบบ", command=lambda: webbrowser.open("https://viralflow-ai-blond.vercel.app/ai-live"), width=28).pack()
-    tk.Label(root, text="เชื่อมเครื่องกับบัญชีของคุณ", font=("Segoe UI", 11)).pack(pady=(12, 6))
-    code = tk.StringVar(value=config.pairing_code)
-    tk.Entry(root, textvariable=code, justify="center", state="readonly",
-             font=("Consolas", 14), width=28).pack()
-    tk.Label(root, text="กรอกรหัสนี้ในหน้า AI LIVE ของ ViralFlow",
-             font=("Segoe UI", 10)).pack(pady=(8, 10))
+    # The logged-in web page pairs itself from the one-time code in the URL
+    # fragment (never sent to any server); afterwards that browser reconnects
+    # on its own, so nobody types a code.
+    def open_web() -> None:
+        webbrowser.open(WEB_ORIGIN + "/ai-live/lite#pair=" + config.pairing_code)
 
-    def copy_code() -> None:
-        root.clipboard_clear()
-        root.clipboard_append(config.pairing_code)
-
-    tk.Button(root, text="คัดลอกรหัส", command=copy_code).pack()
+    tk.Button(root, text="เปิดหน้า AI LIVE Lite", command=open_web, width=28).pack()
+    tk.Label(root, text="เชื่อมกับบัญชีที่ล็อกอินอยู่ให้อัตโนมัติ ไม่ต้องกรอกรหัส",
+             font=("Segoe UI", 10)).pack(pady=(8, 6))
+    if not agent.remembers(WEB_ORIGIN):
+        root.after(800, open_web)
     feedback = tk.StringVar(value="เข้าสู่ระบบเพื่อเริ่มตรวจและเตรียมเครื่องอัตโนมัติ")
     tk.Label(root, textvariable=feedback, wraplength=405, font=("Segoe UI", 10)).pack(pady=(14, 6))
     progress = ttk.Progressbar(root, mode="determinate", maximum=100, length=350)

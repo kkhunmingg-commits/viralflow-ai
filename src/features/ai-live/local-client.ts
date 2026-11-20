@@ -146,7 +146,21 @@ function presenterCard(value: unknown): LocalPresenterCard {
     consentConfirmed: card.consentConfirmed, updatedAt: card.updatedAt };
 }
 
-/** Browser → loopback only. Auth and license leases never enter persistent browser storage. */
+const REMEMBER_KEY = "vf.liveAgent.remember";
+
+function rememberedPairing(): string | null {
+  try { const value = globalThis.localStorage?.getItem(REMEMBER_KEY) ?? null; return value && /^[A-Za-z0-9_-]{32,128}$/.test(value) ? value : null; }
+  catch { return null; }
+}
+
+function storeRememberedPairing(value: string | null): void {
+  try { if (value) globalThis.localStorage?.setItem(REMEMBER_KEY, value); else globalThis.localStorage?.removeItem(REMEMBER_KEY); }
+  catch { /* private mode: the companion opens the page with a fresh code instead */ }
+}
+
+/** Browser → loopback only. Bearer tokens and license leases stay in memory; the
+ * only persisted value is the companion's origin-bound reconnect secret, so a
+ * browser that paired once reconnects after a restart without a typed code. */
 export class LocalLiveClient {
   private token: string | null = null;
   private tokenExpiresAt = 0;
@@ -166,7 +180,7 @@ export class LocalLiveClient {
     ...(this.current.components ? { components: { ...this.current.components } } : {}) }; }
 
   private async request(path: string, options: RequestInit = {}, signal?: AbortSignal, authenticated = true): Promise<Json> {
-    if (!/^\/v1\/(discovery|pair|renew|status|rooms|hardware|challenge|references|presenters|presenters\/[0-9a-f-]{36}\/delete|lite\/presenters|lite\/presenters\/(builds|from-photo)|lite\/backdrops|ai\/(warmup|product-context)|stream\/setup|components\/(prepare|status)|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/(stop|pause|resume|comment|speech|ai-status))$/.test(path)) {
+    if (!/^\/v1\/(discovery|pair|resume|renew|status|rooms|hardware|challenge|references|presenters|presenters\/[0-9a-f-]{36}\/delete|lite\/presenters|lite\/presenters\/(builds|from-photo)|lite\/backdrops|ai\/(warmup|product-context)|stream\/setup|components\/(prepare|status)|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/(stop|pause|resume|comment|speech|ai-status))$/.test(path)) {
       throw new Error("ไม่สามารถทำรายการนี้ได้");
     }
     if (authenticated && (!this.token || this.tokenExpiresAt <= this.now() / 1000)) {
@@ -242,6 +256,25 @@ export class LocalLiveClient {
     this.token = data.token;
     this.tokenExpiresAt = data.expiresAt;
     this.deviceId = data.deviceId;
+    if (typeof data.remember === "string" && /^[A-Za-z0-9_-]{32,128}$/.test(data.remember)) storeRememberedPairing(data.remember);
+  }
+
+  /** Reconnect silently with the secret the companion gave this browser when it first paired. */
+  private async resumePairing(signal?: AbortSignal): Promise<boolean> {
+    const remember = rememberedPairing();
+    if (!remember) return false;
+    try {
+      this.acceptPairing(await this.request("/v1/resume", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ remember }),
+      }, signal, false));
+      return true;
+    } catch {
+      if (!signal?.aborted) {
+        // Only forget the secret when the companion answered and refused it.
+        try { await this.request("/v1/discovery", {}, signal, false); storeRememberedPairing(null); } catch { /* companion closed */ }
+      }
+      return false;
+    }
   }
 
   private acceptStatus(result: Json, paired: boolean): void {
@@ -286,6 +319,7 @@ export class LocalLiveClient {
 
   async discover(signal?: AbortSignal): Promise<LocalMachineView> {
     try {
+      if (!(this.token && this.tokenExpiresAt > this.now() / 1000) && rememberedPairing()) await this.resumePairing(signal);
       const paired = !!this.token && this.tokenExpiresAt > this.now() / 1000;
       const result = await this.request(paired ? "/v1/status" : "/v1/discovery", {}, signal, paired);
       this.acceptStatus(result, paired);
