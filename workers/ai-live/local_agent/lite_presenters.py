@@ -43,10 +43,16 @@ class LitePresenterChoice:
     voice: str
 
 
+# Used when the variable is not set: <drive of this install>\ViralFlowAI\ai-live-lite-packs, if it exists.
+DEFAULT_PACKS_DIR = ("ViralFlowAI", "ai-live-lite-packs")
+
+
 def packs_root() -> Path | None:
     value = os.getenv(PACKS_ROOT_ENV, "").strip()
     if not value:
-        return None
+        anchor = Path(__file__).resolve().anchor
+        default = Path(anchor, *DEFAULT_PACKS_DIR) if anchor else None
+        return default if default is not None and default.is_dir() and not default.is_symlink() else None
     root = Path(value)
     if not root.is_absolute() or root.is_symlink() or not root.is_dir():
         return None
