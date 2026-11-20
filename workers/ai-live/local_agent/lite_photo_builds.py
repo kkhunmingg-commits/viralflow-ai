@@ -33,7 +33,8 @@ BACKDROPS_DIR = "backdrops"
 BACKDROP_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 MAX_BACKDROP_BYTES = 8 * 1024 * 1024
 # Names for the backdrops shipped with the device; others can be named in backdrops/names.json.
-BACKDROP_NAMES = {"warehouse": "โกดัง", "shop": "ร้านค้า", "shelf": "ชั้นวางของ"}
+BACKDROP_NAMES = {"warehouse": "โกดัง", "shop": "ร้านค้า", "shelf": "ชั้นวางของ", "general": "ชั้นวางของทั่วไป",
+                  "beauty": "ชั้นวางเครื่องสำอาง"}
 WORK_DIR = ".photo-builds"
 BUILDER = Path(__file__).resolve().parents[1] / "lite_photo_presenter.py"
 MAX_BUILDS_KEPT = 10
