@@ -22,6 +22,37 @@ const liteFolder = /^[A-Za-z0-9_-][A-Za-z0-9._-]{0,63}$/;
 export interface LitePresenterChoice { folder: string; voice: LiteVoiceId }
 export interface LitePresenterPack {
   folder: string; name: string; technicalTestOnly: boolean; defaultVoice: LiteVoiceId | null; frames: number;
+  /** Built on this device from the owner's own consented photo (listed only for that owner). */
+  ownPhoto: boolean;
+}
+/** A LIVE Lite presenter being built on the device from the owner's own photo. */
+export interface LitePhotoBuild {
+  buildId: string; name: string; folder: string; state: "RUNNING" | "READY" | "FAILED";
+  progress: number | null; message: string | null;
+}
+/** A selling backdrop (warehouse, shop, shelf) the presenter's cut-out can be placed on. */
+export interface LiteBackdrop { id: string; name: string }
+const liteBackdropId = /^[a-z0-9][a-z0-9-]{0,39}$/;
+/** Reasons the device can refuse a photo build; the text is ours, only the code comes from the device. */
+const LITE_PHOTO_BUILD_ERRORS: Record<string, string> = {
+  PRESENTER_NOT_FOUND: "ไม่พบรูปคน LIVE ที่ยืนยันสิทธิ์ใช้ภาพแล้ว",
+  LITE_VOICE_INVALID: "เสียงที่เลือกไม่ถูกต้อง",
+  LITE_PHOTO_INVALID: "กรุณาเลือกรูปคน LIVE ที่มีรูปและยืนยันสิทธิ์ใช้ภาพแล้ว",
+  LITE_PACKS_ROOT_MISSING: "เครื่องนี้ยังไม่ได้ตั้งค่าโฟลเดอร์พิธีกร LIVE Lite",
+  LITE_CALIBRATION_AUDIO_MISSING: "เครื่องนี้ยังไม่มีไฟล์เสียงสำหรับสร้างภาพปาก (calibration.wav) ดูคู่มือ docs/AI_LIVE_LITE_AUTO.md",
+  LITE_PHOTO_BUILD_BUSY: "กำลังสร้างพิธีกรจากรูปอยู่ รอให้เสร็จก่อน",
+  LITE_BACKDROP_NOT_FOUND: "ไม่พบฉากหลังที่เลือก",
+  LITE_MATTE_MODEL_MISSING: "เครื่องนี้ยังไม่มีตัวแยกคนออกจากฉาก ดูคู่มือ docs/AI_LIVE_LITE_AUTO.md",
+  SESSION_ACTIVE: "กรุณาหยุด LIVE ก่อนสร้างพิธีกรจากรูป",
+};
+function litePhotoBuild(value: unknown): LitePhotoBuild[] {
+  if (!value || typeof value !== "object") return [];
+  const item = value as Record<string, unknown>;
+  if (typeof item.buildId !== "string" || !uuid.test(item.buildId) || typeof item.folder !== "string" || !liteFolder.test(item.folder)
+    || typeof item.name !== "string" || item.name.length > 80 || !["RUNNING", "READY", "FAILED"].includes(String(item.state))) return [];
+  const progress = typeof item.progress === "number" && item.progress >= 0 && item.progress <= 1 ? item.progress : null;
+  const message = typeof item.message === "string" && item.message.length <= 200 ? item.message : null;
+  return [{ buildId: item.buildId, name: item.name, folder: item.folder, state: item.state as LitePhotoBuild["state"], progress, message }];
 }
 export interface LitePresenterCatalog {
   presenters: LitePresenterPack[];
@@ -43,7 +74,8 @@ function litePresenterCatalog(data: Json): LitePresenterCatalog {
     if (typeof pack.folder !== "string" || !liteFolder.test(pack.folder)) return [];
     const name = typeof pack.name === "string" && pack.name.trim() && pack.name.length <= 40 ? pack.name : pack.folder;
     return [{ folder: pack.folder, name, technicalTestOnly: pack.technicalTestOnly !== false,
-      defaultVoice: isLiteVoice(pack.defaultVoice) ? pack.defaultVoice : null, frames: count(pack.frames) ?? 0 }];
+      defaultVoice: isLiteVoice(pack.defaultVoice) ? pack.defaultVoice : null, frames: count(pack.frames) ?? 0,
+      ownPhoto: pack.ownPhoto === true }];
   });
   const voices = data.voices.flatMap((item: unknown) => {
     const voice = item && typeof item === "object" ? item as Record<string, unknown> : {};
@@ -134,7 +166,7 @@ export class LocalLiveClient {
     ...(this.current.components ? { components: { ...this.current.components } } : {}) }; }
 
   private async request(path: string, options: RequestInit = {}, signal?: AbortSignal, authenticated = true): Promise<Json> {
-    if (!/^\/v1\/(discovery|pair|renew|status|rooms|hardware|challenge|references|presenters|presenters\/[0-9a-f-]{36}\/delete|lite\/presenters|ai\/(warmup|product-context)|stream\/setup|components\/(prepare|status)|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/(stop|pause|resume|comment|speech|ai-status))$/.test(path)) {
+    if (!/^\/v1\/(discovery|pair|renew|status|rooms|hardware|challenge|references|presenters|presenters\/[0-9a-f-]{36}\/delete|lite\/presenters|lite\/presenters\/(builds|from-photo)|lite\/backdrops|ai\/(warmup|product-context)|stream\/setup|components\/(prepare|status)|updates\/(check|apply|repair)|device\/(proof|certificate|revoke)|sessions\/start|sessions\/[0-9a-f-]{36}\/(stop|pause|resume|comment|speech|ai-status))$/.test(path)) {
       throw new Error("ไม่สามารถทำรายการนี้ได้");
     }
     if (authenticated && (!this.token || this.tokenExpiresAt <= this.now() / 1000)) {
@@ -155,7 +187,14 @@ export class LocalLiveClient {
         credentials: "omit", cache: "no-store", redirect: "error", referrerPolicy: "no-referrer",
         signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal,
       });
-      if (!response.ok) throw new Error("ไม่สามารถเชื่อมส่วนเสริมได้ กรุณาตรวจสอบแล้วลองอีกครั้ง");
+      if (!response.ok) {
+        if (path === "/v1/lite/presenters/from-photo") {
+          const code = await response.json().then((body: unknown) => (body as Record<string, unknown> | null)?.code).catch(() => null);
+          const known = typeof code === "string" && Object.hasOwn(LITE_PHOTO_BUILD_ERRORS, code) ? LITE_PHOTO_BUILD_ERRORS[code] : null;
+          if (known) throw new Error(known);
+        }
+        throw new Error("ไม่สามารถเชื่อมส่วนเสริมได้ กรุณาตรวจสอบแล้วลองอีกครั้ง");
+      }
       let text: string;
       if (path === "/v1/presenters" || path === "/v1/rooms") {
         // Twenty presenter packs with fifty account assignments exceed the normal small status response.
@@ -580,6 +619,47 @@ export class LocalLiveClient {
   async litePresenters(signal?: AbortSignal): Promise<LitePresenterCatalog> {
     if (!this.current.paired || !this.current.deviceAuthorized) throw new Error("กรุณาอนุญาตเครื่องนี้ก่อน");
     return litePresenterCatalog(await this.request("/v1/lite/presenters", {}, signal));
+  }
+
+  /** Owner's own-photo presenter builds on this device (newest first). */
+  async litePhotoBuilds(signal?: AbortSignal): Promise<LitePhotoBuild[]> {
+    if (!this.current.paired || !this.current.deviceAuthorized) throw new Error("กรุณาอนุญาตเครื่องนี้ก่อน");
+    const result = await this.request("/v1/lite/presenters/builds", {}, signal);
+    if (!Array.isArray(result.builds) || result.builds.length > 10) throw new Error("ข้อมูลการสร้างพิธีกรไม่ถูกต้อง");
+    return result.builds.flatMap(litePhotoBuild);
+  }
+
+  /** Build a LIVE Lite presenter on the device from a saved, consented presenter photo (10-20 minutes on CPU). */
+  async buildLitePresenterFromPhoto(presenterId: string, voice: LiteVoiceId, backdrop: string | null = null,
+    signal?: AbortSignal): Promise<LitePhotoBuild> {
+    if (!uuid.test(presenterId) || !isLiteVoice(voice) || (backdrop !== null && !liteBackdropId.test(backdrop))) {
+      throw new Error("กรุณาเลือกรูป เสียง และฉาก");
+    }
+    if (!this.current.paired || !this.current.deviceAuthorized) throw new Error("กรุณาอนุญาตเครื่องนี้ก่อน");
+    if (this.current.sessionActive) throw new Error("กรุณาหยุด LIVE ก่อนสร้างพิธีกรจากรูป");
+    const result = await this.request("/v1/lite/presenters/from-photo", { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(backdrop ? { presenterId, voice, backdrop } : { presenterId, voice }) }, signal);
+    const [build] = litePhotoBuild(result.build);
+    if (!build) throw new Error("ข้อมูลการสร้างพิธีกรไม่ถูกต้อง");
+    return build;
+  }
+
+  /** Backdrops installed on the device, and whether the person cut-out model is installed. */
+  async liteBackdrops(signal?: AbortSignal): Promise<{ backdrops: LiteBackdrop[]; matteReady: boolean }> {
+    if (!this.current.paired || !this.current.deviceAuthorized) throw new Error("กรุณาอนุญาตเครื่องนี้ก่อน");
+    const result = await this.request("/v1/lite/backdrops", {}, signal);
+    if (!Array.isArray(result.backdrops) || result.backdrops.length > 12) throw new Error("ข้อมูลฉากหลังไม่ถูกต้อง");
+    const backdrops = result.backdrops.flatMap((value: unknown) => {
+      const item = value as Record<string, unknown> | null;
+      return item && typeof item.id === "string" && liteBackdropId.test(item.id) && typeof item.name === "string"
+        && item.name.length > 0 && item.name.length <= 30 ? [{ id: item.id, name: item.name }] : [];
+    });
+    return { backdrops, matteReady: result.matteReady === true };
+  }
+
+  async liteBackdropThumbnail(id: string, signal?: AbortSignal): Promise<File> {
+    if (!liteBackdropId.test(id) || !this.token || this.tokenExpiresAt <= this.now() / 1000) throw new Error("กรุณาเชื่อมส่วนเสริมอีกครั้ง");
+    return this.localImage(`/v1/lite/backdrops/${id}/thumbnail`, ["image/jpeg"], signal);
   }
 
   async litePresenterThumbnail(folder: string, signal?: AbortSignal): Promise<File> {

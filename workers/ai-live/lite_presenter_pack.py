@@ -77,6 +77,12 @@ class PresenterPack:
     provenance: dict | None = None
     display_name: str | None = None
     default_voice: str | None = None
+    # Optional layers of a person cut out onto a backdrop: the engine moves only the
+    # person (reference x matte) and keeps the backdrop still.
+    backdrop_file: str | None = None
+    backdrop_sha256: str | None = None
+    matte_file: str | None = None
+    matte_sha256: str | None = None
 
     @property
     def reference_path(self) -> Path:
@@ -100,6 +106,9 @@ class PresenterPack:
             "provenance": self.provenance,
             "display_name": self.display_name,
             "default_voice": self.default_voice,
+            **({"layers": {"backdrop": {"file": self.backdrop_file, "sha256": self.backdrop_sha256},
+                           "matte": {"file": self.matte_file, "sha256": self.matte_sha256}}}
+               if self.backdrop_file and self.matte_file else {}),
         }
 
 
@@ -193,12 +202,20 @@ def load_pack(root: Path) -> PresenterPack:
             or (default_voice is not None and (not isinstance(default_voice, str) or not default_voice.startswith("th-TH-")
                                                or len(default_voice) > 60))):
         raise PresenterPackError("LITE_PACK_MANIFEST_INVALID")
+    layers = data.get("layers")
+    backdrop = matte = (None, None)
+    if layers is not None:
+        if not isinstance(layers, dict) or not isinstance(layers.get("backdrop"), dict) or not isinstance(layers.get("matte"), dict):
+            raise PresenterPackError("LITE_PACK_MANIFEST_INVALID")
+        backdrop = (_verified(root, layers["backdrop"].get("file"), layers["backdrop"].get("sha256")), layers["backdrop"]["sha256"])
+        matte = (_verified(root, layers["matte"].get("file"), layers["matte"].get("sha256")), layers["matte"]["sha256"])
     return PresenterPack(root, pack_id, source, technical,
                          _verified(root, reference.get("file"), reference.get("sha256")), reference["sha256"],
                          tuple(box), _verified(root, mask.get("file"), mask.get("sha256")), mask["sha256"],
                          (width, height), tuple(frames), profile, disclosure,
                          consent if isinstance(consent, dict) else None,
-                         provenance if isinstance(provenance, dict) else None, display_name, default_voice)
+                         provenance if isinstance(provenance, dict) else None, display_name, default_voice,
+                         backdrop[0], backdrop[1], matte[0], matte[1])
 
 
 def write_manifest(pack: PresenterPack) -> Path:
@@ -249,5 +266,7 @@ def list_packs(root: Path) -> list[dict]:
             continue
         found.append({"packId": pack.pack_id, "folder": child.name, "name": pack.display_name or child.name,
                       "source": pack.source, "technicalTestOnly": pack.technical_test_only,
-                      "defaultVoice": pack.default_voice, "frames": len(pack.frames)})
+                      "defaultVoice": pack.default_voice, "frames": len(pack.frames),
+                      # Packs made from an owner's own photo belong to that owner only (hashed owner id).
+                      "ownerRef": (pack.consent or {}).get("owner_ref") if isinstance((pack.consent or {}).get("owner_ref"), str) else None})
     return found

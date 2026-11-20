@@ -19,6 +19,7 @@ BODY_DEADLINE_SECONDS = 10
 SESSION_ROUTE = re.compile(r"^/v1/sessions/([0-9a-fA-F-]{36})/(pause|resume|stop|recover)$")
 FRAME_ROUTE = re.compile(r"^/v1/sessions/([0-9a-fA-F-]{36})/frame$")
 PRESENTER_ROUTE = re.compile(r"^/v1/presenters/([0-9a-f-]{36})/(reference|delete)$")
+LITE_BACKDROP_ROUTE = re.compile(r"^/v1/lite/backdrops/([a-z0-9][a-z0-9-]{0,39})/thumbnail$")
 LITE_THUMBNAIL_ROUTE = re.compile(r"^/v1/lite/presenters/([A-Za-z0-9_-][A-Za-z0-9._-]{0,63})/thumbnail$")
 START_FIELDS = frozenset({"grant", "accountId", "productIds", "presenterId", "microphoneId"})
 LITE_START_FIELDS = frozenset({"grant", "accountId", "productIds", "microphoneId", "liveMode", "litePresenter"})
@@ -235,6 +236,14 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json(200, agent.hardware(token, origin), origin)
             elif method == "GET" and self.path == "/v1/lite/presenters":
                 self._send_json(200, agent.lite_presenters(token, origin), origin)
+            elif method == "GET" and self.path == "/v1/lite/presenters/builds":
+                self._send_json(200, agent.lite_photo_builds(token, origin), origin)
+            elif method == "POST" and self.path == "/v1/lite/presenters/from-photo":
+                self._send_json(202, agent.lite_photo_build(token, origin, self._json_body()), origin)
+            elif method == "GET" and self.path == "/v1/lite/backdrops":
+                self._send_json(200, agent.lite_backdrops(token, origin), origin)
+            elif method == "GET" and (match := LITE_BACKDROP_ROUTE.fullmatch(self.path)):
+                self._send_jpeg(agent.lite_backdrop_thumbnail(token, origin, match.group(1)), origin)
             elif method == "GET" and (match := LITE_THUMBNAIL_ROUTE.fullmatch(self.path)):
                 self._send_jpeg(agent.lite_presenter_thumbnail(token, origin, match.group(1)), origin)
             elif method == "GET" and self.path == "/v1/components/status":

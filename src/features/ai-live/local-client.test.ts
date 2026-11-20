@@ -435,12 +435,64 @@ describe("LIVE Lite Auto AI presenter choice", () => {
     const result = await client.litePresenters();
     assertLoopbackCall(mock.mock.calls[3], "/v1/lite/presenters", true);
     expect(result.presenters).toEqual([
-      { folder: "nara", name: "นารา", technicalTestOnly: false, defaultVoice: "th-TH-PremwadeeNeural", frames: 120 },
-      { folder: "krit", name: "krit", technicalTestOnly: true, defaultVoice: null, frames: 0 }]);
+      { folder: "nara", name: "นารา", technicalTestOnly: false, defaultVoice: "th-TH-PremwadeeNeural", frames: 120, ownPhoto: false },
+      { folder: "krit", name: "krit", technicalTestOnly: true, defaultVoice: null, frames: 0, ownPhoto: false }]);
     expect(result.voices).toEqual([{ id: "th-TH-PremwadeeNeural", label: "เปรมวดี (หญิง)" }]);
     expect(result.speechKey).toEqual({ configured: true, region: "southeastasia" });
     expect(result.freeTier).toEqual({ monthlyCapCharacters: 450000, usedThisMonth: 1200 });
     expect(JSON.stringify(result)).not.toContain("should-never-be-kept");
+    client.dispose();
+  });
+
+  it("starts an own-photo presenter build by saved presenter id and reads build progress", async () => {
+    const presenterId = "6f1c2b9a-1d2e-4f3a-8b4c-5d6e7f8a9b0c";
+    const buildId = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+    const build = { buildId, name: "ลัคกี้", folder: "photo-0a1b2c3d", state: "RUNNING", progress: 0.25, startedAt: 1, code: null, message: null };
+    const { mock, fetcher } = responseSequence(...paired(), { build },
+      { builds: [{ ...build, state: "FAILED", progress: null, message: "รูปมีหลายคน ใช้รูปที่มีคนเดียว" }, { ...build, folder: "../x" }] });
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    await expect(client.buildLitePresenterFromPhoto("not-a-uuid", "th-TH-AcharaNeural")).rejects.toThrow();
+    await expect(client.buildLitePresenterFromPhoto(presenterId, "en-US-JennyNeural" as never)).rejects.toThrow();
+    expect(mock.mock.calls.length).toBe(3);
+    const started = await client.buildLitePresenterFromPhoto(presenterId, "th-TH-AcharaNeural");
+    assertLoopbackCall(mock.mock.calls[3], "/v1/lite/presenters/from-photo", true);
+    expect(JSON.parse(String((mock.mock.calls[3][1] as RequestInit).body))).toEqual({ presenterId, voice: "th-TH-AcharaNeural" });
+    expect(started).toEqual({ buildId, name: "ลัคกี้", folder: "photo-0a1b2c3d", state: "RUNNING", progress: 0.25, message: null });
+    const builds = await client.litePhotoBuilds();
+    assertLoopbackCall(mock.mock.calls[4], "/v1/lite/presenters/builds", true);
+    expect(builds).toEqual([{ buildId, name: "ลัคกี้", folder: "photo-0a1b2c3d", state: "FAILED", progress: null,
+      message: "รูปมีหลายคน ใช้รูปที่มีคนเดียว" }]);
+    client.dispose();
+  });
+
+  it("lists installed backdrops and sends the chosen one with the build", async () => {
+    const presenterId = "6f1c2b9a-1d2e-4f3a-8b4c-5d6e7f8a9b0c";
+    const buildId = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+    const { mock, fetcher } = responseSequence(...paired(),
+      { backdrops: [{ id: "warehouse", name: "โกดัง" }, { id: "../x", name: "bad" }, { id: "shop", name: "" }], matteReady: true },
+      { build: { buildId, name: "ลัคกี้", folder: "photo-0a1b2c3d", state: "RUNNING", progress: null } });
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    expect(await client.liteBackdrops()).toEqual({ backdrops: [{ id: "warehouse", name: "โกดัง" }], matteReady: true });
+    assertLoopbackCall(mock.mock.calls[3], "/v1/lite/backdrops", true);
+    await expect(client.buildLitePresenterFromPhoto(presenterId, "th-TH-AcharaNeural", "../x")).rejects.toThrow();
+    await client.buildLitePresenterFromPhoto(presenterId, "th-TH-AcharaNeural", "warehouse");
+    expect(JSON.parse(String((mock.mock.calls[4][1] as RequestInit).body))).toEqual({ presenterId, voice: "th-TH-AcharaNeural", backdrop: "warehouse" });
+    client.dispose();
+  });
+
+  it("shows our own reason when the device refuses a photo build", async () => {
+    const items: Response[] = [Response.json({ token, expiresAt: nowSeconds + 300, deviceId }), Response.json({ ...ready, deviceAuthorized: true }),
+      Response.json({ device: { authorized: true }, entitled: true }),
+      Response.json({ code: "LITE_CALIBRATION_AUDIO_MISSING", message: "<b>device text</b>" }, { status: 503 }),
+      Response.json({ code: "SOMETHING_ELSE", message: "device text" }, { status: 503 })];
+    const fetcher = vi.fn(async () => items.shift() ?? Response.json({ ...ready, deviceAuthorized: true }));
+    const client = new LocalLiveClient(fetcher as unknown as typeof fetch, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    const presenterId = "6f1c2b9a-1d2e-4f3a-8b4c-5d6e7f8a9b0c";
+    await expect(client.buildLitePresenterFromPhoto(presenterId, "th-TH-AcharaNeural")).rejects.toThrow(/calibration\.wav/);
+    await expect(client.buildLitePresenterFromPhoto(presenterId, "th-TH-AcharaNeural")).rejects.toThrow("ไม่สามารถเชื่อมส่วนเสริมได้");
     client.dispose();
   });
 

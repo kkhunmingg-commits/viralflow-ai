@@ -259,3 +259,11 @@
 @media (max-width: 720px) { .live-control-heading { flex-direction: column; align-items: flex-start; } .live-account-grid, .live-room-planning, .live-form-grid, .live-product-choice > div { grid-template-columns: minmax(0,1fr); } .live-room, .live-studio { padding: 19px; } .live-conversation-grid { grid-template-columns: minmax(0,1fr); } .live-account-card { padding: 20px; } .presenter-wizard-steps { grid-template-columns: repeat(3,minmax(0,1fr)); } .live-device-capacity { padding: 18px; } .ai-live-room-runtime .ai-live-stage { min-height: 300px; } }
 @media (max-width: 440px) { .live-overview { grid-template-columns: repeat(2,minmax(0,1fr)); padding: 20px; gap: 20px; } .live-overview strong { font-size: 14px; } .live-presenter-grid { grid-template-columns: minmax(0,1fr); } .live-readiness { padding: 16px; } .live-readiness ul { grid-template-columns: repeat(2,minmax(0,1fr)); } .live-account-header > .live-soft-badge { margin-left: 60px; } .live-room, .live-studio { padding: 15px; border-radius: 19px; } .live-studio-form { padding: 17px; } .live-card-actions button { flex: 1; } .live-quick-controls { padding: 17px; } .live-quick-controls .primary-action { min-width: 0; } }
 @media (prefers-reduced-motion: reduce) { .live-control-center * { scroll-behavior: auto !important; } }
+.live-lite-photo-open { justify-self: start; margin: 0 0 12px; }
+.live-lite-photo { display: grid; gap: 10px; margin: 0 0 17px; padding: 12px; border: 1px solid #3c4356; border-radius: 13px; min-width: 0; }
+.live-lite-photo > small { color: #aab3c5; line-height: 1.5; }
+.live-lite-photo .ai-live-field { margin: 0; }
+.live-lite-photo > button { justify-self: start; }
+.live-lite-photo-builds { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: #dae2ee; overflow-wrap: anywhere; }
+.live-lite-photo-builds li.failed { color: #ffb4b4; }
+.live-lite-photo-builds li.ready { color: #9fe3b8; }
