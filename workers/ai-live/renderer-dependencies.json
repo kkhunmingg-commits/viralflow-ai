@@ -1,0 +1,58 @@
+{
+  "format": "viralflow-avatar-renderer-candidates-v2",
+  "status": "GPU_VALIDATION_REQUIRED",
+  "automatic_download": false,
+  "installer_requirement": "Use existing signed managed component manifests with pinned archive hashes; this planning manifest is not an executable or trusted release manifest.",
+  "candidates": [
+    {
+      "id": "musetalk_gpu",
+      "source": "https://github.com/TMElyralab/MuseTalk",
+      "reference": "https://github.com/TMElyralab/MuseTalk/blob/main/inference.sh",
+      "upstream_version": "1.5",
+      "modules": ["torch", "diffusers", "transformers", "cv2", "numpy", "accelerate"],
+      "source_markers": ["scripts/realtime_inference.py", "musetalk/models/unet.py", "musetalk/models/vae.py"],
+      "model_markers": ["models/musetalkV15/musetalk.json", "models/musetalkV15/unet.pth"],
+      "backend_contract": "create_engine/prepare/render_pcm16_chunk/close; genuine incremental frames, not a completed file",
+      "minimum_vram_mb": null,
+      "release_pending": ["Pin source revision and all assets", "Validate local CUDA streaming bridge", "Measure actual GPU resources", "Review dependent model distribution licenses"]
+    },
+    {
+      "id": "faster_live_portrait",
+      "source": "https://github.com/warmshao/FasterLivePortrait",
+      "reference": "https://github.com/warmshao/FasterLivePortrait/blob/master/README.md",
+      "modules": ["torch", "tensorrt", "cv2", "numpy"],
+      "tensorrt_reference_range": ">=8,<9 (upstream reference; pin compatible tested runtime before release)",
+      "source_markers": ["src/pipelines/faster_live_portrait_pipeline.py", "configs/trt_infer.yaml"],
+      "model_markers": ["checkpoints"],
+      "candidate_motion": ["head_pose", "blink", "expression", "subtle_head_motion"],
+      "body_gestures_validated": false,
+      "minimum_vram_mb": null,
+      "release_pending": ["Pin converted models for the actual GPU", "Validate streaming registered-layer bridge", "Review all inherited model licenses"]
+    },
+    {
+      "id": "ditto",
+      "source": "https://github.com/antgroup/ditto-talkinghead",
+      "reference": "https://github.com/antgroup/ditto-talkinghead/blob/main/stream_pipeline_online.py",
+      "modules": ["torch", "tensorrt", "cv2", "numpy"],
+      "tensorrt_reference_version": "8.6.1",
+      "source_markers": ["stream_pipeline_online.py", "core/atomic_components/wav2feat.py"],
+      "model_markers": ["checkpoints/ditto_cfg/v0.4_hubert_cfg_trt_online.pkl", "checkpoints/ditto_trt_Ampere_Plus"],
+      "online_audio_requirement": "HuBERT streaming configuration; upstream StreamSDK writer must be adapted to a bounded frame sink rather than replaying an MP4",
+      "full_body_validated": false,
+      "minimum_vram_mb": null,
+      "release_pending": ["Replace upstream completed-file writer with incremental sink", "Validate bounded stop/resource cleanup", "Pin compatible engines or rebuild for actual GPU", "Review dependent model licenses"]
+    },
+    {
+      "id": "musetalk_portrait",
+      "components": ["musetalk_gpu", "faster_live_portrait"],
+      "minimum_vram_mb": null,
+      "release_pending": ["Validate dedicated MuseTalk plus FasterLivePortrait streaming bridge", "Validate lip/head layer registration", "Benchmark independently of the body-gesture Hybrid candidate"]
+    },
+    {
+      "id": "musetalk_hybrid",
+      "components": ["musetalk_gpu", "faster_live_portrait", "registered_gesture_source"],
+      "minimum_vram_mb": null,
+      "release_pending": ["Validate measured frame registration and occlusion detector", "Validate real gesture sources", "Validate measured lip/face/hand quality before stream"]
+    }
+  ]
+}

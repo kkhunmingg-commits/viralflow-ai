@@ -4,12 +4,12 @@ import { clipStudioTabs, isNavActive, navigation, navigationGroups, primaryNavig
 describe("application navigation", () => {
   it("shows the everyday owner workflow without exposing internal feature pages", () => {
     const routes = navigation.map((item) => item.href);
-    expect(routes).toEqual(["/auto", "/post", "/ai-live", "/accounts", "/analytics/finance", "/profile"]);
+    expect(routes).toEqual(["/auto", "/post", "/ai-live", "/ai-live/lite", "/accounts", "/analytics/finance", "/profile"]);
     expect(primaryNavigation).toBe(navigation);
   });
 
   it("groups daily work apart from accounts and income", () => {
-    expect(navigationGroups.map((group) => group.items.length)).toEqual([3, 3]);
+    expect(navigationGroups.map((group) => group.items.length)).toEqual([4, 3]);
   });
 
   it("keeps one clip entry; the AI girl and the clip library are tabs inside the page", () => {
@@ -18,5 +18,12 @@ describe("application navigation", () => {
     for (const path of ["/girl", "/post", "/drama", "/drama/abc"]) expect(isNavActive(path, clip)).toBe(true);
     expect(isNavActive("/postx", clip)).toBe(false);
     expect(isNavActive("/drama", navigation[0])).toBe(false);
+  });
+
+  it("highlights only AI LIVE Lite on its own page", () => {
+    const live = navigation.find((item) => item.href === "/ai-live")!;
+    const lite = navigation.find((item) => item.href === "/ai-live/lite")!;
+    expect([isNavActive("/ai-live", live), isNavActive("/ai-live", lite)]).toEqual([true, false]);
+    expect([isNavActive("/ai-live/lite", live), isNavActive("/ai-live/lite", lite)]).toEqual([false, true]);
   });
 });

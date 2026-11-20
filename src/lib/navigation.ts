@@ -17,6 +17,7 @@ export const navigationGroups: ReadonlyArray<{ label: string; items: readonly Na
       { href: "/auto", label: "หน้าหลัก", short: "⌂" },
       { href: "/post", label: "สร้างคลิป", short: "▶", also: [...clipStudioTabs.map(tab => tab.href), "/girl"] },
       { href: "/ai-live", label: "AI LIVE", short: "●" },
+      { href: "/ai-live/lite", label: "AI LIVE Lite", short: "◐" },
     ],
   },
   {
@@ -37,4 +38,6 @@ const onPage = (pathname: string, href: string) => pathname === href || pathname
 
 /** Whether a sidebar/tab-bar entry is the current page (its in-page tabs included). */
 export const isNavActive = (pathname: string, item: NavigationEntry) =>
-  [item.href, ...(item.also ?? [])].some(href => onPage(pathname, href));
+  [item.href, ...(item.also ?? [])].some(href => onPage(pathname, href))
+  // A nested entry (AI LIVE Lite under AI LIVE) owns its own pages.
+  && !navigation.some(other => other !== item && other.href.startsWith(item.href + "/") && onPage(pathname, other.href));

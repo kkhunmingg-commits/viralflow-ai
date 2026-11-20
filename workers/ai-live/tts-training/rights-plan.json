@@ -1,0 +1,55 @@
+{
+  "format": "viralflow-own-tts-training-plan-v1",
+  "status": "TRAINING_DATASET_GPU_AND_RUNTIME_AUDIT_PENDING",
+  "execute_automatically": false,
+  "architecture": "VoxCPM2 LoRA",
+  "official_training_entrypoint": "scripts/train_voxcpm_finetune.py",
+  "official_training_source": "https://github.com/OpenBMB/VoxCPM/blob/main/scripts/train_voxcpm_finetune.py",
+  "config": "voxcpm2-own-lora.yaml",
+  "base_model_id": "voxcpm2",
+  "base_model_version": "32279effe8c19989596f05d353d1447f51d9e915",
+  "base_weights_license": "Apache-2.0",
+  "architecture_code_license": "Apache-2.0",
+  "vocoder": {
+    "architecture": "AudioVAE V2, included in VoxCPM2",
+    "source": "https://github.com/OpenBMB/VoxCPM/tree/main/src/voxcpm/modules/audiovae",
+    "code_license": "Apache-2.0",
+    "weights_license": "Apache-2.0",
+    "artifact_relative_path": "models/voxcpm2/audiovae.pth",
+    "artifact_sha256": "94b5d51e107e0507d4acc976cfdadb64edd6fd06d1f751dadbf2fd1594274bf1",
+    "artifact_verified_from_actual_bytes": true,
+    "external_pretrained_vocoder": false
+  },
+  "data_requirements": {
+    "owner_signed_consent_document": true,
+    "speaker_identity_and_recording_provenance": true,
+    "commercial_synthesis_rights": true,
+    "explicit_training_rights": true,
+    "explicit_derived_weights_redistribution_rights": true,
+    "account_and_presenter_binding": true,
+    "revocation_and_expiry_checked_on_every_reference_read": true,
+    "encrypted_storage": "AES-256-GCM envelope key protected by current-user Windows DPAPI",
+    "loader_required": "in-memory decrypted audio tensors, no unencrypted reference export",
+    "upstream_plain_audio_path_loader_enabled": false,
+    "minimum_dataset_hours": null,
+    "data_quality": ["Thai commerce sentences", "prices and numbers", "units and percent", "mixed Thai/English", "speaker-disjoint validation", "noise and clipping review", "speaker approval"]
+  },
+  "training_constraints": {
+    "nc_pretrained_weights_allowed": false,
+    "ambiguous_base_model_lineage_allowed": false,
+    "reference_audio_in_logs_allowed": false,
+    "plain_audio_disk_export_allowed": false,
+    "gpu_training_profile": "DEDICATED_GPU_WORKSTATION_PENDING",
+    "dataset_available": false,
+    "training_performed": false
+  },
+  "dependency_audit": {
+    "complete": false,
+    "policy": "Pin exact wheels, inspect every imported transitive dependency and native codec license, hash actual artifacts, preserve LICENSE/NOTICE, and include in signed release. Unknown or NC rejects shipping.",
+    "source_manifest": "https://github.com/OpenBMB/VoxCPM/blob/main/pyproject.toml",
+    "required_license_paths": ["voxcpm-2.0.3.dist-info/licenses/LICENSE", "torch-*.dist-info/LICENSE", "torchaudio-*.dist-info/LICENSE", "transformers-*.dist-info/licenses/LICENSE", "librosa-*.dist-info/LICENSE.md", "einops-*.dist-info/licenses/LICENSE", "soundfile-*.dist-info/licenses/", "libsndfile license and bundled codec notices", "argbind license", "tensorboardX license", "datasets and pyarrow licenses", "all other imported dependency dist-info licenses"],
+    "optional_services_disabled": ["remote denoiser/ModelScope", "external text normalization", "Gradio/Spaces service", "Hugging Face runtime downloads"],
+    "installed_runtime_graph_is_release_approved": false
+  },
+  "release_gates": ["complete dependency license audit", "verified base and vocoder hashes", "reviewed training rights manifest", "encrypted in-memory dataset loader", "actual held-out Thai benchmark", "identified owner pronunciation/naturalness/voice-consistency scores", "streaming interruption soak under presenter/encoder load", "signed model artifacts and explicit production acceptance"]
+}

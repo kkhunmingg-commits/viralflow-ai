@@ -7,12 +7,15 @@ import os
 import threading
 import time
 import uuid
+import logging
 from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Callable
 
 from engine import FrameEngine
+from provider_config import dev_fallback_enabled
+from av_pipeline import AVSessionStream
 
 MAX_REFERENCE_BYTES = 4 * 1024 * 1024
 MAX_REFERENCE_STORAGE_BYTES = 64 * 1024 * 1024
@@ -92,12 +95,30 @@ class Session:
     listeners: list[queue.Queue[bytes | None]] = field(default_factory=list)
     stop_event: threading.Event = field(default_factory=threading.Event)
     lock: threading.Lock = field(default_factory=threading.Lock)
-    frame_times: deque[float] = field(default_factory=deque)
+    frame_times: deque[float] = field(default_factory=lambda: deque(maxlen=120))
     frames_generated: int = 0
     latency_ms: float | None = None
     last_audio_at: float | None = None
     stop_reason: str | None = None
     error: str | None = None
+    dev_fallback: bool = False
+    stream: AVSessionStream | None = None
+    stream_factory: Callable[[Path], AVSessionStream] | None = None
+    direct_audio: bool = False
+    inference_audio_drops: int = 0
+    output_path: Path | None = None
+    started_at: float | None = None
+    ended_at: float | None = None
+    latency_samples: deque[float] = field(default_factory=lambda: deque(maxlen=4096))
+    audio_queue_delay_ms: float | None = None
+    frame_drops: int = 0
+    audio_chunks: int = 0
+    inference_active: bool = False
+    inference_started_at: float | None = None
+    inference_delay_ms: float | None = None
+    latest_frame: bytes | None = None
+    thread: threading.Thread | None = None
+    process: object | None = None
 
     def metrics(self) -> dict[str, object]:
         with self.lock:
@@ -105,7 +126,7 @@ class Session:
             while self.frame_times and self.frame_times[0] < now - 2:
                 self.frame_times.popleft()
             fps = len(self.frame_times) / 2 if self.frame_times else 0.0
-            return {
+            result = {
                 "status": self.status,
                 "fps": round(fps, 1),
                 "target_fps": self.fps_target,
@@ -114,23 +135,61 @@ class Session:
                 "frames_generated": self.frames_generated,
                 "stop_reason": self.stop_reason,
                 "error": self.error,
+                "inference_audio_drops": self.inference_audio_drops,
             }
+            if self.stream is not None:
+                result["encoder"] = self.stream.metrics()
+            if self.dev_fallback:
+                samples = sorted(self.latency_samples)
+                duration = (self.ended_at or now) - (self.started_at or now)
+                cpu = ram = None
+                if self.process is not None:
+                    try:
+                        cpu = round(self.process.cpu_percent(), 1)
+                        ram = round(self.process.memory_info().rss / (1024 * 1024), 1)
+                    except Exception:
+                        pass
+                result.update({
+                    "dev_fallback": True, "backend": "MuseTalkCPUFloat32",
+                    "average_fps": round(self.frames_generated / duration, 3) if duration > 0 else 0,
+                    "p50_latency_ms": round(samples[int((len(samples) - 1) * .5)], 1) if samples else None,
+                    "p95_latency_ms": round(samples[int((len(samples) - 1) * .95)], 1) if samples else None,
+                    "cpu_percent": cpu, "ram_mb": ram, "frame_drops": self.frame_drops,
+                    "audio_queue_delay_ms": self.audio_queue_delay_ms,
+                    "audio_queue_depth": self.audio.qsize(), "audio_chunks": self.audio_chunks,
+                    "audio_receiving": self.audio_chunks > 0 and self.last_audio_at is not None and now - self.last_audio_at < 2,
+                    "inference_active": self.inference_active,
+                    "inference_delay_ms": self.inference_delay_ms,
+                    "preview_status": "GENERATED" if self.latest_frame else "WAITING_FOR_FRAMES",
+                    "resources_released": self.status in ("STOPPED", "FAILED") and (self.thread is None or not self.thread.is_alive()),
+                    "encoder": self.stream.metrics() if self.stream else None,
+                })
+            return result
 
-    def emit_frame(self, jpeg: bytes, received_at: float) -> None:
+    def emit_frame(self, jpeg: bytes, received_at: float, *, idle: bool = False) -> None:
         if not (jpeg.startswith(b"\xff\xd8") and jpeg.endswith(b"\xff\xd9")):
             raise ValueError("backend returned a non-JPEG frame")
         now = time.monotonic()
         with self.lock:
             self.frames_generated += 1
-            self.latency_ms = (now - received_at) * 1000
+            if not idle:
+                # Idle presenter frames have no speech input; keep latency speech-only.
+                self.latency_ms = (now - received_at) * 1000
+                self.latency_samples.append(self.latency_ms)
+            if self.inference_started_at is not None:
+                self.inference_delay_ms = round((now - self.inference_started_at) * 1000, 1)
+            self.latest_frame = jpeg
             self.frame_times.append(now)
             for listener in self.listeners:
                 if listener.full():
                     try:
                         listener.get_nowait()
+                        self.frame_drops += 1
                     except queue.Empty:
                         pass
                 listener.put_nowait(jpeg)
+        if self.stream is not None:
+            self.stream.push_frame(jpeg)
 
 
 class LiveStore:
@@ -144,6 +203,8 @@ class LiveStore:
         max_reference_bytes_per_owner: int = MAX_REFERENCE_BYTES_PER_OWNER,
         max_references_per_owner: int = MAX_REFERENCES_PER_OWNER,
         janitor_interval_seconds: float = 60.0,
+        stream_factory: Callable[[str, str, Path], AVSessionStream] | None = None,
+        direct_audio: bool | None = None,
     ):
         if min(audio_idle_timeout_seconds, reference_ttl_seconds, max_reference_storage_bytes,
                max_references, max_reference_bytes_per_owner,
@@ -156,6 +217,8 @@ class LiveStore:
         self.max_references = max_references
         self.max_reference_bytes_per_owner = max_reference_bytes_per_owner
         self.max_references_per_owner = max_references_per_owner
+        self.stream_factory = stream_factory
+        self.direct_audio = dev_fallback_enabled() if direct_audio is None else direct_audio
         self.data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
         if self.data_dir.is_symlink():
             raise ValueError("Reference directory must not be a symlink")
@@ -194,6 +257,8 @@ class LiveStore:
     def close(self) -> None:
         self.janitor_stop.set()
         self.janitor.join(timeout=1)
+        for session_id, session in list(self.sessions.items()):
+            self.stop_session(session.owner_id, session_id)
 
     def prune_references(self) -> None:
         with self.lock:
@@ -266,7 +331,7 @@ class LiveStore:
         reference = self.get_reference(owner_id, reference_id)
         with self.lock:
             busy = any(
-                session.status in ("STARTING", "RUNNING", "STOPPING")
+                session.status in ("STARTING", "RUNNING", "STOPPING") or (session.thread is not None and session.thread.is_alive())
                 for session in self.sessions.values()
             )
             if not busy:
@@ -275,32 +340,68 @@ class LiveStore:
                     owner_id, reference_id, engine, fps,
                     audio_idle_timeout_seconds=self.audio_idle_timeout_seconds,
                 )
+                session.dev_fallback = dev_fallback_enabled()
+                session.direct_audio = self.direct_audio
+                if session.dev_fallback or self.stream_factory is not None:
+                    output_dir = Path(os.getenv("AI_LIVE_DEV_OUTPUT_DIR", "").strip() or str(self.data_dir / "outputs"))
+                    session.output_path = output_dir / f"{session_id}.mp4"
+                    session.stream_factory = (lambda path: self.stream_factory(owner_id, session_id, path)) if self.stream_factory else AVSessionStream
+                # Retain a bounded number of completed records for diagnostics.
+                completed = [key for key, value in self.sessions.items() if value.status in ("STOPPED", "FAILED")]
+                for key in completed[:-19]:
+                    del self.sessions[key]
                 self.sessions[session_id] = session
         if busy:
             try:
                 engine.close()
             finally:
                 raise LiveError(409, "PRESENTER_BUSY", "The presenter worker is busy")
-        threading.Thread(
+        session.thread = threading.Thread(
             target=self._process_audio,
             args=(session, reference.path),
             name=f"presenter-{session_id}",
             daemon=True,
-        ).start()
+        )
+        session.thread.start()
         return session_id, session
 
     @staticmethod
     def _process_audio(session: Session, reference_path: Path) -> None:
         try:
             session.engine.prepare(reference_path, session.fps_target)
+            if session.dev_fallback and not session.stop_event.is_set():
+                try:
+                    import psutil
+                    session.process = psutil.Process()
+                    session.process.cpu_percent()
+                except ImportError:
+                    pass
+            if session.stream_factory and not session.stop_event.is_set():
+                assert session.output_path is not None
+                session.stream = session.stream_factory(session.output_path)
+                session.stream.presenter_timeout_seconds = 30.0 if session.dev_fallback else 5.0
+                session.stream.on_failure = lambda: (session.stop_event.set(), getattr(session.engine, "interrupt", lambda: None)())
+                session.stream.start()
             with session.lock:
                 if not session.stop_event.is_set():
                     session.status = "RUNNING"
                     session.last_audio_at = time.monotonic()
+                    session.started_at = session.last_audio_at
+            # Optional engine hooks (LIVE Lite): engines without them behave exactly as before.
+            render_idle = getattr(session.engine, "render_idle", None)
+            audio_received = getattr(session.engine, "audio_received", None)
             while not session.stop_event.is_set():
+                if session.stream and session.stream.metrics()["status"] == "FAILED":
+                    raise RuntimeError("ENCODER_FAILED")
                 try:
-                    item = session.audio.get(timeout=0.25)
+                    item = session.audio.get(timeout=0.02 if callable(render_idle) else 0.25)
                 except queue.Empty:
+                    if callable(render_idle):
+                        # Keep the presenter alive between utterances in short, interruptible bursts.
+                        for jpeg in render_idle(0.12):
+                            if session.stop_event.is_set() or not session.audio.empty():
+                                break
+                            session.emit_frame(jpeg, time.monotonic(), idle=True)
                     with session.lock:
                         if (
                             session.status == "RUNNING"
@@ -315,13 +416,32 @@ class LiveStore:
                 if item is None:
                     break
                 pcm, received_at = item
+                with session.lock:
+                    session.audio_queue_delay_ms = round((time.monotonic() - received_at) * 1000, 1)
+                    session.inference_active = True
+                    session.inference_started_at = time.monotonic()
+                activity = getattr(session.stream, "presenter_activity", None)
+                generation = getattr(session.stream, "speech_generation", None)
+                accepts_generation = getattr(session.stream, "accepts_speech_generation", None)
+                if callable(activity):
+                    activity(True)
+                if callable(audio_received):
+                    audio_received(received_at)
                 # The engine must yield frames during inference, not after a
                 # complete video has been rendered to disk.
                 for jpeg in session.engine.render_pcm16_chunk(pcm):
                     if session.stop_event.is_set():
                         break
+                    if callable(accepts_generation) and not accepts_generation(generation):
+                        break
                     session.emit_frame(jpeg, received_at)
+                with session.lock:
+                    session.inference_active = False
+                if callable(activity):
+                    activity(False)
         except Exception:
+            if session.dev_fallback:
+                logging.getLogger(__name__).exception("Development presenter inference failed")
             # Do not leak model paths or driver internals through the API.
             with session.lock:
                 session.status = "FAILED"
@@ -331,7 +451,19 @@ class LiveStore:
                 session.engine.close()
             except Exception:
                 pass
+            if session.stream is not None:
+                session.stream.close()
+                if session.stream.metrics()["status"] == "FAILED":
+                    session.status = "FAILED"
+                    session.error = "LIVE_PIPELINE_FAILED"
             with session.lock:
+                session.inference_active = False
+                session.ended_at = time.monotonic()
+                while not session.audio.empty():
+                    try:
+                        session.audio.get_nowait()
+                    except queue.Empty:
+                        break
                 if session.status != "FAILED":
                     session.status = "STOPPED"
                 for listener in session.listeners:
@@ -358,8 +490,18 @@ class LiveStore:
                 raise LiveError(409, "PRESENTER_NOT_RUNNING", "Presenter is not running")
             try:
                 received_at = time.monotonic()
+                if session.stream and session.direct_audio:
+                    if not session.stream.push_audio(pcm):
+                        raise LiveError(429, "AUDIO_BACKPRESSURE", "Live audio buffer is full")
+                    if session.audio.full():
+                        # Audio playback is already clocked independently. Slow
+                        # CPU inference uses recent speech instead of growing
+                        # an unbounded lip-sync backlog. Count this explicitly.
+                        session.audio.get_nowait()
+                        session.inference_audio_drops += 1
                 session.audio.put_nowait((pcm, received_at))
                 session.last_audio_at = received_at
+                session.audio_chunks += 1
             except queue.Full as exc:
                 raise LiveError(429, "AUDIO_BACKPRESSURE", "Presenter audio queue is full") from exc
         return session.audio.qsize()
@@ -368,14 +510,25 @@ class LiveStore:
         session = self.get_session(owner_id, session_id)
         with session.lock:
             if session.status in ("STOPPED", "FAILED"):
-                return session.status
-            session.status = "STOPPING"
+                terminal = True
+            else:
+                terminal = False
+                session.status = "STOPPING"
             session.stop_event.set()
+        if terminal:
+            if session.thread is not None:
+                session.thread.join(timeout=2)
+            return session.status
         try:
             session.audio.put_nowait(None)
         except queue.Full:
             pass
-        return "STOPPING"
+        interrupt = getattr(session.engine, "interrupt", None)
+        if callable(interrupt):
+            interrupt()
+        if session.thread is not None:
+            session.thread.join(timeout=2)
+        return session.status
 
     def frames(self, owner_id: str, session_id: str) -> Iterator[bytes]:
         session = self.get_session(owner_id, session_id)
