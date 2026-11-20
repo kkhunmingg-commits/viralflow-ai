@@ -9,7 +9,7 @@ import type { PraewCommand, PraewDesired, PraewReport } from "@/features/praew-l
 
 type Status = { online: boolean; report: PraewReport | null; settings: PraewDesired["settings"]; pending: number; snapshot: { jpeg: string; at: string } | null };
 
-const LOCAL_STREAM = "http://127.0.0.1:8766/stream.mjpg";
+const LOCAL_STREAM = "http://127.0.0.1:8776/stream.mjpg";
 const QUICK = [
   { label: "👋 ทักทาย", text: "สวัสดีค่า ยินดีต้อนรับเข้าไลฟ์แพรวนะคะ คุยกับแพรวได้เลยค่ะ" },
   { label: "➕ ชวนกดติดตาม", text: "ใครยังไม่ได้กดติดตาม กดติดตามแพรวไว้นะคะ จะได้ไม่พลาดไลฟ์ต่อไปค่ะ" },
@@ -243,7 +243,7 @@ export function PraewControl({ products, postedCount }: { products: PraewProduct
           <ol>
             <li>เปิดคอมที่บ้าน ตัวเชื่อมจะเปิดเองตอนล็อกอิน ป้ายบนภาพจะเปลี่ยนเป็น “คอมออนไลน์”</li>
             <li>กด <b>เริ่มไลฟ์แพรว</b> รอประมาณ 1 นาทีจนขึ้น “ออนแอร์”</li>
-            <li>ใน OBS เพิ่มภาพจาก <code>http://127.0.0.1:8766/view</code> แล้วไลฟ์เข้า TikTok ตามปกติ</li>
+            <li>ใน OBS เพิ่มภาพจาก <code>http://127.0.0.1:8776/view</code> แล้วไลฟ์เข้า TikTok ตามปกติ</li>
             <li>พิมพ์ให้แพรวพูด หรือปล่อยให้แพรวตอบคอมเมนต์เอง ถ้ามีอะไรผิดปกติ กด <b>หยุดพูดทันที</b></li>
           </ol>
         </details>

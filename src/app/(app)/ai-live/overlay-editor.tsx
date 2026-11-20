@@ -11,7 +11,7 @@ import {
   type OverlayConfig, type OverlayItem, type OverlayKind, type OverlayProduct, type PromoTemplate,
 } from "@/features/live-overlay/model";
 
-const LOCAL_STREAM = "http://127.0.0.1:8766/stream.mjpg";
+const LOCAL_STREAM = "http://127.0.0.1:8776/stream.mjpg";
 const EMOJI = ["❤️", "🔥", "😍", "🥰", "😂", "🤩", "😎", "👍", "👏", "🙏", "💯", "✨", "⭐", "🌟", "🎉", "🎊", "🎁", "💰", "💸", "🛒", "🛍️", "📦", "⚡", "💥", "💖", "💕", "😘", "😱", "🤑", "👑", "💎", "🌈", "🌸", "🍀", "🐱", "🐶", "🧧", "⏰", "📣", "🆕"];
 const KIND_LABEL: Record<OverlayKind, string> = { text: "ข้อความ", clock: "นาฬิกา", emoji: "อีโมจิ", image: "รูปภาพ", promo: "ป้ายโปร" };
 const STYLE_LABEL: Record<typeof TEXT_STYLES[number], string> = { "red-tag": "ป้ายแดง", "white-outline": "ขาวขอบดำ", "yellow-pop": "เหลืองเด่น", gradient: "ไล่สีชมพูส้ม", "dark-pill": "แถบดำใส" };
