@@ -10,7 +10,7 @@ import { customerRoomRuntime, machineForAccount, type CustomerRoomRuntime } from
 import { PassivePresenterRequests } from "@/features/ai-live/passive-presenter-requests";
 import { customerConnectionQuality, customerLiveStatus } from "@/features/ai-live/customer-stream-status";
 import { AI_LIVE_REALTIME_VALIDATED } from "@/features/ai-live/local-contract";
-import { LitePresenterPicker } from "./lite-presenter-picker";
+import { LitePhotoPresenterBuilder, LitePresenterPicker } from "./lite-presenter-picker";
 
 type Choice = { id: string; label: string };
 type ProductChoice = { id: string; title: string };
@@ -450,6 +450,12 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
     return queued;
   }
 
+  const studioRequestRef = useRef(studioRequest);
+  useEffect(() => { studioRequestRef.current = studioRequest; });
+  const liteStudioRun = useCallback(<T,>(operation: (client: LocalLiveClient, signal: AbortSignal) => Promise<T>) =>
+    studioRequestRef.current(operation), []);
+  const refreshLiteCatalog = useCallback(() => setLiteCatalogRequest((current) => current + 1), []);
+
   useImperativeHandle(controlsRef, () => ({
     start: startLive, stop: stopLive, check: checkMachine,
     pause: (target) => pauseLive(false, target), resume: (target) => pauseLive(true, target), loadReference: (file) => choosePresenter(file, false),
@@ -556,6 +562,8 @@ export function LivePresenterConsole({ accounts, products, accountId, productId,
           </select>
         </label>
         {accounts.length === 0 && <p className="ai-live-help">ยังไม่มีบัญชีที่เชื่อมต่อ <Link href="/accounts">ดูบัญชี TikTok</Link></p>}
+        {liteMode && liteCatalog && <LitePhotoPresenterBuilder run={liteStudioRun} voices={liteCatalog.voices}
+          disabled={!!selectedMachine?.sessionActive || !!action} onReady={refreshLiteCatalog} />}
         {liteMode ? <LitePresenterPicker catalog={liteCatalog} selected={litePack?.folder ?? null} voice={liteVoiceChoice}
           thumbnails={liteThumbnails} disabled={!!selectedMachine?.sessionActive || !!action}
           onSelect={(folder) => { setLiteFolder(folder); setLiteVoice(null); }}

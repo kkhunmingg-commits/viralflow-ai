@@ -87,7 +87,18 @@ class LitePresenterCatalog:
         except Exception:
             return None
 
-    def presenters(self) -> list[dict]:
+    def presenters(self, owner_ref: str | None = None) -> list[dict]:
+        """Installed packs. A pack built from an owner's own photo is listed only for that owner."""
+        visible = []
+        for item in self._all():
+            pack_owner = item.pop("ownerRef", None)
+            if pack_owner is not None and pack_owner != owner_ref:
+                continue
+            item["ownPhoto"] = pack_owner is not None
+            visible.append(item)
+        return visible
+
+    def _all(self) -> list[dict]:
         root = self.root()
         if root is None:
             return []
@@ -108,11 +119,11 @@ class LitePresenterCatalog:
             self._cache = (root, signature, self._clock(), safe)
         return [dict(item) for item in safe]
 
-    def _pack(self, folder: object):
+    def _pack(self, folder: object, owner_ref: str | None = None):
         if not isinstance(folder, str) or not FOLDER_PATTERN.fullmatch(folder):
             raise LitePresenterError("LITE_PRESENTER_NOT_FOUND")
         root = self.root()
-        if root is None or folder not in {item["folder"] for item in self.presenters()}:
+        if root is None or folder not in {item["folder"] for item in self.presenters(owner_ref)}:
             raise LitePresenterError("LITE_PRESENTER_NOT_FOUND")
         pack_dir = root / folder
         if pack_dir.is_symlink() or root.resolve() not in pack_dir.resolve().parents:
@@ -123,18 +134,18 @@ class LitePresenterCatalog:
         except Exception:
             raise LitePresenterError("LITE_PRESENTER_NOT_FOUND") from None
 
-    def choose(self, selection: object) -> LitePresenterChoice:
+    def choose(self, selection: object, owner_ref: str | None = None) -> LitePresenterChoice:
         """Strict ``{"folder", "voice"}`` selection of a listed pack and allowlisted voice."""
         if (not isinstance(selection, dict) or set(selection) != {"folder", "voice"}
                 or type(selection["folder"]) is not str or type(selection["voice"]) is not str):
             raise LitePresenterError("LITE_PRESENTER_INVALID")
         if selection["voice"] not in LITE_VOICE_IDS:
             raise LitePresenterError("LITE_VOICE_INVALID")
-        pack_dir, pack = self._pack(selection["folder"])
+        pack_dir, pack = self._pack(selection["folder"], owner_ref)
         return LitePresenterChoice(selection["folder"], pack_dir, pack.reference_path, selection["voice"])
 
-    def thumbnail(self, folder: object) -> bytes:
-        _pack_dir, pack = self._pack(folder)
+    def thumbnail(self, folder: object, owner_ref: str | None = None) -> bytes:
+        _pack_dir, pack = self._pack(folder, owner_ref)
         path = pack.reference_path
         try:
             if path.is_symlink() or not path.is_file() or path.stat().st_size > MAX_THUMBNAIL_BYTES:

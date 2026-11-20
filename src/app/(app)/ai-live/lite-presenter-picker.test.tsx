@@ -4,12 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("client-only", () => ({}));
 
 import type { LitePresenterCatalog } from "@/features/ai-live/local-client";
-import { LitePresenterPicker } from "./lite-presenter-picker";
+import { LitePhotoPresenterBuilder, LitePresenterPicker } from "./lite-presenter-picker";
 
 const catalog: LitePresenterCatalog = {
   presenters: [
-    { folder: "nara", name: "นารา", technicalTestOnly: false, defaultVoice: "th-TH-PremwadeeNeural", frames: 120 },
-    { folder: "krit", name: "กฤต", technicalTestOnly: false, defaultVoice: "th-TH-NiwatNeural", frames: 120 },
+    { folder: "nara", name: "นารา", technicalTestOnly: false, defaultVoice: "th-TH-PremwadeeNeural", frames: 120, ownPhoto: false },
+    { folder: "krit", name: "กฤต", technicalTestOnly: false, defaultVoice: "th-TH-NiwatNeural", frames: 120, ownPhoto: false },
   ],
   voices: [{ id: "th-TH-PremwadeeNeural", label: "เปรมวดี (หญิง)" }, { id: "th-TH-AcharaNeural", label: "อัจฉรา (หญิง)" },
     { id: "th-TH-NiwatNeural", label: "นิวัฒน์ (ชาย)" }],
@@ -55,5 +55,17 @@ describe("LIVE Lite Auto presenter picker", () => {
     const empty = render({ catalog: { ...catalog, presenters: [] }, selected: null });
     expect(empty).toContain("ยังไม่มีพิธีกร AI บนเครื่องนี้");
     expect(empty).not.toContain("<select");
+  });
+  it("labels presenters built from the owner's own photo", () => {
+    const html = render({ catalog: { ...catalog, presenters: [{ ...catalog.presenters[0], ownPhoto: true }, catalog.presenters[1]] } });
+    expect(html).toContain("รูปของฉัน");
+    expect(html.match(/พิธีกร AI สังเคราะห์/g)).toHaveLength(1);
+  });
+  it("offers to build a presenter from my photo, closed until asked", () => {
+    const run = vi.fn();
+    const html = renderToStaticMarkup(<LitePhotoPresenterBuilder run={run} voices={catalog.voices} onReady={() => undefined} />);
+    expect(html).toContain("สร้างพิธีกรจากรูปของฉัน");
+    expect(html).not.toContain("<select");
+    expect(run).not.toHaveBeenCalled();
   });
 });

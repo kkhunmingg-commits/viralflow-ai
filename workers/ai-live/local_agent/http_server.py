@@ -235,6 +235,10 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send_json(200, agent.hardware(token, origin), origin)
             elif method == "GET" and self.path == "/v1/lite/presenters":
                 self._send_json(200, agent.lite_presenters(token, origin), origin)
+            elif method == "GET" and self.path == "/v1/lite/presenters/builds":
+                self._send_json(200, agent.lite_photo_builds(token, origin), origin)
+            elif method == "POST" and self.path == "/v1/lite/presenters/from-photo":
+                self._send_json(202, agent.lite_photo_build(token, origin, self._json_body()), origin)
             elif method == "GET" and (match := LITE_THUMBNAIL_ROUTE.fullmatch(self.path)):
                 self._send_jpeg(agent.lite_presenter_thumbnail(token, origin, match.group(1)), origin)
             elif method == "GET" and self.path == "/v1/components/status":

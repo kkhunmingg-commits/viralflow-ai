@@ -22,6 +22,7 @@ from .updater import SafeUpdater
 from .stream_credentials import StreamCredentialStore
 from .presenter_library import PresenterLibrary
 from .lite_presenters import LitePresenterCatalog, LitePresenterChoice, LitePresenterError, voices as lite_voices
+from .lite_photo_builds import LitePhotoBuildError, LitePhotoBuilds, owner_ref
 from .room_capacity import verified_room_limit
 
 MAX_REFERENCE_BYTES = 4 * 1024 * 1024
@@ -194,6 +195,7 @@ class LocalAgent:
         presenter_library: PresenterLibrary | None = None,
         lite_presenters: LitePresenterCatalog | None = None,
         speech_key_store=None,
+        lite_photo_builds: LitePhotoBuilds | None = None,
     ) -> None:
         self.config = config
         self._now = now
@@ -210,6 +212,7 @@ class LocalAgent:
         self._references: dict[str, _Reference] = {}
         self._presenter_library = presenter_library or PresenterLibrary(config.data_dir / "library")
         self._lite_presenters = lite_presenters or LitePresenterCatalog()
+        self._lite_photo_builds = lite_photo_builds or LitePhotoBuilds()
         self._speech_key_store = speech_key_store
         self._sessions: dict[str, _Session] = {}
         self._starting: set[tuple[str, str]] = set()
@@ -641,7 +644,7 @@ class LocalAgent:
                     or selection["microphoneId"] not in (None, "default")):
                 raise AgentError(403, "LOCAL_AI_SELECTION_NOT_ALLOWED", "กรุณาเตรียมข้อมูลบัญชีใหม่")
             live_mode = live_mode_from(selection, selection["microphoneId"])
-            choice = self._lite_choice(selection, live_mode)
+            choice = self._lite_choice(selection, live_mode, owner)
             if not supports_live_mode(self._worker, live_mode):
                 raise AgentError(503, "LIVE_MODE_UNAVAILABLE", "เครื่องนี้ยังไม่รองรับโหมด LIVE ที่เลือก")
             options.update(self._worker_options(live_mode, choice))
@@ -670,14 +673,14 @@ class LocalAgent:
             self._ai_warmup_thread.start()
         return {"preparing": True}
 
-    def _lite_choice(self, body: dict, live_mode: str) -> LitePresenterChoice | None:
+    def _lite_choice(self, body: dict, live_mode: str, owner: str) -> LitePresenterChoice | None:
         """Optional LIVE Lite Auto presenter/voice; never accepted for LIVE Pro."""
         if "litePresenter" not in body:
             return None
         if live_mode != "lite":
             raise AgentError(422, "LITE_PRESENTER_NOT_ALLOWED", "เลือกพิธีกร AI ได้เฉพาะโหมด LIVE Lite Auto")
         try:
-            return self._lite_presenters.choose(body["litePresenter"])
+            return self._lite_presenters.choose(body["litePresenter"], owner_ref(owner))
         except LitePresenterError as exc:
             raise _lite_presenter_error(exc) from None
 
@@ -713,17 +716,53 @@ class LocalAgent:
         return speech, free_tier
 
     def lite_presenters(self, token: str, origin: str) -> dict[str, object]:
-        self._presenter_owner(token, origin)
+        owner = self._presenter_owner(token, origin)
         speech, free_tier = self._speech_status()
-        return {"presenters": self._lite_presenters.presenters(), "voices": lite_voices(),
+        return {"presenters": self._lite_presenters.presenters(owner_ref(owner)), "voices": lite_voices(),
                 "speechKey": speech, "freeTier": free_tier}
 
     def lite_presenter_thumbnail(self, token: str, origin: str, folder: str) -> bytes:
-        self._presenter_owner(token, origin)
+        owner = self._presenter_owner(token, origin)
         try:
-            return self._lite_presenters.thumbnail(folder)
+            return self._lite_presenters.thumbnail(folder, owner_ref(owner))
         except LitePresenterError as exc:
             raise _lite_presenter_error(exc) from None
+
+    LITE_PHOTO_BUILD_ERRORS = {
+        "LITE_VOICE_INVALID": (422, "เสียงที่เลือกไม่ถูกต้อง"),
+        "LITE_PHOTO_INVALID": (422, "กรุณาเลือกรูปคน LIVE ที่มีรูปและยืนยันสิทธิ์ใช้ภาพแล้ว"),
+        "LITE_PACKS_ROOT_MISSING": (503, "เครื่องนี้ยังไม่ได้ตั้งค่าโฟลเดอร์พิธีกร LIVE Lite"),
+        "LITE_CALIBRATION_AUDIO_MISSING": (503, "เครื่องนี้ยังไม่มีไฟล์เสียงสำหรับสร้างภาพปาก (calibration.wav)"),
+        "LITE_PHOTO_BUILD_BUSY": (409, "กำลังสร้างพิธีกรจากรูปอยู่ รอให้เสร็จก่อน"),
+        "LITE_PHOTO_BUILD_FAILED": (503, "เริ่มสร้างพิธีกรจากรูปไม่สำเร็จ"),
+    }
+
+    def lite_photo_build(self, token: str, origin: str, body: object) -> dict[str, object]:
+        """Start building a LIVE Lite presenter from one of the owner's saved, consented photos."""
+        owner = self._presenter_owner(token, origin)
+        if (not isinstance(body, dict) or set(body) != {"presenterId", "voice"}
+                or type(body["presenterId"]) is not str or type(body["voice"]) is not str):
+            raise AgentError(400, "INVALID_LITE_PHOTO_REQUEST", "ข้อมูลไม่ถูกต้อง")
+        try:
+            listed = {item["id"]: item for item in self._presenter_library.list(owner)}
+            entry = listed.get(body["presenterId"])
+            if entry is None or not entry.get("hasReference") or entry.get("consentConfirmed") is not True:
+                raise SecurityError("PRESENTER_NOT_FOUND")
+            image, media_type = self._presenter_library.reference(owner, body["presenterId"])
+        except SecurityError as exc:
+            raise AgentError(404, "PRESENTER_NOT_FOUND", "ไม่พบรูปคน LIVE ที่ยืนยันสิทธิ์ใช้ภาพแล้ว") from exc
+        with self._lock:
+            if any(session.state != "STOPPED" for session in self._sessions.values()) or self._starting:
+                raise AgentError(409, "SESSION_ACTIVE", "กรุณาหยุด LIVE ก่อนสร้างพิธีกรจากรูป")
+        try:
+            return {"build": self._lite_photo_builds.start(owner, image, media_type, entry["name"], body["voice"])}
+        except LitePhotoBuildError as exc:
+            status, message = self.LITE_PHOTO_BUILD_ERRORS.get(exc.code, (503, "เริ่มสร้างพิธีกรจากรูปไม่สำเร็จ"))
+            raise AgentError(status, exc.code, message) from None
+
+    def lite_photo_builds(self, token: str, origin: str) -> dict[str, object]:
+        owner = self._presenter_owner(token, origin)
+        return {"builds": self._lite_photo_builds.list(owner)}
 
     def ai_status(self, token: str, origin: str, session_id: str) -> dict[str, object]:
         session = self._owned_session(token, origin, session_id)
@@ -1142,7 +1181,9 @@ class LocalAgent:
         if microphone_id not in (None, "default"):
             raise AgentError(422, "MICROPHONE_NOT_ALLOWED", "ไม่พบไมโครโฟนที่เลือก")
         live_mode = live_mode_from(body, microphone_id)
-        choice = self._lite_choice(body, live_mode)
+        choice = self._lite_choice(body, live_mode, grant.owner_id)
+        if self._lite_photo_builds.running():
+            raise AgentError(409, "LITE_PHOTO_BUILD_RUNNING", "เครื่องกำลังสร้างพิธีกรจากรูป รอให้เสร็จก่อนเริ่ม LIVE")
         if not supports_live_mode(self._worker, live_mode):
             raise AgentError(503, "LIVE_MODE_UNAVAILABLE", "เครื่องนี้ยังไม่รองรับโหมด LIVE ที่เลือก")
         start_options = self._worker_options(live_mode, choice)

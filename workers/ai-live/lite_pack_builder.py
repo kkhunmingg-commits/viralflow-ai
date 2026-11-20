@@ -49,13 +49,11 @@ def _lower_face_mask() -> np.ndarray:
 
 def face_box_for(image: np.ndarray) -> tuple[int, int, int, int]:
     """Single-face box with the margins LIVE Pro's CPU engine uses."""
-    import cv2
-    cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-    faces = cascade.detectMultiScale(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), scaleFactor=1.1,
-                                     minNeighbors=5, minSize=(48, 48))
-    if len(faces) != 1:
-        raise PresenterPackError("LITE_PACK_SINGLE_FACE_REQUIRED")
-    x, y, w, h = map(int, faces[0])
+    from face_detect import FaceDetectError, single_face
+    try:
+        x, y, w, h = single_face(image)
+    except FaceDetectError:
+        raise PresenterPackError("LITE_PACK_SINGLE_FACE_REQUIRED") from None
     return (max(0, x - w // 10), max(0, y - h // 10),
             min(image.shape[1], x + w + w // 10), min(image.shape[0], y + h + h // 4))
 
@@ -117,7 +115,8 @@ def read_wav_pcm16(path: Path) -> bytes:
 
 def build_from_frame_engine(out: Path, reference_path: Path, calibration_pcm: bytes, engine, *, fps: int = 5,
                             output_size: tuple[int, int] = (720, 1280), technical: bool = True,
-                            consent: dict | None = None, character: dict | None = None) -> PresenterPack:
+                            consent: dict | None = None, character: dict | None = None,
+                            display_name: str | None = None, default_voice: str | None = None) -> PresenterPack:
     """Render the mouth library offline with an existing incremental engine.
 
     The engine must return PATCH×PATCH crops of the same face box this builder
@@ -162,7 +161,8 @@ def build_from_frame_engine(out: Path, reference_path: Path, calibration_pcm: by
                        default_voice=character.get("default_voice"))
     return _finish(out, source="FRAME_ENGINE", technical=technical, reference=reference, box=box,
                    patches=patches, closed=closed, centroids=centroids, output_size=output_size,
-                   consent=consent, motion=MotionProfile(), disclosure="AI presenter · ผู้นำเสนอ AI")
+                   consent=consent, motion=MotionProfile(), disclosure="AI presenter · ผู้นำเสนอ AI",
+                   display_name=display_name, default_voice=default_voice)
 
 
 def build_from_video(out: Path, video_path: Path, consent: dict, *, stride: int = 2,

@@ -76,11 +76,11 @@ class MuseTalkCPUEngine:
             image = cv2.imdecode(np.frombuffer(reference.read_bytes(), dtype=np.uint8), cv2.IMREAD_COLOR)
             if image is None:
                 raise ValueError("INVALID_REFERENCE_IMAGE")
-            cascade = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-            faces = cascade.detectMultiScale(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), scaleFactor=1.1, minNeighbors=5, minSize=(48, 48))
-            if len(faces) != 1:
-                raise ValueError("DEV_REFERENCE_SINGLE_FACE_REQUIRED")
-            x, y, width, height = map(int, faces[0])
+            from face_detect import FaceDetectError, single_face
+            try:
+                x, y, width, height = single_face(image)
+            except FaceDetectError:
+                raise ValueError("DEV_REFERENCE_SINGLE_FACE_REQUIRED") from None
             # Include chin; inference is genuinely at the trained 256x256 size.
             x1, y1 = max(0, x - width // 10), max(0, y - height // 10)
             x2, y2 = min(image.shape[1], x + width + width // 10), min(image.shape[0], y + height + height // 4)

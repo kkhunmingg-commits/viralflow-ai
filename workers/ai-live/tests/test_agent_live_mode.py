@@ -393,3 +393,172 @@ class AgentLitePresenterTests(AgentFixture):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FakeBuildProcess:
+    """Stands in for the lite_photo_presenter.py child: progress on stderr, JSON result on stdout."""
+
+    def __init__(self, command, *, ok=True, release=None, **_kwargs):
+        import io
+        self.command = command
+        out = Path(command[command.index("--out") + 1])
+        self.out = out
+        self.returncode = None
+        self._ok = ok
+        self._release = release
+        self.stderr = io.StringIO("rendered 4 library frames\nrendered 9 library frames\n")
+        self.stdout = self
+
+    def read(self):
+        if self._release is not None:
+            self._release.wait(5)
+        if self._ok:
+            from lite_pack_builder import build_synthetic
+            build_synthetic(self.out)
+            self.returncode = 0
+            return json.dumps({"ok": True, "pack_id": "x", "frames": 32}) + "\n"
+        self.out.mkdir(parents=True, exist_ok=True)
+        (self.out / "partial.jpg").write_bytes(b"x")
+        self.returncode = 2
+        return json.dumps({"ok": False, "code": "LITE_PHOTO_NO_FACE", "message": "ไม่เจอใบหน้าในรูป"}, ensure_ascii=False) + "\n"
+
+    def wait(self, timeout=None):
+        return self.returncode
+
+    def kill(self):
+        self.returncode = -9
+
+
+class AgentLitePhotoBuildTests(AgentLitePresenterTests):
+    """'Use my own photo' for LIVE Lite: consented library photo -> background pack build, owner-only."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        import threading
+        from local_agent.presenter_library import PresenterLibrary
+        self.photo_root = Path(tempfile.mkdtemp(prefix="lite-photo-packs-"))
+        self.addCleanup(shutil.rmtree, self.photo_root, True)
+        for folder in ("nara",):
+            shutil.copytree(self.root / folder, self.photo_root / folder)
+        self.calibration = Path(self.temp.name) / "calibration.wav"
+        import wave
+        with wave.open(str(self.calibration), "wb") as handle:
+            handle.setnchannels(1); handle.setsampwidth(2); handle.setframerate(16000)
+            handle.writeframes(bytes(16000 * 2 * 4))
+        self.library = PresenterLibrary(Path(self.temp.name) / "library", protector=XorProtector())
+        self.processes: list[FakeBuildProcess] = []
+        self.ok = True
+        self.release = threading.Event()
+        self.release.set()
+
+    def popen(self, command, **kwargs):
+        process = FakeBuildProcess(command, ok=self.ok, release=self.release)
+        self.processes.append(process)
+        return process
+
+    def photo_agent(self):
+        from local_agent.lite_photo_builds import LitePhotoBuilds
+        builds = LitePhotoBuilds(lambda: self.photo_root, calibration_resolver=lambda: self.calibration,
+                                 popen=self.popen, python="python")
+        self.identity = registered_identity_fixture(Path(self.temp.name) / ("identity-" + str(uuid.uuid4())), DEVICE)
+        agent = LocalAgent(self.config, worker=self.lite_worker, hardware_probe=ally_x_hardware,
+                           grant_signature_verifier=_signature, now=lambda: self.clock[0],
+                           device_identity=self.identity, speech_key_store=self.store,
+                           presenter_library=self.library,
+                           lite_presenters=LitePresenterCatalog(lambda: self.photo_root), lite_photo_builds=builds)
+        self.addCleanup(agent.close)
+        return agent
+
+    def saved_photo(self, agent, token, consent=True) -> str:
+        import base64
+        return agent.save_presenter(token, ORIGIN, {
+            "id": None, "name": "ลัคกี้", "voiceLabel": "เสียง", "assignedAccountIds": [], "consentConfirmed": consent,
+            "image": base64.b64encode(REFERENCE_JPEG).decode(), "mediaType": "image/jpeg"})["presenter"]["id"]
+
+    def wait_done(self, agent, token):
+        import time as _time
+        for _ in range(200):
+            builds = agent.lite_photo_builds(token, ORIGIN)["builds"]
+            if builds and builds[0]["state"] != "RUNNING":
+                return builds[0]
+            _time.sleep(0.02)
+        self.fail("build did not finish")
+
+    def test_build_from_saved_photo_becomes_an_owner_only_lite_presenter(self) -> None:
+        agent = self.photo_agent()
+        token = self.paired(agent)
+        presenter = self.saved_photo(agent, token)
+        started = agent.lite_photo_build(token, ORIGIN, {"presenterId": presenter, "voice": "th-TH-PremwadeeNeural"})["build"]
+        self.assertEqual(started["state"], "RUNNING")
+        self.assertTrue(started["folder"].startswith("photo-"))
+        done = self.wait_done(agent, token)
+        self.assertEqual(done["state"], "READY")
+        self.assertEqual(done["progress"], 1.0)
+        command = self.processes[0].command
+        self.assertEqual(command[command.index("--name") + 1], "ลัคกี้")
+        self.assertEqual(command[command.index("--calibration-wav") + 1], str(self.calibration))
+        consent_path = Path(command[command.index("--consent") + 1])
+        self.assertFalse(consent_path.exists(), "the copied photo and consent are removed after the build")
+        self.assertFalse(Path(command[command.index("--photo") + 1]).exists())
+        # The synthetic stand-in pack has no consent; give it the owner's consent as the real builder would.
+        manifest_path = self.photo_root / done["folder"] / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        from local_agent.lite_photo_builds import owner_ref
+        manifest["consent"] = {"likeness_use": True, "person": "ลัคกี้", "signed_at": "2026-11-20", "owner_ref": owner_ref(OWNER_A)}
+        manifest_path.write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
+        catalog = agent.lite_presenters(token, ORIGIN)["presenters"]
+        own = [item for item in catalog if item["folder"] == done["folder"]]
+        self.assertEqual(len(own), 1)
+        self.assertTrue(own[0]["ownPhoto"])
+        self.assertNotIn("ownerRef", own[0])
+        # Another owner on the same device never sees or uses it.
+        other = LitePresenterCatalog(lambda: self.photo_root)
+        self.assertNotIn(done["folder"], [item["folder"] for item in other.presenters(owner_ref("someone-else"))])
+        from local_agent.lite_presenters import LitePresenterError
+        with self.assertRaises(LitePresenterError):
+            other.choose({"folder": done["folder"], "voice": "th-TH-PremwadeeNeural"}, owner_ref("someone-else"))
+        self.assertEqual(other.choose({"folder": done["folder"], "voice": "th-TH-PremwadeeNeural"},
+                                      owner_ref(OWNER_A)).folder, done["folder"])
+
+    def test_failed_build_reports_reason_and_leaves_no_pack(self) -> None:
+        self.ok = False
+        agent = self.photo_agent()
+        token = self.paired(agent)
+        presenter = self.saved_photo(agent, token)
+        agent.lite_photo_build(token, ORIGIN, {"presenterId": presenter, "voice": "th-TH-NiwatNeural"})
+        done = self.wait_done(agent, token)
+        self.assertEqual((done["state"], done["code"]), ("FAILED", "LITE_PHOTO_NO_FACE"))
+        self.assertEqual(done["message"], "ไม่เจอใบหน้าในรูป")
+        self.assertFalse((self.photo_root / done["folder"]).exists())
+
+    def test_requests_are_strict_and_one_build_at_a_time(self) -> None:
+        agent = self.photo_agent()
+        token = self.paired(agent)
+        presenter = self.saved_photo(agent, token)
+        for body, code in (({"presenterId": presenter}, "INVALID_LITE_PHOTO_REQUEST"),
+                           ({"presenterId": presenter, "voice": "en-US-Guy"}, "LITE_VOICE_INVALID"),
+                           ({"presenterId": str(uuid.uuid4()), "voice": "th-TH-NiwatNeural"}, "PRESENTER_NOT_FOUND"),
+                           ({"presenterId": presenter, "voice": "th-TH-NiwatNeural", "x": 1}, "INVALID_LITE_PHOTO_REQUEST")):
+            with self.subTest(code=code), self.assertRaises(AgentError) as denied:
+                agent.lite_photo_build(token, ORIGIN, body)
+            self.assertEqual(denied.exception.code, code)
+        self.release.clear()
+        agent.lite_photo_build(token, ORIGIN, {"presenterId": presenter, "voice": "th-TH-NiwatNeural"})
+        with self.assertRaises(AgentError) as busy:
+            agent.lite_photo_build(token, ORIGIN, {"presenterId": presenter, "voice": "th-TH-NiwatNeural"})
+        self.assertEqual(busy.exception.code, "LITE_PHOTO_BUILD_BUSY")
+        with self.assertRaises(AgentError) as live_blocked:
+            self.started(agent, token, liveMode="lite", litePresenter={"folder": "nara", "voice": "th-TH-NiwatNeural"})
+        self.assertEqual(live_blocked.exception.code, "LITE_PHOTO_BUILD_RUNNING")
+        self.release.set()
+        self.assertEqual(self.wait_done(agent, token)["state"], "READY")
+
+    def test_missing_calibration_audio_is_reported(self) -> None:
+        from local_agent.lite_photo_builds import LitePhotoBuilds
+        agent = self.photo_agent()
+        agent._lite_photo_builds = LitePhotoBuilds(lambda: self.photo_root, calibration_resolver=lambda: None, popen=self.popen)
+        token = self.paired(agent)
+        presenter = self.saved_photo(agent, token)
+        with self.assertRaises(AgentError) as denied:
+            agent.lite_photo_build(token, ORIGIN, {"presenterId": presenter, "voice": "th-TH-NiwatNeural"})
+        self.assertEqual((denied.exception.status, denied.exception.code), (503, "LITE_CALIBRATION_AUDIO_MISSING"))

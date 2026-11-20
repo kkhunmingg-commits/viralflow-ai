@@ -249,5 +249,7 @@ def list_packs(root: Path) -> list[dict]:
             continue
         found.append({"packId": pack.pack_id, "folder": child.name, "name": pack.display_name or child.name,
                       "source": pack.source, "technicalTestOnly": pack.technical_test_only,
-                      "defaultVoice": pack.default_voice, "frames": len(pack.frames)})
+                      "defaultVoice": pack.default_voice, "frames": len(pack.frames),
+                      # Packs made from an owner's own photo belong to that owner only (hashed owner id).
+                      "ownerRef": (pack.consent or {}).get("owner_ref") if isinstance((pack.consent or {}).get("owner_ref"), str) else None})
     return found
