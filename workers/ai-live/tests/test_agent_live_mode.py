@@ -459,7 +459,7 @@ class AgentLitePhotoBuildTests(AgentLitePresenterTests):
     def photo_agent(self):
         from local_agent.lite_photo_builds import LitePhotoBuilds
         builds = LitePhotoBuilds(lambda: self.photo_root, calibration_resolver=lambda: self.calibration,
-                                 popen=self.popen, python="python")
+                                 matte_resolver=lambda: getattr(self, "matte", None), popen=self.popen, python="python")
         self.identity = registered_identity_fixture(Path(self.temp.name) / ("identity-" + str(uuid.uuid4())), DEVICE)
         agent = LocalAgent(self.config, worker=self.lite_worker, hardware_probe=ally_x_hardware,
                            grant_signature_verifier=_signature, now=lambda: self.clock[0],
@@ -483,6 +483,30 @@ class AgentLitePhotoBuildTests(AgentLitePresenterTests):
                 return builds[0]
             _time.sleep(0.02)
         self.fail("build did not finish")
+
+    def test_backdrop_choice_cuts_the_person_onto_an_installed_backdrop(self) -> None:
+        (self.photo_root / "backdrops").mkdir()
+        (self.photo_root / "backdrops" / "warehouse.jpg").write_bytes(REFERENCE_JPEG)
+        agent = self.photo_agent()
+        token = self.paired(agent)
+        presenter = self.saved_photo(agent, token)
+        self.assertEqual(agent.lite_backdrops(token, ORIGIN), {"backdrops": [{"id": "warehouse", "name": "โกดัง"}], "matteReady": False})
+        request = {"presenterId": presenter, "voice": "th-TH-PremwadeeNeural", "backdrop": "warehouse"}
+        with self.assertRaises(AgentError) as caught:
+            agent.lite_photo_build(token, ORIGIN, request)
+        self.assertEqual(caught.exception.code, "LITE_MATTE_MODEL_MISSING")
+        self.matte = Path(self.temp.name) / "u2net_human_seg.onnx"
+        self.matte.write_bytes(b"model")
+        with self.assertRaises(AgentError) as caught:
+            agent.lite_photo_build(token, ORIGIN, {**request, "backdrop": "../warehouse"})
+        self.assertEqual(caught.exception.code, "LITE_BACKDROP_NOT_FOUND")
+        agent.lite_photo_build(token, ORIGIN, request)
+        command = self.processes[-1].command
+        self.assertEqual(command[command.index("--backdrop") + 1], str(self.photo_root / "backdrops" / "warehouse.jpg"))
+        self.assertEqual(command[command.index("--matte-model") + 1], str(self.matte))
+        self.wait_done(agent, token)
+        with self.assertRaises(AgentError):
+            agent.lite_photo_build(token, ORIGIN, {**request, "extra": 1})
 
     def test_build_from_saved_photo_becomes_an_owner_only_lite_presenter(self) -> None:
         agent = self.photo_agent()

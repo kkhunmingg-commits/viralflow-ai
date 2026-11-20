@@ -61,7 +61,8 @@ def face_box_for(image: np.ndarray) -> tuple[int, int, int, int]:
 def _finish(out: Path, *, source: str, technical: bool, reference: np.ndarray, box, patches: list[np.ndarray],
             closed: np.ndarray, centroids: list[float | None], output_size: tuple[int, int],
             consent: dict | None, motion: MotionProfile, disclosure: str, provenance: dict | None = None,
-            display_name: str | None = None, default_voice: str | None = None) -> PresenterPack:
+            display_name: str | None = None, default_voice: str | None = None,
+            layers: tuple[np.ndarray, np.ndarray] | None = None) -> PresenterPack:
     out.mkdir(parents=True, exist_ok=True)
     if any(out.iterdir()):
         raise PresenterPackError("LITE_PACK_OUTPUT_NOT_EMPTY")
@@ -72,9 +73,14 @@ def _finish(out: Path, *, source: str, technical: bool, reference: np.ndarray, b
         frames.append(MouthFrame(name, _write_image(out / name, patch), value, centroid))
     reference_sha = _write_image(out / "reference.jpg", reference, 95)
     mask_sha = _write_image(out / "mask.png", _lower_face_mask())
+    backdrop = matte = (None, None)
+    if layers is not None:
+        backdrop = ("backdrop.jpg", _write_image(out / "backdrop.jpg", layers[0], 92))
+        matte = ("matte.png", _write_image(out / "matte.png", layers[1]))
     pack = PresenterPack(out, "lite-" + uuid.uuid4().hex[:12], source, technical, "reference.jpg", reference_sha,
                          tuple(int(v) for v in box), "mask.png", mask_sha, output_size, tuple(frames), motion,
-                         disclosure, consent, provenance, display_name, default_voice)
+                         disclosure, consent, provenance, display_name, default_voice,
+                         backdrop[0], backdrop[1], matte[0], matte[1])
     write_manifest(pack)
     return load_pack(out)
 
@@ -116,7 +122,8 @@ def read_wav_pcm16(path: Path) -> bytes:
 def build_from_frame_engine(out: Path, reference_path: Path, calibration_pcm: bytes, engine, *, fps: int = 5,
                             output_size: tuple[int, int] = (720, 1280), technical: bool = True,
                             consent: dict | None = None, character: dict | None = None,
-                            display_name: str | None = None, default_voice: str | None = None) -> PresenterPack:
+                            display_name: str | None = None, default_voice: str | None = None,
+                            layers: tuple[np.ndarray, np.ndarray] | None = None) -> PresenterPack:
     """Render the mouth library offline with an existing incremental engine.
 
     The engine must return PATCH×PATCH crops of the same face box this builder
@@ -162,7 +169,7 @@ def build_from_frame_engine(out: Path, reference_path: Path, calibration_pcm: by
     return _finish(out, source="FRAME_ENGINE", technical=technical, reference=reference, box=box,
                    patches=patches, closed=closed, centroids=centroids, output_size=output_size,
                    consent=consent, motion=MotionProfile(), disclosure="AI presenter · ผู้นำเสนอ AI",
-                   display_name=display_name, default_voice=default_voice)
+                   display_name=display_name, default_voice=default_voice, layers=layers)
 
 
 def build_from_video(out: Path, video_path: Path, consent: dict, *, stride: int = 2,

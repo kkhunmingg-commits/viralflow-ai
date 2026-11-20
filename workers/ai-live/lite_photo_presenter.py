@@ -38,6 +38,9 @@ PHOTO_ERRORS = {
     "LITE_PHOTO_FACE_TOO_CLOSE": "หน้าใหญ่เกินไป ใช้รูปที่เห็นไหล่และลำตัวด้วย",
     "LITE_PHOTO_HEAD_CUT": "ศีรษะชิดขอบบนเกินไป ใช้รูปที่มีพื้นที่เหนือศีรษะ",
     "LITE_PHOTO_CONSENT_REQUIRED": "ต้องยืนยันว่าเป็นรูปของคุณเอง หรือเจ้าของรูปยินยอมแล้ว",
+    "LITE_PHOTO_NO_PERSON": "แยกตัวคนออกจากฉากหลังไม่ได้ ใช้รูปที่เห็นตัวคนชัด ไม่มีของบังหน้าหรือลำตัว",
+    "LITE_PHOTO_BACKDROP_INVALID": "อ่านรูปฉากหลังไม่ได้ เลือกฉากอื่น",
+    "LITE_MATTE_MODEL_MISSING": "เครื่องนี้ยังไม่มีตัวแยกคนออกจากฉาก ดูวิธีติดตั้งในคู่มือ docs/AI_LIVE_LITE_AUTO.md",
 }
 
 
@@ -102,14 +105,38 @@ def valid_consent(consent: object) -> bool:
             and isinstance(consent.get("signed_at"), str))
 
 
+def cut_onto_backdrop(framed: np.ndarray, backdrop: bytes, matte_model: Path | None):
+    """(reference, (fitted backdrop, matte)) with the person cut out of their photo onto the backdrop."""
+    import cv2
+    from person_matte import MatteError, place_on_backdrop
+    if matte_model is None or not Path(matte_model).is_file():
+        raise PresenterPackError("LITE_MATTE_MODEL_MISSING")
+    image = cv2.imdecode(np.frombuffer(backdrop, np.uint8), cv2.IMREAD_COLOR) if backdrop else None
+    if image is None or min(image.shape[:2]) < 200:
+        raise PresenterPackError("LITE_PHOTO_BACKDROP_INVALID")
+    try:
+        reference, fitted, alpha = place_on_backdrop(framed, image, Path(matte_model))
+    except MatteError:
+        raise PresenterPackError("LITE_PHOTO_NO_PERSON") from None
+    return reference, (fitted, alpha)
+
+
 def build_from_photo(out: Path, photo: bytes, consent: dict, calibration_pcm: bytes, engine, *,
-                     display_name: str, default_voice: str | None = None, fps: int = 5) -> PresenterPack:
-    """Customer pack (source FRAME_ENGINE, consent recorded) from one consented photo."""
+                     display_name: str, default_voice: str | None = None, fps: int = 5,
+                     backdrop: bytes | None = None, matte_model: Path | None = None) -> PresenterPack:
+    """Customer pack (source FRAME_ENGINE, consent recorded) from one consented photo.
+
+    With a backdrop, only the person is kept and placed on it; the pack keeps the
+    backdrop and the person's matte as layers so the backdrop stays still live.
+    """
     import cv2
     from lite_pack_builder import build_from_frame_engine
     if not valid_consent(consent):
         raise PresenterPackError("LITE_PHOTO_CONSENT_REQUIRED")
     framed, _report = frame_photo(decode_photo(photo))
+    layers = None
+    if backdrop is not None:
+        framed, layers = cut_onto_backdrop(framed, backdrop, matte_model)
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     reference = out.parent / f".{out.name}.framed.png"
@@ -117,7 +144,8 @@ def build_from_photo(out: Path, photo: bytes, consent: dict, calibration_pcm: by
         raise PresenterPackError("LITE_PACK_WRITE_FAILED")
     try:
         return build_from_frame_engine(out, reference, calibration_pcm, engine, fps=fps, technical=False,
-                                       consent=consent, display_name=display_name[:40], default_voice=default_voice)
+                                       consent=consent, display_name=display_name[:40], default_voice=default_voice,
+                                       layers=layers)
     finally:
         reference.unlink(missing_ok=True)
 
@@ -131,12 +159,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--name", required=True)
     parser.add_argument("--voice")
     parser.add_argument("--fps", type=int, default=5)
+    parser.add_argument("--backdrop", type=Path, help="place the cut-out person on this backdrop image")
+    parser.add_argument("--matte-model", type=Path, help="u2net_human_seg.onnx (see person_matte.py fetch)")
     parser.add_argument("--check-only", action="store_true", help="only frame and check the photo (writes <out>.png)")
     args = parser.parse_args(argv)
     try:
         if args.check_only:
             import cv2
             framed, report = frame_photo(decode_photo(args.photo.read_bytes()))
+            if args.backdrop:
+                framed, _ = cut_onto_backdrop(framed, args.backdrop.read_bytes(), args.matte_model)
             cv2.imwrite(str(args.out.with_suffix(".png")), framed)
             print(json.dumps({"ok": True, **report}))
             return 0
@@ -144,7 +176,8 @@ def main(argv: list[str] | None = None) -> int:
         from lite_pack_builder import read_wav_pcm16
         pack = build_from_photo(args.out, args.photo.read_bytes(), json.loads(args.consent.read_text(encoding="utf-8")),
                                 read_wav_pcm16(args.calibration_wav), make_engine(), display_name=args.name,
-                                default_voice=args.voice, fps=args.fps)
+                                default_voice=args.voice, fps=args.fps,
+                                backdrop=args.backdrop.read_bytes() if args.backdrop else None, matte_model=args.matte_model)
     except PresenterPackError as exc:
         print(json.dumps({"ok": False, "code": exc.code, "message": PHOTO_ERRORS.get(exc.code, "")}, ensure_ascii=False))
         return 2

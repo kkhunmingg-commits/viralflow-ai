@@ -735,13 +735,16 @@ class LocalAgent:
         "LITE_CALIBRATION_AUDIO_MISSING": (503, "เครื่องนี้ยังไม่มีไฟล์เสียงสำหรับสร้างภาพปาก (calibration.wav)"),
         "LITE_PHOTO_BUILD_BUSY": (409, "กำลังสร้างพิธีกรจากรูปอยู่ รอให้เสร็จก่อน"),
         "LITE_PHOTO_BUILD_FAILED": (503, "เริ่มสร้างพิธีกรจากรูปไม่สำเร็จ"),
+        "LITE_BACKDROP_NOT_FOUND": (404, "ไม่พบฉากหลังที่เลือก"),
+        "LITE_MATTE_MODEL_MISSING": (503, "เครื่องนี้ยังไม่มีตัวแยกคนออกจากฉาก"),
     }
 
     def lite_photo_build(self, token: str, origin: str, body: object) -> dict[str, object]:
         """Start building a LIVE Lite presenter from one of the owner's saved, consented photos."""
         owner = self._presenter_owner(token, origin)
-        if (not isinstance(body, dict) or set(body) != {"presenterId", "voice"}
-                or type(body["presenterId"]) is not str or type(body["voice"]) is not str):
+        if (not isinstance(body, dict) or not {"presenterId", "voice"} <= set(body) <= {"presenterId", "voice", "backdrop"}
+                or type(body["presenterId"]) is not str or type(body["voice"]) is not str
+                or ("backdrop" in body and body["backdrop"] is not None and type(body["backdrop"]) is not str)):
             raise AgentError(400, "INVALID_LITE_PHOTO_REQUEST", "ข้อมูลไม่ถูกต้อง")
         try:
             listed = {item["id"]: item for item in self._presenter_library.list(owner)}
@@ -755,7 +758,8 @@ class LocalAgent:
             if any(session.state != "STOPPED" for session in self._sessions.values()) or self._starting:
                 raise AgentError(409, "SESSION_ACTIVE", "กรุณาหยุด LIVE ก่อนสร้างพิธีกรจากรูป")
         try:
-            return {"build": self._lite_photo_builds.start(owner, image, media_type, entry["name"], body["voice"])}
+            return {"build": self._lite_photo_builds.start(owner, image, media_type, entry["name"], body["voice"],
+                                                           body.get("backdrop"))}
         except LitePhotoBuildError as exc:
             status, message = self.LITE_PHOTO_BUILD_ERRORS.get(exc.code, (503, "เริ่มสร้างพิธีกรจากรูปไม่สำเร็จ"))
             raise AgentError(status, exc.code, message) from None
@@ -763,6 +767,17 @@ class LocalAgent:
     def lite_photo_builds(self, token: str, origin: str) -> dict[str, object]:
         owner = self._presenter_owner(token, origin)
         return {"builds": self._lite_photo_builds.list(owner)}
+
+    def lite_backdrops(self, token: str, origin: str) -> dict[str, object]:
+        self._presenter_owner(token, origin)
+        return {"backdrops": self._lite_photo_builds.backdrops(), "matteReady": self._lite_photo_builds.matte_ready()}
+
+    def lite_backdrop_thumbnail(self, token: str, origin: str, backdrop_id: str) -> bytes:
+        self._presenter_owner(token, origin)
+        try:
+            return self._lite_photo_builds.backdrop_thumbnail(backdrop_id)
+        except LitePhotoBuildError:
+            raise AgentError(404, "LITE_BACKDROP_NOT_FOUND", "ไม่พบฉากหลังที่เลือก") from None
 
     def ai_status(self, token: str, origin: str, session_id: str) -> dict[str, object]:
         session = self._owned_session(token, origin, session_id)

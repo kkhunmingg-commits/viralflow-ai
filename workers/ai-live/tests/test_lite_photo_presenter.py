@@ -154,5 +154,113 @@ class FaceDetectTests(unittest.TestCase):
                 face_detect.single_face(np.zeros((100, 100, 3), np.uint8))
 
 
+class BackdropLayerTests(unittest.TestCase):
+    """A cut-out person on a backdrop: pack layers round-trip and only the person moves live."""
+
+    def _layered_pack(self, temp: Path):
+        import cv2
+        from dataclasses import replace
+        from lite_pack_builder import build_synthetic
+        from lite_presenter_pack import MotionProfile, sha256_file, write_manifest
+        pack = build_synthetic(temp / "pack", frames=12, output_size=(256, 448))
+        w, h = pack.output_size
+        backdrop = np.zeros((h, w, 3), np.uint8)
+        backdrop[:, ::8] = (0, 200, 255)       # vertical stripes: any shift is visible
+        matte = np.zeros((h, w), np.uint8)
+        cv2.ellipse(matte, (w // 2, int(h * 0.55)), (w // 4, int(h * 0.45)), 0, 0, 360, 255, -1)
+        cv2.imwrite(str(pack.root / "backdrop.jpg"), backdrop, [cv2.IMWRITE_JPEG_QUALITY, 100])
+        cv2.imwrite(str(pack.root / "matte.png"), matte)
+        layered = replace(pack, motion=MotionProfile(0.02, 20.0, 2.0),
+                          backdrop_file="backdrop.jpg", backdrop_sha256=sha256_file(pack.root / "backdrop.jpg"),
+                          matte_file="matte.png", matte_sha256=sha256_file(pack.root / "matte.png"))
+        write_manifest(layered)
+        return layered
+
+    def test_layers_round_trip_and_are_hash_checked(self):
+        with tempfile.TemporaryDirectory() as temp:
+            pack = self._layered_pack(Path(temp))
+            loaded = load_pack(pack.root)
+            self.assertEqual((loaded.backdrop_file, loaded.matte_file), ("backdrop.jpg", "matte.png"))
+            (pack.root / "backdrop.jpg").write_bytes(b"changed")
+            with self.assertRaises(PresenterPackError) as caught:
+                load_pack(pack.root)
+            self.assertEqual(caught.exception.code, "LITE_PACK_HASH_MISMATCH")
+
+    def test_backdrop_stays_still_while_the_person_sways(self):
+        import cv2
+        from lite_presenter_engine import LitePresenterEngine
+        with tempfile.TemporaryDirectory() as temp:
+            pack = self._layered_pack(Path(temp))
+            engine = LitePresenterEngine(pack.root, allow_technical_test=True)
+            engine.prepare(pack.reference_path, 25)
+            frames = [cv2.imdecode(np.frombuffer(engine._compose(engine._closed_index), np.uint8), cv2.IMREAD_GRAYSCALE)
+                      for _ in range(40)]
+            engine.close()
+            corner = np.stack([frame[300:440, 0:40] for frame in frames]).astype(np.float32)
+            self.assertLess(float(np.abs(corner - corner[0]).mean()), 2.0)
+            person = np.stack([frame[180:260, 110:150] for frame in frames]).astype(np.float32)
+            self.assertGreater(float(np.abs(person - person[0]).max()), 20.0)
+
+
+class PhotoOnBackdropTests(unittest.TestCase):
+    def test_build_with_backdrop_keeps_only_the_person_and_records_layers(self):
+        image, box = face_photo()
+        engine = FakeEngine()
+        backdrop = np.full((1600, 900, 3), (40, 90, 160), np.uint8)
+
+        def fake_place(person, backdrop_image, model):
+            alpha = np.zeros(person.shape[:2], np.uint8)
+            alpha[200:, 160:560] = 255
+            fitted = np.full_like(person, (40, 90, 160))
+            out = person.copy()
+            out[alpha == 0] = fitted[alpha == 0]
+            return out, fitted, alpha
+
+        with tempfile.TemporaryDirectory() as temp, \
+                unittest.mock.patch("face_detect.single_face", side_effect=lambda img: box if img.shape[0] != 1280 else (240, 330, 240, 240)), \
+                unittest.mock.patch("person_matte.place_on_backdrop", side_effect=fake_place):
+            model = Path(temp) / "u2net_human_seg.onnx"
+            model.write_bytes(b"x")
+            out = Path(temp) / "packs" / "photo-bd"
+            build_from_photo(out, encode(image), CONSENT, bytes(16000 * 2 * 3), engine, display_name="ลัคกี้",
+                             backdrop=encode(backdrop), matte_model=model)
+            loaded = load_pack(out)
+            self.assertEqual((loaded.backdrop_file, loaded.matte_file), ("backdrop.jpg", "matte.png"))
+            import cv2
+            reference = cv2.imread(str(loaded.reference_path))
+            self.assertLess(np.abs(reference[20, 20].astype(int) - (40, 90, 160)).max(), 12)
+
+    def test_backdrop_needs_the_matte_model_and_a_readable_image(self):
+        image, box = face_photo()
+        with tempfile.TemporaryDirectory() as temp, \
+                unittest.mock.patch("face_detect.single_face", return_value=box):
+            for backdrop, model, code in ((encode(image), None, "LITE_MATTE_MODEL_MISSING"),
+                                          (b"nope", __file__, "LITE_PHOTO_BACKDROP_INVALID")):
+                with self.subTest(code=code), self.assertRaises(PresenterPackError) as caught:
+                    build_from_photo(Path(temp) / code, encode(image), CONSENT, b"", FakeEngine(), display_name="x",
+                                     backdrop=backdrop, matte_model=model)
+                self.assertEqual(caught.exception.code, code)
+
+
+class BackdropCatalogTests(unittest.TestCase):
+    def test_lists_named_backdrops_in_order_and_rejects_unsafe_ids(self):
+        import cv2
+        from local_agent.lite_photo_builds import backdrop_path, backdrop_thumbnail, list_backdrops
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            folder = root / "backdrops"
+            folder.mkdir()
+            for name in ("shelf", "warehouse", "shop", "my-store", "Bad_Name"):
+                cv2.imwrite(str(folder / f"{name}.jpg"), np.full((1280, 720, 3), 120, np.uint8))
+            (folder / "names.json").write_text(json.dumps({"my-store": "ร้านของฉัน"}, ensure_ascii=False), encoding="utf-8")
+            self.assertEqual(list_backdrops(root), [{"id": "warehouse", "name": "โกดัง"}, {"id": "shop", "name": "ร้านค้า"},
+                                                    {"id": "shelf", "name": "ชั้นวางของ"}, {"id": "my-store", "name": "ร้านของฉัน"}])
+            self.assertIsNone(backdrop_path(root, "../shop"))
+            self.assertIsNone(backdrop_path(root, "Bad_Name"))
+            thumb = backdrop_thumbnail(root, "shop")
+            self.assertEqual(cv2.imdecode(np.frombuffer(thumb, np.uint8), cv2.IMREAD_COLOR).shape[1], 240)
+            self.assertEqual(list_backdrops(None), [])
+
+
 if __name__ == "__main__":
     unittest.main()

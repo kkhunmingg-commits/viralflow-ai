@@ -466,6 +466,22 @@ describe("LIVE Lite Auto AI presenter choice", () => {
     client.dispose();
   });
 
+  it("lists installed backdrops and sends the chosen one with the build", async () => {
+    const presenterId = "6f1c2b9a-1d2e-4f3a-8b4c-5d6e7f8a9b0c";
+    const buildId = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d";
+    const { mock, fetcher } = responseSequence(...paired(),
+      { backdrops: [{ id: "warehouse", name: "โกดัง" }, { id: "../x", name: "bad" }, { id: "shop", name: "" }], matteReady: true },
+      { build: { buildId, name: "ลัคกี้", folder: "photo-0a1b2c3d", state: "RUNNING", progress: null } });
+    const client = new LocalLiveClient(fetcher, () => nowSeconds * 1000);
+    await client.pair("ABCDEF");
+    expect(await client.liteBackdrops()).toEqual({ backdrops: [{ id: "warehouse", name: "โกดัง" }], matteReady: true });
+    assertLoopbackCall(mock.mock.calls[3], "/v1/lite/backdrops", true);
+    await expect(client.buildLitePresenterFromPhoto(presenterId, "th-TH-AcharaNeural", "../x")).rejects.toThrow();
+    await client.buildLitePresenterFromPhoto(presenterId, "th-TH-AcharaNeural", "warehouse");
+    expect(JSON.parse(String((mock.mock.calls[4][1] as RequestInit).body))).toEqual({ presenterId, voice: "th-TH-AcharaNeural", backdrop: "warehouse" });
+    client.dispose();
+  });
+
   it("shows our own reason when the device refuses a photo build", async () => {
     const items: Response[] = [Response.json({ token, expiresAt: nowSeconds + 300, deviceId }), Response.json({ ...ready, deviceAuthorized: true }),
       Response.json({ device: { authorized: true }, entitled: true }),

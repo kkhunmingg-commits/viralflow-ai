@@ -73,6 +73,15 @@ Pack ที่ได้ชื่อ `photo-xxxxxxxx` ในโฟลเดอร
 - วางไว้ที่ `<โฟลเดอร์ Pack>\calibration.wav` หรือ
 - ตั้ง `AI_LIVE_LITE_CALIBRATION_WAV=D:\ViralFlowAI\...\calibration.wav` (path เต็ม)
 
+**ฉากหลัง:** ระบบตัดเฉพาะตัวคนออกจากรูป แล้ววางหน้าฉากขายของที่เลือก ฉากหลังอยู่นิ่ง ส่วนตัวคนขยับหายใจและโยกเล็กน้อย
+
+- ฉากเก็บไว้ที่ `<โฟลเดอร์ Pack>\backdrops\<id>.jpg` (แนวตั้ง 720x1280 ขึ้นไป) ชื่อที่รู้จักอยู่แล้วคือ `warehouse` = โกดัง, `shop` = ร้านค้า, `shelf` = ชั้นวางของ
+- ฉากอื่นตั้งชื่อเองได้ใน `backdrops\names.json` เช่น `{"my-store": "ร้านของฉัน"}`
+- ตัวแยกคนคือ U²-Net human segmentation (ฟรี, Apache-2.0, รันบน CPU ราว 1-2 วินาทีต่อรูป) ดาวน์โหลดครั้งเดียวด้วย
+  `python person_matte.py fetch --out <โฟลเดอร์ Pack>\models` (หรือตั้ง `AI_LIVE_LITE_MATTE_MODEL` เป็น path เต็มของไฟล์ `u2net_human_seg.onnx`)
+- ลองตัดรูปดูก่อน: `python person_matte.py try --photo me.jpg --backdrop backdrops\shop.jpg --model models\u2net_human_seg.onnx --out test.png`
+- ของที่อยู่หน้าตัวคน (เช่นช่อดอกไม้ที่ถืออยู่) จะติดมาด้วย ใช้รูปที่ไม่มีอะไรบังตัวจะสวยที่สุด
+
 ทดสอบรูปก่อนสร้างจริงได้ด้วย `python lite_photo_presenter.py --check-only --photo me.jpg --out D:\tmp\framed --consent consent.json --calibration-wav x --name x`
 
 ## 4. ตั้งค่าเสียง

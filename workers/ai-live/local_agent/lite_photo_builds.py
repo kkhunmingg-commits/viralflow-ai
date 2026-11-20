@@ -27,6 +27,13 @@ from pathlib import Path
 from .lite_presenters import LITE_VOICE_IDS, packs_root
 
 CALIBRATION_ENV = "AI_LIVE_LITE_CALIBRATION_WAV"
+MATTE_ENV = "AI_LIVE_LITE_MATTE_MODEL"
+MATTE_MODEL = "u2net_human_seg.onnx"
+BACKDROPS_DIR = "backdrops"
+BACKDROP_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+MAX_BACKDROP_BYTES = 8 * 1024 * 1024
+# Names for the backdrops shipped with the device; others can be named in backdrops/names.json.
+BACKDROP_NAMES = {"warehouse": "โกดัง", "shop": "ร้านค้า", "shelf": "ชั้นวางของ"}
 WORK_DIR = ".photo-builds"
 BUILDER = Path(__file__).resolve().parents[1] / "lite_photo_presenter.py"
 MAX_BUILDS_KEPT = 10
@@ -56,6 +63,71 @@ def calibration_wav() -> Path | None:
         if path.is_absolute() and path.is_file() and not path.is_symlink():
             return path
     return None
+
+
+def matte_model() -> Path | None:
+    value = os.getenv(MATTE_ENV, "").strip()
+    candidates = [Path(value)] if value else []
+    root = packs_root()
+    if root is not None:
+        candidates.append(root / "models" / MATTE_MODEL)
+    for path in candidates:
+        if path.is_absolute() and path.is_file() and not path.is_symlink():
+            return path
+    return None
+
+
+def _backdrop_names(folder: Path) -> dict[str, str]:
+    names = dict(BACKDROP_NAMES)
+    try:
+        extra = json.loads((folder / "names.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return names
+    if isinstance(extra, dict):
+        names.update({key: value.strip()[:30] for key, value in extra.items()
+                      if isinstance(key, str) and isinstance(value, str) and value.strip()})
+    return names
+
+
+def list_backdrops(root: Path | None) -> list[dict[str, str]]:
+    """Selling backdrops (``<packs root>/backdrops/<id>.jpg``) a photo presenter can be placed on."""
+    if root is None:
+        return []
+    folder = root / BACKDROPS_DIR
+    if not folder.is_dir():
+        return []
+    names = _backdrop_names(folder)
+    order = {key: index for index, key in enumerate(BACKDROP_NAMES)}
+    found = [path.stem for path in folder.glob("*.jpg")
+             if BACKDROP_ID.fullmatch(path.stem) and path.is_file() and not path.is_symlink()
+             and path.stat().st_size <= MAX_BACKDROP_BYTES]
+    found.sort(key=lambda key: (order.get(key, len(order)), key))
+    return [{"id": key, "name": names.get(key, key)} for key in found[:12]]
+
+
+def backdrop_path(root: Path | None, backdrop_id: object) -> Path | None:
+    if not isinstance(backdrop_id, str) or not BACKDROP_ID.fullmatch(backdrop_id):
+        return None
+    if not any(item["id"] == backdrop_id for item in list_backdrops(root)):
+        return None
+    return root / BACKDROPS_DIR / f"{backdrop_id}.jpg"  # type: ignore[operator]
+
+
+def backdrop_thumbnail(root: Path | None, backdrop_id: object, width: int = 240) -> bytes:
+    import cv2
+    import numpy as np
+    path = backdrop_path(root, backdrop_id)
+    if path is None:
+        raise LitePhotoBuildError("LITE_BACKDROP_NOT_FOUND")
+    image = cv2.imdecode(np.frombuffer(path.read_bytes(), np.uint8), cv2.IMREAD_COLOR)
+    if image is None:
+        raise LitePhotoBuildError("LITE_BACKDROP_NOT_FOUND")
+    height = max(1, round(image.shape[0] * width / image.shape[1]))
+    ok, data = cv2.imencode(".jpg", cv2.resize(image, (width, height), interpolation=cv2.INTER_AREA),
+                            [cv2.IMWRITE_JPEG_QUALITY, 85])
+    if not ok:
+        raise LitePhotoBuildError("LITE_BACKDROP_NOT_FOUND")
+    return data.tobytes()
 
 
 def _expected_frames(path: Path, fps: int = 5) -> int:
@@ -95,8 +167,9 @@ class _Build:
 
 class LitePhotoBuilds:
     def __init__(self, root_resolver=packs_root, *, calibration_resolver=calibration_wav,
-                 popen=subprocess.Popen, python: str = sys.executable, clock=time.time):
+                 matte_resolver=matte_model, popen=subprocess.Popen, python: str = sys.executable, clock=time.time):
         self._root_resolver = root_resolver
+        self._matte_resolver = matte_resolver
         self._calibration_resolver = calibration_resolver
         self._popen = popen
         self._python = python
@@ -113,7 +186,17 @@ class LitePhotoBuilds:
         with self._lock:
             return [build.view() for build in reversed(self._builds) if build.owner_ref == ref]
 
-    def start(self, owner: str, photo: bytes, media_type: str, name: str, voice: str) -> dict[str, object]:
+    def backdrops(self) -> list[dict[str, str]]:
+        return list_backdrops(self._root_resolver())
+
+    def matte_ready(self) -> bool:
+        return self._matte_resolver() is not None
+
+    def backdrop_thumbnail(self, backdrop_id: object) -> bytes:
+        return backdrop_thumbnail(self._root_resolver(), backdrop_id)
+
+    def start(self, owner: str, photo: bytes, media_type: str, name: str, voice: str,
+              backdrop: str | None = None) -> dict[str, object]:
         if voice not in LITE_VOICE_IDS:
             raise LitePhotoBuildError("LITE_VOICE_INVALID")
         if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or not photo:
@@ -121,6 +204,14 @@ class LitePhotoBuilds:
         root = self._root_resolver()
         if root is None:
             raise LitePhotoBuildError("LITE_PACKS_ROOT_MISSING")
+        backdrop_file = matte = None
+        if backdrop is not None:
+            backdrop_file = backdrop_path(root, backdrop)
+            if backdrop_file is None:
+                raise LitePhotoBuildError("LITE_BACKDROP_NOT_FOUND")
+            matte = self._matte_resolver()
+            if matte is None:
+                raise LitePhotoBuildError("LITE_MATTE_MODEL_MISSING")
         calibration = self._calibration_resolver()
         if calibration is None:
             raise LitePhotoBuildError("LITE_CALIBRATION_AUDIO_MISSING")
@@ -139,6 +230,8 @@ class LitePhotoBuilds:
             command = [self._python, str(BUILDER), "--out", str(root / folder), "--photo", str(work / ("photo" + suffix)),
                        "--consent", str(work / "consent.json"), "--calibration-wav", str(calibration),
                        "--name", name.strip()[:40], "--voice", voice]
+            if backdrop_file is not None:
+                command += ["--backdrop", str(backdrop_file), "--matte-model", str(matte)]
             try:
                 process = self._popen(command, cwd=str(BUILDER.parent), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                       text=True, encoding="utf-8", errors="replace",
