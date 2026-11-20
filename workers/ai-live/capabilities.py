@@ -12,6 +12,8 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from provider_config import dev_fallback_enabled
+
 MUSETALK_REQUIRED_ASSETS = (
     "scripts/realtime_inference.py",
     "models/musetalkV15/musetalk.json",
@@ -108,8 +110,13 @@ def inspect_capabilities() -> dict[str, Any]:
     if not nvenc_usable:
         encoder_blockers.append("usable NVIDIA NVENC is unavailable")
 
-    return {
+    result = {
         "ready": not blockers,
+        "presenter_status": (
+            "GPU_REQUIRED" if not cuda_available
+            else "PRESENTER_BACKEND_REQUIRED" if blockers
+            else "READY"
+        ),
         "blockers": blockers,
         "encoder_ready": not encoder_blockers,
         "encoder_blockers": encoder_blockers,
@@ -133,6 +140,40 @@ def inspect_capabilities() -> dict[str, Any]:
         },
         "liveportrait": {"optional_candidate_available": liveportrait_available},
     }
+    if dev_fallback_enabled():
+        try:
+            probe = importlib.import_module("dev_fallback_engine").probe_readiness()
+            dev_ready = isinstance(probe, dict) and probe.get("ready") is True
+        except Exception:
+            probe = {"ready": False, "status": "DEV_BACKEND_REQUIRED"}
+            dev_ready = False
+        software_ready = bool(encoders and "libx264" in encoders)
+        result.update({
+            "ready": dev_ready,
+            "presenter_status": "READY" if dev_ready else str(probe.get("status", "DEV_BACKEND_REQUIRED")),
+            "blockers": [] if dev_ready else ["Real CPU presenter dependencies/model weights are unavailable"],
+            "dev_fallback": True,
+            "backend": str(probe.get("backend", "MuseTalkCPUFloat32")),
+            "encoder_ready": software_ready,
+            "encoder_blockers": [] if software_ready else ["FFmpeg software H.264 encoder is unavailable"],
+            "dev_presenter": probe,
+        })
+        result["ffmpeg"]["software_encoder_available"] = software_ready
+    renderer_selection = os.getenv("AI_LIVE_AVATAR_RENDERER", "").strip()
+    if renderer_selection:
+        try:
+            from avatar_renderer import make_avatar_renderer
+            renderer = make_avatar_renderer(renderer_selection)
+            health = renderer.health()
+            renderer.stop()
+            renderer_ready = health.get("ready") is True
+            result.update({"ready": renderer_ready, "presenter_status": health.get("status", "RENDERER_NOT_READY"),
+                           "avatar_renderer": health,
+                           "blockers": [] if renderer_ready else ["Selected presenter requires setup or hardware validation"]})
+        except Exception:
+            result.update({"ready": False, "presenter_status": "AVATAR_RENDERER_CONFIGURATION_INVALID",
+                           "blockers": ["Selected presenter configuration is invalid"]})
+    return result
 
 
 if __name__ == "__main__":

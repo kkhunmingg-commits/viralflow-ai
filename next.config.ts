@@ -58,6 +58,16 @@ const nextConfig: NextConfig = {
       // The browser must always re-check the service worker so fixes reach installed phones.
       source: "/sw.js",
       headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }, { key: "Content-Type", value: "application/javascript; charset=utf-8" }],
+    }, {
+      // Only AI LIVE Lite may contact its fixed loopback companion (8786: 8766 is taken by IQSuperTrade).
+      source: "/ai-live/lite",
+      headers: [
+        { key: "Content-Security-Policy", value: contentSecurityPolicy.replace(
+          "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+          "connect-src 'self' https://*.supabase.co wss://*.supabase.co http://127.0.0.1:8786",
+        ) },
+        { key: "Permissions-Policy", value: "camera=(), microphone=(self), geolocation=(), payment=()" },
+      ],
     }];
   },
   // TypeScript is a separate required quality gate (`pnpm typecheck`). This
