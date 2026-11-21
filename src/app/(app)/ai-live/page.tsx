@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { AiLiveTabs } from "@/components/ai-live-tabs";
 import { PageHeading } from "@/components/page-heading";
 import { getOwnerAccounts } from "@/features/accounts/queries";
 import { liveCandidates, postedProducts } from "@/features/ai-live/lineup-service";
@@ -35,6 +36,7 @@ export default async function AiLivePage({ searchParams }: { searchParams: Promi
     .map((account) => ({ id: account.id, label: account.username ? `@${account.username}` : account.display_name }));
 
   return <>
+    <AiLiveTabs />
     <PageHeading eyebrow="AI LIVE" title="ไลฟ์ขายของด้วย AI"
       description="แพรวไลฟ์อยู่บนคอมที่บ้าน (การ์ดจอ RTX) แล้วคุมจากหน้านี้ได้ทุกที่ ทั้งเริ่ม/หยุด พิมพ์ให้พูด และดูคอมเมนต์ ภาพออกไป TikTok ผ่าน OBS"
       action={<span className="phase-chip">ทดสอบ · ยังใช้เสียงทดสอบ</span>} />
