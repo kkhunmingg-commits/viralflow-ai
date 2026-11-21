@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { AiLiveTabs } from "@/components/ai-live-tabs";
 import { getOwnerAccounts } from "@/features/accounts/queries";
 import { createClient } from "@/lib/supabase/server";
 import { AiLiveControlRoom } from "./control-room";
@@ -31,7 +32,7 @@ export default async function AiLivePage() {
     id: product.id, title: product.title, category: categoryNames.get(product.category_key) ?? null,
   }));
 
-  return <><AiLiveControlRoom accounts={customerAccounts} products={customerProducts} />
+  return <><AiLiveTabs /><AiLiveControlRoom accounts={customerAccounts} products={customerProducts} />
     {liveDevFallbackEnabled() && <DevPresenterConsole accounts={customerAccounts.filter((account) => account.connected)} products={customerProducts} />}
   </>;
 }
