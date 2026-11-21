@@ -202,6 +202,31 @@ class BackdropLayerTests(unittest.TestCase):
             self.assertGreater(float(np.abs(person - person[0]).max()), 20.0)
 
 
+    def test_frame_api_gives_one_bgr_frame_per_period_for_hosts_with_their_own_clock(self):
+        from lite_presenter_engine import LitePresenterEngine
+        with tempfile.TemporaryDirectory() as temp:
+            pack = self._layered_pack(Path(temp))
+            engine = LitePresenterEngine(pack.root, allow_technical_test=True)
+            with self.assertRaises(RuntimeError):
+                engine.idle_array()
+            engine.prepare(pack.reference_path, 25)
+            t = np.arange(16000) / 16000.0
+            audio = (np.sin(2 * np.pi * 220 * t) * 9000).astype("<i2").tobytes()   # 1 s of 16 kHz PCM16
+            frames = engine.frames_for_pcm16(audio, t0=100)
+            self.assertEqual(len(frames), 25)
+            self.assertEqual(frames[0].shape, (448, 256, 3))
+            self.assertEqual(frames[0].dtype, np.uint8)
+            self.assertEqual(engine._t, 125)
+            with self.assertRaises(ValueError):
+                engine.frames_for_pcm16(b"\x00")
+            labelled = engine.idle_array(t=200)
+            engine.show_label = False
+            plain = engine.idle_array(t=200)
+            engine.close()
+            self.assertEqual(labelled.shape, plain.shape)
+            self.assertGreater(float(np.abs(labelled.astype(np.int16) - plain).max()), 0.0)
+
+
 class PhotoOnBackdropTests(unittest.TestCase):
     def test_build_with_backdrop_keeps_only_the_person_and_records_layers(self):
         image, box = face_photo()

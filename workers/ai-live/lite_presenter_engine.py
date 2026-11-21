@@ -105,6 +105,7 @@ class LitePresenterEngine:
         self._prepared = False
         self._backdrop: np.ndarray | None = None
         self._matte: np.ndarray | None = None
+        self.show_label = True
 
     # FrameEngine contract -------------------------------------------------
     def prepare(self, reference: Path, fps: int) -> None:
@@ -211,6 +212,43 @@ class LitePresenterEngine:
                 self._metrics["speech_frames"] += 1
                 yield jpeg
 
+    # Frame API for hosts with their own clock (Praew's live engine): un-paced BGR arrays, no JPEG.
+    def frames_for_pcm16(self, audio: bytes, t0: int | None = None) -> list[np.ndarray]:
+        """One BGR frame per frame period of ``audio`` (16 kHz mono PCM16, any length, even byte count).
+
+        ``t0`` = the host's frame number of the first frame, so breathing/sway stays continuous when a host
+        renders an utterance ahead of showing it."""
+        if not self._prepared or self._extractor is None:
+            raise RuntimeError("PRESENTER_NOT_LOADED")
+        if len(audio) % 2:
+            raise ValueError("INVALID_AUDIO_CHUNK")
+        if t0 is not None:
+            self._t = int(t0)
+        self._extractor.reset()
+        out: list[np.ndarray] = []
+        for offset in range(0, len(audio), 32_000):
+            features = self._extractor.push(audio[offset:offset + 32_000])
+            tracked = [self._tracker.update(feature) for feature in features]
+            for position, feature in enumerate(features):
+                openness = tracked[min(position + 1, len(tracked) - 1)]
+                self._energy += (openness - self._energy) * 0.08
+                out.append(self._compose_array(self._select(openness, feature.centroid if feature.voiced else None)))
+                self._metrics["speech_frames"] += 1
+        return out
+
+    def idle_array(self, t: int | None = None) -> np.ndarray:
+        """Next silent frame (closing mouth, breathing, blinks) as a BGR array; ``t`` = host frame number."""
+        if not self._prepared:
+            raise RuntimeError("PRESENTER_NOT_LOADED")
+        if t is not None:
+            self._t = int(t)
+        if self._extractor is not None:
+            self._extractor.reset()
+        openness = self._decay()
+        self._energy *= 0.92
+        self._metrics["idle_frames"] += 1
+        return self._compose_array(self._select(openness, None))
+
     def render_idle(self, max_seconds: float) -> Iterator[bytes]:
         """Silent presenter motion between utterances; bounded so audio wins."""
         if not self._prepared:
@@ -310,6 +348,16 @@ class LitePresenterEngine:
 
     def _compose(self, index: int) -> bytes:
         import cv2
+        started = time.perf_counter()
+        frame = self._compose_array(index, record=False)
+        ok, encoded = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, self._quality])
+        if not ok:
+            raise RuntimeError("PRESENTER_JPEG_ENCODE_FAILED")
+        self._compose_ms.append((time.perf_counter() - started) * 1000)
+        return encoded.tobytes()
+
+    def _compose_array(self, index: int, record: bool = True) -> np.ndarray:
+        import cv2
         assert self._base is not None and self._label is not None and self._pack is not None
         started = time.perf_counter()
         frame = self._blink_base()
@@ -338,18 +386,17 @@ class LitePresenterEngine:
                 # Only the person breathes and sways; the shop behind them stays still.
                 matte = cv2.warpAffine(self._matte, matrix, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
                 frame = _over(frame, matte, self._backdrop)
-        label = self._label
-        lh, lw = label.shape[:2]
-        margin = max(8, frame.shape[1] // 60)
-        roi = frame[margin:margin + lh, margin:margin + lw]
-        alpha = label[:roi.shape[0], :roi.shape[1], 3:4].astype(np.float32) / 255.0
-        roi[:] = (label[:roi.shape[0], :roi.shape[1], :3] * alpha + roi * (1 - alpha)).astype(np.uint8)
-        ok, encoded = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, self._quality])
-        if not ok:
-            raise RuntimeError("PRESENTER_JPEG_ENCODE_FAILED")
-        self._compose_ms.append((time.perf_counter() - started) * 1000)
+        if self.show_label:   # a host that burns in its own AI disclosure may switch this one off
+            label = self._label
+            lh, lw = label.shape[:2]
+            margin = max(8, frame.shape[1] // 60)
+            roi = frame[margin:margin + lh, margin:margin + lw]
+            alpha = label[:roi.shape[0], :roi.shape[1], 3:4].astype(np.float32) / 255.0
+            roi[:] = (label[:roi.shape[0], :roi.shape[1], :3] * alpha + roi * (1 - alpha)).astype(np.uint8)
+        if record:
+            self._compose_ms.append((time.perf_counter() - started) * 1000)
         self._t += 1
-        return encoded.tobytes()
+        return frame
 
     def _paced(self, index: int) -> bytes | None:
         period = 1 / self._fps
