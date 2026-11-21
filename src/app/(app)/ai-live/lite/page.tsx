@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
-import { AiLiveTabs } from "@/components/ai-live-tabs";
 import { getOwnerAccounts } from "@/features/accounts/queries";
 import { createClient } from "@/lib/supabase/server";
 import { AiLiveControlRoom } from "./control-room";
@@ -8,7 +8,7 @@ import { DevPresenterConsole } from "./dev-presenter-console";
 import { liveDevFallbackEnabled } from "@/features/ai-live/dev-config";
 import "./ai-live.css";
 
-export const metadata: Metadata = { title: "AI LIVE Lite" };
+export const metadata: Metadata = { title: "พรีเซนเตอร์ Lite" };
 
 export default async function AiLivePage() {
   const client = await createClient();
@@ -32,7 +32,7 @@ export default async function AiLivePage() {
     id: product.id, title: product.title, category: categoryNames.get(product.category_key) ?? null,
   }));
 
-  return <><AiLiveTabs /><AiLiveControlRoom accounts={customerAccounts} products={customerProducts} />
+  return <><p className="ai-live-back"><Link href="/ai-live">← กลับหน้า AI LIVE</Link> · หน้านี้ใช้สร้างและเลือกพรีเซนเตอร์ Lite</p><AiLiveControlRoom accounts={customerAccounts} products={customerProducts} />
     {liveDevFallbackEnabled() && <DevPresenterConsole accounts={customerAccounts.filter((account) => account.connected)} products={customerProducts} />}
   </>;
 }

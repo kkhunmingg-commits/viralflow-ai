@@ -3,6 +3,7 @@
 /* The picture is a base64 JPEG sent by the owner's PC, not a file Next can optimise. */
 /* eslint-disable @next/next/no-img-element */
 
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PraewProduct } from "@/features/ai-live/live-director";
 import type { PraewCommand, PraewDesired, PraewReport } from "@/features/praew-live/contract";
@@ -23,6 +24,10 @@ const VOICES = [
   { name: "vachana-f1-jane", label: "D · นุ่ม โทนเจน" },
   { name: "edge-premwadee", label: "Premwadee (ตอนนี้ใช้ไม่ได้)" },
   { name: "test-voice", label: "เสียงทดสอบ" },
+] as const;
+const ENGINES = [
+  { name: "pro", label: "Pro", hint: "ขยับเนียน · ต้องการการ์ดจอแรง" },
+  { name: "lite", label: "Lite", hint: "ขยับวนลูป · คอมสเปคต่ำก็ไลฟ์ได้" },
 ] as const;
 const PARTS: Record<string, string> = { engine: "ภาพ", llm: "สมองตอบ", tts: "เสียง", tiktok: "TikTok", obs: "ภาพออก OBS", bridge: "ตัวเชื่อม" };
 const STATE_TEXT: Record<string, { title: string; tone: string }> = {
@@ -103,6 +108,11 @@ export function PraewControl({ products, postedCount }: { products: PraewProduct
   const chatter = report?.chatter ?? settings?.chatter ?? true;
   const overlay = report?.overlay ?? settings?.overlay ?? true;
   const talkProducts = settings?.products ?? false;
+  // The PC reports the engine it is actually running; until then show what the page asked for.
+  const engine = report?.engine ?? settings?.engine ?? "pro";
+  const asked = settings?.engine ?? "pro";
+  const litePacks = report?.litePacks ?? [];
+  const litePresenter = report?.litePresenter ?? settings?.litePresenter ?? "";
   const testVoice = /test/i.test(report?.voice ?? "");
   const engineUp = online && state === "running";
   // The engine just came up (or came back): try the local stream again.
@@ -154,6 +164,25 @@ export function PraewControl({ products, postedCount }: { products: PraewProduct
           <Toggle label="ชวนคุยเอง" hint="ไม่มีคอมเมนต์ แพรวจะชวนคุยเอง" on={chatter} disabled={!online || !!busy} onChange={on => send({ type: "chatter", on }, on ? "เปิดชวนคุยเองแล้ว" : "ปิดชวนคุยเองแล้ว")} />
           <Toggle label="คอมเมนต์บนจอ" hint="กล่องแชทบนภาพ" on={overlay} disabled={!online || !!busy} onChange={on => send({ type: "overlay", on }, on ? "แสดงคอมเมนต์บนจอแล้ว" : "ซ่อนคอมเมนต์บนจอแล้ว")} />
         </div>
+
+        <div className="praew-engine" role="radiogroup" aria-label="ตัวสร้างภาพ">
+          <span className="praew-engine-label">ตัวสร้างภาพ</span>
+          {ENGINES.map(option => <button key={option.name} type="button" role="radio" aria-checked={asked === option.name}
+            className={`praew-engine-option${asked === option.name ? " on" : ""}`} disabled={!!busy}
+            onClick={() => asked !== option.name && send({ type: "engine", name: option.name }, running ? `สลับเป็น ${option.label} แล้ว ภาพจะเปลี่ยนภายในไม่กี่วินาที` : `เลือก ${option.label} แล้ว`)}>
+            <b>{option.label}</b><small>{option.hint}</small>
+          </button>)}
+          {online && report?.engine && report.engine !== asked ? <small className="praew-engine-wait">คอมกำลังสลับตัวสร้างภาพ…</small> : null}
+        </div>
+        {engine === "lite" || asked === "lite" ? <div className="praew-field praew-lite-pack">
+          <label htmlFor="praew-lite-pack">พรีเซนเตอร์ Lite</label>
+          <div><select id="praew-lite-pack" value={litePresenter} disabled={!online || !!busy || !litePacks.length}
+            onChange={e => { const pack = litePacks.find(p => p.folder === e.target.value); if (pack) void send({ type: "litePresenter", folder: pack.folder }, `ใช้พรีเซนเตอร์ ${pack.name} แล้ว`); }}>
+            {!litePacks.some(p => p.folder === litePresenter) ? <option value="">{litePacks.length ? "เลือกพรีเซนเตอร์" : online ? "คอมยังไม่ส่งรายชื่อพรีเซนเตอร์" : "เปิดคอมก่อน"}</option> : null}
+            {litePacks.map(p => <option key={p.folder} value={p.folder}>{p.name}</option>)}
+          </select></div>
+          <small>ใช้ปุ่ม สินค้า เสียง คอมเมนต์ และ OBS ชุดเดียวกับ Pro ทั้งหมด · <Link href="/ai-live/lite">สร้างพรีเซนเตอร์ Lite จากรูปของคุณ</Link></small>
+        </div> : null}
 
         <ul className="praew-chips" aria-label="สุขภาพระบบ">
           {Object.entries(report?.parts ?? {}).map(([key, value]) => <li key={key} className={`chip-${value}`}>{PARTS[key] ?? key}</li>)}
