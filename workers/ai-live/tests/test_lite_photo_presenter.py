@@ -227,6 +227,58 @@ class BackdropLayerTests(unittest.TestCase):
             self.assertGreater(float(np.abs(labelled.astype(np.int16) - plain).max()), 0.0)
 
 
+    def test_mouth_holds_each_shape_instead_of_flapping_every_frame(self):
+        from lite_presenter_engine import LitePresenterEngine
+        with tempfile.TemporaryDirectory() as temp:
+            pack = self._layered_pack(Path(temp))
+            engine = LitePresenterEngine(pack.root, allow_technical_test=True)
+            engine.prepare(pack.reference_path, 25)
+            rng = np.random.default_rng(3)
+            picks = [engine._select(float(v), None) for v in rng.uniform(0.1, 1.0, 100)]   # jittery loud speech
+            engine.close()
+            changes = sum(1 for a, b in zip(picks, picks[1:]) if a != b)
+            self.assertLessEqual(changes, 100 // 3 + 1)      # a shape stays at least 3 frames (~8 changes/s at 25 fps)
+            self.assertGreater(changes, 5)                    # but the mouth still moves
+
+    def test_pack_eyes_replace_a_mid_blink_reference_and_blink_at_a_human_rate(self):
+        import cv2
+        import json
+        from lite_presenter_engine import LitePresenterEngine
+        from lite_presenter_pack import sha256_file
+        with tempfile.TemporaryDirectory() as temp:
+            pack = self._layered_pack(Path(temp))
+            reference = cv2.imread(str(pack.reference_path))
+            opened, closed = reference.copy(), reference.copy()
+            opened[:20] = (255, 255, 255)
+            closed[:20] = (0, 0, 0)
+            cv2.imwrite(str(pack.root / "eyes_open.png"), opened)
+            cv2.imwrite(str(pack.root / "eyes_closed.png"), closed)
+            manifest_path = pack.root / "manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            manifest["eyes"] = {
+                "open": {"file": "eyes_open.png", "sha256": sha256_file(pack.root / "eyes_open.png")},
+                "half": {"file": pack.reference_path.name, "sha256": sha256_file(pack.reference_path)},
+                "closed": {"file": "eyes_closed.png", "sha256": sha256_file(pack.root / "eyes_closed.png")},
+                "every_s": [3.3, 5.0]}
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            engine = LitePresenterEngine(pack.root, allow_technical_test=True)
+            engine.prepare(pack.reference_path, 25)
+            self.assertEqual(len(engine._blink_frames), 2)
+            bases = [engine._blink_base() for _ in range(25 * 60)]
+            engine.close()
+            self.assertTrue(12 <= engine._metrics["blinks"] <= 19, engine._metrics["blinks"])
+            shut = [float(b[:20].mean()) < 10 for b in bases]
+            runs = [len(r) for r in "".join("1" if s else "0" for s in shut).split("0") if r]
+            self.assertEqual(set(runs), {3})                  # half, closed x3, half: 200 ms, never doubled
+            self.assertGreater(float(bases[0][:20].mean()), 245)   # resting face = the open eyes, not the reference
+
+            manifest["eyes"]["closed"]["sha256"] = "0" * 64
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(PresenterPackError) as caught:
+                LitePresenterEngine(pack.root, allow_technical_test=True).prepare(pack.reference_path, 25)
+            self.assertEqual(caught.exception.code, "LITE_PACK_EYES_INVALID")
+
+
 class PhotoOnBackdropTests(unittest.TestCase):
     def test_build_with_backdrop_keeps_only_the_person_and_records_layers(self):
         image, box = face_photo()
