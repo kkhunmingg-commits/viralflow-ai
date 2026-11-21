@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aiLiveTabs, clipStudioTabs, isNavActive, navigation, navigationGroups, primaryNavigation } from "./navigation";
+import { clipStudioTabs, isNavActive, navigation, navigationGroups, primaryNavigation } from "./navigation";
 
 describe("application navigation", () => {
   it("shows the everyday owner workflow without exposing internal feature pages", () => {
@@ -20,9 +20,8 @@ describe("application navigation", () => {
     expect(isNavActive("/drama", navigation[0])).toBe(false);
   });
 
-  it("keeps one AI LIVE entry; the main live and LIVE Lite are tabs inside it", () => {
+  it("keeps one AI LIVE entry; its Lite presenter page stays under it", () => {
     const live = navigation.find((item) => item.href === "/ai-live")!;
-    expect(aiLiveTabs.map((tab) => tab.href)).toEqual(["/ai-live", "/ai-live/lite"]);
     for (const path of ["/ai-live", "/ai-live/lite"]) expect(isNavActive(path, live)).toBe(true);
   });
 });

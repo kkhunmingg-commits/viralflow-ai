@@ -33,4 +33,14 @@ describe("praew live commands", () => {
     expect(isOnline({ receivedAt: "2026-11-18T09:59:00Z" }, now)).toBe(false);
     expect(isOnline(null, now)).toBe(false);
   });
+  it("switches the picture engine and Lite presenter as settings, and reads them back from the PC", () => {
+    let d = enqueue(emptyDesired(), { type: "engine", name: "lite" });
+    d = enqueue(d, { type: "litePresenter", folder: "praew-shop" });
+    expect(d.settings).toMatchObject({ engine: "lite", litePresenter: "praew-shop" });
+    expect(commandSchema.safeParse({ type: "engine", name: "turbo" }).success).toBe(false);
+    expect(commandSchema.safeParse({ type: "litePresenter", folder: "../secret" }).success).toBe(false);
+    const r = reportSchema.parse({ state: "running", engine: "lite", litePacks: [{ folder: "praew-shop", name: "แพรว ร้านค้า" }] });
+    expect(r.engine).toBe("lite");
+    expect(r.litePacks).toHaveLength(1);
+  });
 });

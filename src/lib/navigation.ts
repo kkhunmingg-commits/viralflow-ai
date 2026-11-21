@@ -9,11 +9,6 @@ export const clipStudioTabs: readonly NavigationItem[] = [
   { href: "/product-clips", label: "คลิปสินค้าจากลิงก์", short: "🛒" },
   { href: "/drama", label: "ละครซีรีส์", short: "🎬" },
 ];
-/** AI LIVE: one sidebar entry; the main live and LIVE Lite are tabs inside the page. */
-export const aiLiveTabs: readonly NavigationItem[] = [
-  { href: "/ai-live", label: "ไลฟ์หลัก", short: "●" },
-  { href: "/ai-live/lite", label: "AI LIVE Lite", short: "◐" },
-];
 /** Everyday destinations, in the order an owner works through a day. Other feature routes remain reachable. */
 export const navigationGroups: ReadonlyArray<{ label: string; items: readonly NavigationEntry[] }> = [
   {
