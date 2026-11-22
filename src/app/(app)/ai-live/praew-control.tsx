@@ -238,7 +238,7 @@ export function PraewControl({ products, postedCount }: { products: PraewProduct
         <h3>สินค้าที่แพรวพูดถึง</h3>
         <Toggle label="พูดถึงสินค้า" hint="ส่งรายการด้านล่างให้แพรว ปิด = คุยเล่นอย่างเดียว" on={talkProducts} disabled={!!busy}
           onChange={on => send({ type: "products", on }, on ? "ส่งรายการสินค้าให้แพรวแล้ว ใช้ได้ภายใน 1 นาที" : "แพรวเลิกพูดถึงสินค้าแล้ว")} />
-        <p className="praew-note">ดึงจากระบบเอง: สินค้าที่ขายได้จริงจากคลิป TikTok ก่อน ตามด้วยสินค้า TikTok Shop ที่โพสต์คลิปไปแล้ว แล้วสินค้าจากคลิปลิงก์ Shopee/Lazada ที่กด “ผ่าน · โพสต์” สูงสุด 6 ตัว แพรวพูดได้เฉพาะข้อมูลที่เก็บไว้ ไม่พูดราคา Shopee/Lazada อย่าลืมปักสินค้า TikTok เข้าตะกร้าไลฟ์ในแอป TikTok ด้วย</p>
+        <p className="praew-note">ดึงจากระบบเอง: สินค้าที่ขายได้จริงจากคลิป TikTok ก่อน ตามด้วยสินค้าที่โพสต์แล้วทั้ง TikTok Shop และคลิปลิงก์ Shopee/Lazada เรียงตามสถิติจริง (ออเดอร์ ยอดวิว คอมเมนต์ แชร์) ถ้ามีไม่ถึง 6 ตัวก็ใส่ทั้งหมด แพรวพูดได้เฉพาะข้อมูลที่เก็บไว้ ไม่พูดราคา Shopee/Lazada อย่าลืมปักสินค้า TikTok เข้าตะกร้าไลฟ์ในแอป TikTok ด้วย</p>
         {products.length
           ? <ol className="praew-list">{products.map(p => <li key={p.name}><span><b>{p.name}</b> · ข้อมูล {p.facts.length} ข้อ{p.price ? ` · ${p.price}` : ""}</span><em>{p.source === "TIKTOK_SALES" ? "ขายได้จริง" : p.source === "POSTED_TIKTOK" ? "โพสต์ TikTok แล้ว" : "โพสต์ขายแล้ว"}</em></li>)}</ol>
           : <p className="praew-empty">{postedCount ? "สินค้าที่โพสต์ไว้ยังไม่มีข้อมูลสินค้าให้แพรวพูด" : "ยังไม่มีสินค้าที่โพสต์ขาย ทำคลิปสินค้าจากลิงก์แล้วกด “ผ่าน · โพสต์” ก่อน"}</p>}
