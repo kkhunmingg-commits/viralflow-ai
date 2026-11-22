@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { getOwnerAccounts } from "@/features/accounts/queries";
 import type { TikTokAccount } from "@/features/accounts/types";
+import { TikTokAccountAvatar } from "@/components/tiktok-account-avatar";
 import { createClient } from "@/lib/supabase/server";
 import { presentAccount } from "./account-presentation";
 import { DisconnectTikTokButton } from "./disconnect-tiktok-button";
@@ -15,9 +15,8 @@ function AccountCard({ account }: { account: TikTokAccount }) {
   const disconnected = account.connection_status === "DISCONNECTED" || ["revoked", "disconnected"].includes(account.authorization_status);
   return <article className="accounts-card accounts-customer-card">
     <div className="accounts-card-header">
-      {account.avatar_url && !account.is_mock
-        ? <Image className="accounts-avatar" src={account.avatar_url} alt="" width={54} height={54} unoptimized />
-        : <span className="accounts-avatar accounts-avatar-fallback" aria-hidden="true">{account.display_name.slice(0, 1).toUpperCase()}</span>}
+      <TikTokAccountAvatar accountId={account.id} name={account.display_name} size={54} hasAvatar={Boolean(account.avatar_url) && !account.is_mock}
+        className="accounts-avatar" fallbackClassName="accounts-avatar accounts-avatar-fallback" />
       <div className="accounts-identity"><h2>{account.display_name}</h2><p>{account.username ? `@${account.username}` : "บัญชี TikTok"}</p></div>
       <span className={`accounts-badge ${state.tone}`}><span className="accounts-badge-dot" />{state.label}</span>
       {!account.is_mock && disconnected ? <HideTikTokAccountButton accountId={account.id}

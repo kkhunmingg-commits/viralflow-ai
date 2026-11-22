@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import { TikTokAccountAvatar } from "@/components/tiktok-account-avatar";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { customerMetric, readinessLabel, type CustomerRoomRuntime, type LiveReadinessKey } from "@/features/ai-live/customer-room-view";
@@ -115,7 +115,7 @@ export function AiLiveControlRoom({ accounts, products, observations = [] }: {
         const status = observedRoom?.status ?? (isObserved ? runtime.status : account.connected === false ? "ต้องเชื่อมต่อใหม่" : observation?.scheduled === true ? "กำหนดเวลาแล้ว" : "ยังไม่เริ่มไลฟ์");
         const assignedPresenter = presenters.find((presenter) => presenter.assignedAccountIds.includes(account.id));
         return <article className={`live-account-card ${focusedAccount === account.id ? "selected" : ""}`} key={account.id}>
-          <div className="live-account-header">{account.avatarUrl ? <Image src={account.avatarUrl} alt="" width={48} height={48} unoptimized /> : <span className="live-account-avatar" aria-hidden="true">{account.label.replace(/^@/, "").slice(0, 1)}</span>}
+          <div className="live-account-header"><TikTokAccountAvatar accountId={account.id} name={account.label} size={48} hasAvatar={Boolean(account.avatarUrl)} className="live-account-photo" fallbackClassName="live-account-avatar" />
             <h3>{account.label}</h3><span className={`live-soft-badge ${isActive ? "active" : ""}`}>{status}</span></div>
           <dl className="live-room-metrics"><div><dt>{isActive && observation?.liveSeconds == null ? "เวลาห้อง" : "เวลา LIVE"}</dt><dd>{customerMetric(observation?.liveSeconds != null ? observation.liveSeconds / 60 : elapsedSeconds !== null ? elapsedSeconds / 60 : null, " นาที")}</dd></div>
             <div><dt>ผู้ชมตอนนี้</dt><dd>{customerMetric(observation?.viewers)}</dd></div><div><dt>ผู้ชมทั้งหมด</dt><dd>{customerMetric(observation?.totalViewers)}</dd></div><div><dt>ยอดขาย</dt><dd>{customerMetric(observation?.sales)}</dd></div>
