@@ -52,7 +52,7 @@ describe("live overlay model", () => {
     const once = autoPromoSet({ ...emptyConfig(), items: [mine] }, products, Math.random, { layout: "classic" });
     expect(once.items[0]).toBe(mine);
     expect(once.items.filter(i => i.auto).map(i => i.kind)).toEqual(expect.arrayContaining(["promo", "clock", "emoji"]));
-    expect(once.items.some(i => i.kind === "promo" && i.template === "price-tag")).toBe(true);
+    expect(once.items.some(i => i.kind === "promo" && i.template === "banner")).toBe(true);
     const twice = autoPromoSet(once, products);
     expect(twice.items.length).toBe(once.items.length);
     expect(configSchema.safeParse(twice).success).toBe(true);

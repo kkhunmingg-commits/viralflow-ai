@@ -59,6 +59,19 @@ describe("live overlay looks", () => {
     expect(needsArranging({ ...old, items: [{ ...old.items[0], auto: undefined }] })).toBe(false);
   });
 
+  it("keeps the screen light and leaves the full frame to a hand pick", () => {
+    for (const t of TONES) for (const l of LAYOUTS) {
+      const set = autoPromoSet(emptyConfig(), beauty, Math.random, { tone: t.id, layout: l.id });
+      expect(set.items.filter(i => i.everyMin === 0).length).toBeLessThanOrEqual(3);
+      expect(set.items.length).toBeLessThanOrEqual(6);
+    }
+    for (let n = 0; n < 60; n++) expect(chooseLook(beauty, { tone: "auto", layout: "random", last: "" }).layout).not.toBe("full-frame");
+    // An automatic set from before the lighter sets is made again, unless arranged by hand.
+    const old = { ...emptyConfig(), items: [makeItem("text", { y: 0.3, auto: true })], look: { ...emptyConfig().look, last: "fun/full-frame" } };
+    expect(needsArranging(old)).toBe(true);
+    expect(needsArranging({ ...old, look: { ...old.look, autoNew: false } })).toBe(false);
+  });
+
   it("never invents a price tag when no product has a price", () => {
     for (const l of LAYOUTS) {
       const set = autoPromoSet(emptyConfig(), food, Math.random, { layout: l.id });
@@ -84,6 +97,6 @@ describe("live overlay looks", () => {
   });
 
   it("reads old saved overlays without a look", () => {
-    expect(configSchema.parse({ items: [] }).look).toEqual({ tone: "auto", layout: "random", last: "", at: "", autoNew: true });
+    expect(configSchema.parse({ items: [] }).look).toEqual({ tone: "auto", layout: "random", last: "", at: "", autoNew: true, v: 0 });
   });
 });

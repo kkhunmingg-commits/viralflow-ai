@@ -12,7 +12,7 @@
 @keyframes lo-float { 50% { translate: 0 -4cqh; } }
 
 .lo-face { position: absolute; display: grid; place-items: center; border: 2px dashed rgba(255,95,120,.9); border-radius: 10px; background: rgba(255,60,90,.14); cursor: move; z-index: 40; }
-.lo-tiktok-ui { position: absolute; display: grid; place-items: center; border: 1px dashed rgba(255,255,255,.55); background: repeating-linear-gradient(135deg, rgba(0,0,0,.28) 0 6px, rgba(0,0,0,.12) 6px 12px); pointer-events: none; z-index: 30; }
+.lo-tiktok-ui { position: absolute; display: grid; place-items: center; border: 1px dashed rgba(255,255,255,.55); background: rgba(0,0,0,.12); pointer-events: none; z-index: 30; }
 .lo-tiktok-ui span { padding: 2px 6px; border-radius: 5px; color: #fff; background: rgba(0,0,0,.6); font: 700 9px/1.4 sans-serif; white-space: nowrap; }
 .lo-face.lo-selected { border-style: solid; }
 .lo-face > span:first-child { max-width: 90%; padding: 3px 7px; border-radius: 6px; color: #fff; background: rgba(160,20,50,.75); font: 700 10px/1.45 sans-serif; text-align: center; pointer-events: none; }
