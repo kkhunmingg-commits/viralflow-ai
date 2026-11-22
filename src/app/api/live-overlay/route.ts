@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { configSchema, overlayToken } from "@/features/live-overlay/model";
 import { overlayProducts, overlayUploadUrl, ownOverlay, saveOverlay } from "@/features/live-overlay/service";
+import { autoPromoSet, needsFirstSet } from "@/features/live-overlay/themes";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -20,10 +21,15 @@ const obsUrl = (request: Request, owner: string, secret: string) =>
 export async function GET(request: Request) {
   const who = await signedIn();
   if (!who) return reply({ error: "unauthorized" }, 401);
-  const [stored, products] = await Promise.all([
-    ownOverlay(createAdminClient(), who.owner),
-    overlayProducts(who.client, who.owner).catch(() => []),
-  ]);
+  const admin = createAdminClient();
+  const [first, products] = await Promise.all([ownOverlay(admin, who.owner), overlayProducts(who.client, who.owner).catch(() => [])]);
+  let stored = first;
+  // First visit: the screen comes already arranged from the products; the owner changes it only if they want to.
+  if (needsFirstSet(stored)) {
+    const { secret: _s, updatedAt: _u, ...blank } = stored;
+    void _s; void _u;
+    stored = await saveOverlay(admin, who.owner, autoPromoSet(blank, products)).catch(() => stored);
+  }
   const { secret, updatedAt, ...config } = stored;
   return reply({ config, updatedAt, obsUrl: obsUrl(request, who.owner, secret), products });
 }

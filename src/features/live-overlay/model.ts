@@ -52,13 +52,13 @@ export type OverlayItem = z.infer<typeof itemSchema>;
 export type OverlayKind = OverlayItem["kind"];
 
 const zone = z.object({ x: unit, y: unit, w: unit, h: unit });
-/** The look of the auto set: chosen tone and layout ("auto"/"random" = picked from the products), the last one made, and whether OBS makes a new one each live. */
+/** The look of the auto set: chosen tone and layout ("auto"/"random" = picked from the products), the last one made, and whether OBS makes a new one each live (on unless the owner arranged it by hand). */
 const look = z.object({
   tone: z.string().max(20).default("auto"),
   layout: z.string().max(20).default("random"),
   last: z.string().max(80).default(""),
   at: z.string().max(40).default(""),
-  autoNew: z.boolean().default(false),
+  autoNew: z.boolean().default(true),
 });
 export type OverlayLook = z.infer<typeof look>;
 export const configSchema = z.object({

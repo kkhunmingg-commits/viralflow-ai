@@ -158,10 +158,14 @@ export function lookLabel(last: string) {
   return tone && layout ? `${tone.label} · ${layout.label}` : "";
 }
 
+/** Nothing on screen yet and no set ever made: the screen gets arranged automatically from the start. */
+export const needsFirstSet = (config: OverlayConfig) => !config.items.length && !config.look.last;
+
 /** The OBS page opening for a new live makes a new look, at most once per 20 minutes (a reload mid-live keeps it). */
 export const NEW_LOOK_GAP_MS = 20 * 60_000;
 export function wantsNewLook(config: OverlayConfig, now: Date) {
   if (!config.look.autoNew) return false;
+  if (needsFirstSet(config)) return true;
   const at = Date.parse(config.look.at);
   return !Number.isFinite(at) || now.getTime() - at >= NEW_LOOK_GAP_MS;
 }
