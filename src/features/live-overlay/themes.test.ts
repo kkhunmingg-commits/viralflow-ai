@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { configSchema, emptyConfig, makeItem, type OverlayProduct } from "./model";
-import { LAYOUTS, NEW_LOOK_GAP_MS, TONES, autoPromoSet, chooseLook, lookLabel, productCategory, wantsNewLook } from "./themes";
+import { LAYOUTS, NEW_LOOK_GAP_MS, TONES, autoPromoSet, chooseLook, lookLabel, needsFirstSet, productCategory, wantsNewLook } from "./themes";
 
 const beauty: OverlayProduct[] = [
   { name: "เซรั่มวิตซีหน้าใส", price: "฿199", facts: ["ขนาด 30 มล."], image: "https://cdn.example/a.jpg", where: "ตะกร้าสีส้มในไลฟ์" },
@@ -52,14 +52,21 @@ describe("live overlay looks", () => {
   it("makes a new look when OBS opens only if asked, at most once per gap", () => {
     const now = new Date("2026-11-22T10:00:00Z");
     const base = emptyConfig();
-    expect(wantsNewLook(base, now)).toBe(false);
-    const on = { ...base, look: { ...base.look, autoNew: true } };
+    // Never arranged: arranged automatically right away.
+    expect(needsFirstSet(base)).toBe(true);
+    expect(wantsNewLook(base, now)).toBe(true);
+    const arranged = autoPromoSet(base, food, Math.random, {}, now);
+    expect(needsFirstSet(arranged)).toBe(false);
+    expect(needsFirstSet({ ...arranged, items: [] })).toBe(false);
+    // Arranged by hand (auto-new off): kept.
+    expect(wantsNewLook({ ...arranged, look: { ...arranged.look, autoNew: false, at: "" } }, now)).toBe(false);
+    const on = { ...base, items: [makeItem("text", {})], look: { ...base.look, autoNew: true } };
     expect(wantsNewLook(on, now)).toBe(true);
     expect(wantsNewLook({ ...on, look: { ...on.look, at: new Date(now.getTime() - 60_000).toISOString() } }, now)).toBe(false);
     expect(wantsNewLook({ ...on, look: { ...on.look, at: new Date(now.getTime() - NEW_LOOK_GAP_MS).toISOString() } }, now)).toBe(true);
   });
 
   it("reads old saved overlays without a look", () => {
-    expect(configSchema.parse({ items: [] }).look).toEqual({ tone: "auto", layout: "random", last: "", at: "", autoNew: false });
+    expect(configSchema.parse({ items: [] }).look).toEqual({ tone: "auto", layout: "random", last: "", at: "", autoNew: true });
   });
 });

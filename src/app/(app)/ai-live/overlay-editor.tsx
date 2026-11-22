@@ -73,14 +73,20 @@ export function OverlayEditor() {
   const change = (next: OverlayConfig) => { setConfig(next); setDirty(true); };
   const items = config.items;
   const item = items.find(i => i.id === selected) ?? null;
-  const patch = (id: string, values: Partial<OverlayItem>) => change({ ...config, items: items.map(i => i.id === id ? { ...i, ...values } as OverlayItem : i) });
+  // Arranging an auto piece by hand keeps the owner's layout: OBS stops making a new look each live (they can tick it again).
+  const handMade = (ids: string[]) => {
+    if (!config.look.autoNew || !items.some(i => i.auto && ids.includes(i.id))) return config.look;
+    say("จัดเองแล้ว ระบบจะเก็บแบบนี้ไว้ ไม่สุ่มใหม่ตอนเปิดไลฟ์ (ติ๊กกลับได้)");
+    return { ...config.look, autoNew: false };
+  };
+  const patch = (id: string, values: Partial<OverlayItem>) => change({ ...config, look: handMade([id]), items: items.map(i => i.id === id ? { ...i, ...values } as OverlayItem : i) });
   const add = (kind: OverlayKind, extra: Record<string, unknown> = {}) => {
     if (items.length >= MAX_ITEMS) { say(`ใส่ได้สูงสุด ${MAX_ITEMS} ชิ้น`); return null; }
     const fresh = makeItem(kind, extra);
     change({ ...config, items: [...items, fresh] }); setSelected(fresh.id);
     return fresh;
   };
-  const remove = (id: string) => { change({ ...config, items: items.filter(i => i.id !== id) }); setSelected(null); };
+  const remove = (id: string) => { change({ ...config, look: handMade([id]), items: items.filter(i => i.id !== id) }); setSelected(null); };
   const duplicate = (src: OverlayItem) => {
     if (items.length >= MAX_ITEMS) return;
     const copy = { ...src, id: newId(src.kind), x: Math.min(1 - src.w, src.x + 0.03), y: Math.min(1 - src.h, src.y + 0.03), auto: undefined } as OverlayItem;
@@ -90,7 +96,7 @@ export function OverlayEditor() {
     const i = items.findIndex(x => x.id === id), j = i + dir;
     if (i < 0 || j < 0 || j >= items.length) return;
     const next = [...items]; [next[i], next[j]] = [next[j], next[i]];
-    change({ ...config, items: next });
+    change({ ...config, look: handMade([id]), items: next });
   };
   const onMove = (id: string, box: { x: number; y: number; w: number; h: number }) => {
     if (id === FACE_ID) change({ ...config, faceZone: box }); else patch(id, box);
