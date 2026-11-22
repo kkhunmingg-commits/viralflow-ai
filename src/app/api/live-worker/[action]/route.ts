@@ -29,7 +29,8 @@ export async function GET(request: Request, context: { params: Promise<{ action:
   const after = Number(new URL(request.url).searchParams.get("after") ?? 0);
   const admin = createAdminClient();
   const desired = await readDesired(admin, auth.owner);
-  const products = desired.settings.products ? await productFeed(admin, auth.owner) : [];
+  // On unless the owner switched "พูดถึงสินค้า" off: a sales live needs Praew to know the products from the start.
+  const products = desired.settings.products !== false ? await productFeed(admin, auth.owner) : [];
   return reply({ seq: desired.seq, settings: desired.settings, commands: commandsAfter(desired, Number.isFinite(after) ? after : 0), products });
 }
 

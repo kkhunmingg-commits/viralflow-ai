@@ -94,6 +94,8 @@ export function OverlayStage({ config, products, imageSrc, mode, selected, onSel
         {editing && selected === item.id ? <span className="lo-handle" onPointerDown={e => begin(e, item.id, "resize", box)} /> : null}
       </div>;
     }) : null}
+    {/* TikTok asks for AI-made content to be labelled: always on while the overlay shows, under the clock, off TikTok's menus. */}
+    {config.enabled || editing ? <div className="lo-ai-label">🤖 พิธีกร AI</div> : null}
     {editing ? TIKTOK_UI.map(z => <div key={z.label} className="lo-tiktok-ui" aria-hidden
       style={{ left: `${z.x * 100}%`, top: `${z.y * 100}%`, width: `${z.w * 100}%`, height: `${z.h * 100}%` }}><span>{z.label} · อย่าวางทับ</span></div>) : null}
     {editing ? <FaceZone zone={live?.id === FACE_ID ? live.box : face} selected={selected === FACE_ID}

@@ -30,11 +30,11 @@ export type LayoutId = typeof LAYOUTS[number]["id"];
 
 /** What the products mostly are, from their names and facts. */
 const CATEGORIES: { id: string; label: string; words: string[]; tones: string[]; heads: string[] }[] = [
-  { id: "beauty", label: "ความสวยความงาม", tones: ["sweet", "lux", "fresh"], heads: ["💄 LIVE · ของดีผิวสวย", "✨ LIVE · บิวตี้ของแพรว"],
+  { id: "beauty", label: "ความสวยความงาม", tones: ["sweet", "lux", "fresh"], heads: ["💄 LIVE · บิวตี้ช้อปสด", "✨ LIVE · บิวตี้ของแพรว"],
     words: ["เซรั่ม", "ครีม", "ลิป", "แป้ง", "มาสก์", "สกิน", "ผิว", "บำรุง", "น้ำหอม", "เครื่องสำอาง", "โลชั่น", "กันแดด", "รองพื้น", "แชมพู", "serum", "cream", "lip", "skin"] },
-  { id: "health", label: "สุขภาพ", tones: ["fresh", "natural", "lux"], heads: ["💪 LIVE · ดูแลสุขภาพ", "🌿 LIVE · ของดีเพื่อสุขภาพ"],
+  { id: "health", label: "สุขภาพ", tones: ["fresh", "natural", "lux"], heads: ["💪 LIVE · ดูแลสุขภาพ", "🌿 LIVE · ช้อปสายสุขภาพ"],
     words: ["วิตามิน", "อาหารเสริม", "คอลลาเจน", "โปรตีน", "สมุนไพร", "ไฟเบอร์", "ดีท็อกซ์", "vitamin", "collagen"] },
-  { id: "food", label: "ของกิน", tones: ["hot", "fun", "natural"], heads: ["😋 LIVE · ของอร่อยต้องลอง", "🍜 LIVE · ของกินของดี"],
+  { id: "food", label: "ของกิน", tones: ["hot", "fun", "natural"], heads: ["😋 LIVE · ของกินน่าลอง", "🍜 LIVE · ของกินของดี"],
     words: ["อาหาร", "ขนม", "กาแฟ", "ชา", "น้ำพริก", "เครื่องดื่ม", "หมู", "ไก่", "ข้าว", "เส้น", "ซอส", "อร่อย", "ผลไม้", "snack", "coffee"] },
   { id: "tech", label: "ไอที/แกดเจ็ต", tones: ["tech", "night", "hot"], heads: ["⚡ LIVE · แกดเจ็ตน่าใช้", "📱 LIVE · ของไอทีน่าใช้"],
     words: ["หูฟัง", "ชาร์จ", "สายชาร์จ", "โทรศัพท์", "มือถือ", "ลำโพง", "กล้อง", "พาวเวอร์แบงค์", "เมาส์", "คีย์บอร์ด", "usb", "bluetooth", "led", "type-c"] },
@@ -44,12 +44,13 @@ const CATEGORIES: { id: string; label: string; words: string[]; tones: string[];
     words: ["แมว", "หมา", "สุนัข", "สัตว์เลี้ยง", "ทรายแมว", "pet"] },
   { id: "kids", label: "เด็ก/ของเล่น", tones: ["fun", "sweet", "fresh"], heads: ["🧸 LIVE · ของดีสำหรับน้องๆ"],
     words: ["เด็ก", "ของเล่น", "ทารก", "ผ้าอ้อม", "baby"] },
-  { id: "home", label: "ของใช้ในบ้าน", tones: ["fresh", "fun", "natural"], heads: ["🏠 LIVE · ของใช้ในบ้าน", "🧺 LIVE · ของใช้ดีบอกต่อ"],
+  { id: "home", label: "ของใช้ในบ้าน", tones: ["fresh", "fun", "natural"], heads: ["🏠 LIVE · ของใช้ในบ้าน", "🧺 LIVE · ช้อปของใช้กับแพรว"],
     words: ["กระทะ", "หม้อ", "ไม้ถู", "ผ้า", "ที่นอน", "หมอน", "กล่อง", "ชั้นวาง", "ครัว", "ทำความสะอาด", "ถังขยะ", "ไม้แขวน", "ห้องน้ำ", "พัดลม"] },
 ];
-const GENERAL = { id: "general", label: "ทั่วไป", tones: ["hot", "fun", "tech"], heads: ["🔴 LIVE · ของดีราคาโดน", "🛍️ LIVE · ช้อปสดกับแพรว"] };
+const GENERAL = { id: "general", label: "ทั่วไป", tones: ["hot", "fun", "tech"], heads: ["🔴 LIVE · ช้อปสดในไลฟ์", "🛍️ LIVE · ช้อปสดกับแพรว"] };
 const BANNER = { x: 0.03, y: 0.47, w: 0.62, h: 0.1 };
-const BADGES = ["โปรในไลฟ์", "แพรวแนะนำ", "ของมันต้องมี", "ช้อปในไลฟ์", "ตัวเด็ดวันนี้"];
+// Plain labels only: no promo is promised and nothing is called the best (TikTok: no misleading claims).
+const BADGES = ["แพรวแนะนำ", "ช้อปในไลฟ์", "สินค้าในไลฟ์", "มีในตะกร้า"];
 
 /** The main kind of product on the live: earlier products (Praew's best sellers) count more. */
 export function productCategory(products: readonly OverlayProduct[]) {
@@ -169,8 +170,8 @@ export const needsFirstSet = (config: OverlayConfig) => !config.items.length && 
  */
 export const autoUnderTikTokUi = (config: OverlayConfig) =>
   config.look.autoNew && config.items.some(i => i.auto && !i.randomPos && overTikTokUi(i));
-/** Bumped when the automatic sets change shape (v2: lighter sets); an older automatic set is made again. */
-export const LOOK_VERSION = 2;
+/** Bumped when the automatic sets change shape (v2: lighter sets; v3: plain words, no promo promised); an older automatic set is made again. */
+export const LOOK_VERSION = 3;
 const autoOutdated = (config: OverlayConfig) => config.look.autoNew && config.look.v < LOOK_VERSION && config.items.some(i => i.auto);
 /** Arrange now (not waiting for the next live): never arranged, or an old automatic set under TikTok's menus. */
 export const needsArranging = (config: OverlayConfig) => needsFirstSet(config) || autoUnderTikTokUi(config) || autoOutdated(config);

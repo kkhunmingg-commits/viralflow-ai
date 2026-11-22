@@ -101,7 +101,7 @@ export function makeItem(kind: OverlayKind, extra: Record<string, unknown> = {},
   const template = kind === "promo" ? (extra.template as PromoTemplate | undefined) ?? "banner" : null;
   const box = template ? PROMO_BOX[template] : DEFAULT_BOX[kind];
   const defaults: Record<OverlayKind, Record<string, unknown>> = {
-    text: { text: "โปรเด็ดวันนี้ กดตะกร้าเลย!", style: "red-tag" },
+    text: { text: "ช้อปในไลฟ์ กดตะกร้าได้เลย", style: "red-tag" },
     clock: {}, emoji: { emoji: "🔥" }, image: { src: "" }, promo: {},
   };
   return itemSchema.parse({ id: newId(kind, rnd), kind, ...box, ...defaults[kind], ...extra });
@@ -160,8 +160,8 @@ export function promoWords(item: Extract<OverlayItem, { kind: "promo" }>, produc
   return {
     title: item.title || (product ? shorten(product.name, 60) : "สินค้าแนะนำในไลฟ์"),
     price: item.price || product?.price || "",
-    badge: item.badge || "โปรในไลฟ์",
-    cta: item.cta || (product?.where.includes("ตะกร้า") || !product ? "กดตะกร้าสีส้มได้เลย 🛒" : "ลิงก์สินค้าอยู่ในโพสต์ 🛒"),
+    badge: item.badge || "สินค้าในไลฟ์",
+    cta: item.cta || (product?.where.includes("ตะกร้า") || !product ? "กดตะกร้าสีส้มได้เลย 🛒" : "ดูในคลิปสินค้าของช่อง"),
     fact: product?.facts[0] ? shorten(product.facts[0], 70) : "",
     image: product?.image ?? null,
   };
