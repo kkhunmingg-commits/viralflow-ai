@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { readStateFile, saveStateFile } from "@/features/flow-farm/service";
 import { praewFeed } from "@/features/ai-live/lineup-service";
 import type { PraewProduct } from "@/features/ai-live/live-director";
+import { signedAsset } from "@/features/live-overlay/service";
 import { emptyDesired, enqueue, type PraewCommand, type PraewDesired, type PraewReport } from "./contract";
 
 const base = (owner: string) => {
@@ -31,7 +32,13 @@ export async function productFeed(admin: SupabaseClient, owner: string, now = ne
   const cached = await readStateFile<{ at: string; products: PraewProduct[] }>(admin, path);
   if (cached && now.getTime() - Date.parse(cached.at) < FEED_TTL_MS) return cached.products;
   try {
-    const products = await praewFeed(admin, owner, now);
+    // Storage photos (link clips) go out as 6-hour signed links so the PC's product card can show them.
+    const products = await Promise.all((await praewFeed(admin, owner, now)).map(async p => {
+      if (!p.image || p.image.startsWith("https://")) return p;
+      const url = await signedAsset(admin, owner, p.image).catch(() => null);
+      const { image: _drop, ...rest } = p; void _drop;
+      return url ? { ...p, image: url } : rest;
+    }));
     await saveStateFile(admin, path, { at: now.toISOString(), products }, "praew_products_not_saved").catch(() => {});
     return products;
   } catch {
