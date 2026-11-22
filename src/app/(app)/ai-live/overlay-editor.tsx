@@ -239,7 +239,7 @@ export function OverlayEditor() {
             <input value={item.title} maxLength={120} onChange={e => patch(item.id, { title: e.target.value })} /></label>
           {item.template !== "ticker" ? <>
             <label className="lo-field"><span>ราคา/โปร (ว่าง = ราคาที่รู้)</span><input value={item.price} maxLength={40} placeholder="เช่น ฿199 หรือ ลด 50%" onChange={e => patch(item.id, { price: e.target.value })} /></label>
-            <label className="lo-field"><span>ป้ายเล็ก</span><input value={item.badge} maxLength={40} placeholder="โปรในไลฟ์" onChange={e => patch(item.id, { badge: e.target.value })} /></label>
+            <label className="lo-field"><span>ป้ายเล็ก</span><input value={item.badge} maxLength={40} placeholder="สินค้าในไลฟ์" onChange={e => patch(item.id, { badge: e.target.value })} /></label>
             <label className="lo-field wide"><span>ปุ่มชวนซื้อ</span><input value={item.cta} maxLength={60} placeholder="กดตะกร้าสีส้มได้เลย 🛒" onChange={e => patch(item.id, { cta: e.target.value })} /></label>
           </> : null}
         </> : null}

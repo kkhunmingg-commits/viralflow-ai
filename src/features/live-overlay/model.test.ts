@@ -41,7 +41,7 @@ describe("live overlay model", () => {
     expect(promoProduct(promo, products, 0)?.name).toBe("เซรั่มวิตซี");
     expect(promoProduct(promo, products, 10_000)?.name).toBe("กระทะเคลือบ");
     expect(promoProduct({ ...promo, product: "กระทะเคลือบ" }, products, 0)?.name).toBe("กระทะเคลือบ");
-    expect(promoWords(promo, products[1])).toMatchObject({ price: "", cta: "ลิงก์สินค้าอยู่ในโพสต์ 🛒" });
+    expect(promoWords(promo, products[1])).toMatchObject({ price: "", cta: "ดูในคลิปสินค้าของช่อง" });
     expect(promoWords({ ...promo, price: "ลด 50%" }, products[1]).price).toBe("ลด 50%");
     expect(promoWords(promo, products[0])).toMatchObject({ price: "฿199", fact: "ขนาด 30 มล.", cta: "กดตะกร้าสีส้มได้เลย 🛒" });
     expect(tickerText(makeItem("promo", { template: "ticker" }) as typeof promo, products)).toContain("เซรั่มวิตซี · ขนาด 30 มล. · ฿199");

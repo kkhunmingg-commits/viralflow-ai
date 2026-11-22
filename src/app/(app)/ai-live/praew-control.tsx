@@ -107,7 +107,7 @@ export function PraewControl({ products, postedCount }: { products: PraewProduct
   const muted = report?.muted ?? settings?.muted ?? false;
   const chatter = report?.chatter ?? settings?.chatter ?? true;
   const overlay = report?.overlay ?? settings?.overlay ?? true;
-  const talkProducts = settings?.products ?? false;
+  const talkProducts = settings?.products ?? true;
   // The PC reports the engine it is actually running; until then show what the page asked for.
   const engine = report?.engine ?? settings?.engine ?? "pro";
   const asked = settings?.engine ?? "pro";
