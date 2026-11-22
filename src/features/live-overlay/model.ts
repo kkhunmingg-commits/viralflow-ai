@@ -59,6 +59,8 @@ const look = z.object({
   last: z.string().max(80).default(""),
   at: z.string().max(40).default(""),
   autoNew: z.boolean().default(true),
+  /** Which version of the automatic sets made this look (0 = before the lighter sets). */
+  v: z.number().int().min(0).max(100).default(0),
 });
 export type OverlayLook = z.infer<typeof look>;
 export const configSchema = z.object({
