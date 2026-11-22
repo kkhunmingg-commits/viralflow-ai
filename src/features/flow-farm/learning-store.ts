@@ -26,6 +26,10 @@ async function readStats(admin: SupabaseClient, owner: string): Promise<StatsFil
   const file = await readStateFile<StatsFile>(admin, statsPath(owner)).catch(() => null);
   return file?.version === 1 ? { ...file, clips: file.clips ?? {}, accounts: file.accounts ?? {} } : { version: 1, clips: {}, accounts: {} };
 }
+/** Per-clip numbers (views, likes, comments, shares) by flow_clips id, for other features that rank by real results. */
+export async function readClipStats(admin: SupabaseClient, owner: string): Promise<StatsByClip> {
+  return (await readStats(admin, owner)).clips;
+}
 async function writeStats(admin: SupabaseClient, owner: string, file: StatsFile) {
   await saveStateFile(admin, statsPath(owner), { ...file, clips: trimStats(file.clips) }, "clip_stats_not_saved");
 }

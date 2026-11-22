@@ -145,6 +145,21 @@ export interface PostedProduct {
   postedOn: number;
   /** First listing photo copied to private Storage, shown on the live's promo overlay. */
   imagePath?: string | null;
+  /** Numbers of its finished clip, when they were collected. */
+  stats?: ProductStats;
+}
+
+/** Real results of a product's posted clips and orders; every number is counted, none estimated. */
+export interface ProductStats { orders: number; gmv: number; views: number; likes: number; comments: number; shares: number }
+export const NO_STATS: ProductStats = { orders: 0, gmv: 0, views: 0, likes: 0, comments: 0, shares: 0 };
+
+/**
+ * How well a posted product did: orders count most, then how many people watched its clips and how much they engaged
+ * (comments and shares weigh more than likes). A product with no numbers yet scores 0 and is ordered by how new it is.
+ */
+export function productStatsScore(s: ProductStats) {
+  const engagement = s.views > 0 ? Math.min(1, (s.likes + 3 * s.comments + 5 * s.shares) / s.views) : 0;
+  return s.orders * 100 + Math.log10(1 + s.gmv) * 5 + Math.log10(1 + s.views) * 10 + engagement * 30;
 }
 
 /** A TikTok Shop product the owner already posted a clip for (Flow farm AFFILIATE clip, status POSTED). */
@@ -152,6 +167,8 @@ export interface PostedTikTokProduct {
   productId: string; title: string; price: number | null; facts: string[]; postedAt: string;
   /** Listing photo (https). */
   imageUrl?: string | null;
+  /** Its clips' numbers and its orders (all channels, last 30 days). */
+  stats?: ProductStats;
 }
 
 /** One product as Praew's show on the PC reads it (presenter-lab/live/products.json). She states only these facts. */
@@ -171,10 +188,11 @@ const cleanFacts = (facts: readonly string[]) => [...new Set(facts.map(f => Stri
 const MARKET = { SHOPEE: "Shopee", LAZADA: "Lazada" } as const;
 
 /**
- * What Praew presents: best-sellers with real TikTok Shop VIDEO orders first (in lineup order), then TikTok Shop products the
- * owner already posted clips for (newest first, they can go in the live's basket), then the newest products approved for
- * sale from Shopee / Lazada link clips. Best-sellers need an owner-kept fact; a posted product without facts is still
- * listed so Praew can name it, give its price (TikTok only) and say where to buy, and she makes no claim about it.
+ * What Praew presents: best-sellers with real TikTok Shop VIDEO orders first (in lineup order), then every posted product
+ * (TikTok Shop products with posted clips and Shopee / Lazada link-clip products together), best results first
+ * (productStatsScore), newest first when the numbers tie. With few products, all of them go in. Best-sellers need an
+ * owner-kept fact; a posted product without facts is still listed so Praew can name it, give its price (TikTok only) and
+ * say where to buy, and she makes no claim about it.
  */
 export function praewProducts(lineup: LiveLineup, candidates: readonly LiveCandidate[], posted: readonly PostedProduct[], max: number = LIVE_POLICY.maxProducts,
   postedTikTok: readonly PostedTikTokProduct[] = []): PraewProduct[] {
@@ -192,20 +210,21 @@ export function praewProducts(lineup: LiveLineup, candidates: readonly LiveCandi
     add({ name: c.title.slice(0, 120), facts: cleanFacts(c.facts), where: "ตะกร้าสีส้มในไลฟ์", source: "TIKTOK_SALES", never_say: [...PRAEW_NEVER_SAY],
       ...tiktokPrice(c.price), ...(c.imageUrl ? { image: c.imageUrl } : {}) });
   }
-  const inLineup = new Set(lineup.productIds), seenIds = new Set<string>();
-  for (const t of [...postedTikTok].sort((a, b) => b.postedAt.localeCompare(a.postedAt))) {
+  const inLineup = new Set(lineup.productIds), seenIds = new Set<string>(), seenKeys = new Set<string>();
+  const ranked: Array<{ score: number; at: string; item: PraewProduct }> = [];
+  for (const t of postedTikTok) {
     if (inLineup.has(t.productId) || seenIds.has(t.productId)) continue;
     seenIds.add(t.productId);
-    add({ name: t.title.slice(0, 120), facts: cleanFacts(t.facts), where: "ตะกร้าสีส้มในไลฟ์", source: "POSTED_TIKTOK", never_say: [...PRAEW_NEVER_SAY],
-      ...tiktokPrice(t.price), ...(t.imageUrl ? { image: t.imageUrl } : {}) });
+    ranked.push({ score: productStatsScore(t.stats ?? NO_STATS), at: t.postedAt, item: { name: t.title.slice(0, 120), facts: cleanFacts(t.facts),
+      where: "ตะกร้าสีส้มในไลฟ์", source: "POSTED_TIKTOK", never_say: [...PRAEW_NEVER_SAY], ...tiktokPrice(t.price), ...(t.imageUrl ? { image: t.imageUrl } : {}) } });
   }
-  const seen = new Set<string>();
   for (const p of [...posted].sort((a, b) => b.approvedAt.localeCompare(a.approvedAt) || b.postedOn - a.postedOn)) {
-    if (seen.has(p.key)) continue;
-    seen.add(p.key);
+    if (seenKeys.has(p.key)) continue;
+    seenKeys.add(p.key);
     // Link-clip prices are never kept (they change); viewers are sent to the listing for the price.
-    add({ name: p.title.slice(0, 120), facts: cleanFacts(p.facts), where: `ลิงก์ ${MARKET[p.platform]} ในโพสต์คลิปสินค้าของช่อง`, source: "POSTED_CLIP", never_say: [...PRAEW_NEVER_SAY],
-      ...(p.imagePath ? { image: p.imagePath } : {}) });
+    ranked.push({ score: productStatsScore(p.stats ?? NO_STATS), at: p.approvedAt, item: { name: p.title.slice(0, 120), facts: cleanFacts(p.facts),
+      where: `ลิงก์ ${MARKET[p.platform]} ในโพสต์คลิปสินค้าของช่อง`, source: "POSTED_CLIP", never_say: [...PRAEW_NEVER_SAY], ...(p.imagePath ? { image: p.imagePath } : {}) } });
   }
+  for (const r of ranked.sort((a, b) => b.score - a.score || b.at.localeCompare(a.at))) add(r.item);
   return out;
 }
