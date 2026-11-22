@@ -2,8 +2,8 @@ import "server-only";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readStateFile, saveStateFile } from "@/features/flow-farm/service";
-import { liveCandidates, postedProducts } from "@/features/ai-live/lineup-service";
-import { liveBlockStart, praewProducts, selectLiveLineup, type LiveCandidate, type PostedProduct } from "@/features/ai-live/live-director";
+import { praewSources } from "@/features/ai-live/lineup-service";
+import { PRAEW_MAX_PRODUCTS, liveBlockStart, praewProducts, selectLiveLineup, type LiveCandidate, type PostedProduct, type PostedTikTokProduct } from "@/features/ai-live/live-director";
 import { configSchema, emptyConfig, parseToken, type OverlayConfig, type OverlayProduct, type StoredOverlay } from "./model";
 
 const ASSET_BUCKET = "video-assets";
@@ -48,23 +48,23 @@ export async function overlayByToken(admin: SupabaseClient, token: string | null
 }
 
 /** The same products Praew talks about (same order), with a listing photo and a plain price where one is known. */
-export function overlayProductsFrom(candidates: readonly LiveCandidate[], posted: readonly PostedProduct[], now: Date): OverlayProduct[] {
+export function overlayProductsFrom(candidates: readonly LiveCandidate[], posted: readonly PostedProduct[], now: Date,
+  postedTikTok: readonly PostedTikTokProduct[] = []): OverlayProduct[] {
   const blockStart = liveBlockStart(now);
-  const list = praewProducts(selectLiveLineup(candidates, blockStart), candidates, posted);
+  const list = praewProducts(selectLiveLineup(candidates, blockStart), candidates, posted, PRAEW_MAX_PRODUCTS, postedTikTok);
   return list.map(p => {
-    const c = p.source === "TIKTOK_SALES" ? candidates.find(x => x.title.slice(0, 120) === p.name) : undefined;
-    const q = p.source === "POSTED_CLIP" ? posted.find(x => x.title.slice(0, 120) === p.name) : undefined;
+    const c = p.source === "TIKTOK_SALES" ? candidates.find(x => x.title.slice(0, 120) === p.name)
+      : p.source === "POSTED_TIKTOK" ? postedTikTok.find(x => x.title.slice(0, 120) === p.name) : undefined;
     return {
       name: p.name, facts: p.facts, where: p.where,
       price: c?.price ? `฿${c.price.toLocaleString("th-TH")}` : null,
-      image: c?.imageUrl ?? q?.imagePath ?? null,
+      image: p.image ?? null,
     };
   });
 }
 export async function overlayProducts(client: SupabaseClient, owner: string, now = new Date()) {
-  const blockStart = liveBlockStart(now);
-  const [candidates, posted] = await Promise.all([liveCandidates(client, owner, blockStart), postedProducts(client, owner)]);
-  return overlayProductsFrom(candidates, posted, now);
+  const s = await praewSources(client, owner, now);
+  return overlayProductsFrom(s.candidates, s.posted, now, s.postedTikTok);
 }
 
 /** Only the owner's own files can be shown through an overlay link. */
