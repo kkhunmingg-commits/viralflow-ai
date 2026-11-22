@@ -223,6 +223,11 @@
 .lo-promo-add { display: inline-flex; gap: 4px; }
 .lo-promo-add select, .lo-field input, .lo-field select, .lo-link input { min-height: 38px; padding: 7px 10px; border: 1px solid #455066; border-radius: 9px; color: #eaf0fa; background: #151b27; font-size: 12px; }
 .lo-auto { width: 100%; }
+.lo-theme { display: grid; gap: 8px; padding: 12px; border: 1px solid #3b4560; border-radius: 12px; background: #1a2131; }
+.lo-theme-pick { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+.lo-theme-go { display: flex; gap: 8px; }
+.lo-theme-go .lo-auto { flex: 1; width: auto; }
+.lo-shuffle { flex: none; min-height: 38px; padding: 7px 14px; border: 1px solid #6b5bd6; border-radius: 10px; color: #fff; background: #3a2f7a; font-size: 13px; font-weight: 800; cursor: pointer; }
 .lo-emoji-box { padding: 10px 12px; border: 1px solid #363f51; border-radius: 12px; background: #1b2130; }
 .lo-emoji-box summary { cursor: pointer; font-size: 13px; font-weight: 800; }
 .lo-emoji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(38px, 1fr)); gap: 4px; margin-top: 8px; }

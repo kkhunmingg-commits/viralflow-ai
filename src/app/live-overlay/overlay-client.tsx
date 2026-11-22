@@ -14,10 +14,12 @@ export function LiveOverlayClient({ token }: { token: string }) {
   // Only reached after a fetch, so the server render (nothing yet) never differs.
   const [inObs] = useState(() => typeof window === "undefined" || "obsstudio" in window);
   useEffect(() => {
-    let stop = false, timer: ReturnType<typeof setTimeout> | undefined, last = "";
+    let stop = false, timer: ReturnType<typeof setTimeout> | undefined, last = "", first = true;
     const load = async () => {
       try {
-        const r = await fetch(`/live-overlay/data?k=${encodeURIComponent(token)}`, { cache: "no-store" });
+        // The first load tells the server OBS just opened (a new live), so it can make a new look if the owner asked.
+        const r = await fetch(`/live-overlay/data?k=${encodeURIComponent(token)}${first ? "&start=1" : ""}`, { cache: "no-store" });
+        first = false;
         if (r.status === 404) setBad(true);
         else if (r.ok) {
           const next = await r.json() as Data;

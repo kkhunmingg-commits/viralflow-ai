@@ -22,6 +22,9 @@
 .lo-s-red-tag { color: #fff; border-radius: 1.2cqh 40cqh 40cqh 1.2cqh; background: linear-gradient(180deg, #ff4a4a, #d40b2a); box-shadow: 0 .6cqh 2cqh rgba(120,0,20,.45), inset 0 -0.8cqh 0 rgba(0,0,0,.18); text-shadow: 0 .05em .1em rgba(0,0,0,.35); }
 .lo-s-yellow-pop { color: #2b1200; border-radius: 30cqh; background: linear-gradient(180deg, #fff27a, #ffc21a); box-shadow: 0 0 0 1.2cqh #fff inset, 0 .8cqh 2cqh rgba(0,0,0,.3); }
 .lo-s-gradient { color: #fff; border-radius: 30cqh; background: linear-gradient(90deg, #ff2d75, #ff8a00); text-shadow: 0 .05em .12em rgba(0,0,0,.35); box-shadow: 0 .8cqh 2.4cqh rgba(255,45,117,.4); }
+.lo-s-gold-lux { color: #2a1a00; border-radius: 30cqh; background: linear-gradient(180deg, #fff3b0, #f2c14e 45%, #b8841f); box-shadow: 0 0 0 .8cqh #1a1206 inset, 0 .8cqh 2cqh rgba(0,0,0,.35); }
+.lo-s-neon { color: #fff; border: .7cqh solid #8af4ff; border-radius: 30cqh; background: rgba(12,6,34,.7); text-shadow: 0 0 .25em #6ef0ff, 0 0 .5em #b66bff; box-shadow: 0 0 2.4cqh #6ef0ff, inset 0 0 2cqh rgba(182,107,255,.6); }
+.lo-s-mint-pill { color: #053b2a; border-radius: 30cqh; background: linear-gradient(180deg, #c9ffe9, #4fe0a8); box-shadow: 0 0 0 1cqh #fff inset, 0 .8cqh 2cqh rgba(0,0,0,.25); }
 .lo-s-dark-pill { color: #fff; border-radius: 30cqh; background: rgba(10,12,20,.62); backdrop-filter: blur(4px); }
 
 .lo-emoji { font-size: min(86cqh, 86cqw); line-height: 1; filter: drop-shadow(0 1cqh 1.6cqh rgba(0,0,0,.35)); font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif; }
@@ -35,6 +38,9 @@
 .lo-c-purple { --a: #9c6bff; --b: #5b23d6; --hi: #ffe14d; }
 .lo-c-green { --a: #1fcf7d; --b: #08884b; --hi: #fff27a; }
 .lo-c-blue { --a: #3ea8ff; --b: #1453d6; --hi: #ffe14d; }
+.lo-c-gold { --a: #f5c451; --b: #9a6a12; --hi: #fff7d6; }
+.lo-c-black { --a: #3a3550; --b: #0d0b16; --hi: #f5c451; }
+.lo-c-mint { --a: #34d9a0; --b: #0b8a7a; --hi: #fff8b0; }
 .lo-badge { display: inline-block; padding: .12em .6em; border-radius: 99px; color: var(--b); background: var(--hi); font-weight: 900; white-space: nowrap; }
 .lo-pic-empty { display: grid; place-items: center; width: 100%; height: 100%; font-size: 50cqh; }
 .lo-banner, .lo-tag, .lo-card, .lo-frame-bottom { animation: lo-swap .6s ease both; }

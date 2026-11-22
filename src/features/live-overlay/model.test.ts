@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { autoPromoSet, configSchema, emptyConfig, makeItem, nextPopupDelaySec, parseToken, pickSpot, promoProduct, promoWords, tickerText, type OverlayProduct } from "./model";
+import { autoPromoSet } from "./themes";
+import { configSchema, emptyConfig, makeItem, nextPopupDelaySec, parseToken, pickSpot, promoProduct, promoWords, tickerText, type OverlayProduct } from "./model";
 
 const seq = (...v: number[]) => { let i = 0; return () => v[i++ % v.length]; };
 const products: OverlayProduct[] = [
@@ -48,7 +49,7 @@ describe("live overlay model", () => {
 
   it("makes an auto promo set and replaces only its own items", () => {
     const mine = makeItem("text", { text: "ของฉัน" });
-    const once = autoPromoSet({ ...emptyConfig(), items: [mine] }, products);
+    const once = autoPromoSet({ ...emptyConfig(), items: [mine] }, products, Math.random, { layout: "classic" });
     expect(once.items[0]).toBe(mine);
     expect(once.items.filter(i => i.auto).map(i => i.kind)).toEqual(expect.arrayContaining(["promo", "clock", "emoji"]));
     expect(once.items.some(i => i.kind === "promo" && i.template === "price-tag")).toBe(true);

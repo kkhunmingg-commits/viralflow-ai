@@ -7,16 +7,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { FACE_ID, OverlayStage } from "@/features/live-overlay/stage";
 import {
-  MAX_ITEMS, PROMO_TEMPLATES, TEXT_STYLES, autoPromoSet, makeItem, newId, pickSpot,
+  MAX_ITEMS, PROMO_TEMPLATES, TEXT_STYLES, makeItem, newId, pickSpot,
   type OverlayConfig, type OverlayItem, type OverlayKind, type OverlayProduct, type PromoTemplate,
 } from "@/features/live-overlay/model";
+import { LAYOUTS, TONES, autoPromoSet, lookLabel, productCategory } from "@/features/live-overlay/themes";
 
 const LOCAL_STREAM = "http://127.0.0.1:8776/stream.mjpg";
 const EMOJI = ["❤️", "🔥", "😍", "🥰", "😂", "🤩", "😎", "👍", "👏", "🙏", "💯", "✨", "⭐", "🌟", "🎉", "🎊", "🎁", "💰", "💸", "🛒", "🛍️", "📦", "⚡", "💥", "💖", "💕", "😘", "😱", "🤑", "👑", "💎", "🌈", "🌸", "🍀", "🐱", "🐶", "🧧", "⏰", "📣", "🆕"];
 const KIND_LABEL: Record<OverlayKind, string> = { text: "ข้อความ", clock: "นาฬิกา", emoji: "อีโมจิ", image: "รูปภาพ", promo: "ป้ายโปร" };
-const STYLE_LABEL: Record<typeof TEXT_STYLES[number], string> = { "red-tag": "ป้ายแดง", "white-outline": "ขาวขอบดำ", "yellow-pop": "เหลืองเด่น", gradient: "ไล่สีชมพูส้ม", "dark-pill": "แถบดำใส" };
+const STYLE_LABEL: Record<typeof TEXT_STYLES[number], string> = { "red-tag": "ป้ายแดง", "white-outline": "ขาวขอบดำ", "yellow-pop": "เหลืองเด่น", gradient: "ไล่สีชมพูส้ม", "dark-pill": "แถบดำใส", "gold-lux": "ทองหรู", neon: "นีออน", "mint-pill": "มินต์" };
 const TEMPLATE_LABEL: Record<PromoTemplate, string> = { banner: "แบนเนอร์สินค้า", "price-tag": "ป้ายราคา", card: "การ์ดสินค้า", ticker: "แถบตัววิ่ง", frame: "กรอบไลฟ์ทั้งจอ" };
-const COLORS = [["red", "แดง"], ["orange", "ส้ม"], ["pink", "ชมพู"], ["purple", "ม่วง"], ["green", "เขียว"], ["blue", "ฟ้า"]] as const;
+const COLORS = [["red", "แดง"], ["orange", "ส้ม"], ["pink", "ชมพู"], ["purple", "ม่วง"], ["green", "เขียว"], ["blue", "ฟ้า"], ["gold", "ทอง"], ["black", "ดำ"], ["mint", "มินต์"]] as const;
 
 type Loaded = { config: OverlayConfig; obsUrl: string; products: OverlayProduct[] };
 const describe = (item: OverlayItem) => item.kind === "text" ? item.text || "ข้อความ"
@@ -63,6 +64,7 @@ export function OverlayEditor() {
   }, [dirty]);
 
   const products = useMemo(() => loaded?.products ?? [], [loaded]);
+  const category = useMemo(() => productCategory(products), [products]);
   const imageSrc = useCallback((ref: string) => ref.startsWith("https://") ? ref : `/api/live-overlay/img?ref=${encodeURIComponent(ref)}`, []);
 
   if (error && !config) return <p className="praew-empty">{error}</p>;
@@ -118,6 +120,12 @@ export function OverlayEditor() {
       say("เพิ่มรูปแล้ว ลากวางตำแหน่งได้เลย");
     } catch { say("อัปโหลดรูปไม่สำเร็จ (ใช้รูป PNG หรือ JPG)"); } finally { setUploading(false); }
   };
+  const makeSet = (prefs: { tone?: string; layout?: string } = {}) => {
+    const next = autoPromoSet(config, products, Math.random, prefs);
+    change(next); setSelected(null);
+    const name = lookLabel(next.look.last);
+    say(products.length ? `สร้างชุด “${name}” จากสินค้า ${products.length} ตัวแล้ว กดบันทึกเพื่อขึ้นไลฟ์` : `สร้างชุด “${name}” แล้ว (ยังไม่มีสินค้า ป้ายจะเปลี่ยนเองเมื่อมีสินค้า)`);
+  };
   const copyLink = async () => {
     try { await navigator.clipboard.writeText(loaded.obsUrl); say("คัดลอกลิงก์สำหรับ OBS แล้ว"); } catch { say("คัดลอกไม่ได้ กดค้างที่ลิงก์แล้วคัดลอกเอง"); }
   };
@@ -153,11 +161,28 @@ export function OverlayEditor() {
           <button type="button" onClick={() => add("promo", { template })}>➕ ป้ายโปร</button>
         </span>
       </div>
-      <button type="button" className="praew-btn go lo-auto" disabled={!products.length && items.some(i => i.auto)}
-        onClick={() => { change(autoPromoSet(config, products)); setSelected(null); say(products.length ? `สร้างชุดป้ายโปรจากสินค้า ${products.length} ตัวแล้ว กดบันทึกเพื่อขึ้นไลฟ์` : "สร้างชุดป้ายโปรแล้ว (ยังไม่มีสินค้า ป้ายจะเปลี่ยนเองเมื่อมีสินค้า)"); }}>
-        ✨ สร้างชุดป้ายโปรอัตโนมัติจากสินค้าที่แพรวพูดถึง
-      </button>
-      <p className="praew-note">ใช้ชื่อ ราคา ข้อมูล และรูปสินค้าที่มีอยู่แล้ว ทำในเว็บเอง ฟรี ไม่ใช้ AI วาดรูปที่เสียเงิน · กดซ้ำได้ จะแทนชุดเดิมแต่ไม่ลบชิ้นที่เพิ่มเอง</p>
+      <div className="lo-theme">
+        <div className="lo-theme-pick">
+          <label className="lo-field"><span>โทนสี</span>
+            <select value={config.look.tone} onChange={e => change({ ...config, look: { ...config.look, tone: e.target.value } })}>
+              <option value="auto">ตามสินค้า ({category.label})</option>
+              {TONES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+            </select></label>
+          <label className="lo-field"><span>รูปแบบจอ</span>
+            <select value={config.look.layout} onChange={e => change({ ...config, look: { ...config.look, layout: e.target.value } })}>
+              <option value="random">สุ่มรูปแบบ</option>
+              {LAYOUTS.map(l => <option key={l.id} value={l.id}>{l.label}</option>)}
+            </select></label>
+        </div>
+        <div className="lo-theme-go">
+          <button type="button" className="praew-btn go lo-auto" disabled={!products.length && items.some(i => i.auto)} onClick={() => makeSet()}>
+            ✨ สร้างชุดหน้าจอไลฟ์จากสินค้าที่แพรวพูดถึง
+          </button>
+          <button type="button" className="lo-shuffle" onClick={() => makeSet({ tone: "auto", layout: "random" })} title="สุ่มโทนและรูปแบบใหม่ ไม่ซ้ำแบบเดิม">🎲 สุ่มแบบใหม่</button>
+        </div>
+        <label className="lo-check"><input type="checkbox" checked={config.look.autoNew} onChange={e => change({ ...config, look: { ...config.look, autoNew: e.target.checked } })} /> เปิดไลฟ์ครั้งใหม่ ให้สุ่มแบบใหม่เองอัตโนมัติ (ไม่ซ้ำครั้งก่อน)</label>
+        <p className="praew-note">{config.look.last ? `ตอนนี้: ${lookLabel(config.look.last)} · ` : ""}โทนสีเลือกตามประเภทสินค้า ใช้ชื่อ ราคา ข้อมูล และรูปสินค้าที่มีอยู่แล้ว ทำในเว็บเอง ฟรี · กดซ้ำได้ จะแทนชุดเดิมแต่ไม่ลบชิ้นที่เพิ่มเอง</p>
+      </div>
 
       <details className="lo-emoji-box">
         <summary>😀 เพิ่มอีโมจิ</summary>
@@ -228,7 +253,7 @@ export function OverlayEditor() {
         {items.slice().reverse().map(i => <li key={i.id} className={i.id === selected ? "on" : ""}>
           <button type="button" onClick={() => setSelected(i.id)}><span>{KIND_LABEL[i.kind]}</span>{describe(i)}{i.everyMin > 0 ? <em>เด้ง</em> : null}{i.hidden ? <em>ซ่อน</em> : null}{i.auto ? <em>อัตโนมัติ</em> : null}</button>
         </li>)}
-        {!items.length ? <li className="lo-layers-empty">ยังไม่มีชิ้นไหน ลองกด “สร้างชุดป้ายโปรอัตโนมัติ”</li> : null}
+        {!items.length ? <li className="lo-layers-empty">ยังไม่มีชิ้นไหน ลองกด “สร้างชุดหน้าจอไลฟ์”</li> : null}
       </ol>
 
       <details className="lo-obs">

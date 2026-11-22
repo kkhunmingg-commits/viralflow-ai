@@ -8,7 +8,9 @@ import { z } from "zod";
 export const FRAME = { width: 720, height: 1280 } as const;
 export const MAX_ITEMS = 60;
 
-export const TEXT_STYLES = ["red-tag", "white-outline", "yellow-pop", "gradient", "dark-pill"] as const;
+export const TEXT_STYLES = ["red-tag", "white-outline", "yellow-pop", "gradient", "dark-pill", "gold-lux", "neon", "mint-pill"] as const;
+export const PROMO_COLORS = ["red", "orange", "pink", "purple", "green", "blue", "gold", "black", "mint"] as const;
+export type PromoColor = typeof PROMO_COLORS[number];
 export const PROMO_TEMPLATES = ["banner", "price-tag", "card", "ticker", "frame"] as const;
 export type PromoTemplate = typeof PROMO_TEMPLATES[number];
 
@@ -43,19 +45,29 @@ export const itemSchema = z.discriminatedUnion("kind", [
     cycleSec: z.number().finite().min(3).max(600).default(12),
     // Typed by the owner; empty = taken from the product (a link-clip price is never stored, so it says to check the cart).
     title: text(120), price: text(40), badge: text(40), cta: text(60),
-    color: z.enum(["red", "orange", "pink", "purple", "green", "blue"]).default("red"),
+    color: z.enum(PROMO_COLORS).default("red"),
   }),
 ]);
 export type OverlayItem = z.infer<typeof itemSchema>;
 export type OverlayKind = OverlayItem["kind"];
 
 const zone = z.object({ x: unit, y: unit, w: unit, h: unit });
+/** The look of the auto set: chosen tone and layout ("auto"/"random" = picked from the products), the last one made, and whether OBS makes a new one each live. */
+const look = z.object({
+  tone: z.string().max(20).default("auto"),
+  layout: z.string().max(20).default("random"),
+  last: z.string().max(80).default(""),
+  at: z.string().max(40).default(""),
+  autoNew: z.boolean().default(false),
+});
+export type OverlayLook = z.infer<typeof look>;
 export const configSchema = z.object({
   items: z.array(itemSchema).max(MAX_ITEMS).default([]),
   /** Where Praew's face is in the frame: pop-ups never land here. */
   faceZone: zone.default({ x: 0.22, y: 0.1, w: 0.56, h: 0.42 }),
   /** Master switch: off hides everything in OBS without losing the layout. */
   enabled: z.boolean().default(true),
+  look: look.prefault({}),
 });
 export type OverlayConfig = z.infer<typeof configSchema>;
 export type Zone = z.infer<typeof zone>;
@@ -124,7 +136,7 @@ export function promoProduct(item: Extract<OverlayItem, { kind: "promo" }>, prod
   return products[Math.floor(nowMs / 1000 / item.cycleSec) % products.length];
 }
 
-const shorten = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trim()}…` : s);
+export const shorten = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1).trim()}…` : s);
 /** The words a promo shows: what the owner typed, else the product's own (nothing invented, no claims). */
 export function promoWords(item: Extract<OverlayItem, { kind: "promo" }>, product: OverlayProduct | null) {
   return {
@@ -142,25 +154,6 @@ export function tickerText(item: Extract<OverlayItem, { kind: "promo" }>, produc
   if (item.title) return item.title;
   const parts = products.map(p => `🛒 ${shorten(p.name, 50)}${p.facts[0] ? ` · ${shorten(p.facts[0], 60)}` : ""}${p.price ? ` · ${p.price}` : ""}`);
   return parts.length ? parts.join("   ✦   ") : "🔥 ไลฟ์สดวันนี้ ถามแพรวได้ทุกเรื่อง พิมพ์คอมเมนต์มาเลย 🔥";
-}
-
-/**
- * "สร้างชุดป้ายโปรอัตโนมัติ": a ready layout from the live products, made only from what is already known about them
- * (name, price, first kept fact, listing photo) — no image AI, nothing paid. Replaces earlier auto items only.
- */
-export function autoPromoSet(config: OverlayConfig, products: readonly OverlayProduct[], rnd = Math.random): OverlayConfig {
-  const own = config.items.filter(i => !i.auto);
-  const hasPrice = products.some(p => p.price);
-  const auto: OverlayItem[] = [
-    makeItem("text", { text: "🔴 LIVE · ของดีราคาโดน", style: "red-tag", x: 0.04, y: 0.025, w: 0.6, h: 0.05, auto: true }, rnd),
-    makeItem("clock", { x: 0.7, y: 0.03, w: 0.26, h: 0.042, auto: true }, rnd),
-    makeItem("promo", { template: "banner", color: "red", cycleSec: 12, auto: true }, rnd),
-    makeItem("promo", { template: "ticker", auto: true }, rnd),
-    ...(products.some(p => p.image) ? [makeItem("promo", { template: "card", color: "orange", x: 0.03, y: 0.5, cycleSec: 15, everyMin: 2, showSec: 15, auto: true }, rnd)] : []),
-    ...(hasPrice ? [makeItem("promo", { template: "price-tag", color: "red", cycleSec: 12, auto: true }, rnd)] : []),
-    ...["🔥", "❤️", "🛒", "🎁"].map((emoji, i) => makeItem("emoji", { emoji, everyMin: 2 + i, showSec: 5, randomPos: true, auto: true }, rnd)),
-  ];
-  return { ...config, items: [...own, ...auto].slice(0, MAX_ITEMS) };
 }
 
 /** OBS URL token: owner id + a random secret kept in the owner's overlay file. */
