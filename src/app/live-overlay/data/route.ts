@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cachedOverlayProducts, overlayByToken, saveOverlay } from "@/features/live-overlay/service";
-import { autoPromoSet, needsFirstSet, wantsNewLook } from "@/features/live-overlay/themes";
+import { autoPromoSet, needsArranging, wantsNewLook } from "@/features/live-overlay/themes";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -18,7 +18,7 @@ export async function GET(request: Request) {
   // OBS just opened for a new live (a new look each live is on by default) or nothing was ever arranged: make one
   // (never the last one) and keep it.
   const now = new Date();
-  if ((url.searchParams.get("start") === "1" && wantsNewLook(config, now)) || needsFirstSet(config)) {
+  if ((url.searchParams.get("start") === "1" && wantsNewLook(config, now)) || needsArranging(config)) {
     try {
       const saved = await saveOverlay(admin, found.owner, autoPromoSet(config, products, Math.random, {}, now));
       const { secret: _s, updatedAt: at, ...fresh } = saved;

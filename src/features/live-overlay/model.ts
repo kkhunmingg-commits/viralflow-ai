@@ -108,15 +108,31 @@ export function makeItem(kind: OverlayKind, extra: Record<string, unknown> = {},
 const overlaps = (a: Zone, b: Zone) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 
 /**
- * A random spot for a pop-up of size w x h that stays inside the frame, off Praew's face and off the middle column
- * (where she gestures). Falls back to the side strip with the most room.
+ * Where TikTok draws its own menus over a portrait live, as fractions of the frame: the host name, viewers and close
+ * button on top, the comments bottom-left, and the comment box, gift, share and cart buttons along the bottom.
+ * Overlay pieces made automatically never go here, and pop-ups never land here.
+ */
+export const TIKTOK_UI: readonly (Zone & { label: string })[] = [
+  { label: "แถบชื่อช่อง/คนดู TikTok", x: 0, y: 0, w: 1, h: 0.115 },
+  { label: "คอมเมนต์ TikTok", x: 0, y: 0.6, w: 0.68, h: 0.3 },
+  { label: "ปุ่มคอมเมนต์ ของขวัญ ตะกร้า", x: 0, y: 0.9, w: 1, h: 0.1 },
+];
+/** A box (with a hair of slack for rounding) that sits under one of TikTok's menus. */
+export const overTikTokUi = (box: Zone) => {
+  const inner = { x: box.x + 0.003, y: box.y + 0.003, w: Math.max(0, box.w - 0.006), h: Math.max(0, box.h - 0.006) };
+  return TIKTOK_UI.some(z => overlaps(inner, z));
+};
+
+/**
+ * A random spot for a pop-up of size w x h that stays inside the frame, off Praew's face, off the middle column
+ * (where she gestures) and off TikTok's own menus. Falls back to the side strip with the most room.
  */
 export function pickSpot(w: number, h: number, face: Zone, rnd = Math.random): { x: number; y: number } {
   const ww = Math.min(w, 1), hh = Math.min(h, 1);
   const center: Zone = { x: 0.38, y: 0, w: 0.24, h: 0.75 };
   for (let i = 0; i < 40; i++) {
     const spot = { x: rnd() * (1 - ww), y: rnd() * (1 - hh), w: ww, h: hh };
-    if (!overlaps(spot, face) && !overlaps(spot, center)) return { x: spot.x, y: spot.y };
+    if (!overlaps(spot, face) && !overlaps(spot, center) && !overTikTokUi(spot)) return { x: spot.x, y: spot.y };
   }
   const left = face.x, right = 1 - (face.x + face.w);
   const x = left >= right ? Math.max(0, (left - ww) * rnd()) : Math.min(1 - ww, face.x + face.w + Math.max(0, right - ww) * rnd());
