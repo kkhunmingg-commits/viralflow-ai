@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import Image from "next/image";
+import { TikTokAccountAvatar } from "@/components/tiktok-account-avatar";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getAccountDetailData } from "@/features/accounts/queries";
@@ -26,9 +26,8 @@ export default async function AccountDetailPage({ params }: { params: Promise<{ 
       <h1>{account.display_name}</h1><p>{account.username ? `@${account.username}` : "บัญชี TikTok"}</p></div></header>
     <section className="accounts-card" aria-label="รายละเอียดบัญชี TikTok">
       <div className="accounts-card-header">
-        {account.avatar_url && !account.is_mock
-          ? <Image className="accounts-avatar" src={account.avatar_url} alt="" width={64} height={64} unoptimized />
-          : <span className="accounts-avatar accounts-avatar-fallback" aria-hidden="true">{account.display_name.slice(0, 1).toUpperCase()}</span>}
+        <TikTokAccountAvatar accountId={account.id} name={account.display_name} size={64} hasAvatar={Boolean(account.avatar_url) && !account.is_mock}
+          className="accounts-avatar" fallbackClassName="accounts-avatar accounts-avatar-fallback" />
         <div className="accounts-identity"><h2>{account.display_name}</h2><p>{account.username ? `@${account.username}` : "TikTok"}</p></div>
         <span className={`accounts-badge ${connection.tone}`}><span className="accounts-badge-dot" />{connection.label}</span>
       </div>
