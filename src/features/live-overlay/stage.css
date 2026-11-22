@@ -12,6 +12,8 @@
 @keyframes lo-float { 50% { translate: 0 -4cqh; } }
 
 .lo-face { position: absolute; display: grid; place-items: center; border: 2px dashed rgba(255,95,120,.9); border-radius: 10px; background: rgba(255,60,90,.14); cursor: move; z-index: 40; }
+.lo-tiktok-ui { position: absolute; display: grid; place-items: center; border: 1px dashed rgba(255,255,255,.55); background: repeating-linear-gradient(135deg, rgba(0,0,0,.28) 0 6px, rgba(0,0,0,.12) 6px 12px); pointer-events: none; z-index: 30; }
+.lo-tiktok-ui span { padding: 2px 6px; border-radius: 5px; color: #fff; background: rgba(0,0,0,.6); font: 700 9px/1.4 sans-serif; white-space: nowrap; }
 .lo-face.lo-selected { border-style: solid; }
 .lo-face > span:first-child { max-width: 90%; padding: 3px 7px; border-radius: 6px; color: #fff; background: rgba(160,20,50,.75); font: 700 10px/1.45 sans-serif; text-align: center; pointer-events: none; }
 
@@ -76,10 +78,10 @@
 @keyframes lo-marquee { to { transform: translateX(-50%); } }
 
 .lo-frame { position: relative; border: 1.3cqw solid var(--a); border-radius: 3cqw; box-shadow: inset 0 0 0 .6cqw var(--hi), inset 0 0 6cqw rgba(0,0,0,.35); }
-.lo-frame-top { position: absolute; top: 0; left: 50%; display: flex; gap: 2cqw; align-items: center; padding: 1.2cqh 5cqw; translate: -50% 0; border-radius: 0 0 4cqw 4cqw; background: linear-gradient(180deg, var(--a), var(--b)); white-space: nowrap; }
-.lo-frame-top span { padding: .1em .6em; border-radius: 99px; color: var(--b); background: var(--hi); font-size: 2.6cqh; font-weight: 900; }
-.lo-frame-top b { font-size: 3cqh; font-weight: 900; }
-.lo-frame-bottom { position: absolute; right: 3cqw; bottom: 2cqh; left: 3cqw; display: flex; gap: 2cqw; align-items: center; padding: 1.4cqh 4cqw; border-radius: 99px; background: linear-gradient(90deg, var(--b), var(--a)); box-shadow: 0 1cqh 3cqh rgba(0,0,0,.35); }
-.lo-frame-bottom span { flex: 1; min-width: 0; overflow: hidden; font-size: 2.5cqh; font-weight: 850; white-space: nowrap; text-overflow: ellipsis; }
-.lo-frame-bottom b { color: var(--hi); font-size: 3.4cqh; font-weight: 950; white-space: nowrap; }
-.lo-frame-bottom em { font-size: 2cqh; font-style: normal; font-weight: 800; white-space: nowrap; }
+.lo-frame-top { position: absolute; top: 0; left: 50%; display: flex; gap: 2cqw; align-items: center; padding: 2.1cqw 5cqw; translate: -50% 0; border-radius: 0 0 4cqw 4cqw; background: linear-gradient(180deg, var(--a), var(--b)); white-space: nowrap; }
+.lo-frame-top span { padding: .1em .6em; border-radius: 99px; color: var(--b); background: var(--hi); font-size: 4.6cqw; font-weight: 900; }
+.lo-frame-top b { font-size: 5.3cqw; font-weight: 900; }
+.lo-frame-bottom { position: absolute; right: 3cqw; bottom: 3.5cqw; left: 3cqw; display: flex; gap: 2cqw; align-items: center; padding: 2.5cqw 4cqw; border-radius: 99px; background: linear-gradient(90deg, var(--b), var(--a)); box-shadow: 0 1cqh 3cqh rgba(0,0,0,.35); }
+.lo-frame-bottom span { flex: 1; min-width: 0; overflow: hidden; font-size: 4.4cqw; font-weight: 850; white-space: nowrap; text-overflow: ellipsis; }
+.lo-frame-bottom b { color: var(--hi); font-size: 6cqw; font-weight: 950; white-space: nowrap; }
+.lo-frame-bottom em { font-size: 3.6cqw; font-style: normal; font-weight: 800; white-space: nowrap; }

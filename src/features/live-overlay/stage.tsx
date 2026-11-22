@@ -4,7 +4,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { useEffect, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from "react";
-import { nextPopupDelaySec, pickSpot, promoProduct, promoWords, tickerText, type OverlayConfig, type OverlayItem, type OverlayProduct, type Zone } from "./model";
+import { TIKTOK_UI, nextPopupDelaySec, pickSpot, promoProduct, promoWords, tickerText, type OverlayConfig, type OverlayItem, type OverlayProduct, type Zone } from "./model";
 import "./stage.css";
 
 export const FACE_ID = "__face";
@@ -94,6 +94,8 @@ export function OverlayStage({ config, products, imageSrc, mode, selected, onSel
         {editing && selected === item.id ? <span className="lo-handle" onPointerDown={e => begin(e, item.id, "resize", box)} /> : null}
       </div>;
     }) : null}
+    {editing ? TIKTOK_UI.map(z => <div key={z.label} className="lo-tiktok-ui" aria-hidden
+      style={{ left: `${z.x * 100}%`, top: `${z.y * 100}%`, width: `${z.w * 100}%`, height: `${z.h * 100}%` }}><span>{z.label} · อย่าวางทับ</span></div>) : null}
     {editing ? <FaceZone zone={live?.id === FACE_ID ? live.box : face} selected={selected === FACE_ID}
       onDown={(e, m) => begin(e, FACE_ID, m, face)} /> : null}
   </div>;

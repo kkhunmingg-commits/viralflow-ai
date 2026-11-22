@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { configSchema, emptyConfig, makeItem, type OverlayProduct } from "./model";
-import { LAYOUTS, NEW_LOOK_GAP_MS, TONES, autoPromoSet, chooseLook, lookLabel, needsFirstSet, productCategory, wantsNewLook } from "./themes";
+import { configSchema, emptyConfig, makeItem, overTikTokUi, pickSpot, type OverlayProduct } from "./model";
+import { LAYOUTS, NEW_LOOK_GAP_MS, TONES, autoPromoSet, chooseLook, lookLabel, needsArranging, needsFirstSet, productCategory, wantsNewLook } from "./themes";
 
 const beauty: OverlayProduct[] = [
   { name: "เซรั่มวิตซีหน้าใส", price: "฿199", facts: ["ขนาด 30 มล."], image: "https://cdn.example/a.jpg", where: "ตะกร้าสีส้มในไลฟ์" },
@@ -40,6 +40,23 @@ describe("live overlay looks", () => {
       const again = autoPromoSet(set, beauty, Math.random, { tone: t.id, layout: l.id });
       expect(again.items.filter(i => !i.auto)).toEqual([mine]);
     }
+  });
+
+  it("keeps every piece clear of TikTok's own menus", () => {
+    for (const t of TONES) for (const l of LAYOUTS) for (const list of [beauty, food]) {
+      const set = autoPromoSet(emptyConfig(), list, Math.random, { tone: t.id, layout: l.id });
+      for (const i of set.items) if (!i.randomPos) expect(overTikTokUi(i), `${t.id}/${l.id} ${i.kind}`).toBe(false);
+      expect(needsArranging(set)).toBe(false);
+    }
+    const face = emptyConfig().faceZone;
+    for (let n = 0; n < 300; n++) expect(overTikTokUi({ ...pickSpot(0.14, 0.08, face), w: 0.14, h: 0.08 })).toBe(false);
+  });
+
+  it("re-arranges an old automatic set that sits under TikTok's menus, unless arranged by hand", () => {
+    const old = { ...emptyConfig(), items: [makeItem("promo", { template: "banner", y: 0.77, auto: true })], look: { ...emptyConfig().look, last: "hot/classic" } };
+    expect(needsArranging(old)).toBe(true);
+    expect(needsArranging({ ...old, look: { ...old.look, autoNew: false } })).toBe(false);
+    expect(needsArranging({ ...old, items: [{ ...old.items[0], auto: undefined }] })).toBe(false);
   });
 
   it("never invents a price tag when no product has a price", () => {

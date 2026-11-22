@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { configSchema, overlayToken } from "@/features/live-overlay/model";
 import { overlayProducts, overlayUploadUrl, ownOverlay, saveOverlay } from "@/features/live-overlay/service";
-import { autoPromoSet, needsFirstSet } from "@/features/live-overlay/themes";
+import { autoPromoSet, needsArranging } from "@/features/live-overlay/themes";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -24,8 +24,9 @@ export async function GET(request: Request) {
   const admin = createAdminClient();
   const [first, products] = await Promise.all([ownOverlay(admin, who.owner), overlayProducts(who.client, who.owner).catch(() => [])]);
   let stored = first;
-  // First visit: the screen comes already arranged from the products; the owner changes it only if they want to.
-  if (needsFirstSet(stored)) {
+  // First visit (or an old automatic set under TikTok's menus): the screen comes arranged from the products, clear of
+  // TikTok's own menus; the owner changes it only if they want to.
+  if (needsArranging(stored)) {
     const { secret: _s, updatedAt: _u, ...blank } = stored;
     void _s; void _u;
     stored = await saveOverlay(admin, who.owner, autoPromoSet(blank, products)).catch(() => stored);

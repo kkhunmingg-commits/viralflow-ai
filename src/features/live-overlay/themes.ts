@@ -1,4 +1,4 @@
-import { MAX_ITEMS, makeItem, shorten, type OverlayConfig, type OverlayItem, type OverlayLook, type OverlayProduct, type PromoColor, type TEXT_STYLES } from "./model";
+import { MAX_ITEMS, makeItem, overTikTokUi, shorten, type OverlayConfig, type OverlayItem, type OverlayLook, type OverlayProduct, type PromoColor, type TEXT_STYLES } from "./model";
 
 /**
  * Looks for "สร้างชุดหน้าจอไลฟ์อัตโนมัติ": a tone (colours, lettering, emoji) and a layout (which promo pieces go where).
@@ -48,6 +48,7 @@ const CATEGORIES: { id: string; label: string; words: string[]; tones: string[];
     words: ["กระทะ", "หม้อ", "ไม้ถู", "ผ้า", "ที่นอน", "หมอน", "กล่อง", "ชั้นวาง", "ครัว", "ทำความสะอาด", "ถังขยะ", "ไม้แขวน", "ห้องน้ำ", "พัดลม"] },
 ];
 const GENERAL = { id: "general", label: "ทั่วไป", tones: ["hot", "fun", "tech"], heads: ["🔴 LIVE · ของดีราคาโดน", "🛍️ LIVE · ช้อปสดกับแพรว"] };
+const BANNER = { x: 0.03, y: 0.455, w: 0.65, h: 0.11 };
 const BADGES = ["โปรในไลฟ์", "แพรวแนะนำ", "ของมันต้องมี", "ช้อปในไลฟ์", "ตัวเด็ดวันนี้"];
 
 /** The main kind of product on the live: earlier products (Praew's best sellers) count more. */
@@ -94,52 +95,57 @@ export function autoPromoSet(config: OverlayConfig, products: readonly OverlayPr
   const hasPrice = products.some(p => p.price), hasImage = products.some(p => p.image);
   const make = (kind: OverlayItem["kind"], extra: Record<string, unknown>) => makeItem(kind, { ...extra, auto: true }, rnd);
   const header = (box: Record<string, number>) => make("text", { text: head, style: tone.head, ...box });
-  const clock = (box: Record<string, number> = {}) => make("clock", { style: tone.clock, x: 0.7, y: 0.03, w: 0.26, h: 0.042, ...box });
-  const ticker = () => make("promo", { template: "ticker", color: tone.alt });
+  const clock = (box: Record<string, number> = {}) => make("clock", { style: tone.clock, x: 0.73, y: 0.125, w: 0.24, h: 0.042, ...box });
+  const ticker = () => make("promo", { template: "ticker", color: tone.alt, x: 0, y: 0.175, w: 1, h: 0.032 });
   const emojis = (n: number, every = 2) => tone.emoji.slice(0, n).map((emoji, i) => make("emoji", { emoji, everyMin: every + i, showSec: 5, randomPos: true }));
-  const cardPop = () => make("promo", { template: "card", color: tone.alt, badge: badge2, x: 0.03, y: 0.5, cycleSec: 15, everyMin: 2, showSec: 15 });
+  const cardPop = () => make("promo", { template: "card", color: tone.alt, badge: badge2, x: 0.69, y: 0.6, w: 0.28, h: 0.27, cycleSec: 15, everyMin: 2, showSec: 15 });
 
+  // Everything stays clear of TikTok's own screen (host bar on top, comments bottom-left, buttons along the bottom):
+  // a header row under the host bar, a ticker under it, the product banner above the comments, a right-hand column.
+  const head1 = { x: 0.04, y: 0.125, w: 0.6, h: 0.045 };
+  const priceRight = (extra: Record<string, unknown> = {}) => make("promo", { template: "price-tag", color: tone.alt, badge: badge2, x: 0.7, y: 0.44, w: 0.27, h: 0.13, cycleSec: 12, ...extra });
   let items: OverlayItem[];
   switch (layout) {
     case "side-card":
       items = [
-        header({ x: 0.04, y: 0.025, w: 0.6, h: 0.05 }), clock(),
-        make("promo", { template: "card", color: tone.main, badge, x: 0.64, y: 0.53, w: 0.33, h: 0.3, cycleSec: 12 }),
-        ...(hasPrice ? [make("promo", { template: "price-tag", color: tone.alt, badge: badge2, x: 0.03, y: 0.6, cycleSec: 12, everyMin: 2, showSec: 12 })] : []),
-        ticker(), ...emojis(3),
+        header(head1), clock(), ticker(),
+        make("promo", { template: "card", color: tone.main, badge, x: 0.69, y: 0.5, w: 0.28, h: 0.32, cycleSec: 12 }),
+        ...(hasPrice ? [make("promo", { template: "price-tag", color: tone.alt, badge: badge2, w: 0.27, h: 0.13, cycleSec: 12, everyMin: 2, showSec: 12, randomPos: true })] : []),
+        ...emojis(3),
       ];
       break;
     case "full-frame":
       items = [
-        // The frame's top strip holds the badge and a short title only.
-        make("promo", { template: "frame", color: tone.main, badge, title: head.length <= 22 ? head : "🔥 LIVE สด ช้อปในไลฟ์", cycleSec: 12 }),
-        clock({ x: 0.04, y: 0.07, w: 0.24, h: 0.038 }),
+        // The frame goes round Praew between TikTok's host bar and the comments; its strips hold the badge and a short title.
+        make("promo", { template: "frame", color: tone.main, badge, title: head.length <= 22 ? head : "🔥 LIVE สด ช้อปในไลฟ์", x: 0, y: 0.115, w: 1, h: 0.48, cycleSec: 12 }),
+        clock({ x: 0.73, y: 0.605, w: 0.24, h: 0.036 }),
         ...(hasImage ? [cardPop()] : []),
-        ...(hasPrice ? [make("promo", { template: "price-tag", color: tone.alt, badge: badge2, cycleSec: 12, everyMin: 3, showSec: 12, randomPos: true })] : []),
+        ...(hasPrice ? [make("promo", { template: "price-tag", color: tone.alt, badge: badge2, w: 0.27, h: 0.13, cycleSec: 12, everyMin: 3, showSec: 12, randomPos: true })] : []),
         ...emojis(4, 3),
       ];
       break;
     case "big-banner":
       items = [
-        header({ x: 0.2, y: 0.025, w: 0.6, h: 0.05 }), clock({ x: 0.03, y: 0.09, w: 0.24, h: 0.04 }),
-        make("promo", { template: "banner", color: tone.main, badge, x: 0.03, y: 0.74, w: 0.94, h: 0.18, cycleSec: 12 }),
-        ...(hasPrice ? [make("promo", { template: "price-tag", color: tone.alt, badge: badge2, x: 0.03, y: 0.54, cycleSec: 12 })] : []),
+        header(head1), clock(),
+        make("promo", { template: "banner", color: tone.main, badge, x: 0.03, y: 0.41, w: 0.65, h: 0.16, cycleSec: 12 }),
+        ...(hasPrice ? [priceRight({ y: 0.42, h: 0.14 })] : []),
+        ...(hasImage ? [cardPop()] : []),
         ...emojis(4),
       ];
       break;
     case "minimal":
       items = [
-        header({ x: 0.04, y: 0.025, w: 0.5, h: 0.042 }), clock({ x: 0.74, y: 0.03, w: 0.22, h: 0.036 }),
-        make("promo", { template: "banner", color: tone.main, badge, cycleSec: 12, everyMin: 3, showSec: 20 }),
-        ticker(), ...emojis(2, 4),
+        header({ ...head1, w: 0.5, h: 0.04 }), clock(), ticker(),
+        make("promo", { template: "banner", color: tone.main, badge, ...BANNER, cycleSec: 12, everyMin: 3, showSec: 20 }),
+        ...emojis(2, 4),
       ];
       break;
     default:
       items = [
-        header({ x: 0.04, y: 0.025, w: 0.6, h: 0.05 }), clock(),
-        make("promo", { template: "banner", color: tone.main, badge, cycleSec: 12 }), ticker(),
+        header(head1), clock(), ticker(),
+        make("promo", { template: "banner", color: tone.main, badge, ...BANNER, cycleSec: 12 }),
+        ...(hasPrice ? [priceRight()] : []),
         ...(hasImage ? [cardPop()] : []),
-        ...(hasPrice ? [make("promo", { template: "price-tag", color: tone.main, badge: badge2, cycleSec: 12 })] : []),
         ...emojis(4),
       ];
   }
@@ -161,11 +167,20 @@ export function lookLabel(last: string) {
 /** Nothing on screen yet and no set ever made: the screen gets arranged automatically from the start. */
 export const needsFirstSet = (config: OverlayConfig) => !config.items.length && !config.look.last;
 
+/**
+ * An automatic set from before TikTok's own menus were kept clear (a piece sits under the host bar, the comments or the
+ * bottom buttons) and the owner has not arranged it by hand: it is made again in the new places.
+ */
+export const autoUnderTikTokUi = (config: OverlayConfig) =>
+  config.look.autoNew && config.items.some(i => i.auto && !i.randomPos && overTikTokUi(i));
+/** Arrange now (not waiting for the next live): never arranged, or an old automatic set under TikTok's menus. */
+export const needsArranging = (config: OverlayConfig) => needsFirstSet(config) || autoUnderTikTokUi(config);
+
 /** The OBS page opening for a new live makes a new look, at most once per 20 minutes (a reload mid-live keeps it). */
 export const NEW_LOOK_GAP_MS = 20 * 60_000;
 export function wantsNewLook(config: OverlayConfig, now: Date) {
   if (!config.look.autoNew) return false;
-  if (needsFirstSet(config)) return true;
+  if (needsArranging(config)) return true;
   const at = Date.parse(config.look.at);
   return !Number.isFinite(at) || now.getTime() - at >= NEW_LOOK_GAP_MS;
 }
