@@ -9,6 +9,7 @@ import { LivePlan } from "./live-plan";
 import { OverlayEditor } from "./overlay-editor";
 import { LivePresenterConsole } from "./presenter-console";
 import { PraewControl } from "./praew-control";
+import { PresenterMaker } from "./presenter-maker";
 import { PresenterStudio } from "./presenter-studio";
 import "./ai-live.css";
 
@@ -37,6 +38,7 @@ export default async function AiLivePage({ searchParams }: { searchParams: Promi
       action={<span className="phase-chip">ทดสอบ · ยังใช้เสียงทดสอบ</span>} />
     <PraewControl products={praewProducts(sources.lineup, sources.candidates, sources.posted, PRAEW_MAX_PRODUCTS, sources.postedTikTok)}
       postedCount={sources.posted.length + sources.postedTikTok.length} />
+    <PresenterMaker />
     <details className="praew-card lo-section" id="live-overlay" open>
       <summary>องค์ประกอบบนจอไลฟ์<small>ข้อความโปร · นาฬิกา · รูป · อีโมจิเด้ง · ป้ายสินค้าอัตโนมัติ — ขึ้นบนไลฟ์ผ่าน OBS</small></summary>
       <OverlayEditor />
