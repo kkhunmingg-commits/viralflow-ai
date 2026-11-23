@@ -320,3 +320,18 @@
 .pmk-consent input { margin-top: 3px; }
 .pmk-nav { display: flex; justify-content: space-between; gap: 8px; }
 @media (max-width: 560px) { .pmk-list { grid-template-columns: 1fr; } .pmk-steps li { font-size: 10px; } }
+/* presenter studio: shop set picker */
+.pmk-bgs { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.pmk-bg { display: grid; gap: 2px; padding: 0 0 7px; overflow: hidden; border: 1px solid #3f4a5e; border-radius: 10px; color: #cbd5e1; background: #1a2130; text-align: left; cursor: pointer; }
+.pmk-bg.on { border-color: #b9f547; background: #232c1c; box-shadow: 0 0 0 1px #b9f547 inset; }
+.pmk-bg b { padding: 0 7px; color: #f1f5f9; font-size: 11.5px; } .pmk-bg small { padding: 0 7px; color: #8f9db2; font-size: 10px; line-height: 1.35; }
+.pmk-bg-img { position: relative; display: grid; place-items: center; aspect-ratio: 9 / 13; overflow: hidden; background: linear-gradient(160deg, #2a3447, #151b27); }
+.pmk-bg-img img { width: 100%; height: 100%; object-fit: cover; } .pmk-bg-img i { color: #94a3b8; font-size: 10px; font-style: normal; }
+.pmk-bg-img.bg-beauty { background: linear-gradient(160deg, #f3d6d9, #a77b68); } .pmk-bg-img.bg-general { background: linear-gradient(160deg, #e7eef5, #7d8ea3); }
+.pmk-bg-img.bg-shop { background: linear-gradient(160deg, #f4e4c4, #8f7550); } .pmk-bg-img.bg-warehouse { background: linear-gradient(160deg, #c9a77a, #5e4a33); }
+.pmk-bg-img.bg-fashion { background: linear-gradient(160deg, #efe4d6, #8a7a6a); } .pmk-bg-img.bg-food { background: linear-gradient(160deg, #f7d9a8, #9c5d2e); }
+.pmk-bg-img.bg-gadget { background: linear-gradient(160deg, #3a3f7a, #121630); } .pmk-bg-img.bg-home { background: linear-gradient(160deg, #e8efe9, #7c8f84); }
+.pmk-bg-img.bg-studio { background: linear-gradient(160deg, #eef0f3, #8e949e); } .pmk-bg-img.bg-luxury { background: linear-gradient(160deg, #d8c39a, #2e241a); }
+.pmk-bg-img.bg-custom { background: repeating-linear-gradient(45deg, #1f2736 0 8px, #19202d 8px 16px); }
+.pmk-bg-img:not(.bg-custom) i { padding: 2px 6px; border-radius: 6px; color: #e2e8f0; background: rgba(15, 20, 30, .55); }
+.pmk-scene-edit { display: grid; gap: 8px; margin-top: 8px; padding: 10px; border: 1px solid #334055; border-radius: 10px; background: #121826; }

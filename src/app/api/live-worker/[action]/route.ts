@@ -5,7 +5,7 @@ import { overlayToken } from "@/features/live-overlay/model";
 import { ownOverlay } from "@/features/live-overlay/service";
 import { productFeed, readDesired, saveReport, saveSnapshot } from "@/features/praew-live/service";
 import { presenterId } from "@/features/presenter-studio/contract";
-import { PC_FILES, pcUploadUrl, saveStudioReport, workerJobs, type PcFile } from "@/features/presenter-studio/service";
+import { isBackgroundFile, PC_FILES, pcLibraryUploadUrl, pcUploadUrl, saveStudioReport, workerJobs, type PcFile } from "@/features/presenter-studio/service";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -67,6 +67,8 @@ export async function POST(request: Request, context: { params: Promise<{ action
     }
     if (action === "presenter-upload") {
       const b = body as { id?: unknown; file?: unknown };
+      // shop-set previews (library) are shared by all presenters: {id: "library", file: "bg_<theme>.jpg"}
+      if (b.id === "library" && typeof b.file === "string" && isBackgroundFile(b.file)) return reply({ url: await pcLibraryUploadUrl(admin, auth.owner, b.file) });
       if (!presenterId.safeParse(b.id).success || !PC_FILES.includes(b.file as PcFile)) return reply({ error: "invalid_upload" }, 400);
       return reply({ url: await pcUploadUrl(admin, auth.owner, b.id as string, b.file as PcFile) });
     }
