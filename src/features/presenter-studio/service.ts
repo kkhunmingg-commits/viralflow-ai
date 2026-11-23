@@ -3,8 +3,8 @@ import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readStateFile, saveStateFile } from "@/features/flow-farm/service";
 import {
-  applyAction, emptyStudio, presenterSchema, studioReportSchema,
-  type Presenter, type StudioAction, type StudioDesired, type StudioReport,
+  applyAction, BACKGROUNDS, emptyStudio, resolveBackground, presenterSchema, studioReportSchema,
+  type BackgroundId, type Presenter, type StudioAction, type StudioDesired, type StudioReport,
 } from "./contract";
 
 /** Photos, candidate faces, face pictures and voice samples: private, shown through short signed links. */
@@ -43,7 +43,12 @@ export async function changeStudio(admin: SupabaseClient, owner: string, action:
   await saveStudio(admin, owner, next);
   if (action.action === "delete") {
     const gone = before.presenters.find(p => p.id === action.id);
-    await removePresenterFiles(admin, owner, action.id, gone?.source.kind === "photo" ? gone.source.path : null).catch(() => {});
+    await removePresenterFiles(admin, owner, action.id, [gone?.source.kind === "photo" ? gone.source.path : null, gone?.bgPath ?? null]).catch(() => {});
+  }
+  if (action.action === "update" && action.background !== undefined) {   // a replaced shop photo is not needed any more
+    const was = before.presenters.find(p => p.id === action.id)?.bgPath;
+    const now = next.presenters.find(p => p.id === action.id)?.bgPath;
+    if (was && was !== now) await admin.storage.from(ASSET_BUCKET).remove([was]).catch(() => {});
   }
   return next;
 }
@@ -71,8 +76,23 @@ export async function pcUploadUrl(admin: SupabaseClient, owner: string, id: stri
   if (signed.error || !signed.data) throw new Error("UPLOAD_URL_UNAVAILABLE");
   return signed.data.signedUrl;
 }
-async function removePresenterFiles(admin: SupabaseClient, owner: string, id: string, photo: string | null) {
-  await admin.storage.from(ASSET_BUCKET).remove([...PC_FILES.map(f => presenterFile(owner, id, f)), ...(photo ? [photo] : [])]);
+async function removePresenterFiles(admin: SupabaseClient, owner: string, id: string, uploads: (string | null)[]) {
+  await admin.storage.from(ASSET_BUCKET).remove([...PC_FILES.map(f => presenterFile(owner, id, f)), ...uploads.filter((x): x is string => !!x)]);
+}
+
+/** Previews of the shop sets the PC has made (one small JPEG each, shared by all the owner's presenters). */
+export const BG_FILE = /^bg_([a-z]{2,20})\.jpg$/;
+export const isBackgroundFile = (file: string) => { const m = BG_FILE.exec(file); return !!m && BACKGROUNDS.some(b => b.id === m[1]); };
+const libraryFile = (owner: string, file: string) => `${base(owner)}/library/${file}`;
+export async function pcLibraryUploadUrl(admin: SupabaseClient, owner: string, file: string) {
+  if (!isBackgroundFile(file)) throw new Error("INVALID_FILE");
+  const signed = await admin.storage.from(ASSET_BUCKET).createSignedUploadUrl(libraryFile(owner, file), { upsert: true });
+  if (signed.error || !signed.data) throw new Error("UPLOAD_URL_UNAVAILABLE");
+  return signed.data.signedUrl;
+}
+async function backgroundPreviews(admin: SupabaseClient, owner: string, ids: BackgroundId[]) {
+  const links = await Promise.all(ids.map(async id => [id, await signedFile(admin, libraryFile(owner, `bg_${id}.jpg`))] as const));
+  return Object.fromEntries(links.filter(([, url]) => url)) as Partial<Record<BackgroundId, string>>;
 }
 
 /** Everything the page shows: the owner's presenters with their PC progress and signed picture links. */
@@ -81,15 +101,17 @@ export async function studioView(admin: SupabaseClient, owner: string) {
   const presenters = await Promise.all(desired.presenters.map(async p => {
     const job = report?.jobs[p.id];
     const current = job && job.rev >= p.rev ? job : undefined;
-    const [photo, face, voice, candidates] = await Promise.all([
+    const [photo, face, voice, candidates, shop] = await Promise.all([
       p.source.kind === "photo" ? signedFile(admin, p.source.path) : Promise.resolve(null),
       current?.face ? signedFile(admin, presenterFile(owner, p.id, "face.jpg")) : Promise.resolve(null),
       current?.voiceSample ? signedFile(admin, presenterFile(owner, p.id, "voice.mp3")) : Promise.resolve(null),
       current?.faces ? Promise.all(Array.from({ length: current.faces }, (_, i) => signedFile(admin, presenterFile(owner, p.id, `face_${i}.jpg` as PcFile)))) : Promise.resolve([]),
+      p.bgPath ? signedFile(admin, p.bgPath) : Promise.resolve(null),
     ]);
-    return { ...p, job: current ?? null, pictures: { photo, face, voice, candidates } };
+    return { ...p, job: current ?? null, pictures: { photo, face, voice, candidates, shop } };
   }));
-  return { presenters, active: desired.active, report };
+  const backgrounds = await backgroundPreviews(admin, owner, report?.backgrounds ?? []);
+  return { presenters, active: desired.active, report, backgrounds };
 }
 export type StudioView = Awaited<ReturnType<typeof studioView>>;
 
@@ -98,6 +120,9 @@ export async function workerJobs(admin: SupabaseClient, owner: string) {
   const desired = await readStudio(admin, owner);
   const presenters = await Promise.all(desired.presenters.map(async p => ({
     ...p, photoUrl: p.source.kind === "photo" ? await signedFile(admin, p.source.path, 1800) : null,
+    // resolved for the PC: a set id, or "custom" with a link to the owner's shop photo (auto = by gender)
+    background: resolveBackground(p),
+    backgroundUrl: p.background === "custom" && p.bgPath ? await signedFile(admin, p.bgPath, 1800) : null,
   })));
   return { presenters, active: desired.active, updatedAt: desired.updatedAt };
 }

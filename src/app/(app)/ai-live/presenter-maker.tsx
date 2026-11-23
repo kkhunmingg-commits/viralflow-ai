@@ -6,12 +6,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  PRAEW_ID, QUALITIES, QUALITY_INFO, VOICES, defaultVoice, presenterStatus,
-  type Gender, type JobReport, type Presenter, type Quality, type StudioReport, type VoiceId,
+  BACKGROUNDS, PRAEW_ID, QUALITIES, QUALITY_INFO, VOICES, autoBackground, backgroundLabel, defaultVoice, presenterStatus, resolveBackground,
+  type BackgroundId, type BgChoice, type Gender, type JobReport, type Presenter, type Quality, type StudioReport, type VoiceId,
 } from "@/features/presenter-studio/contract";
 
-type Item = Presenter & { job: JobReport | null; pictures: { photo: string | null; face: string | null; voice: string | null; candidates: (string | null)[] } };
-type View = { presenters: Item[]; active: string; report: StudioReport | null; online: boolean };
+type Item = Presenter & { job: JobReport | null; pictures: { photo: string | null; face: string | null; voice: string | null; candidates: (string | null)[]; shop: string | null } };
+type Previews = Partial<Record<BackgroundId, string>>;
+type View = { presenters: Item[]; active: string; report: StudioReport | null; online: boolean; backgrounds?: Previews };
 type Tone = "low" | "normal" | "high";
 
 const STYLE_PRESETS = ["สุภาพ อบอุ่น เป็นกันเอง", "สนุก ร่าเริง ชวนคุยเก่ง", "มืออาชีพ น่าเชื่อถือ อธิบายสินค้าชัด", "ใจดี พูดช้า ฟังสบาย"];
@@ -31,6 +32,15 @@ async function toJpeg(file: File): Promise<{ blob: Blob; w: number; h: number }>
   canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
   const blob = await new Promise<Blob>((ok, bad) => canvas.toBlob(b => b ? ok(b) : bad(new Error("encode")), "image/jpeg", 0.92));
   return { blob, w: bitmap.width, h: bitmap.height };
+}
+
+/** Uploads one picture (face or shop photo) straight to the owner's private storage; returns its path. */
+async function uploadPicture(file: File) {
+  const { blob, w, h } = await toJpeg(file);
+  const ticket = await post({ action: "uploadUrl", type: "image/jpeg" }) as { path: string; token: string };
+  const sent = await createClient().storage.from("video-assets").uploadToSignedUrl(ticket.path, ticket.token, blob, { contentType: "image/jpeg" });
+  if (sent.error) throw sent.error;
+  return { path: ticket.path, preview: URL.createObjectURL(blob), w, h };
 }
 
 async function post(body: unknown) {
@@ -99,18 +109,18 @@ export function PresenterMaker() {
           </div>
         </div>
       </li>
-      {view?.presenters.map(p => <PresenterRow key={p.id} p={p} online={online} live={liveActive === p.id} wanted={view.active === p.id}
+      {view?.presenters.map(p => <PresenterRow key={p.id} p={p} previews={view.backgrounds ?? {}} online={online} live={liveActive === p.id} wanted={view.active === p.id}
         busy={busy} liveRunning={!!report?.liveRunning} act={act} />)}
     </ul>
 
     {!open && <button type="button" className="pmk-new" onClick={() => setOpen(true)}>＋ สร้างพรีเซนเตอร์ใหม่</button>}
-    {open && <Wizard faceGenerator={!!report?.faceGenerator} onClose={() => setOpen(false)}
+    {open && <Wizard faceGenerator={!!report?.faceGenerator} previews={view?.backgrounds ?? {}} onClose={() => setOpen(false)}
       onCreated={async name => { setOpen(false); say(`เข้าคิวสร้าง “${name}” แล้ว ดูความคืบหน้าได้ที่การ์ดด้านบน`); await refresh(); }} />}
   </section>;
 }
 
-function PresenterRow({ p, online, live, wanted, busy, liveRunning, act }: {
-  p: Item; online: boolean; live: boolean; wanted: boolean; busy: string | null; liveRunning: boolean;
+function PresenterRow({ p, previews, online, live, wanted, busy, liveRunning, act }: {
+  p: Item; previews: Previews; online: boolean; live: boolean; wanted: boolean; busy: string | null; liveRunning: boolean;
   act: (key: string, body: unknown, done: string) => Promise<void>;
 }) {
   const status = presenterStatus(p, p.job ?? undefined, online);
@@ -118,10 +128,12 @@ function PresenterRow({ p, online, live, wanted, busy, liveRunning, act }: {
   const pct = Math.round(p.job?.percent ?? 0);
   const busyHere = busy?.endsWith(p.id) ?? false;
   const picking = p.job?.state === "pick_face" && p.source.kind === "generate" && p.source.pick === undefined;
+  const [scene, setScene] = useState<{ bg: BgChoice; shop: { path: string; preview: string } | null } | null>(null);
+  const sceneNow = resolveBackground(p);
   return <li className={`pmk-item${live ? " live" : ""}`}>
     <div className="pmk-face">{face ? <img src={face} alt={`หน้าของ ${p.name}`} /> : <span>{p.name.slice(0, 4)}</span>}</div>
     <div className="pmk-body">
-      <div className="pmk-title"><b>{p.name}</b><small>{p.gender === "male" ? "ชาย" : "หญิง"} · {voiceLabel(p.voice)}{p.tone !== "normal" ? ` (${TONE_LABEL[p.tone]})` : ""}</small></div>
+      <div className="pmk-title"><b>{p.name}</b><small>{p.gender === "male" ? "ชาย" : "หญิง"} · {voiceLabel(p.voice)}{p.tone !== "normal" ? ` (${TONE_LABEL[p.tone]})` : ""} · ฉาก{backgroundLabel(sceneNow)}</small></div>
       <span className={`pmk-pill ${status.tone}`}>{status.label}</span>
       {(status.tone === "busy" || p.job?.state === "ready_quick") && <div className="pmk-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><i style={{ width: `${Math.max(3, pct)}%` }} /></div>}
       {p.job?.message && <small className="pmk-msg">{p.job.message}{p.job.etaMin ? ` · เหลือประมาณ ${Math.ceil(p.job.etaMin)} นาที` : ""}</small>}
@@ -137,16 +149,60 @@ function PresenterRow({ p, online, live, wanted, busy, liveRunning, act }: {
         {status.usable && (live ? <span className="pmk-live">กำลังใช้ในไลฟ์</span>
           : wanted ? <span className="pmk-live wait">{liveRunning ? "จะใช้เมื่อปิดไลฟ์" : "กำลังเปลี่ยน…"}</span>
             : <button type="button" className="pmk-btn" disabled={busy !== null} onClick={() => act(`act${p.id}`, { action: "activate", id: p.id }, `ตั้ง ${p.name} เป็นพรีเซนเตอร์ไลฟ์แล้ว${liveRunning ? " จะเปลี่ยนเมื่อปิดไลฟ์" : ""}`)}>ใช้ในไลฟ์</button>)}
+        <button type="button" className="pmk-btn ghost" disabled={busy !== null} onClick={() => setScene(scene ? null : { bg: p.background ?? "auto", shop: null })}>เปลี่ยนฉาก</button>
         {p.job?.state === "failed" && <button type="button" className="pmk-btn ghost" disabled={busy !== null} onClick={() => act(`re${p.id}`, { action: "rebuild", id: p.id }, "เริ่มสร้างใหม่แล้ว")}>ลองสร้างใหม่</button>}
         <button type="button" className="pmk-btn danger" disabled={busy !== null || busyHere} onClick={() => {
           if (window.confirm(`ลบพรีเซนเตอร์ “${p.name}”?`)) void act(`del${p.id}`, { action: "delete", id: p.id }, `ลบ ${p.name} แล้ว`);
         }}>ลบ</button>
       </div>
+      {scene && <div className="pmk-scene-edit">
+        <BackgroundPicker value={scene.bg} gender={p.gender} previews={previews} shop={scene.shop?.preview ?? p.pictures.shop}
+          onChange={bg => setScene({ ...scene, bg })} onShop={shop => setScene({ bg: "custom", shop })} />
+        <small className="praew-note">ฉากอยู่ในทุกคลิปท่าทาง เปลี่ยนฉากแล้วเครื่องจะสร้างพรีเซนเตอร์คนนี้ใหม่ (แบบเร็ว ~5 นาที แบบเต็ม ~1.5 ชม.)</small>
+        <div className="pmk-nav"><button type="button" className="pmk-btn ghost" onClick={() => setScene(null)}>ยกเลิก</button>
+          <button type="button" className="pmk-btn" disabled={busy !== null || (scene.bg === "custom" && !scene.shop && !p.bgPath)}
+            onClick={() => { void act(`bg${p.id}`, { action: "update", id: p.id, background: scene.bg, ...(scene.shop ? { bgPath: scene.shop.path } : {}) },
+              `เปลี่ยนฉากของ ${p.name} เป็น${backgroundLabel(scene.bg === "auto" ? autoBackground(p.gender) : scene.bg)}แล้ว เครื่องจะสร้างใหม่ให้`).then(() => setScene(null)); }}>บันทึกฉากและสร้างใหม่</button></div>
+      </div>}
     </div>
   </li>;
 }
 
-function Wizard({ faceGenerator, onClose, onCreated }: { faceGenerator: boolean; onClose: () => void; onCreated: (name: string) => Promise<void> }) {
+/** The shop set behind the presenter: auto (by gender), one of the sets the PC makes, or the owner's own shop photo. */
+function BackgroundPicker({ value, gender, previews, shop, onChange, onShop }: {
+  value: BgChoice; gender: Gender; previews: Previews; shop: string | null;
+  onChange: (bg: BgChoice) => void; onShop: (shop: { path: string; preview: string }) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const auto = autoBackground(gender);
+  const tile = (id: BgChoice, label: string, hint: string, img: string | null | undefined) =>
+    <button key={id} type="button" role="radio" aria-checked={value === id} className={`pmk-bg${value === id ? " on" : ""}`}
+      onClick={() => id === "custom" && !shop ? fileRef.current?.click() : onChange(id)}>
+      <span className={`pmk-bg-img bg-${id === "auto" ? auto : id}`}>{img ? <img src={img} alt="" loading="lazy" /> : <i>{id === "custom" ? "＋ รูปร้าน" : "รอเครื่องสร้าง"}</i>}</span>
+      <b>{label}</b><small>{hint}</small>
+    </button>;
+  const pickShop = async (file: File | undefined) => {
+    if (!file) return;
+    setUploading(true); setError(null);
+    try { const up = await uploadPicture(file); onShop({ path: up.path, preview: up.preview }); }
+    catch { setError("อัปโหลดรูปร้านไม่สำเร็จ ใช้รูป JPG หรือ PNG แล้วลองใหม่"); } finally { setUploading(false); }
+  };
+  return <div className="pmk-field">ฉากหลัง
+    <div className="pmk-bgs" role="radiogroup" aria-label="ฉากหลัง">
+      {tile("auto", "อัตโนมัติ", `ตามเพศ: ${backgroundLabel(auto)}`, previews[auto])}
+      {BACKGROUNDS.map(b => tile(b.id, b.label, b.hint, previews[b.id]))}
+      {tile("custom", "รูปร้านของฉัน", uploading ? "กำลังอัปโหลด…" : shop ? "แตะเพื่อเปลี่ยนรูป" : "อัปโหลดรูปร้านจริง", shop)}
+    </div>
+    <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={uploading} onChange={e => { void pickShop(e.target.files?.[0]); e.target.value = ""; }} />
+    {value === "custom" && shop && <button type="button" className="pmk-link" disabled={uploading} onClick={() => fileRef.current?.click()}>เปลี่ยนรูปร้าน</button>}
+    {value === "custom" && <small className="praew-note">รูปร้าน: ถ่ายแนวตั้ง ตรงหน้าชั้นวางหรือผนังร้าน ไม่มีคนในรูป ระบบจะเบลอฉากนิดๆ ให้คนเด่น</small>}
+    {error && <small className="pmk-err">{error}</small>}
+  </div>;
+}
+
+function Wizard({ faceGenerator, previews, onClose, onCreated }: { faceGenerator: boolean; previews: Previews; onClose: () => void; onCreated: (name: string) => Promise<void> }) {
   const [step, setStep] = useState(1);
   const [mode, setMode] = useState<"photo" | "generate">("photo");
   const [photo, setPhoto] = useState<{ path: string; preview: string; warn: string | null } | null>(null);
@@ -158,6 +214,8 @@ function Wizard({ faceGenerator, onClose, onCreated }: { faceGenerator: boolean;
   const [tone, setTone] = useState<Tone>("normal");
   const [personality, setPersonality] = useState(STYLE_PRESETS[0]);
   const [quality, setQuality] = useState<Quality>("both");
+  const [background, setBackground] = useState<BgChoice>("auto");
+  const [shop, setShop] = useState<{ path: string; preview: string } | null>(null);
   const [consent, setConsent] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -170,12 +228,9 @@ function Wizard({ faceGenerator, onClose, onCreated }: { faceGenerator: boolean;
     if (!file) return;
     setUploading(true); setError(null);
     try {
-      const { blob, w, h } = await toJpeg(file);
+      const { path, preview, w, h } = await uploadPicture(file);
       const warn = Math.min(w, h) < 700 ? "รูปค่อนข้างเล็ก ภาพในไลฟ์อาจไม่คม ใช้รูปที่ใหญ่กว่านี้จะดีกว่า" : w > h * 1.1 ? "รูปแนวนอน ระบบจะครอปเป็นแนวตั้งรอบหน้าให้เอง" : null;
-      const ticket = await post({ action: "uploadUrl", type: "image/jpeg" }) as { path: string; token: string };
-      const sent = await createClient().storage.from("video-assets").uploadToSignedUrl(ticket.path, ticket.token, blob, { contentType: "image/jpeg" });
-      if (sent.error) throw sent.error;
-      setPhoto({ path: ticket.path, preview: URL.createObjectURL(blob), warn });
+      setPhoto({ path, preview, warn });
     } catch { setError("อัปโหลดรูปไม่สำเร็จ ใช้รูป JPG หรือ PNG แล้วลองใหม่"); } finally { setUploading(false); }
   };
 
@@ -185,6 +240,7 @@ function Wizard({ faceGenerator, onClose, onCreated }: { faceGenerator: boolean;
     try {
       await post({ action: "create", presenter: {
         name: name.trim(), gender, voice, tone, personality: personality.trim(), quality, consent,
+        background, ...(background === "custom" && shop ? { bgPath: shop.path } : {}),
         source: mode === "photo" ? { kind: "photo", path: photo!.path } : { kind: "generate", look: look.trim() },
       } });
       await onCreated(name.trim());
@@ -253,6 +309,8 @@ function Wizard({ faceGenerator, onClose, onCreated }: { faceGenerator: boolean;
         {mode === "photo" && photo ? <img src={photo.preview} alt="" /> : <span className="pmk-face"><span>AI</span></span>}
         <div><b>{name}</b><small>{gender === "male" ? "ชาย" : "หญิง"} · {voiceLabel(voice)} · {TONE_LABEL[tone]}</small><small>{personality}</small></div>
       </div>
+      <BackgroundPicker value={background} gender={gender} previews={previews} shop={shop?.preview ?? null}
+        onChange={setBackground} onShop={s => { setShop(s); setBackground("custom"); }} />
       <div className="pmk-field">คุณภาพท่าทาง
         <div className="pmk-voices">{QUALITIES.map(q => <label key={q} className={quality === q ? "on" : ""}>
           <input type="radio" name="quality" checked={quality === q} onChange={() => setQuality(q)} />
@@ -263,7 +321,7 @@ function Wizard({ faceGenerator, onClose, onCreated }: { faceGenerator: boolean;
       <small className="praew-note">สร้างบนคอมของคุณตอนไม่ได้ไลฟ์ (ใช้การ์ดจอ) ไฟล์ทั้งหมดอยู่ไดรฟ์ D: ปิดหน้านี้ได้เลย ระบบทำต่อเอง</small>
       {error && <small className="pmk-err">{error}</small>}
       <div className="pmk-nav"><button type="button" className="pmk-btn ghost" onClick={() => setStep(2)}>ย้อนกลับ</button>
-        <button type="button" className="pmk-btn" disabled={!consent || saving} onClick={() => void create()}>{saving ? "กำลังส่ง…" : "สร้างพรีเซนเตอร์"}</button></div>
+        <button type="button" className="pmk-btn" disabled={!consent || saving || (background === "custom" && !shop)} onClick={() => void create()}>{saving ? "กำลังส่ง…" : "สร้างพรีเซนเตอร์"}</button></div>
     </div>}
     {error && step !== 3 && <small className="pmk-err">{error}</small>}
   </div>;
