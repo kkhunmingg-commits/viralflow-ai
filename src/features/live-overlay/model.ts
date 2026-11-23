@@ -174,6 +174,35 @@ export function tickerText(item: Extract<OverlayItem, { kind: "promo" }>, produc
   return parts.length ? parts.join("   ✦   ") : "🔥 ไลฟ์สดวันนี้ ถามแพรวได้ทุกเรื่อง พิมพ์คอมเมนต์มาเลย 🔥";
 }
 
+/** What the PC read from TikTok: the product the host pinned (popped) in the live cart, as TikTok shows it. */
+export interface PinnedProduct { name: string; price?: string | null; image?: string | null }
+
+const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
+const pairs = (s: string) => new Set(Array.from({ length: Math.max(0, s.length - 1) }, (_, i) => s.slice(i, i + 2)));
+/** How alike two product titles are (0-1): TikTok's cart title and the posted listing title are often cut differently. */
+export function titleLikeness(a: string, b: string) {
+  const x = norm(a), y = norm(b);
+  if (!x || !y) return 0;
+  if (x === y || x.startsWith(y.slice(0, 16)) || y.startsWith(x.slice(0, 16))) return 1;
+  const px = pairs(x), py = pairs(y);
+  let both = 0;
+  for (const p of px) if (py.has(p)) both++;
+  return (2 * both) / Math.max(1, px.size + py.size);
+}
+
+/**
+ * The product pinned in the TikTok live cart is the only one the overlay shows, so the screen always matches the cart.
+ * A pinned product that is not in Praew's list is shown as TikTok gave it (its cart title and price). Nothing pinned = all.
+ */
+export function pinnedProducts(products: readonly OverlayProduct[], pin: PinnedProduct | null | undefined): OverlayProduct[] {
+  if (!pin?.name) return [...products];
+  let best: OverlayProduct | null = null, score = 0;
+  for (const p of products) { const s = titleLikeness(p.name, pin.name); if (s > score) { best = p; score = s; } }
+  const pic = pin.image?.startsWith("https://") ? pin.image : null;
+  if (best && score >= 0.5) return [{ ...best, price: best.price ?? (pin.price || null), image: best.image ?? pic }];
+  return [{ name: pin.name.slice(0, 120), price: pin.price || null, facts: [], where: "ตะกร้าสีส้มในไลฟ์", image: pic }];
+}
+
 /** OBS URL token: owner id + a random secret kept in the owner's overlay file. */
 export const overlayToken = (owner: string, secret: string) => `${owner}.${secret}`;
 export function parseToken(token: string | null): { owner: string; secret: string } | null {

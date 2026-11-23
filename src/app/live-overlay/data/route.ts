@@ -1,5 +1,8 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { cachedOverlayProducts, overlayByToken, saveOverlay } from "@/features/live-overlay/service";
+import { pinnedProducts } from "@/features/live-overlay/model";
+import { readReport } from "@/features/praew-live/service";
+import { isOnline } from "@/features/praew-live/contract";
 import { autoPromoSet, needsArranging, wantsNewLook } from "@/features/live-overlay/themes";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,7 +17,9 @@ export async function GET(request: Request) {
   if (!found) return Response.json({ error: "not_found" }, { status: 404, headers });
   const { secret: _secret, updatedAt, ...config } = found.overlay;
   void _secret;
-  const products = await cachedOverlayProducts(admin, found.owner);
+  // The product pinned in the TikTok live cart (the PC reads it from the live) is the one the overlay shows.
+  const [all, report] = await Promise.all([cachedOverlayProducts(admin, found.owner), readReport(admin, found.owner).catch(() => null)]);
+  const products = pinnedProducts(all, report && isOnline(report) ? report.pinned : null);
   // OBS just opened for a new live (a new look each live is on by default) or nothing was ever arranged: make one
   // (never the last one) and keep it.
   const now = new Date();
