@@ -48,8 +48,8 @@ export const BACKGROUNDS = [
   { id: "food", label: "อาหาร ขนม เครื่องดื่ม", hint: "ชั้นขนม ซอส เครื่องดื่ม" },
   { id: "gadget", label: "มือถือ ไอที", hint: "ชั้นมือถือ หูฟัง แกดเจ็ต" },
   { id: "home", label: "ของใช้ในบ้าน", hint: "เครื่องครัว ภาชนะ ของแต่งบ้าน" },
-  { id: "studio", label: "สตูดิโอเรียบ", hint: "ผนังเรียบ ไฟสวย สะอาดตา" },
-  { id: "luxury", label: "ร้านหรู", hint: "ชั้นโชว์หรู ไฟอบอุ่น ของพรีเมียม" },
+  { id: "studio", label: "สตูดิโอไลฟ์", hint: "ผนังเรียบ ไฟประดับ สะอาดตา" },
+  { id: "luxury", label: "บูติกหรู", hint: "กรอบทอง กระจก โทนพรีเมียม" },
 ] as const;
 export type BackgroundId = typeof BACKGROUNDS[number]["id"];
 const backgroundIds = BACKGROUNDS.map(b => b.id) as [BackgroundId, ...BackgroundId[]];

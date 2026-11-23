@@ -177,6 +177,8 @@ function BackgroundPicker({ value, gender, previews, shop, onChange, onShop }: {
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const auto = autoBackground(gender);
+  // the PC's own preview (signed link) when it sent one, else the sample shipped with the site (public/presenter-bg)
+  const preview = (id: BackgroundId) => previews[id] ?? `/presenter-bg/${id}.jpg`;
   const tile = (id: BgChoice, label: string, hint: string, img: string | null | undefined) =>
     <button key={id} type="button" role="radio" aria-checked={value === id} className={`pmk-bg${value === id ? " on" : ""}`}
       onClick={() => id === "custom" && !shop ? fileRef.current?.click() : onChange(id)}>
@@ -191,8 +193,8 @@ function BackgroundPicker({ value, gender, previews, shop, onChange, onShop }: {
   };
   return <div className="pmk-field">ฉากหลัง
     <div className="pmk-bgs" role="radiogroup" aria-label="ฉากหลัง">
-      {tile("auto", "อัตโนมัติ", `ตามเพศ: ${backgroundLabel(auto)}`, previews[auto])}
-      {BACKGROUNDS.map(b => tile(b.id, b.label, b.hint, previews[b.id]))}
+      {tile("auto", "อัตโนมัติ", `ตามเพศ: ${backgroundLabel(auto)}`, preview(auto))}
+      {BACKGROUNDS.map(b => tile(b.id, b.label, b.hint, preview(b.id)))}
       {tile("custom", "รูปร้านของฉัน", uploading ? "กำลังอัปโหลด…" : shop ? "แตะเพื่อเปลี่ยนรูป" : "อัปโหลดรูปร้านจริง", shop)}
     </div>
     <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" hidden disabled={uploading} onChange={e => { void pickShop(e.target.files?.[0]); e.target.value = ""; }} />
