@@ -84,6 +84,8 @@ export const reportSchema = z.object({
   engine: z.enum(["pro", "lite"]).nullish(),
   litePacks: z.array(z.object({ folder: z.string().max(64), name: z.string().max(80) })).max(40).optional(),
   litePresenter: z.string().max(64).nullish(),
+  /** The product pinned in the TikTok live cart right now, read from the live itself (null = none pinned or unknown). */
+  pinned: z.object({ name: z.string().max(200), price: z.string().max(60).nullish(), image: z.string().max(2000).nullish() }).nullish(),
 });
 export type PraewReport = z.infer<typeof reportSchema> & { receivedAt: string };
 

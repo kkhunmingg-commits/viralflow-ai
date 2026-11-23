@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { autoPromoSet } from "./themes";
-import { configSchema, emptyConfig, makeItem, nextPopupDelaySec, parseToken, pickSpot, promoProduct, promoWords, tickerText, type OverlayProduct } from "./model";
+import { pinnedProducts, titleLikeness, configSchema, emptyConfig, makeItem, nextPopupDelaySec, parseToken, pickSpot, promoProduct, promoWords, tickerText, type OverlayProduct } from "./model";
 
 const seq = (...v: number[]) => { let i = 0; return () => v[i++ % v.length]; };
 const products: OverlayProduct[] = [
@@ -57,6 +57,14 @@ describe("live overlay model", () => {
     expect(twice.items.length).toBe(once.items.length);
     expect(configSchema.safeParse(twice).success).toBe(true);
     expect(JSON.stringify(twice).length).toBeLessThan(20_000);
+  });
+
+  it("shows the product pinned in the TikTok live cart", () => {
+    expect(pinnedProducts(products, { name: "เซรั่มวิตซี ขนาด 30 มล. ของแท้" }).map(p => p.name)).toEqual(["เซรั่มวิตซี"]);
+    expect(pinnedProducts(products, null).length).toBe(2);
+    const other = pinnedProducts(products, { name: "หมอนยางพารา", price: "฿299", image: "https://p16.tiktokcdn.com/x.jpg" });
+    expect(other).toEqual([{ name: "หมอนยางพารา", price: "฿299", facts: [], where: "ตะกร้าสีส้มในไลฟ์", image: "https://p16.tiktokcdn.com/x.jpg" }]);
+    expect(titleLikeness("กระทะเคลือบ non-stick 28cm", "กระทะเคลือบ non stick 28 cm")).toBe(1);
   });
 
   it("reads overlay tokens", () => {
