@@ -222,7 +222,7 @@ class LitePresenterEngine:
         self._loop_level = 0
         self._loop_fade_from: int | None = None
         self._loop_held = 0
-        self._loop_hold = max(1, int(os.getenv("AI_LIVE_LITE_LOOP_HOLD", "2")))
+        self._loop_hold = max(1, int(os.getenv("AI_LIVE_LITE_LOOP_HOLD", "3")))
         self._feathers = {}
         self._pack, self._fps = pack, fps
         self._base = first
@@ -267,7 +267,7 @@ class LitePresenterEngine:
                 pick = last   # a near tie keeps the previous shape: no flicker between two similar mouths
         self._loop_held += 1
         if pick != last and self._loop_held < self._loop_hold and abs(values[pick] - values[last]) < 0.25:
-            pick = last       # Pro's mouth also holds a shape for ~2 frames; only a big jump (a plosive, a stop) cuts in early
+            pick = last       # Pro's mouth also holds a shape for 2-3 frames; only a big jump (a plosive, a stop) cuts in early
         fade_from = None
         if pick != last:
             fade_from, self._loop_held = last, 0
