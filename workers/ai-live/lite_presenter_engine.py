@@ -111,6 +111,8 @@ class LitePresenterEngine:
         self._loop_mouths: list[list[tuple[float, bytes]]] = []
         self._loop_last: list[int] = []
         self._feathers: dict[tuple[int, int], np.ndarray] = {}
+        self._loop_cache: dict[int, np.ndarray] = {}
+        self._loop_cache_left = 0
         self.show_label = True
 
     # FrameEngine contract -------------------------------------------------
@@ -204,6 +206,10 @@ class LitePresenterEngine:
         import cv2
         out_w, out_h = pack.output_size
         self._loop_jpegs = [(pack.root / frame.file).read_bytes() for frame in pack.loop_frames]
+        # Decoding a 720x1280 body JPEG was most of the 18 ms per frame on the build PC: keep decoded bodies while they fit.
+        budget = int(os.getenv("AI_LIVE_LITE_LOOP_CACHE_MB", "400")) * 1024 * 1024
+        self._loop_cache: dict[int, np.ndarray] = {}
+        self._loop_cache_left = budget
         first = cv2.imdecode(np.frombuffer(self._loop_jpegs[0], np.uint8), cv2.IMREAD_COLOR)
         if first is None or first.shape[:2] != (out_h, out_w):
             raise PresenterPackError("LITE_PACK_LOOP_INVALID")
@@ -239,7 +245,13 @@ class LitePresenterEngine:
         sequence = pack.loop_sequence
         position = (self._t * pack.loop_fps // self._fps) % len(sequence)
         index = sequence[position]
-        frame = cv2.imdecode(np.frombuffer(self._loop_jpegs[index], np.uint8), cv2.IMREAD_COLOR)
+        cached = self._loop_cache.get(index)
+        if cached is None:
+            cached = cv2.imdecode(np.frombuffer(self._loop_jpegs[index], np.uint8), cv2.IMREAD_COLOR)
+            if self._loop_cache_left >= cached.nbytes:
+                self._loop_cache[index] = cached
+                self._loop_cache_left -= cached.nbytes
+        frame = cached.copy()
         mouths = self._loop_mouths[index]
         if target < 0.04:
             pick = 0
@@ -351,6 +363,7 @@ class LitePresenterEngine:
         self._prepared = False
         self._regions, self._base, self._label, self._blink_frames, self._prev_region = [], None, None, [], None
         self._loop_jpegs, self._loop_mouths, self._feathers = [], [], {}
+        self._loop_cache = {}
         self._backdrop = self._matte = None
 
     def metrics(self) -> dict[str, object]:

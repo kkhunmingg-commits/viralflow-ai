@@ -107,8 +107,8 @@ def main():
     closed_i = 12                                                # middle of the silence second
     open_, _ = mouth_measurements(faces, faces[closed_i])
     open_ = np.array(open_); voiced = np.arange(25, len(open_))
-    order = voiced[np.argsort(open_[voiced])]
-    picks = [closed_i] + [int(order[min(len(order) - 1, int(q * (len(order) - 1)))]) for q in np.linspace(0.35, 0.99, a.levels - 1)]
+    order = voiced[np.argsort(open_[voiced])]   # quantiles from 5 %: half-open shapes too, not only open ones
+    picks = [closed_i] + [int(order[min(len(order) - 1, int(q * (len(order) - 1)))]) for q in np.linspace(0.05, 0.99, a.levels - 1)]
     lv = np.array([0.0] + [float(open_[i]) for i in picks[1:]]); lv = (lv - lv.min()) / max(1e-6, lv.max() - lv.min())
     sel = ch[picks]
     log("mouth levels (openness):", [round(float(v), 2) for v in lv])
