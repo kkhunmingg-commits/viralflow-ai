@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 
 from lite_audio_features import FrameFeatureExtractor
-from lite_presenter_pack import (MotionProfile, MouthFrame, PresenterPack, PresenterPackError, load_pack,
+from lite_presenter_pack import (LoopFrame, MotionProfile, MouthFrame, PresenterPack, PresenterPackError, load_pack,
                                  mouth_measurements, sha256_file, write_manifest)
 
 PATCH = 256
@@ -170,6 +170,81 @@ def build_from_frame_engine(out: Path, reference_path: Path, calibration_pcm: by
                    patches=patches, closed=closed, centroids=centroids, output_size=output_size,
                    consent=consent, motion=MotionProfile(), disclosure="AI presenter · ผู้นำเสนอ AI",
                    display_name=display_name, default_voice=default_voice, layers=layers)
+
+
+def choose_loop(walk: list[int], base_len: int | None = None, *, min_len: int = 150, max_len: int = 375,
+                search: int = 4000) -> tuple[int, int]:
+    """A seamless slice of a LIVE Pro presenter's walk: (start, length).
+
+    Pro plays ``walk`` (frame numbers of the avatar) at 25 fps; its first ``base_len`` entries are the calm base walk
+    (moves come after). A slice walk[s:s+n] loops seamlessly when the walk itself went on from walk[s+n-1] to
+    walk[s+n] == walk[s] and then walk[s+n+1] == walk[s+1]: replaying the slice continues exactly the way Pro moved.
+    The longest such slice within [min_len, max_len] wins (less visible repetition); ties go to the earliest.
+    """
+    base = walk[:base_len] if base_len else walk
+    positions: dict[int, list[int]] = {}
+    for i, frame in enumerate(base):
+        positions.setdefault(frame, []).append(i)
+    best: tuple[int, int] | None = None
+    for s in range(min(search, max(0, len(base) - min_len - 1))):
+        for e in reversed(positions[base[s]]):
+            n = e - s
+            if n > max_len or e + 1 >= len(base):
+                continue
+            if n < min_len:
+                break
+            if base[e + 1] == base[s + 1]:
+                if best is None or n > best[1]:
+                    best = (s, n)
+                break
+        if best is not None and best[1] == max_len:
+            break
+    if best is None:
+        raise PresenterPackError("LITE_PACK_LOOP_NOT_FOUND")
+    return best
+
+
+def build_loop_pack(out: Path, *, loop_images: list[np.ndarray], boxes: list[tuple[int, int, int, int]],
+                    sequence: list[int], mouths: list[tuple[int, np.ndarray, float]], fps: int = 25,
+                    technical: bool = True, consent: dict | None = None, character: dict | None = None,
+                    display_name: str | None = None, default_voice: str | None = None) -> PresenterPack:
+    """Write a loop pack (Lite from Pro).
+
+    loop_images: the body frames (all output size, BGR); boxes: per body frame, the region its mouth images cover;
+    sequence: play order (indices into loop_images; wraps seamlessly); mouths: (body frame, BGR image of exactly that
+    frame's box with the rendered mouth pasted, openness 0..1). Pro's paste already blended the mouth in, so the engine
+    only feathers the box edge.
+    """
+    import cv2
+    out.mkdir(parents=True, exist_ok=True)
+    if any(out.iterdir()):
+        raise PresenterPackError("LITE_PACK_OUTPUT_NOT_EMPTY")
+    height, width = loop_images[0].shape[:2]
+    loop = []
+    for index, (image, box) in enumerate(zip(loop_images, boxes)):
+        if image.shape[:2] != (height, width):
+            raise PresenterPackError("LITE_PACK_LOOP_INVALID")
+        name = f"loop/{index:05d}.jpg"
+        loop.append(LoopFrame(name, _write_image(out / name, image, 90), tuple(int(v) for v in box)))
+    frames = []
+    for index, (body, image, openness) in enumerate(mouths):
+        x1, y1, x2, y2 = loop[body].box
+        if image.shape[:2] != (y2 - y1, x2 - x1):
+            raise PresenterPackError("LITE_PACK_LOOP_INVALID")
+        name = f"mouth/{index:05d}.jpg"
+        frames.append(MouthFrame(name, _write_image(out / name, image, 92), float(min(1.0, max(0.0, openness))), None, int(body)))
+    first = loop[sequence[0]]
+    mask_sha = _write_image(out / "mask.png", _lower_face_mask())
+    source, provenance = ("SYNTHETIC_CHARACTER", character.get("provenance")) if character is not None else ("FRAME_ENGINE", None)
+    if character is not None:
+        technical, display_name = False, character.get("display_name", display_name)
+        default_voice = character.get("default_voice", default_voice)
+    pack = PresenterPack(out, "lite-" + uuid.uuid4().hex[:12], source, technical, first.file, first.sha256, first.box,
+                         "mask.png", mask_sha, (width, height), tuple(frames), MotionProfile(0.0, 0.0, 4.8),
+                         "AI presenter · ผู้นำเสนอ AI", consent, provenance, display_name, default_voice,
+                         loop_frames=tuple(loop), loop_sequence=tuple(int(i) for i in sequence), loop_fps=int(fps))
+    write_manifest(pack)
+    return load_pack(out)
 
 
 def build_from_video(out: Path, video_path: Path, consent: dict, *, stride: int = 2,

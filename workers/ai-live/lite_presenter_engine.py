@@ -105,6 +105,12 @@ class LitePresenterEngine:
         self._prepared = False
         self._backdrop: np.ndarray | None = None
         self._matte: np.ndarray | None = None
+        # Loop packs (Lite from Pro): encoded body frames, their mouth boxes and per-frame mouths sorted by openness.
+        self._loop_jpegs: list[bytes] = []
+        self._loop_boxes: list[tuple[int, int, int, int]] = []
+        self._loop_mouths: list[list[tuple[float, bytes]]] = []
+        self._loop_last: list[int] = []
+        self._feathers: dict[tuple[int, int], np.ndarray] = {}
         self.show_label = True
 
     # FrameEngine contract -------------------------------------------------
@@ -120,6 +126,9 @@ class LitePresenterEngine:
         # The selected presenter image must be this pack's verified reference.
         if not Path(reference).is_file() or sha256_file(Path(reference)) != pack.reference_sha256:
             raise PresenterPackError("LITE_PACK_REFERENCE_MISMATCH")
+        if pack.is_loop:
+            self._prepare_loop(pack, fps)
+            return
         source = cv2.imread(str(pack.reference_path), cv2.IMREAD_COLOR)
         mask = cv2.imread(str(pack.root / pack.mask_file), cv2.IMREAD_GRAYSCALE)
         if source is None or mask is None:
@@ -189,6 +198,68 @@ class LitePresenterEngine:
         self._extractor = FrameFeatureExtractor(fps)
         self._interrupt.clear()
         self._prepared = True
+
+    def _prepare_loop(self, pack: PresenterPack, fps: int) -> None:
+        """Loop pack: nothing is warped or blended at prepare time; frames stay JPEG in memory (~100 MB for 12 s x 10 mouths)."""
+        import cv2
+        out_w, out_h = pack.output_size
+        self._loop_jpegs = [(pack.root / frame.file).read_bytes() for frame in pack.loop_frames]
+        first = cv2.imdecode(np.frombuffer(self._loop_jpegs[0], np.uint8), cv2.IMREAD_COLOR)
+        if first is None or first.shape[:2] != (out_h, out_w):
+            raise PresenterPackError("LITE_PACK_LOOP_INVALID")
+        self._loop_boxes = [frame.box for frame in pack.loop_frames]
+        mouths: list[list[tuple[float, bytes]]] = [[] for _ in pack.loop_frames]
+        for frame in pack.frames:
+            mouths[frame.loop].append((frame.openness, (pack.root / frame.file).read_bytes()))
+        self._loop_mouths = [sorted(items, key=lambda item: item[0]) for items in mouths]
+        self._loop_last = [0] * len(mouths)
+        self._feathers = {}
+        self._pack, self._fps = pack, fps
+        self._base = first
+        self._box = pack.loop_frames[0].box
+        self._label = _disclosure_overlay(pack.disclosure_text, out_w)
+        self._extractor = FrameFeatureExtractor(fps)
+        self._interrupt.clear()
+        self._prepared = True
+
+    def _feather(self, h: int, w: int) -> np.ndarray:
+        """Soft edge for a loop mouth image: Pro already blended the mouth into it, only JPEG seams must vanish."""
+        alpha = self._feathers.get((h, w))
+        if alpha is None:
+            edge = max(3, min(h, w) // 14)
+            ramp = lambda n: np.clip(np.minimum(np.arange(n), np.arange(n)[::-1]) / edge, 0.0, 1.0).astype(np.float32)
+            alpha = (np.outer(ramp(h), ramp(w)))[..., None]
+            self._feathers[(h, w)] = alpha
+        return alpha
+
+    def _compose_loop(self, target: float) -> np.ndarray:
+        import cv2
+        pack = self._pack
+        assert pack is not None and self._label is not None
+        sequence = pack.loop_sequence
+        position = (self._t * pack.loop_fps // self._fps) % len(sequence)
+        index = sequence[position]
+        frame = cv2.imdecode(np.frombuffer(self._loop_jpegs[index], np.uint8), cv2.IMREAD_COLOR)
+        mouths = self._loop_mouths[index]
+        if target < 0.04:
+            pick = 0
+        else:
+            values = [value for value, _ in mouths]
+            pick = min(range(len(mouths)), key=lambda k: abs(values[k] - target))
+            last = self._loop_last[index]
+            if pick != last and abs(values[last] - target) < abs(values[pick] - target) + 0.03:
+                pick = last   # a near tie keeps the previous shape: no flicker between two similar mouths
+        self._loop_last[index] = pick
+        # Even silence pastes the (closed) rendered mouth, so speech starting and stopping never changes the lips' look.
+        x1, y1, x2, y2 = self._loop_boxes[index]
+        patch = cv2.imdecode(np.frombuffer(mouths[pick][1], np.uint8), cv2.IMREAD_COLOR)
+        if patch is not None:
+            if patch.shape[:2] != (y2 - y1, x2 - x1):
+                patch = cv2.resize(patch, (x2 - x1, y2 - y1), interpolation=cv2.INTER_LINEAR)
+            alpha = self._feather(y2 - y1, x2 - x1)
+            under = frame[y1:y2, x1:x2]
+            frame[y1:y2, x1:x2] = (patch * alpha + under * (1 - alpha) + 0.5).astype(np.uint8)
+        return frame
 
     def render_pcm16_chunk(self, audio: bytes) -> Iterator[bytes]:
         if not self._prepared or self._extractor is None:
@@ -279,6 +350,7 @@ class LitePresenterEngine:
         self._interrupt.set()
         self._prepared = False
         self._regions, self._base, self._label, self._blink_frames, self._prev_region = [], None, None, [], None
+        self._loop_jpegs, self._loop_mouths, self._feathers = [], [], {}
         self._backdrop = self._matte = None
 
     def metrics(self) -> dict[str, object]:
@@ -287,7 +359,8 @@ class LitePresenterEngine:
             return round(samples[int((len(samples) - 1) * q)], 2) if samples else None
         return {"renderer": self.renderer, "fps": self._fps, **self._metrics,
                 "compose_p50_ms": pick(0.5), "compose_p95_ms": pick(0.95),
-                "library_frames": len(self._regions),
+                "library_frames": len(self._regions) or sum(len(m) for m in self._loop_mouths),
+                "motion": "loop" if self._loop_jpegs else "still",
                 "pack_source": self._pack.source if self._pack else None,
                 "technical_test_only": self._pack.technical_test_only if self._pack else None,
                 "face_box_output": list(self._box), "blink_ready": bool(self._blink_frames),
@@ -299,6 +372,8 @@ class LitePresenterEngine:
         return self._tracker.update(FrameFeature(-120.0, 0.0, False))
 
     def _select(self, openness: float, centroid: float | None) -> int:
+        if self._loop_jpegs:   # loop packs pick the mouth per body frame at compose time: pass the wanted openness on
+            return int(round(min(1.0, max(0.0, openness)) * 1000))
         assert self._order is not None and self._open_sorted is not None
         if openness < 0.04:
             self._last_rank, self._repeat = 0, 0
@@ -360,6 +435,8 @@ class LitePresenterEngine:
         import cv2
         assert self._base is not None and self._label is not None and self._pack is not None
         started = time.perf_counter()
+        if self._loop_jpegs:
+            return self._finish_frame(self._compose_loop(index / 1000), started, record)
         frame = self._blink_base()
         x1, y1, x2, y2 = self._box
         frame[y1 + self._paste_top:y2, x1:x2] = self._region(index)
@@ -386,6 +463,9 @@ class LitePresenterEngine:
                 # Only the person breathes and sways; the shop behind them stays still.
                 matte = cv2.warpAffine(self._matte, matrix, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
                 frame = _over(frame, matte, self._backdrop)
+        return self._finish_frame(frame, started, record)
+
+    def _finish_frame(self, frame: np.ndarray, started: float, record: bool) -> np.ndarray:
         if self.show_label:   # a host that burns in its own AI disclosure may switch this one off
             label = self._label
             lh, lw = label.shape[:2]

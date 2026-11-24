@@ -19,6 +19,11 @@ SOURCES = ("FRAME_ENGINE", "RECORDED_VIDEO", "SYNTHETIC_TEST", "SYNTHETIC_CHARAC
 # Generated, fictional presenters: the image model's licence must allow commercial use.
 CHARACTER_LICENSES = frozenset({"Apache-2.0", "MIT"})
 MAX_PACK_FRAMES = 4000
+# Loop packs ("Lite from Pro"): the body is a seamless loop of a LIVE Pro presenter's own motion frames and every loop frame
+# has its own few mouth shapes rendered by Pro's MuseTalk ahead of time, so the mouth library is loop frames x mouth levels.
+MAX_LOOP_MOUTHS = 8000
+MAX_LOOP_FRAMES = 1000
+MAX_LOOP_SEQUENCE = 20000
 MIN_PACK_FRAMES = 8
 MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_SIDE = 4096
@@ -44,6 +49,15 @@ class MouthFrame:
     sha256: str
     openness: float
     centroid: float | None = None
+    loop: int | None = None   # loop packs: the loop frame this mouth was rendered on
+
+
+@dataclass(frozen=True)
+class LoopFrame:
+    """One body frame of a loop pack and the box its mouth images cover (output pixels)."""
+    file: str
+    sha256: str
+    box: tuple[int, int, int, int]
 
 
 @dataclass(frozen=True)
@@ -83,6 +97,14 @@ class PresenterPack:
     backdrop_sha256: str | None = None
     matte_file: str | None = None
     matte_sha256: str | None = None
+    # Loop packs: body frames, the order they play in (indices into loop_frames, wraps seamlessly) and its frame rate.
+    loop_frames: tuple[LoopFrame, ...] = ()
+    loop_sequence: tuple[int, ...] = ()
+    loop_fps: int = 0
+
+    @property
+    def is_loop(self) -> bool:
+        return bool(self.loop_frames)
 
     @property
     def reference_path(self) -> Path:
@@ -97,7 +119,8 @@ class PresenterPack:
             "mask": {"file": self.mask_file, "sha256": self.mask_sha256},
             "output": {"width": self.output_size[0], "height": self.output_size[1]},
             "frames": [{"file": frame.file, "sha256": frame.sha256, "openness": round(frame.openness, 4),
-                        "centroid": None if frame.centroid is None else round(frame.centroid, 4)}
+                        "centroid": None if frame.centroid is None else round(frame.centroid, 4),
+                        **({"loop": frame.loop} if frame.loop is not None else {})}
                        for frame in self.frames],
             "motion": {"breath_scale": self.motion.breath_scale, "sway_px": self.motion.sway_px,
                        "period_seconds": self.motion.period_seconds},
@@ -109,6 +132,9 @@ class PresenterPack:
             **({"layers": {"backdrop": {"file": self.backdrop_file, "sha256": self.backdrop_sha256},
                            "matte": {"file": self.matte_file, "sha256": self.matte_sha256}}}
                if self.backdrop_file and self.matte_file else {}),
+            **({"loop": {"fps": self.loop_fps, "sequence": list(self.loop_sequence),
+                         "frames": [{"file": f.file, "sha256": f.sha256, "box": list(f.box)} for f in self.loop_frames]}}
+               if self.loop_frames else {}),
         }
 
 
@@ -172,9 +198,11 @@ def load_pack(root: Path) -> PresenterPack:
     if (not isinstance(box, list) or len(box) != 4 or any(type(value) is not int for value in box)
             or not 0 <= box[0] < box[2] <= MAX_SIDE or not 0 <= box[1] < box[3] <= MAX_SIDE):
         raise PresenterPackError("LITE_PACK_FACE_BOX_INVALID")
+    loop_data = data.get("loop")
     frames_data = data.get("frames")
-    if not isinstance(frames_data, list) or not MIN_PACK_FRAMES <= len(frames_data) <= MAX_PACK_FRAMES:
+    if not isinstance(frames_data, list) or not MIN_PACK_FRAMES <= len(frames_data) <= (MAX_LOOP_MOUTHS if loop_data is not None else MAX_PACK_FRAMES):
         raise PresenterPackError("LITE_PACK_FRAMES_INVALID")
+    loop_frames, loop_sequence, loop_fps = _load_loop(root, loop_data, width, height)
     frames = []
     for item in frames_data:
         if not isinstance(item, dict):
@@ -183,8 +211,18 @@ def load_pack(root: Path) -> PresenterPack:
         if (type(openness) not in (int, float) or not math.isfinite(openness) or not 0 <= openness <= 1
                 or (centroid is not None and (type(centroid) not in (int, float) or not 0 <= centroid <= 1))):
             raise PresenterPackError("LITE_PACK_FRAMES_INVALID")
+        loop_index = item.get("loop")
+        if loop_frames:
+            if type(loop_index) is not int or not 0 <= loop_index < len(loop_frames):
+                raise PresenterPackError("LITE_PACK_FRAMES_INVALID")
+        elif loop_index is not None:
+            raise PresenterPackError("LITE_PACK_FRAMES_INVALID")
         frames.append(MouthFrame(_verified(root, item.get("file"), item.get("sha256")), item["sha256"],
-                                 float(openness), None if centroid is None else float(centroid)))
+                                 float(openness), None if centroid is None else float(centroid), loop_index))
+    if loop_frames:
+        counts = np.bincount([frame.loop for frame in frames], minlength=len(loop_frames))
+        if counts.min() < 2:   # every body frame needs at least a closed and an open mouth
+            raise PresenterPackError("LITE_PACK_LOOP_INVALID")
     motion = data.get("motion") or {}
     try:
         profile = MotionProfile(float(motion.get("breath_scale", 0.006)), float(motion.get("sway_px", 2.5)),
@@ -215,7 +253,28 @@ def load_pack(root: Path) -> PresenterPack:
                          (width, height), tuple(frames), profile, disclosure,
                          consent if isinstance(consent, dict) else None,
                          provenance if isinstance(provenance, dict) else None, display_name, default_voice,
-                         backdrop[0], backdrop[1], matte[0], matte[1])
+                         backdrop[0], backdrop[1], matte[0], matte[1], loop_frames, loop_sequence, loop_fps)
+
+
+def _load_loop(root: Path, loop: object, width: int, height: int) -> tuple[tuple[LoopFrame, ...], tuple[int, ...], int]:
+    if loop is None:
+        return (), (), 0
+    if not isinstance(loop, dict):
+        raise PresenterPackError("LITE_PACK_LOOP_INVALID")
+    fps, sequence, items = loop.get("fps"), loop.get("sequence"), loop.get("frames")
+    if (type(fps) is not int or not 1 <= fps <= 60 or not isinstance(items, list) or not 1 <= len(items) <= MAX_LOOP_FRAMES
+            or not isinstance(sequence, list) or not MIN_PACK_FRAMES <= len(sequence) <= MAX_LOOP_SEQUENCE
+            or any(type(i) is not int or not 0 <= i < len(items) for i in sequence)):
+        raise PresenterPackError("LITE_PACK_LOOP_INVALID")
+    frames = []
+    for item in items:
+        box = item.get("box") if isinstance(item, dict) else None
+        if (not isinstance(box, list) or len(box) != 4 or any(type(v) is not int for v in box)
+                or not 0 <= box[0] < box[2] <= width or not 0 <= box[1] < box[3] <= height
+                or box[2] - box[0] < 16 or box[3] - box[1] < 16):
+            raise PresenterPackError("LITE_PACK_LOOP_INVALID")
+        frames.append(LoopFrame(_verified(root, item.get("file"), item.get("sha256")), item["sha256"], tuple(box)))
+    return tuple(frames), tuple(sequence), fps
 
 
 def write_manifest(pack: PresenterPack) -> Path:
@@ -267,6 +326,8 @@ def list_packs(root: Path) -> list[dict]:
         found.append({"packId": pack.pack_id, "folder": child.name, "name": pack.display_name or child.name,
                       "source": pack.source, "technicalTestOnly": pack.technical_test_only,
                       "defaultVoice": pack.default_voice, "frames": len(pack.frames),
+                      # "loop" = body is the Pro presenter's own motion loop (Lite from Pro); "still" = one photo + sway
+                      "motion": "loop" if pack.is_loop else "still",
                       # Packs made from an owner's own photo belong to that owner only (hashed owner id).
                       "ownerRef": (pack.consent or {}).get("owner_ref") if isinstance((pack.consent or {}).get("owner_ref"), str) else None})
     return found

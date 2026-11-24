@@ -552,3 +552,76 @@ class ProCompatibilityTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def synthetic_loop_pack(root: Path, *, bodies: int = 6, levels: int = 4, size=(256, 448)):
+    """A drawn loop pack: each body frame is shifted (the 'motion'), each has `levels` mouth images of its box."""
+    import cv2
+    from lite_pack_builder import build_loop_pack
+    width, height = size
+    images, boxes, mouths = [], [], []
+    for body in range(bodies):
+        image = np.full((height, width, 3), 60 + body * 10, np.uint8)
+        cx, cy = width // 2 + body * 2, height // 3
+        cv2.ellipse(image, (cx, cy), (60, 80), 0, 0, 360, (150, 180, 225), -1)
+        box = (cx - 50, cy + 10, cx + 50, cy + 80)
+        images.append(image); boxes.append(box)
+        for level in range(levels):
+            region = image[box[1]:box[3], box[0]:box[2]].copy()
+            cv2.ellipse(region, (50, 35), (25, 2 + level * 6), 0, 0, 360, (40, 30, 90), -1)
+            mouths.append((body, region, level / (levels - 1)))
+    sequence = list(range(bodies)) + list(range(bodies - 2, 0, -1))
+    return build_loop_pack(root, loop_images=images, boxes=boxes, sequence=sequence, mouths=mouths, fps=25)
+
+
+class LoopPackTests(unittest.TestCase):
+    """Lite from Pro: the body plays the Pro presenter's own loop, mouths are per body frame."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.pack = synthetic_loop_pack(Path(self.temp.name) / "loop")
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def test_loop_pack_round_trips_and_is_listed_as_loop(self):
+        from lite_presenter_pack import list_packs
+        self.assertTrue(self.pack.is_loop)
+        self.assertEqual((len(self.pack.loop_frames), len(self.pack.frames), self.pack.loop_fps), (6, 24, 25))
+        self.assertEqual(self.pack.motion.sway_px, 0.0)
+        self.assertEqual(list_packs(self.pack.root.parent)[0]["motion"], "loop")
+
+    def test_loop_frame_tampering_and_bad_indices_are_rejected(self):
+        manifest = json.loads((self.pack.root / "manifest.json").read_text(encoding="utf-8"))
+        manifest["frames"][0]["loop"] = 99
+        (self.pack.root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaises(PresenterPackError):
+            load_pack(self.pack.root)
+
+    def test_body_follows_the_loop_and_mouth_follows_the_voice(self):
+        engine = LitePresenterEngine(self.pack.root, allow_technical_test=True)
+        engine.prepare(self.pack.reference_path, 25)
+        idle = [engine.idle_array(t=t) for t in range(12)]
+        # the body moves: consecutive idle frames come from different loop frames
+        self.assertGreater(np.abs(idle[0].astype(int) - idle[1].astype(int)).mean(), 1.0)
+        # one full pass of the sequence later the picture repeats (seamless loop)
+        again = engine.idle_array(t=len(self.pack.loop_sequence))
+        self.assertLess(np.abs(again.astype(int) - idle[0].astype(int)).mean(), 1.0)
+        speaking = engine.frames_for_pcm16(tone(0.6, 0.6), t0=0)
+        self.assertEqual(len(speaking), 15)
+        x1, y1, x2, y2 = self.pack.loop_frames[0].box
+        closed = engine.idle_array(t=0)[y1:y2, x1:x2].astype(int)
+        moved = max(np.abs(f[y1:y2, x1:x2].astype(int) - closed).mean() for f in speaking[5:])
+        self.assertGreater(moved, 2.0)   # the mouth opened while the tone played
+        metrics = engine.metrics()
+        self.assertEqual((metrics["motion"], metrics["library_frames"]), ("loop", 24))
+        engine.close()
+
+    def test_choose_loop_finds_a_seamless_slice(self):
+        from lite_pack_builder import choose_loop
+        walk = list(range(0, 50)) + list(range(48, 10, -1)) + list(range(12, 60)) + [0, 1, 2]
+        start, length = choose_loop(walk, min_len=20, max_len=120)
+        self.assertEqual(walk[start + length], walk[start])
+        self.assertEqual(walk[start + length + 1], walk[start + 1])
+        with self.assertRaises(PresenterPackError):
+            choose_loop(list(range(100)), min_len=20, max_len=50)
