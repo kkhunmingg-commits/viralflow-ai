@@ -3,7 +3,7 @@
 # (same latents, masks, paste and mouth sharpening as live_engine.py). A Lite PC then only plays the loop and picks the mouth that
 # matches the voice: no graphics card needed during the live. Run with venv-gpu python while the live is OFF:
 #   python pp_lite_loop.py --avatar avatar3b --out D:\ViralFlowAI\ai-live-lite-packs\praew-loop --calibration-wav <...>\calibration.wav
-#        [--levels 10] [--min-s 6] [--max-s 15] [--name "แพรว"] [--voice th-TH-PremwadeeNeural] [--consent consent.json | --praew]
+#        [--levels 14] [--min-s 6] [--max-s 15] [--name "แพรว"] [--voice th-TH-PremwadeeNeural] [--consent consent.json | --praew]
 # Writes only under --out (and a preview mp4 next to it with --preview). Nothing on C:.
 import os, sys, json, pickle, glob, argparse, time, tempfile
 import numpy as np, cv2
@@ -18,7 +18,7 @@ def log(*a): print(time.strftime("%H:%M:%S"), *a, flush=True)
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--avatar", required=True); ap.add_argument("--out", required=True); ap.add_argument("--calibration-wav", required=True)
-    ap.add_argument("--levels", type=int, default=10); ap.add_argument("--min-s", type=float, default=6); ap.add_argument("--max-s", type=float, default=15)
+    ap.add_argument("--levels", type=int, default=14); ap.add_argument("--min-s", type=float, default=6); ap.add_argument("--max-s", type=float, default=15)
     ap.add_argument("--name", default=None); ap.add_argument("--voice", default=None)
     ap.add_argument("--consent", default=None, help="consent.json of the real person (likeness_use, person, signed_at)")
     ap.add_argument("--praew", action="store_true", help="Praew: fictional AI presenter (provenance instead of consent)")

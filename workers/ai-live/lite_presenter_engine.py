@@ -109,7 +109,7 @@ class LitePresenterEngine:
         self._loop_jpegs: list[bytes] = []
         self._loop_boxes: list[tuple[int, int, int, int]] = []
         self._loop_mouths: list[list[tuple[float, bytes]]] = []
-        self._loop_last: list[int] = []
+        self._loop_level = 0
         self._feathers: dict[tuple[int, int], np.ndarray] = {}
         self._loop_cache: dict[int, np.ndarray] = {}
         self._loop_cache_left = 0
@@ -218,7 +218,11 @@ class LitePresenterEngine:
         for frame in pack.frames:
             mouths[frame.loop].append((frame.openness, (pack.root / frame.file).read_bytes()))
         self._loop_mouths = [sorted(items, key=lambda item: item[0]) for items in mouths]
-        self._loop_last = [0] * len(mouths)
+        # Mouth levels are the same calibration shapes on every body frame, so one level index carries across frames.
+        self._loop_level = 0
+        self._loop_fade_from: int | None = None
+        self._loop_held = 0
+        self._loop_hold = max(1, int(os.getenv("AI_LIVE_LITE_LOOP_HOLD", "2")))
         self._feathers = {}
         self._pack, self._fps = pack, fps
         self._base = first
@@ -253,21 +257,39 @@ class LitePresenterEngine:
                 self._loop_cache_left -= cached.nbytes
         frame = cached.copy()
         mouths = self._loop_mouths[index]
+        values = [value for value, _ in mouths]
+        last = min(self._loop_level, len(mouths) - 1)
         if target < 0.04:
             pick = 0
         else:
-            values = [value for value, _ in mouths]
             pick = min(range(len(mouths)), key=lambda k: abs(values[k] - target))
-            last = self._loop_last[index]
             if pick != last and abs(values[last] - target) < abs(values[pick] - target) + 0.03:
                 pick = last   # a near tie keeps the previous shape: no flicker between two similar mouths
-        self._loop_last[index] = pick
+        self._loop_held += 1
+        if pick != last and self._loop_held < self._loop_hold and abs(values[pick] - values[last]) < 0.25:
+            pick = last       # Pro's mouth also holds a shape for ~2 frames; only a big jump (a plosive, a stop) cuts in early
+        fade_from = None
+        if pick != last:
+            fade_from, self._loop_held = last, 0
+        self._loop_level = pick
         # Even silence pastes the (closed) rendered mouth, so speech starting and stopping never changes the lips' look.
         x1, y1, x2, y2 = self._loop_boxes[index]
-        patch = cv2.imdecode(np.frombuffer(mouths[pick][1], np.uint8), cv2.IMREAD_COLOR)
+        size = (x2 - x1, y2 - y1)
+
+        def decode(level: int) -> np.ndarray | None:
+            patch = cv2.imdecode(np.frombuffer(mouths[level][1], np.uint8), cv2.IMREAD_COLOR)
+            if patch is not None and patch.shape[:2] != (size[1], size[0]):
+                patch = cv2.resize(patch, size, interpolation=cv2.INTER_LINEAR)
+            return patch
+
+        patch = decode(pick)
         if patch is not None:
-            if patch.shape[:2] != (y2 - y1, x2 - x1):
-                patch = cv2.resize(patch, (x2 - x1, y2 - y1), interpolation=cv2.INTER_LINEAR)
+            patch = patch.astype(np.float32)
+            if fade_from is not None:
+                # One in-between frame, like MuseTalk's own smooth transition between two visemes.
+                before = decode(fade_from)
+                if before is not None:
+                    patch = patch * 0.5 + before.astype(np.float32) * 0.5
             alpha = self._feather(y2 - y1, x2 - x1)
             under = frame[y1:y2, x1:x2]
             frame[y1:y2, x1:x2] = (patch * alpha + under * (1 - alpha) + 0.5).astype(np.uint8)
