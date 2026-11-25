@@ -187,7 +187,9 @@ function PraewRow({ view, liveActive, busy, online, liveRunning, act }: {
           onChange={bg => setScene({ ...scene, bg: bg as PraewBg })} onShop={shop => setScene({ bg: "custom", shop })} />
         <small className="praew-note">{scene.bg === "original"
           ? "กลับไปใช้ฉากเดิมได้ทันที ใช้ตั้งแต่ไลฟ์รอบถัดไป"
-          : "เครื่องจะตัดตัวแพรวออกจากทุกเฟรมแล้ววางในฉากใหม่ (ทำตอนปิดไลฟ์ ครั้งแรกของแต่ละฉากประมาณ 20-40 นาที ฉากที่เคยทำแล้วเปลี่ยนได้ทันที) แพรวตัวเดิมไม่ถูกแก้ กลับมาฉากเดิมได้ตลอด"}</small>
+          : scene.bg === "custom"
+            ? "รูปร้านของคุณ: เครื่องจะวางแพรวในรูปนี้ให้ตอนปิดไลฟ์ (ประมาณ 5 นาที) แพรวตัวเดิมไม่ถูกแก้ กลับมาฉากเดิมได้ตลอด"
+            : "ทุกฉากเตรียมไว้ในเครื่องแล้ว เปลี่ยนได้ทันที ใช้ตั้งแต่ไลฟ์รอบถัดไป กลับมาฉากเดิมได้ตลอด"}</small>
         <div className="pmk-nav"><button type="button" className="pmk-btn ghost" onClick={() => setScene(null)}>ยกเลิก</button>
           <button type="button" className="pmk-btn" disabled={busy !== null || (scene.bg === "custom" && !scene.shop && !shopNow) || (scene.bg === now && !scene.shop && status?.tone !== "bad")}
             onClick={() => { void act("praewScene", { action: "praewScene", background: scene.bg, ...(scene.shop ? { bgPath: scene.shop.path } : {}) },
