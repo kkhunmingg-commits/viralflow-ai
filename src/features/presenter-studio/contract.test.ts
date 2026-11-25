@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { actionSchema, applyAction, emptyStudio, ownsPhoto, presenterStatus, resolveBackground, studioReportSchema, StudioError, workerOnline } from "./contract";
+import { actionSchema, applyAction, emptyStudio, ownsPhoto, praewSceneStatus, presenterStatus, resolveBackground, studioReportSchema, StudioError, workerOnline } from "./contract";
 
 const OWNER = "11111111-2222-3333-4444-555555555555";
 const now = new Date("2026-11-23T15:00:00Z");
@@ -88,5 +88,29 @@ describe("presenter studio: shop sets", () => {
   it("reads the PC's list of made sets", () => {
     expect(studioReportSchema.parse({ jobs: {}, backgrounds: [{ id: "beauty", label: "x" }, "gadget", { id: "moon" }] }).backgrounds).toEqual(["beauty", "gadget"]);
     expect(studioReportSchema.parse({ jobs: {} }).backgrounds).toEqual([]);
+  });
+  it("changes Praew's scene: a set, the owner's shop photo, back to the original; every save raises rev", () => {
+    let d = applyAction(emptyStudio(), actionSchema.parse({ action: "praewScene", background: "warehouse" }) as never, OWNER, now, nextId);
+    expect(d.praew).toEqual({ background: "warehouse", rev: 1 });
+    d = applyAction(d, { action: "praewScene", background: "warehouse" }, OWNER, now, nextId);   // retry after a failure
+    expect(d.praew?.rev).toBe(2);
+    expect(() => applyAction(d, { action: "praewScene", background: "custom" }, OWNER, now, nextId)).toThrow(StudioError);
+    expect(() => applyAction(d, { action: "praewScene", background: "custom", bgPath: "owner/x/presenter-studio/a.jpg" }, OWNER, now, nextId)).toThrow(StudioError);
+    d = applyAction(d, { action: "praewScene", background: "custom", bgPath: `owner/${OWNER}/presenter-studio/uploads/shop.jpg` }, OWNER, now, nextId);
+    expect(d.praew).toMatchObject({ background: "custom", bgPath: `owner/${OWNER}/presenter-studio/uploads/shop.jpg`, rev: 3 });
+    d = applyAction(d, { action: "praewScene", background: "original" }, OWNER, now, nextId);
+    expect(d.praew).toEqual({ background: "original", rev: 4 });
+    expect(actionSchema.safeParse({ action: "praewScene", background: "auto" }).success).toBe(false);
+    expect(d.presenters).toEqual([]);
+  });
+  it("shows Praew's scene progress from the PC report", () => {
+    const scene = { background: "food" as const, rev: 2 };
+    expect(praewSceneStatus(undefined, null, true)).toBeNull();
+    expect(praewSceneStatus(scene, null, false)?.label).toBe("รอเครื่องออนไลน์");
+    const r = studioReportSchema.parse({ praew: { state: "building", rev: 2, percent: 40, message: "ตัดตัวแพรวออกจากฉากเดิม 300/781" } });
+    expect(praewSceneStatus(scene, r.praew, true)).toMatchObject({ tone: "busy", percent: 40 });
+    expect(praewSceneStatus({ ...scene, rev: 3 }, r.praew, true)?.label).toBe("รอเปลี่ยนฉากในเครื่อง");
+    expect(praewSceneStatus(scene, { ...r.praew!, state: "failed", error: "x" }, true)).toMatchObject({ tone: "bad", message: "x" });
+    expect(studioReportSchema.parse({}).praew).toBeUndefined();
   });
 });

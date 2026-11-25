@@ -96,7 +96,22 @@ export const presenterSchema = z.object({
 });
 export type Presenter = z.infer<typeof presenterSchema>;
 
-export interface StudioDesired { presenters: Presenter[]; active: string; updatedAt: string | null }
+/**
+ * Praew's scene (2026-11-25): Praew was filmed in one real shop, so "original" keeps those frames (avatar3b). Any other choice makes
+ * the PC cut Praew out of every frame and put her in front of that set (praew/avatar3b_bg_<id>), used from the next live.
+ */
+export const PRAEW_BG_CHOICES = ["original", ...backgroundIds, "custom"] as const;
+export type PraewBg = typeof PRAEW_BG_CHOICES[number];
+export const praewSceneSchema = z.object({
+  background: z.enum(PRAEW_BG_CHOICES).default("original"),
+  bgPath: z.string().min(1).max(300).optional(),
+  /** Raised on every change so the PC (re)builds even when the same choice is picked again (e.g. a new shop photo). */
+  rev: z.number().int().min(0).max(100000).default(0),
+});
+export type PraewScene = z.infer<typeof praewSceneSchema>;
+export const praewBackgroundLabel = (id: PraewBg) => id === "original" ? "ฉากเดิมของแพรว" : backgroundLabel(id);
+
+export interface StudioDesired { presenters: Presenter[]; active: string; updatedAt: string | null; praew?: PraewScene }
 export const emptyStudio = (): StudioDesired => ({ presenters: [], active: PRAEW_ID, updatedAt: null });
 
 /** What the owner fills in on the page. */
@@ -127,6 +142,7 @@ export const actionSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("update"), id: presenterId, voice: z.enum(voiceIds).optional(), tone: z.enum(TONES).optional(), personality: z.string().trim().max(300).optional(), name: z.string().trim().min(1).max(30).optional(),
     /** A new shop set is baked into every clip: changing it rebuilds the presenter. */
     background: bgChoiceSchema.optional(), bgPath: z.string().min(1).max(300).optional() }),
+  z.object({ action: z.literal("praewScene"), background: z.enum(PRAEW_BG_CHOICES), bgPath: z.string().min(1).max(300).optional() }),
 ]);
 export type StudioAction = z.infer<typeof actionSchema>;
 
@@ -191,6 +207,13 @@ export function applyAction(d: StudioDesired, action: Exclude<StudioAction, { ac
       find(action.id);
       return { presenters: d.presenters.filter(p => p.id !== action.id), active: d.active === action.id ? PRAEW_ID : d.active, updatedAt: at };
     }
+    case "praewScene": {
+      const was = d.praew ?? { background: "original" as const, rev: 0 };
+      const bgPath = action.background === "custom" ? action.bgPath ?? was.bgPath : undefined;
+      if (action.background === "custom") checkBackground(owner, "custom", bgPath);
+      // picking the same choice again is a retry (e.g. after a failed build): it still raises rev
+      return { ...d, praew: { background: action.background, ...(bgPath ? { bgPath } : {}), rev: was.rev + 1 }, updatedAt: at };
+    }
     case "activate": {
       if (action.id !== PRAEW_ID) find(action.id);
       return { ...d, active: action.id, updatedAt: at };
@@ -236,8 +259,20 @@ export const studioReportSchema = z.object({
   backgrounds: z.preprocess(v => Array.isArray(v)
     ? [...new Set(v.map(x => typeof x === "string" ? x : (x as { id?: unknown } | null)?.id).filter((id): id is BackgroundId => backgroundIds.includes(id as BackgroundId)))]
     : [], z.array(z.enum(backgroundIds))).default([]),
+  /** Praew's scene change (pp_praew_bg.py on the PC). */
+  praew: z.object({
+    state: z.enum(["waiting", "building", "ready", "failed"]),
+    rev: z.number().int().min(0).default(0),
+    background: short(20),
+    message: short(200),
+    error: short(300),
+    percent: z.number().min(0).max(100).nullish(),
+    etaMin: z.number().min(0).max(1000).nullish(),
+    updatedAt: short(40),
+  }).nullish(),
 });
 export type StudioReport = z.infer<typeof studioReportSchema> & { receivedAt: string };
+export type PraewSceneReport = NonNullable<StudioReport["praew"]>;
 
 /** The worker reports every ~10 s: seen in the last 60 s means it is running. */
 export const WORKER_ONLINE_MS = 60_000;
@@ -259,6 +294,19 @@ export function presenterStatus(p: Presenter, job: JobReport | undefined, online
     failed: { tone: "bad", label: "สร้างไม่สำเร็จ", usable: false },
   };
   return map[job.state];
+}
+
+/** What Praew's row shows about her scene: nothing while the PC has caught up with the owner's choice and it is the original. */
+export function praewSceneStatus(scene: PraewScene | undefined, job: PraewSceneReport | null | undefined, online: boolean) {
+  if (!scene || scene.rev === 0) return null;
+  if (!job || job.rev < scene.rev) return { tone: "wait", label: online ? "รอเปลี่ยนฉากในเครื่อง" : "รอเครื่องออนไลน์", message: null, percent: null };
+  const map = {
+    waiting: { tone: "wait", label: "รอปิดไลฟ์ก่อน (ใช้การ์ดจอ)" },
+    building: { tone: "busy", label: "กำลังเปลี่ยนฉาก" },
+    ready: { tone: "ok", label: "ฉากใหม่พร้อม" },
+    failed: { tone: "bad", label: "เปลี่ยนฉากไม่สำเร็จ" },
+  } as const;
+  return { ...map[job.state], message: job.state === "failed" ? job.error ?? null : job.message ?? null, percent: job.state === "building" ? job.percent ?? null : null };
 }
 
 export const ERRORS_TH: Record<string, string> = {

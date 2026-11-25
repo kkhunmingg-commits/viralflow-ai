@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readStateFile, saveStateFile } from "@/features/flow-farm/service";
 import {
-  applyAction, BACKGROUNDS, emptyStudio, resolveBackground, presenterSchema, studioReportSchema,
+  applyAction, BACKGROUNDS, emptyStudio, resolveBackground, presenterSchema, praewSceneSchema, studioReportSchema,
   type BackgroundId, type Presenter, type StudioAction, type StudioDesired, type StudioReport,
 } from "./contract";
 
@@ -21,7 +21,9 @@ export async function readStudio(admin: SupabaseClient, owner: string): Promise<
   // A presenter that no longer parses (older shape) is dropped rather than breaking the whole page.
   const presenters = (Array.isArray(raw.presenters) ? raw.presenters : [])
     .map(p => presenterSchema.safeParse(p)).filter(r => r.success).map(r => r.data as Presenter);
-  return { presenters, active: typeof raw.active === "string" ? raw.active : "praew", updatedAt: raw.updatedAt ?? null };
+  const praew = raw.praew ? praewSceneSchema.safeParse(raw.praew) : null;
+  return { presenters, active: typeof raw.active === "string" ? raw.active : "praew", updatedAt: raw.updatedAt ?? null,
+    ...(praew?.success ? { praew: praew.data } : {}) };
 }
 const saveStudio = (admin: SupabaseClient, owner: string, d: StudioDesired) =>
   saveStateFile(admin, `${base(owner)}/desired.json`, d, "presenter_studio_not_saved");
@@ -49,6 +51,9 @@ export async function changeStudio(admin: SupabaseClient, owner: string, action:
     const was = before.presenters.find(p => p.id === action.id)?.bgPath;
     const now = next.presenters.find(p => p.id === action.id)?.bgPath;
     if (was && was !== now) await admin.storage.from(ASSET_BUCKET).remove([was]).catch(() => {});
+  }
+  if (action.action === "praewScene" && before.praew?.bgPath && before.praew.bgPath !== next.praew?.bgPath) {
+    await admin.storage.from(ASSET_BUCKET).remove([before.praew.bgPath]).catch(() => {});
   }
   return next;
 }
@@ -111,7 +116,8 @@ export async function studioView(admin: SupabaseClient, owner: string) {
     return { ...p, job: current ?? null, pictures: { photo, face, voice, candidates, shop } };
   }));
   const backgrounds = await backgroundPreviews(admin, owner, report?.backgrounds ?? []);
-  return { presenters, active: desired.active, report, backgrounds };
+  const praewShop = desired.praew?.bgPath ? await signedFile(admin, desired.praew.bgPath) : null;
+  return { presenters, active: desired.active, report, backgrounds, praew: desired.praew ?? null, praewShop };
 }
 export type StudioView = Awaited<ReturnType<typeof studioView>>;
 
@@ -124,5 +130,10 @@ export async function workerJobs(admin: SupabaseClient, owner: string) {
     background: resolveBackground(p),
     backgroundUrl: p.background === "custom" && p.bgPath ? await signedFile(admin, p.bgPath, 1800) : null,
   })));
-  return { presenters, active: desired.active, updatedAt: desired.updatedAt };
+  // Praew's scene: "original", a set id, or "custom" with a link to the owner's shop photo
+  const praew = desired.praew ? {
+    background: desired.praew.background, rev: desired.praew.rev,
+    backgroundUrl: desired.praew.background === "custom" && desired.praew.bgPath ? await signedFile(admin, desired.praew.bgPath, 1800) : null,
+  } : null;
+  return { presenters, active: desired.active, updatedAt: desired.updatedAt, praew };
 }
