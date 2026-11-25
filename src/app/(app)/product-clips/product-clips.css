@@ -75,3 +75,9 @@
 
 .pl-ext-ok { color: #1ee6a0; font-weight: 600; }
 .pl-setup-steps { margin: .5rem 0 .75rem 1.2rem; display: grid; gap: .35rem; }
+/* 25 Nov: TikTok Shop best-sellers */
+.tt-pick{cursor:pointer;align-items:center;justify-content:flex-start}
+.tt-pick>input{width:22px;height:22px;flex:0 0 auto}
+.tt-product{display:flex;gap:12px;align-items:flex-start;min-width:0;flex:1 1 260px;overflow-wrap:anywhere}
+.tt-product img{width:64px;height:64px;object-fit:cover;border-radius:10px;flex:0 0 auto;background:#111827}
+.tt-submit{margin-top:16px;position:sticky;bottom:0;background:#0b0f17;padding:12px 0;z-index:2}

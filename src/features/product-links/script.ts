@@ -227,6 +227,10 @@ export function pickTrend(title: string, family: CategoryFamily, name: string, f
 const HOOKS = ["เจอ{n}ตัวนี้มา ขอโชว์ให้ดูหน่อย", "ใครกำลังหา{n}อยู่ ดูตัวนี้ก่อน", "{n} หน้าตาแบบนี้ ดูกันชัด ๆ"];
 const CTA_SHORT = "พิกัดอยู่ในเม้นเลย";
 const CTA_LONG = "ใครเล็งอยู่ ไปส่องพิกัดในเม้นได้เลย";
+/** TikTok Shop clips: the product is in the orange basket of the post (attached in the TikTok app), not a link in the comments. */
+const TIKTOK_CTA: Array<[string, string]> = [[CTA_LONG, "ใครเล็งอยู่ กดตะกร้าสีส้มได้เลย"], [CTA_SHORT, "กดตะกร้าสีส้มเลย"]];
+export const ctaFor = (platform: ProductPlatform, narration: string) =>
+  platform === "TIKTOK" ? TIKTOK_CTA.reduce((text, [from, to]) => text.replace(from, to), narration) : narration;
 
 /** The Thai line spoken in each take, from the product name and the kept facts only. */
 export function narrationFor(role: ShotRole, name: string, facts: string[], seed: number, family: CategoryFamily, total = 1, trendHook?: string) {
@@ -291,7 +295,7 @@ export function writeProductClip(input: ScriptInput): ProductClipScript {
   const trend = pickTrend(input.title, family, name, kept, seed);
   const moment = shoppingMoment(input.now ?? new Date());
   const shots: ProductShot[] = roles.map((role, position) => {
-    const narration = narrationFor(role, name, kept, seed, family, roles.length, trend.spoken);
+    const narration = ctaFor(input.platform, narrationFor(role, name, kept, seed, family, roles.length, trend.spoken));
     const shot = ROLE_SHOT[role];
     // The watch family shows the product worn for the use-angle take; the face is never shown.
     const action: HandAction = role === "IN_USE" && family === "WATCH_ACCESSORY" ? "WRIST_GLANCE" : shot.action;
@@ -301,9 +305,11 @@ export function writeProductClip(input: ScriptInput): ProductClipScript {
       prompt: shotPrompt({ title: mainProductTitle(input.title).slice(0, 200), style, role, position, total: roles.length, narration, trend: trend.format, setTouch: moment?.setTouch || undefined,
         presenter, pose, nextRole: roles[position + 1] }) };
   });
-  const store = PLATFORM_LABEL[input.platform];
-  const hashtags = [...new Set([`#${store}`, "#ป้ายยา", FAMILY_TAG[family], ...(moment ? [moment.hashtag] : []), `#${store}Affiliate`, "#Reels", "#Shorts"])];
-  const disclosure = "คลิปนี้สร้างด้วย AI จากภาพสินค้าในหน้าร้าน · มีลิงก์ affiliate (อาจได้ค่าคอมมิชชั่นเมื่อมีการสั่งซื้อ)";
+  const store = PLATFORM_LABEL[input.platform], tiktok = input.platform === "TIKTOK", tag = store.replace(/\s+/g, "");
+  const hashtags = [...new Set([`#${tag}`, "#ป้ายยา", FAMILY_TAG[family], ...(moment ? [moment.hashtag] : []),
+    ...(tiktok ? ["#TikTokShopTH", "#ของดีบอกต่อ"] : [`#${tag}Affiliate`, "#Reels", "#Shorts"])])];
+  const disclosure = tiktok ? "คลิปนี้สร้างด้วย AI จากภาพสินค้าใน TikTok Shop · ลิงก์ในตะกร้าเป็นลิงก์ affiliate (อาจได้ค่าคอมมิชชั่นเมื่อมีการสั่งซื้อ)"
+    : "คลิปนี้สร้างด้วย AI จากภาพสินค้าในหน้าร้าน · มีลิงก์ affiliate (อาจได้ค่าคอมมิชชั่นเมื่อมีการสั่งซื้อ)";
   const caption = [
     // First line = the scroll-stopping hook (it is all people see before "more"), then what it is.
     trend.captionHook,
@@ -312,12 +318,13 @@ export function writeProductClip(input: ScriptInput): ProductClipScript {
     ...(moment ? [moment.captionLine] : []),
     ENGAGE[seed % ENGAGE.length],
     "",
-    `🛒 ดูสินค้าใน ${store}: ${input.link}`,
-    "ราคาและโปรโมชันดูที่ลิงก์ (อาจเปลี่ยนตามร้านค้า)",
+    // TikTok: the basket is attached to the post in the TikTok app (its API cannot), so the caption points to it.
+    ...(tiktok ? ["🛒 กดตะกร้าสีส้มในคลิปนี้ได้เลย", "ราคาและโปรโมชันดูที่ตะกร้า (อาจเปลี่ยนตามร้านค้า)"]
+      : [`🛒 ดูสินค้าใน ${store}: ${input.link}`, "ราคาและโปรโมชันดูที่ลิงก์ (อาจเปลี่ยนตามร้านค้า)"]),
     disclosure,
     hashtags.join(" "),
   ].join("\n").slice(0, 2000);
-  const comment = `🛒 ลิงก์สินค้า (${store}): ${input.link}`;
+  const comment = tiktok ? "🛒 สินค้าอยู่ในตะกร้าสีส้มของคลิปนี้" : `🛒 ลิงก์สินค้า (${store}): ${input.link}`;
   const youtubeTitle = shorten(`${trend.hookText} | ${name} #Shorts`, 95);
   const spoken = [...shots.map(s => s.narration), trend.hookText];
   const truth = checkProductTruth([...spoken, caption].join("\n"), kept);

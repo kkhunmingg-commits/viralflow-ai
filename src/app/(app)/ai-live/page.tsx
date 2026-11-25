@@ -36,8 +36,8 @@ export default async function AiLivePage({ searchParams }: { searchParams: Promi
     <PageHeading eyebrow="AI LIVE" title="ไลฟ์ขายของด้วย AI"
       description="ระบบไลฟ์เดียว คุมจากหน้านี้ได้ทุกที่ ทั้งเริ่ม/หยุด พิมพ์ให้พูด สินค้า และคอมเมนต์ ภาพออกไป TikTok ผ่าน OBS เลือกตัวสร้างภาพได้: Pro (เนียน การ์ดจอแรง) หรือ Lite (คอมสเปคต่ำ)"
       action={<span className="phase-chip">ทดสอบ · ยังใช้เสียงทดสอบ</span>} />
-    <PraewControl products={praewProducts(sources.lineup, sources.candidates, sources.posted, PRAEW_MAX_PRODUCTS, sources.postedTikTok)}
-      postedCount={sources.posted.length + sources.postedTikTok.length} />
+    <PraewControl products={praewProducts(sources.lineup, sources.candidates, PRAEW_MAX_PRODUCTS, sources.postedTikTok, sources.picks)}
+      postedCount={sources.picks.length + sources.postedTikTok.length} />
     <PresenterMaker />
     <details className="praew-card lo-section" id="live-overlay" open>
       <summary>องค์ประกอบบนจอไลฟ์<small>ข้อความโปร · นาฬิกา · รูป · อีโมจิเด้ง · ป้ายสินค้าอัตโนมัติ — ขึ้นบนไลฟ์ผ่าน OBS</small></summary>

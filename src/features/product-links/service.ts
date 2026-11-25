@@ -41,7 +41,7 @@ function check<T>(result: { data: T; error: { message: string } | null }, code: 
 // ---------------------------------------------------------------- Photos
 
 /** Listing photos are only fetched from the marketplaces' own image hosts (the URLs come back from the browser). */
-const IMAGE_HOSTS = /(^|\.)(shopee\.[a-z.]+|susercontent\.com|shopeemobile\.com|lazcdn\.com|slatic\.net|alicdn\.com|lazada\.[a-z.]+)$/i;
+const IMAGE_HOSTS = /(^|\.)(shopee\.[a-z.]+|susercontent\.com|shopeemobile\.com|lazcdn\.com|slatic\.net|alicdn\.com|lazada\.[a-z.]+|ibyteimg\.com|byteimg\.com|tiktokcdn\.com|tiktokcdn-[a-z]+\.com)$/i;
 export function allowedImageUrl(value: string) {
   try { const url = new URL(value); return url.protocol === "https:" && !url.port && !url.username && IMAGE_HOSTS.test(url.hostname); } catch { return false; }
 }
@@ -77,7 +77,7 @@ async function saveImages(admin: SupabaseClient, owner: string, jobId: string, i
 // ---------------------------------------------------------------- Create
 
 export interface NewProductClip {
-  tiktokAccountId: string; platform: ProductPlatform; source: "MANUAL_LINK" | "AFFILIATE_API"; link: string; productUrl: string | null; externalId: string | null;
+  tiktokAccountId: string; platform: ProductPlatform; source: "MANUAL_LINK" | "AFFILIATE_API" | "TIKTOK_SHOP"; link: string; productUrl: string | null; externalId: string | null;
   title: string; facts: string[]; lengthSeconds: ClipLength;
   /** Listing photo URLs chosen by the owner (marketplace hosts only) and/or photos uploaded from the computer. */
   imageUrls: string[]; uploads: Uint8Array[];
@@ -465,7 +465,8 @@ export async function reviewProductClip(admin: SupabaseClient, owner: string, id
     await discardFiles(admin, owner, job, true);
     return { posting: [] as SocialPlatform[], browser: [] as SocialPlatform[] };
   }
-  const ready = socialReadiness(owner).ready, targets = [...new Set(decision.targets)].filter(t => (SOCIAL_PLATFORMS as string[]).includes(t));
+  // TikTok Shop clips are posted from the TikTok app (the basket is attached there), never to Facebook / Instagram / YouTube.
+  const ready = socialReadiness(owner).ready, targets = job.platform === "TIKTOK" ? [] : [...new Set(decision.targets)].filter(t => (SOCIAL_PLATFORMS as string[]).includes(t));
   await save(admin, owner, id, { status: targets.length ? "PUBLISHING" : "APPROVED", targets, posts: targets.map(t => newPost(t, now, ready.includes(t) ? "API" : "BROWSER")), reviewed_at: now.toISOString(),
     updated_at: new Date(now.getTime() - LOCK_MS).toISOString() });
   await discardFiles(admin, owner, job, false);

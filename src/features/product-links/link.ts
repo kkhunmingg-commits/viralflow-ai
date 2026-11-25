@@ -5,8 +5,9 @@
  * the caption and the first comment. The canonical product URL (resolved from a short link) is only used to read
  * the product page and to spot the same product pasted twice.
  */
-export type ProductPlatform = "SHOPEE" | "LAZADA";
-export const PLATFORM_LABEL: Record<ProductPlatform, string> = { SHOPEE: "Shopee", LAZADA: "Lazada" };
+/** TIKTOK: a TikTok Shop best-seller the owner picked (never pasted as a link; see features/tiktok-shop). */
+export type ProductPlatform = "SHOPEE" | "LAZADA" | "TIKTOK";
+export const PLATFORM_LABEL: Record<ProductPlatform, string> = { SHOPEE: "Shopee", LAZADA: "Lazada", TIKTOK: "TikTok Shop" };
 
 export interface ParsedLink {
   platform: ProductPlatform;
@@ -33,6 +34,7 @@ export function productIdFromUrl(platform: ProductPlatform, url: URL): string | 
     if (slug) return `${slug[1]}.${slug[2]}`;
     return null;
   }
+  if (platform === "TIKTOK") return /\/pdp\/(?:[^/]+\/)?(\d{6,30})(?:$|[/?#])/.exec(url.pathname + "/")?.[1] ?? null;
   const item = /-i(\d{3,})(?:-s\d+)?\.html/.exec(url.pathname) ?? /\/products\/i(\d{3,})/.exec(url.pathname);
   return item ? item[1] : null;
 }
@@ -62,6 +64,7 @@ export function sameMarketplace(platform: ProductPlatform, target: string) {
     const url = new URL(target);
     if (url.protocol !== "https:" && url.protocol !== "http:") return false;
     const host = url.hostname.toLowerCase();
+    if (platform === "TIKTOK") return false;
     return platform === "SHOPEE" ? SHOPEE_HOST.test(host) || SHOPEE_SHORT.test(host) : LAZADA_HOST.test(host) || LAZADA_SHORT.test(host);
   } catch { return false; }
 }
