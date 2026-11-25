@@ -14,11 +14,13 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const EXTENSION_VERSION = "1.2.1";
+export const EXTENSION_VERSION = "1.3.0";
 export const EXTENSION_DIR = "chrome-extension";
 
 const SHOPEE = ["co.th", "com.my", "sg", "ph", "vn", "co.id", "com", "tw", "com.br"].flatMap(tld => [`https://shopee.${tld}/*`, `https://*.shopee.${tld}/*`]);
 const LAZADA = ["co.th", "com.my", "sg", "com.ph", "vn", "co.id"].flatMap(tld => [`https://lazada.${tld}/*`, `https://*.lazada.${tld}/*`]);
+/** 25 Nov (Lucky): TikTok Shop's own web pages, where the best-sellers (with TikTok's sales numbers) are read. */
+const TIKTOK_SHOP = ["https://shop.tiktok.com/*"];
 /** 19 Nov (Lucky): where the extension posts finished clips, signed in as the user (no API keys). */
 const SOCIAL = ["https://www.facebook.com/*", "https://web.facebook.com/*", "https://www.instagram.com/*", "https://studio.youtube.com/*"];
 /** Where each platform's own "new reel / upload" page is. */
@@ -88,9 +90,48 @@ function background({ portal, start }) {
     const posting = await get("posting");
     if (posting && posting.tabId === tabId) await finish(tabId, { ok: false, error: posting.published ? "UNKNOWN" : "STOPPED" });
   });
+  /**
+   * 25 Nov: "ดึงสินค้าขายดีจาก TikTok" on ViralFlow opens TikTok Shop's best-seller pages one at a time in background
+   * tabs of this Chrome, tiktok.js there reads the listed products (what the page already shows), the tab closes, and
+   * each page's products go back to the ViralFlow tab, which saves them with the owner's sign-in.
+   */
+  const ttWaiting = new Map();
+  let ttRunning = false;
+  async function ttPull(vfTab, urls) {
+    if (ttRunning) return;
+    ttRunning = true;
+    try {
+      for (let i = 0; i < urls.length; i++) {
+        let tab = null;
+        const items = await new Promise(async done => {
+          const timer = setTimeout(() => done([]), 30_000);
+          try {
+            tab = await chrome.tabs.create({ url: urls[i], active: false, openerTabId: vfTab });
+            ttWaiting.set(tab.id, list => { clearTimeout(timer); done(list || []); });
+          } catch { clearTimeout(timer); done([]); }
+        });
+        if (tab) { ttWaiting.delete(tab.id); await chrome.tabs.remove(tab.id).catch(() => {}); }
+        try { await chrome.tabs.sendMessage(vfTab, { type: "vf-tt-batch", items, done: i + 1, total: urls.length }); } catch { return; }
+        await new Promise(r => setTimeout(r, 1500));
+      }
+    } finally { ttRunning = false; }
+  }
   chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     const tabId = sender.tab && sender.tab.id;
     const work = async () => {
+      if (msg.type === "vf-tt-pull") { if (ttRunning) return { ok: false, busy: true }; if (Array.isArray(msg.urls) && tabId) ttPull(tabId, msg.urls.filter(u => /^https:\/\/shop\.tiktok\.com\//.test(u)).slice(0, 40)); return { ok: true }; }
+      if (msg.type === "vf-tt-pending") return { pending: ttWaiting.has(tabId) };
+      if (msg.type === "vf-tt-items") { const done = ttWaiting.get(tabId); if (done) done(msg.items); return { ok: !!done }; }
+      if (msg.type === "vf-tt-manual") {
+        const vf = await chrome.tabs.create({ url: portal + "/product-clips/tiktok?import=1", active: true, openerTabId: tabId });
+        await store.set({ ["ttmanual:" + vf.id]: { items: msg.items, at: Date.now() } });
+        return { ok: true };
+      }
+      if (msg.type === "vf-tt-hello") {
+        const got = await get("ttmanual:" + tabId);
+        if (got) await store.remove("ttmanual:" + tabId);
+        return got ? { items: got.items } : {};
+      }
       if (msg.type === "vf-kick") { setTimeout(poll, 500); return { ok: true }; }
       if (msg.type === "vf-task") {
         const posting = await get("posting");
@@ -149,6 +190,44 @@ function viralflowPage() {
   document.documentElement.dataset.vfVersion = chrome.runtime.getManifest().version;
   // A clip was just approved for posting (or the page was opened): look for work now instead of within a minute.
   try { chrome.runtime.sendMessage({ type: "vf-kick" }); } catch { /* extension reloading */ }
+  const tt = document.getElementById("vf-tt");
+  if (tt) {
+    // 25 Nov: ViralFlow's TikTok Shop page. Pull best-sellers from TikTok Shop's pages, or save what the owner sent from one.
+    const status = text => { const el = document.getElementById("vf-tt-status"); if (el) { el.hidden = false; el.textContent = text; } };
+    const save = async items => {
+      const response = await fetch("/api/tiktok-shop/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items }) });
+      const body = await response.json().catch(() => ({}));
+      return { ok: response.ok && !!body.ok, saved: Number(body.saved) || 0, text: body.message || "บันทึกไม่สำเร็จ" };
+    };
+    let total = 0;
+    chrome.runtime.onMessage.addListener(msg => {
+      if (!msg || msg.type !== "vf-tt-batch") return;
+      (async () => {
+        if (msg.items && msg.items.length) { const r = await save(msg.items); total += r.saved; }
+        status(`กำลังดึงสินค้าขายดีจาก TikTok Shop… หน้า ${msg.done}/${msg.total} · ได้แล้ว ${total} รายการ`);
+        if (msg.done === msg.total) { status(`ดึงเสร็จแล้ว ได้สินค้า ${total} รายการ กำลังโหลดรายการใหม่…`); setTimeout(() => location.reload(), 1500); }
+      })();
+    });
+    const button = document.getElementById("vf-tt-pull");
+    if (button) {
+      button.disabled = false;
+      button.onclick = async () => {
+        let urls = [];
+        try { urls = JSON.parse(tt.dataset.urls || "[]"); } catch { /* none */ }
+        button.disabled = true; total = 0;
+        status("กำลังเปิดหน้า TikTok Shop ในแท็บเบื้องหลัง (หน้าละไม่เกิน 30 วิ)…");
+        chrome.runtime.sendMessage({ type: "vf-tt-pull", urls });
+      };
+    }
+    (async () => {
+      for (let i = 0; i < 4; i++) {
+        const answer = await new Promise(done => chrome.runtime.sendMessage({ type: "vf-tt-hello" }, a => done(a || {})));
+        if (answer.items) { const r = await save(answer.items); location.href = "/product-clips/tiktok?msg=" + encodeURIComponent(r.text); return; }
+        await new Promise(r => setTimeout(r, 700));
+      }
+    })();
+    return;
+  }
   const root = document.getElementById("vf-fetch");
   if (!root) return;
   const say = text => { const el = document.getElementById("vf-status"); if (el) el.textContent = text; };
@@ -269,6 +348,72 @@ function shopPage() {
       const shown = document.getElementById("vf-send");
       if (hasProduct()) button(); else if (shown) shown.remove();
     }, 2000);
+  })();
+}
+
+/**
+ * On TikTok Shop's web pages (shop.tiktok.com): read the products the page lists, with the numbers TikTok Shop shows
+ * (price, sold, rating). Automatically in a tab ViralFlow opened for "ดึงสินค้าขายดี", or by the owner's button.
+ * Reads only the page's own product data; never cookies or sign-ins.
+ */
+function tiktokPage() {
+  const send = msg => new Promise(done => { try { chrome.runtime.sendMessage(msg, answer => done(answer || {})); } catch { done({}); } });
+  const wait = ms => new Promise(done => setTimeout(done, ms));
+  const category = () => { const m = /\/c\/([a-z0-9-]+)\//.exec(location.pathname); return m ? m[1] : null; };
+  const first = list => (Array.isArray(list) && typeof list[0] === "string" ? list[0] : null);
+  function fromData() {
+    const out = [];
+    for (const id of ["__MODERN_ROUTER_DATA__", "__MODERN_SSR_DATA__"]) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      let data;
+      try { data = JSON.parse(el.textContent || ""); } catch { continue; }
+      const walk = (o, depth) => {
+        if (!o || typeof o !== "object" || depth > 18 || out.length > 600) return;
+        if (Array.isArray(o)) { for (const x of o) walk(x, depth + 1); return; }
+        if (o.product_id && typeof o.title === "string" && (o.sold_info || o.product_price_info)) {
+          const price = o.product_price_info || {}, rate = o.rate_info || {}, seo = o.seo_url || {};
+          out.push({ productId: String(o.product_id), title: o.title, shopName: (o.seller_info && o.seller_info.shop_name) || null,
+            price: price.sale_price_decimal || null, originalPrice: price.origin_price_decimal || null,
+            sold: o.sold_info ? o.sold_info.sold_count : null, rating: rate.score || null, reviews: rate.review_count || null,
+            image: o.image ? first(o.image.url_list) : null, url: seo.canonical_url || null, category: category() });
+          return;
+        }
+        for (const k in o) walk(o[k], depth + 1);
+      };
+      walk(data, 0);
+    }
+    return out;
+  }
+  /** Products loaded while scrolling are only on screen (no numbers): kept so the owner can still pick them. */
+  function fromCards(known) {
+    const out = [];
+    for (const a of Array.prototype.slice.call(document.querySelectorAll('a[href*="/pdp/"]'))) {
+      const m = /\/pdp\/(?:[^/]+\/)?(\d{6,30})/.exec(a.pathname);
+      if (!m || known.has(m[1])) continue;
+      const title = (a.innerText || "").split("\n").map(t => t.trim()).filter(t => t.length > 5)[0];
+      const img = a.querySelector("img");
+      if (title) { known.add(m[1]); out.push({ productId: m[1], title: title.slice(0, 300), image: img ? img.currentSrc || img.src : null, url: a.href, category: category() }); }
+    }
+    return out;
+  }
+  const collect = () => { const list = fromData(); return list.concat(fromCards(new Set(list.map(i => i.productId)))); };
+  (async () => {
+    let pending = false;
+    for (let i = 0; i < 3 && !pending; i++) { pending = !!(await send({ type: "vf-tt-pending" })).pending; if (!pending) await wait(600); }
+    if (pending) { await wait(2500); return send({ type: "vf-tt-items", items: collect() }); }
+    const b = document.createElement("button");
+    b.id = "vf-tt-send";
+    b.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:2147483647;padding:14px 20px;border:0;border-radius:14px;background:#ff3b6b;color:#fff;font:700 16px system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3);cursor:pointer";
+    b.textContent = "⚡ ส่งสินค้าหน้านี้เข้า ViralFlow";
+    b.onclick = async () => {
+      const items = collect();
+      if (!items.length) { b.textContent = "หน้านี้ไม่มีรายการสินค้า"; setTimeout(() => { b.textContent = "⚡ ส่งสินค้าหน้านี้เข้า ViralFlow"; }, 2500); return; }
+      b.disabled = true; b.textContent = `กำลังส่ง ${items.length} รายการ…`;
+      await send({ type: "vf-tt-manual", items });
+      b.disabled = false; b.textContent = "⚡ ส่งสินค้าหน้านี้เข้า ViralFlow";
+    };
+    document.body.appendChild(b);
   })();
 }
 
@@ -526,15 +671,16 @@ export function extensionFiles(portal, { icon = false } = {}) {
   const origin = new URL(portal).origin;
   const manifest = {
     manifest_version: 3, name: "ViralFlow", version: EXTENSION_VERSION,
-    description: "ส่งสินค้าจาก Shopee/Lazada เข้า ViralFlow และโพสต์คลิปที่คุณกดผ่านไป Facebook, Instagram, YouTube ด้วยบัญชีใน Chrome ของคุณ",
+    description: "ส่งสินค้าจาก Shopee/Lazada และสินค้าขายดีจาก TikTok Shop เข้า ViralFlow และโพสต์คลิปที่คุณกดผ่านไป Facebook, Instagram, YouTube ด้วยบัญชีใน Chrome ของคุณ",
     permissions: ["storage", "alarms"],
-    host_permissions: [`${origin}/*`, ...SHOPEE, ...LAZADA, ...SOCIAL],
+    host_permissions: [`${origin}/*`, ...SHOPEE, ...LAZADA, ...SOCIAL, ...TIKTOK_SHOP],
     ...(icon ? { icons: { 128: "icon-128.png" }, action: { default_icon: { 128: "icon-128.png" }, default_title: "ViralFlow" } } : {}),
     background: { service_worker: "background.js" },
     content_scripts: [
       { matches: [`${origin}/product-clips*`], js: ["viralflow.js"], run_at: "document_idle" },
       { matches: [...SHOPEE, ...LAZADA], js: ["shop.js"], run_at: "document_idle" },
       { matches: SOCIAL, js: ["social.js"], run_at: "document_idle" },
+      { matches: TIKTOK_SHOP, js: ["tiktok.js"], run_at: "document_idle" },
     ],
   };
   return {
@@ -543,6 +689,7 @@ export function extensionFiles(portal, { icon = false } = {}) {
     "viralflow.js": run(viralflowPage),
     "shop.js": run(shopPage),
     "social.js": run(socialPage),
+    "tiktok.js": run(tiktokPage),
   };
 }
 

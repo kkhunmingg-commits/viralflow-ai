@@ -4,7 +4,8 @@ import { financeLedger } from "@/features/analytics/finance-ledger";
 import { readClipStats } from "@/features/flow-farm/learning-store";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { StatsByClip } from "@/features/flow-farm/learning";
-import { LIVE_POLICY, NO_STATS, PRAEW_MAX_PRODUCTS, type ProductStats, liveBlockStart, praewProducts, selectLiveLineup, type LiveCandidate, type PostedProduct, type PostedTikTokProduct, type PraewProduct } from "./live-director";
+import { liveTikTokPicks } from "@/features/tiktok-shop/catalog";
+import { LIVE_POLICY, NO_STATS, PRAEW_MAX_PRODUCTS, type ProductStats, liveBlockStart, praewProducts, selectLiveLineup, type LiveCandidate, type PostedProduct, type PostedTikTokProduct, type PraewProduct, type TikTokLivePick } from "./live-director";
 
 /** Products with real VIDEO sales in the window, each with its owner-verified facts; nothing is estimated. */
 export async function liveCandidates(client: SupabaseClient, ownerId: string, now = new Date()): Promise<LiveCandidate[]> {
@@ -92,20 +93,28 @@ function addClipStats(s: ProductStats, c: { views: number; likes: number; commen
   return { ...s, views: s.views + n(c.views), likes: s.likes + n(c.likes), comments: s.comments + n(c.comments), shares: s.shares + n(c.shares) };
 }
 
-/** Everything Praew's product list is made from, read once. Clip numbers come from the clip-stats file (service-only). */
-export async function praewSources(client: SupabaseClient, ownerId: string, now = new Date()) {
-  const blockStart = liveBlockStart(now);
-  const clipStats = await readClipStats(createAdminClient(), ownerId).catch(() => ({} as StatsByClip));
-  const [candidates, posted, postedTikTok] = await Promise.all([liveCandidates(client, ownerId, blockStart), postedProducts(client, ownerId, 30, clipStats),
-    postedTikTokProducts(client, ownerId, 12, clipStats, now)]);
-  return { blockStart, candidates, posted, postedTikTok, lineup: selectLiveLineup(candidates, blockStart) };
+/** The TikTok Shop best-sellers the owner picked for the live, as Praew's list takes them (photo: TikTok's, else the clip's). */
+export async function tiktokLivePicks(client: SupabaseClient, ownerId: string): Promise<TikTokLivePick[]> {
+  return (await liveTikTokPicks(client, ownerId).catch(() => [])).map(p => ({ title: p.title, price: p.price, facts: p.facts, image: p.image_url ?? p.imagePath }));
 }
 
 /**
- * The products Praew presents right now: TikTok Shop best-sellers of this 4-hour block, then TikTok Shop products with
- * posted clips, then the newest posted link-clip products.
+ * Everything Praew's product list is made from, read once. Clip numbers come from the clip-stats file (service-only).
+ * 25 Nov: TikTok Shop products only (Shopee / Lazada link products stay on the link-clip page and never go in the live).
+ */
+export async function praewSources(client: SupabaseClient, ownerId: string, now = new Date()) {
+  const blockStart = liveBlockStart(now);
+  const clipStats = await readClipStats(createAdminClient(), ownerId).catch(() => ({} as StatsByClip));
+  const [candidates, postedTikTok, picks] = await Promise.all([liveCandidates(client, ownerId, blockStart),
+    postedTikTokProducts(client, ownerId, 12, clipStats, now), tiktokLivePicks(client, ownerId)]);
+  return { blockStart, candidates, postedTikTok, picks, lineup: selectLiveLineup(candidates, blockStart) };
+}
+
+/**
+ * The products Praew presents right now: the TikTok Shop best-sellers the owner picked for the live, then TikTok Shop
+ * best-sellers of this 4-hour block, then TikTok Shop products with posted clips.
  */
 export async function praewFeed(client: SupabaseClient, ownerId: string, now = new Date()): Promise<PraewProduct[]> {
   const s = await praewSources(client, ownerId, now);
-  return praewProducts(s.lineup, s.candidates, s.posted, PRAEW_MAX_PRODUCTS, s.postedTikTok);
+  return praewProducts(s.lineup, s.candidates, PRAEW_MAX_PRODUCTS, s.postedTikTok, s.picks);
 }

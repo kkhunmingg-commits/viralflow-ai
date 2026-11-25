@@ -6,7 +6,8 @@ export interface NavigationEntry extends NavigationItem { also?: readonly string
 /** 16 Nov owner: the AI girl replaces the old warm-up clips on the clip page; product-link clips and drama keep their own pages. */
 export const clipStudioTabs: readonly NavigationItem[] = [
   { href: "/post", label: "คลิปสาว AI", short: "💃" },
-  { href: "/product-clips", label: "คลิปสินค้าจากลิงก์", short: "🛒" },
+  { href: "/product-clips", label: "คลิปสินค้า Shopee/Lazada", short: "🛒" },
+  { href: "/product-clips/tiktok", label: "สินค้าขายดี TikTok", short: "♪" },
   { href: "/drama", label: "ละครซีรีส์", short: "🎬" },
 ];
 /** Everyday destinations, in the order an owner works through a day. Other feature routes remain reachable. */

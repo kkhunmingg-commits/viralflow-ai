@@ -17,6 +17,7 @@ import { ProductLinkForm } from "./link-form";
 import { CaptureButton } from "./capture-button";
 import { ExtensionPostingStatus } from "./extension-status";
 import { bookmarkletHref } from "@/features/product-links/capture";
+import { PLATFORM_LABEL } from "@/features/product-links/link";
 import { lookupErrorLabel } from "@/features/product-links/browser-lookup";
 import { deleteProductClipAction, remakeProductClipAction, reviewProductClipAction } from "./actions";
 import "../post/post.css";
@@ -146,16 +147,18 @@ function ReviewCard({ job, ready }: { job: ProductClipView; ready: string[] }) {
     {job.final_clip_id && <video controls playsInline preload="metadata" src={`/api/library/${job.final_clip_id}/video#t=0.1`} aria-label={job.title} />}
     <div className="library-clip-body">
       <h3>{nameOf(job)}</h3>
-      <p className="library-meta">{job.platform === "SHOPEE" ? "Shopee" : "Lazada"} · {job.length_seconds} วิ · <a href={job.link} target="_blank" rel="noreferrer noopener">เปิดหน้าสินค้า</a></p>
+      <p className="library-meta">{PLATFORM_LABEL[job.platform]} · {job.length_seconds} วิ · <a href={job.link} target="_blank" rel="noreferrer noopener">เปิดหน้าสินค้า</a></p>
       <p className="manual-muted">ตรวจ: สินค้าในคลิปหน้าตาตรงกับของจริง ตัวหนังสือ/โลโก้ไม่เพี้ยน และเสียงพูดไม่เกินจากหน้าร้าน</p>
       <Script job={job} />
       <form action={reviewProductClipAction} className="pl-review">
         <input type="hidden" name="id" value={job.id} />
-        <fieldset><legend>โพสต์อัตโนมัติไปที่</legend>{SOCIAL_PLATFORMS.map(p => <label key={p} className="manual-check">
+        {job.platform === "TIKTOK"
+          ? <p className="manual-muted">สินค้า TikTok Shop: กดผ่านแล้ว คลิปจะอยู่ในประวัติด้านล่าง เปิดในมือถือ กดแชร์ไปแอป TikTok แล้วปักตะกร้าสินค้าตัวนี้ในแอป (TikTok ไม่ให้ระบบภายนอกแนบตะกร้า)</p>
+          : <fieldset><legend>โพสต์อัตโนมัติไปที่</legend>{SOCIAL_PLATFORMS.map(p => <label key={p} className="manual-check">
           <input type="checkbox" name="target" value={p} defaultChecked />
-          {SOCIAL_LABEL[p]}{ready.includes(p) ? "" : " (ผ่าน Chrome)"}</label>)}</fieldset>
+          {SOCIAL_LABEL[p]}{ready.includes(p) ? "" : " (ผ่าน Chrome)"}</label>)}</fieldset>}
         <div className="library-inline">
-          <button className="manual-primary" name="decision" value="APPROVE" type="submit">ผ่าน · โพสต์</button>
+          <button className="manual-primary" name="decision" value="APPROVE" type="submit">{job.platform === "TIKTOK" ? "ผ่าน" : "ผ่าน · โพสต์"}</button>
           <button className="manual-secondary" name="decision" value="REJECT" type="submit" title="ลบคลิปนี้ทิ้ง ไม่สร้างใหม่">ไม่ผ่าน · ลบทิ้ง</button>
         </div>
       </form>
