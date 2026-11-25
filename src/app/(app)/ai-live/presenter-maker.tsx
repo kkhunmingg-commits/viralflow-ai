@@ -6,13 +6,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
-  BACKGROUNDS, PRAEW_ID, QUALITIES, QUALITY_INFO, VOICES, autoBackground, backgroundLabel, defaultVoice, presenterStatus, resolveBackground,
-  type BackgroundId, type BgChoice, type Gender, type JobReport, type Presenter, type Quality, type StudioReport, type VoiceId,
+  BACKGROUNDS, PRAEW_ID, QUALITIES, QUALITY_INFO, VOICES, autoBackground, backgroundLabel, defaultVoice, praewBackgroundLabel, praewSceneStatus,
+  presenterStatus, resolveBackground,
+  type BackgroundId, type BgChoice, type Gender, type JobReport, type PraewBg, type PraewScene, type Presenter, type Quality, type StudioReport, type VoiceId,
 } from "@/features/presenter-studio/contract";
 
 type Item = Presenter & { job: JobReport | null; pictures: { photo: string | null; face: string | null; voice: string | null; candidates: (string | null)[]; shop: string | null } };
 type Previews = Partial<Record<BackgroundId, string>>;
-type View = { presenters: Item[]; active: string; report: StudioReport | null; online: boolean; backgrounds?: Previews };
+type View = { presenters: Item[]; active: string; report: StudioReport | null; online: boolean; backgrounds?: Previews; praew?: PraewScene | null; praewShop?: string | null };
 type Tone = "low" | "normal" | "high";
 
 const STYLE_PRESETS = ["สุภาพ อบอุ่น เป็นกันเอง", "สนุก ร่าเริง ชวนคุยเก่ง", "มืออาชีพ น่าเชื่อถือ อธิบายสินค้าชัด", "ใจดี พูดช้า ฟังสบาย"];
@@ -97,18 +98,7 @@ export function PresenterMaker() {
     {toast && <p className="pmk-toast" role="status">{toast}</p>}
 
     <ul className="pmk-list">
-      <li className={`pmk-item${liveActive === PRAEW_ID ? " live" : ""}`}>
-        <div className="pmk-face"><span>แพรว</span></div>
-        <div className="pmk-body">
-          <div className="pmk-title"><b>แพรว</b><small>ตัวหลัก · เสียง 6</small></div>
-          <span className="pmk-pill ok">พร้อมใช้</span>
-          <div className="pmk-actions">
-            {liveActive === PRAEW_ID ? <span className="pmk-live">กำลังใช้ในไลฟ์</span>
-              : view?.active === PRAEW_ID ? <span className="pmk-live wait">จะใช้เมื่อปิดไลฟ์</span>
-                : <button type="button" className="pmk-btn" disabled={busy !== null} onClick={() => act("activate", { action: "activate", id: PRAEW_ID }, "ตั้งแพรวเป็นพรีเซนเตอร์ไลฟ์แล้ว")}>ใช้ในไลฟ์</button>}
-          </div>
-        </div>
-      </li>
+      <PraewRow view={view} liveActive={liveActive} busy={busy} online={online} liveRunning={!!report?.liveRunning} act={act} />
       {view?.presenters.map(p => <PresenterRow key={p.id} p={p} previews={view.backgrounds ?? {}} online={online} live={liveActive === p.id} wanted={view.active === p.id}
         busy={busy} liveRunning={!!report?.liveRunning} act={act} />)}
     </ul>
@@ -168,9 +158,50 @@ function PresenterRow({ p, previews, online, live, wanted, busy, liveRunning, ac
   </li>;
 }
 
-/** The shop set behind the presenter: auto (by gender), one of the sets the PC makes, or the owner's own shop photo. */
-function BackgroundPicker({ value, gender, previews, shop, onChange, onShop }: {
-  value: BgChoice; gender: Gender; previews: Previews; shop: string | null;
+/** Praew, the built-in presenter: use her in the live, and change the scene behind her (the PC rebuilds a copy of her frames). */
+function PraewRow({ view, liveActive, busy, online, liveRunning, act }: {
+  view: View | null; liveActive: string; busy: string | null; online: boolean; liveRunning: boolean;
+  act: (key: string, body: unknown, done: string) => Promise<void>;
+}) {
+  const [scene, setScene] = useState<{ bg: PraewBg; shop: { path: string; preview: string } | null } | null>(null);
+  const now: PraewBg = view?.praew?.background ?? "original";
+  const status = praewSceneStatus(view?.praew ?? undefined, view?.report?.praew, online);
+  const pct = Math.round(status?.percent ?? 0);
+  const shopNow = view?.praewShop ?? null;
+  return <li className={`pmk-item${liveActive === PRAEW_ID ? " live" : ""}`}>
+    <div className="pmk-face"><span>แพรว</span></div>
+    <div className="pmk-body">
+      <div className="pmk-title"><b>แพรว</b><small>ตัวหลัก · เสียง 6 · ฉาก{praewBackgroundLabel(now)}</small></div>
+      {status ? <span className={`pmk-pill ${status.tone}`}>{status.label}</span> : <span className="pmk-pill ok">พร้อมใช้</span>}
+      {status?.tone === "busy" && <div className="pmk-bar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><i style={{ width: `${Math.max(3, pct)}%` }} /></div>}
+      {status?.message && <small className={status.tone === "bad" ? "pmk-err" : "pmk-msg"}>{status.message}{status.tone === "busy" && view?.report?.praew?.etaMin ? ` · เหลือประมาณ ${Math.ceil(view.report.praew.etaMin)} นาที` : ""}</small>}
+      <div className="pmk-actions">
+        {liveActive === PRAEW_ID ? <span className="pmk-live">กำลังใช้ในไลฟ์</span>
+          : view?.active === PRAEW_ID ? <span className="pmk-live wait">จะใช้เมื่อปิดไลฟ์</span>
+            : <button type="button" className="pmk-btn" disabled={busy !== null} onClick={() => act("activate", { action: "activate", id: PRAEW_ID }, "ตั้งแพรวเป็นพรีเซนเตอร์ไลฟ์แล้ว")}>ใช้ในไลฟ์</button>}
+        <button type="button" className="pmk-btn ghost" disabled={busy !== null} onClick={() => setScene(scene ? null : { bg: now, shop: null })}>เปลี่ยนฉาก</button>
+      </div>
+      {scene && <div className="pmk-scene-edit">
+        <BackgroundPicker value={scene.bg} gender="female" previews={view?.backgrounds ?? {}} shop={scene.shop?.preview ?? shopNow}
+          lead={{ id: "original", label: "ฉากเดิม", hint: "ร้านที่แพรวถ่ายไว้", text: "ฉากเดิม" }}
+          onChange={bg => setScene({ ...scene, bg: bg as PraewBg })} onShop={shop => setScene({ bg: "custom", shop })} />
+        <small className="praew-note">{scene.bg === "original"
+          ? "กลับไปใช้ฉากเดิมได้ทันที ใช้ตั้งแต่ไลฟ์รอบถัดไป"
+          : "เครื่องจะตัดตัวแพรวออกจากทุกเฟรมแล้ววางในฉากใหม่ (ทำตอนปิดไลฟ์ ครั้งแรกของแต่ละฉากประมาณ 20-40 นาที ฉากที่เคยทำแล้วเปลี่ยนได้ทันที) แพรวตัวเดิมไม่ถูกแก้ กลับมาฉากเดิมได้ตลอด"}</small>
+        <div className="pmk-nav"><button type="button" className="pmk-btn ghost" onClick={() => setScene(null)}>ยกเลิก</button>
+          <button type="button" className="pmk-btn" disabled={busy !== null || (scene.bg === "custom" && !scene.shop && !shopNow) || (scene.bg === now && !scene.shop && status?.tone !== "bad")}
+            onClick={() => { void act("praewScene", { action: "praewScene", background: scene.bg, ...(scene.shop ? { bgPath: scene.shop.path } : {}) },
+              `เปลี่ยนฉากของแพรวเป็น${praewBackgroundLabel(scene.bg)}แล้ว${scene.bg === "original" ? "" : " เครื่องจะทำให้ตอนปิดไลฟ์"}${liveRunning ? " (ไลฟ์ตอนนี้ยังใช้ฉากเดิม)" : ""}`).then(() => setScene(null)); }}>บันทึกฉาก</button></div>
+      </div>}
+    </div>
+  </li>;
+}
+
+/** The shop set behind the presenter: auto (by gender), one of the sets the PC makes, or the owner's own shop photo.
+ *  `lead` replaces the "auto" tile (Praew: her original scene). */
+function BackgroundPicker({ value, gender, previews, shop, lead, onChange, onShop }: {
+  value: string; gender: Gender; previews: Previews; shop: string | null;
+  lead?: { id: string; label: string; hint: string; text: string };
   onChange: (bg: BgChoice) => void; onShop: (shop: { path: string; preview: string }) => void;
 }) {
   const [uploading, setUploading] = useState(false);
@@ -179,10 +210,10 @@ function BackgroundPicker({ value, gender, previews, shop, onChange, onShop }: {
   const auto = autoBackground(gender);
   // the PC's own preview (signed link) when it sent one, else the sample shipped with the site (public/presenter-bg)
   const preview = (id: BackgroundId) => previews[id] ?? `/presenter-bg/${id}.jpg`;
-  const tile = (id: BgChoice, label: string, hint: string, img: string | null | undefined) =>
+  const tile = (id: BgChoice, label: string, hint: string, img: string | null | undefined, text?: string) =>
     <button key={id} type="button" role="radio" aria-checked={value === id} className={`pmk-bg${value === id ? " on" : ""}`}
       onClick={() => id === "custom" && !shop ? fileRef.current?.click() : onChange(id)}>
-      <span className={`pmk-bg-img bg-${id === "auto" ? auto : id}`}>{img ? <img src={img} alt="" loading="lazy" /> : <i>{id === "custom" ? "＋ รูปร้าน" : "รอเครื่องสร้าง"}</i>}</span>
+      <span className={`pmk-bg-img bg-${id === "auto" ? auto : id}`}>{img ? <img src={img} alt="" loading="lazy" /> : <i>{text ?? (id === "custom" ? "＋ รูปร้าน" : "รอเครื่องสร้าง")}</i>}</span>
       <b>{label}</b><small>{hint}</small>
     </button>;
   const pickShop = async (file: File | undefined) => {
@@ -193,7 +224,7 @@ function BackgroundPicker({ value, gender, previews, shop, onChange, onShop }: {
   };
   return <div className="pmk-field">ฉากหลัง
     <div className="pmk-bgs" role="radiogroup" aria-label="ฉากหลัง">
-      {tile("auto", "อัตโนมัติ", `ตามเพศ: ${backgroundLabel(auto)}`, preview(auto))}
+      {lead ? tile(lead.id as BgChoice, lead.label, lead.hint, null, lead.text) : tile("auto", "อัตโนมัติ", `ตามเพศ: ${backgroundLabel(auto)}`, preview(auto))}
       {BACKGROUNDS.map(b => tile(b.id, b.label, b.hint, preview(b.id)))}
       {tile("custom", "รูปร้านของฉัน", uploading ? "กำลังอัปโหลด…" : shop ? "แตะเพื่อเปลี่ยนรูป" : "อัปโหลดรูปร้านจริง", shop)}
     </div>
