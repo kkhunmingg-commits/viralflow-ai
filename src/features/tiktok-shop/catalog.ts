@@ -66,7 +66,8 @@ export async function closeShowcaseRead(admin: SupabaseClient, owner: string, no
 export async function listTikTokProducts(client: SupabaseClient, owner: string, limit = 300,
   { sort = "sold", commissionOnly = false }: { sort?: "sold" | "commission"; commissionOnly?: boolean } = {}) {
   let query = client.from("tiktok_shop_products").select(COLUMNS).eq("owner_id", owner);
-  if (commissionOnly) query = query.eq("in_showcase", true).gt("commission", 0);
+  // Commission products only, and none that are sold out (they cannot be added to a LIVE basket or bought).
+  if (commissionOnly) query = query.eq("in_showcase", true).gt("commission", 0).or("stock.is.null,stock.gt.0");
   query = sort === "commission"
     ? query.order("commission", { ascending: false, nullsFirst: false }).order("sold_count", { ascending: false, nullsFirst: false })
     : query.order("sold_count", { ascending: false, nullsFirst: false }).order("commission", { ascending: false, nullsFirst: false });
