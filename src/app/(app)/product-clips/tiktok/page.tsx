@@ -93,10 +93,10 @@ export default async function TikTokShopPage({ searchParams }: { searchParams: P
     </section>
 
     <section className="manual-panel" aria-labelledby="tt-best">
-      <div className="manual-section-head"><div><p className="manual-eyebrow">ขั้นที่ 2–3 · {commissionOnly ? "เฉพาะสินค้าในโชว์เคส (ได้ค่าคอม)" : "ทุกสินค้า"} · เรียงตาม{sort === "commission" ? "ค่าคอม" : "ยอดขาย"}</p><h2 id="tt-best">เลือกสินค้า ({listed.length})</h2></div></div>
+      <div className="manual-section-head"><div><p className="manual-eyebrow">ขั้นที่ 2–3 · {commissionOnly ? "เฉพาะสินค้าในโชว์เคส (ได้ค่าคอม มีของ)" : "ทุกสินค้า"} · เรียงตาม{sort === "commission" ? "ค่าคอม" : "ยอดขาย"}</p><h2 id="tt-best">เลือกสินค้า ({listed.length})</h2></div></div>
       <form className="library-start" method="get">
         <label className="manual-filter">เรียงตาม<select name="sort" defaultValue={sort}><option value="commission">ค่าคอมสูงสุด</option><option value="sold">ยอดขายสูงสุด</option></select></label>
-        <label className="manual-check"><input type="checkbox" name="all" value="1" defaultChecked={!commissionOnly} /> แสดงตัวที่ไม่ได้ค่าคอมด้วย</label>
+        <label className="manual-check"><input type="checkbox" name="all" value="1" defaultChecked={!commissionOnly} /> แสดงตัวที่ไม่ได้ค่าคอมหรือของหมดด้วย</label>
         <label className="manual-filter">หมวด<select name="cat" defaultValue={category}><option value="">ทุกหมวด</option>
           {categories.map(c => <option key={c} value={c}>{CATEGORY_TH.get(c) ?? c}</option>)}</select></label>
         <label className="manual-filter">ค้นชื่อ<input name="q" defaultValue={q ?? ""} maxLength={60} /></label>
