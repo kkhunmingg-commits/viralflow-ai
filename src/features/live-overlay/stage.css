@@ -52,12 +52,12 @@
 .lo-banner-pic { width: 82cqh; height: 82cqh; overflow: hidden; border-radius: 7cqh; background: #fff; }
 .lo-banner-pic img { width: 100%; height: 100%; object-fit: contain; }
 .lo-banner-copy { display: grid; gap: 3cqh; min-width: 0; align-content: center; }
-.lo-banner-copy .lo-badge { justify-self: start; font-size: 12cqh; }
+.lo-banner-copy .lo-badge { justify-self: start; font-size: 13.5cqh; }
 .lo-banner-copy p { margin: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 15cqh; font-weight: 900; line-height: 1.2; text-shadow: 0 .06em .12em rgba(0,0,0,.35); }
 .lo-banner-copy small { overflow: hidden; font-size: 10.5cqh; white-space: nowrap; text-overflow: ellipsis; opacity: .92; }
 .lo-banner-row { display: flex; gap: 3cqw; align-items: center; min-width: 0; }
 .lo-banner-row strong { color: var(--hi); font-size: 22cqh; font-weight: 950; line-height: 1; text-shadow: 0 .05em 0 rgba(0,0,0,.35); white-space: nowrap; }
-.lo-banner-row em { overflow: hidden; padding: .2em .7em; border-radius: 99px; color: #fff; background: rgba(0,0,0,.28); font-size: 11.5cqh; font-style: normal; font-weight: 800; white-space: nowrap; text-overflow: ellipsis; }
+.lo-banner-row em { overflow: hidden; padding: .2em .7em; border-radius: 99px; color: #fff; background: rgba(0,0,0,.28); font-size: 13cqh; font-style: normal; font-weight: 800; white-space: nowrap; text-overflow: ellipsis; }
 
 .lo-tag { display: grid; place-content: center; justify-items: center; gap: 1cqh; width: 100%; height: 100%; border: 1.4cqmin solid #fff; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--a), var(--b)); box-shadow: 0 2cqh 5cqh rgba(0,0,0,.35); rotate: -8deg; text-align: center; }
 .lo-tag small { font-size: 12cqh; font-weight: 800; }

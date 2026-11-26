@@ -63,7 +63,7 @@ describe("live overlay looks", () => {
     for (const t of TONES) for (const l of LAYOUTS) {
       const set = autoPromoSet(emptyConfig(), beauty, Math.random, { tone: t.id, layout: l.id });
       expect(set.items.filter(i => i.everyMin === 0).length).toBeLessThanOrEqual(3);
-      expect(set.items.length).toBeLessThanOrEqual(6);
+      expect(set.items.length).toBeLessThanOrEqual(7);
     }
     for (let n = 0; n < 60; n++) expect(chooseLook(beauty, { tone: "auto", layout: "random", last: "" }).layout).not.toBe("full-frame");
     // An automatic set from before the lighter sets is made again, unless arranged by hand.

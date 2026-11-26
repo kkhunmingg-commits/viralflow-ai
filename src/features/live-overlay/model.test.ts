@@ -62,6 +62,9 @@ describe("live overlay model", () => {
   it("shows the product pinned in the TikTok live cart", () => {
     expect(pinnedProducts(products, { name: "เซรั่มวิตซี ขนาด 30 มล. ของแท้" }).map(p => p.name)).toEqual(["เซรั่มวิตซี"]);
     expect(pinnedProducts(products, null).length).toBe(2);
+    // The cart price TikTok reports for the pin beats a saved (often old) listing price.
+    expect(pinnedProducts(products, { name: "เซรั่มวิตซี", price: "฿249" })[0].price).toBe("฿249");
+    expect(pinnedProducts(products, { name: "เซรั่มวิตซี" })[0].price).toBe("฿199");
     const other = pinnedProducts(products, { name: "หมอนยางพารา", price: "฿299", image: "https://p16.tiktokcdn.com/x.jpg" });
     expect(other).toEqual([{ name: "หมอนยางพารา", price: "฿299", facts: [], where: "ตะกร้าสีส้มในไลฟ์", image: "https://p16.tiktokcdn.com/x.jpg" }]);
     expect(titleLikeness("กระทะเคลือบ non-stick 28cm", "กระทะเคลือบ non stick 28 cm")).toBe(1);

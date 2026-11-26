@@ -96,7 +96,7 @@ export function OverlayStage({ config, products, imageSrc, mode, selected, onSel
     }) : null}
     {/* No "พิธีกร AI" pill on screen: Lucky removed it on 2026-11-25 (looked cluttered), told that TikTok asks for AI content to be disclosed. */}
     {editing ? TIKTOK_UI.map(z => <div key={z.label} className="lo-tiktok-ui" aria-hidden
-      style={{ left: `${z.x * 100}%`, top: `${z.y * 100}%`, width: `${z.w * 100}%`, height: `${z.h * 100}%` }}><span>{z.label} · อย่าวางทับ</span></div>) : null}
+      style={{ left: `${z.x * 100}%`, top: `${z.y * 100}%`, width: `${z.w * 100}%`, height: `${z.h * 100}%` }}><span>{z.label}</span></div>) : null}
     {editing ? <FaceZone zone={live?.id === FACE_ID ? live.box : face} selected={selected === FACE_ID}
       onDown={(e, m) => begin(e, FACE_ID, m, face)} /> : null}
   </div>;
