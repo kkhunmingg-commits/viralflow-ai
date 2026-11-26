@@ -115,10 +115,11 @@ const overlaps = (a: Zone, b: Zone) => a.x < b.x + b.w && b.x < a.x + a.w && a.y
  * Overlay pieces made automatically never go here, and pop-ups never land here.
  */
 export const TIKTOK_UI: readonly (Zone & { label: string; hard: boolean })[] = [
-  { label: "แถบชื่อช่อง/คนดู TikTok · อย่าวางทับ", x: 0, y: 0, w: 1, h: 0.115, hard: true },
+  // 27 Nov (Lucky): TikTok's own menus float above the picture, so only a thin strip at the very top and bottom is kept clear.
+  { label: "แถบชื่อช่อง/คนดู TikTok · อย่าวางทับ", x: 0, y: 0, w: 1, h: 0.06, hard: true },
   // 27 Nov (Lucky): TikTok always draws its comments on top of the picture, so a banner may sit under them like other lives do.
   { label: "คอมเมนต์ TikTok · ขึ้นทับป้ายได้", x: 0, y: 0.6, w: 0.68, h: 0.3, hard: false },
-  { label: "ปุ่มคอมเมนต์ ของขวัญ ตะกร้า · อย่าวางทับ", x: 0, y: 0.9, w: 1, h: 0.1, hard: true },
+  { label: "ปุ่มคอมเมนต์ ของขวัญ ตะกร้า · อย่าวางทับ", x: 0, y: 0.93, w: 1, h: 0.07, hard: true },
 ];
 /** A box (with a hair of slack for rounding) that sits under TikTok's host bar or bottom buttons (comments may cover it). */
 export const overTikTokUi = (box: Zone) => {
