@@ -35,7 +35,7 @@ const CATEGORIES: { id: string; label: string; words: string[]; tones: string[];
   { id: "health", label: "สุขภาพ", tones: ["fresh", "natural", "lux"], heads: ["💪 LIVE · ดูแลสุขภาพ", "🌿 LIVE · ช้อปสายสุขภาพ"],
     words: ["วิตามิน", "อาหารเสริม", "คอลลาเจน", "โปรตีน", "สมุนไพร", "ไฟเบอร์", "ดีท็อกซ์", "vitamin", "collagen"] },
   { id: "food", label: "ของกิน", tones: ["hot", "fun", "natural"], heads: ["😋 LIVE · ของกินน่าลอง", "🍜 LIVE · ของกินของดี"],
-    words: ["อาหาร", "ขนม", "กาแฟ", "ชา", "น้ำพริก", "เครื่องดื่ม", "หมู", "ไก่", "ข้าว", "เส้น", "ซอส", "อร่อย", "ผลไม้", "snack", "coffee"] },
+    words: ["อาหาร", "ขนม", "กาแฟ", "ชาเขียว", "ชานม", "น้ำพริก", "เครื่องดื่ม", "หมูหยอง", "ไก่ทอด", "ข้าวสาร", "บะหมี่", "ซอส", "อร่อย", "ผลไม้", "snack", "coffee"] },
   { id: "tech", label: "ไอที/แกดเจ็ต", tones: ["tech", "night", "hot"], heads: ["⚡ LIVE · แกดเจ็ตน่าใช้", "📱 LIVE · ของไอทีน่าใช้"],
     words: ["หูฟัง", "ชาร์จ", "สายชาร์จ", "โทรศัพท์", "มือถือ", "ลำโพง", "กล้อง", "พาวเวอร์แบงค์", "เมาส์", "คีย์บอร์ด", "usb", "bluetooth", "led", "type-c"] },
   { id: "fashion", label: "แฟชั่น", tones: ["sweet", "lux", "night"], heads: ["👗 LIVE · แฟชั่นของแพรว", "👜 LIVE · แต่งตัวสวยกับแพรว"],
@@ -45,10 +45,9 @@ const CATEGORIES: { id: string; label: string; words: string[]; tones: string[];
   { id: "kids", label: "เด็ก/ของเล่น", tones: ["fun", "sweet", "fresh"], heads: ["🧸 LIVE · ของดีสำหรับน้องๆ"],
     words: ["เด็ก", "ของเล่น", "ทารก", "ผ้าอ้อม", "baby"] },
   { id: "home", label: "ของใช้ในบ้าน", tones: ["fresh", "fun", "natural"], heads: ["🏠 LIVE · ของใช้ในบ้าน", "🧺 LIVE · ช้อปของใช้กับแพรว"],
-    words: ["กระทะ", "หม้อ", "ไม้ถู", "ผ้า", "ที่นอน", "หมอน", "กล่อง", "ชั้นวาง", "ครัว", "ทำความสะอาด", "ถังขยะ", "ไม้แขวน", "ห้องน้ำ", "พัดลม"] },
+    words: ["กระทะ", "หม้อ", "ไม้ถู", "ผ้าปู", "ผ้านวม", "ผ้าห่ม", "เครื่องนอน", "ที่นอน", "หมอน", "ปลอกหมอน", "bedsheet", "กล่อง", "ชั้นวาง", "ครัว", "ทำความสะอาด", "ถังขยะ", "ไม้แขวน", "ห้องน้ำ", "พัดลม"] },
 ];
 const GENERAL = { id: "general", label: "ทั่วไป", tones: ["hot", "fun", "tech"], heads: ["🔴 LIVE · ช้อปสดในไลฟ์", "🛍️ LIVE · ช้อปสดกับแพรว"] };
-const BANNER = { x: 0.03, y: 0.47, w: 0.62, h: 0.1 };
 // Plain labels only: no promo is promised and nothing is called the best (TikTok: no misleading claims).
 const BADGES = ["แพรวแนะนำ", "ช้อปในไลฟ์", "สินค้าในไลฟ์", "มีในตะกร้า"];
 
@@ -98,52 +97,59 @@ export function autoPromoSet(config: OverlayConfig, products: readonly OverlayPr
   const make = (kind: OverlayItem["kind"], extra: Record<string, unknown>) => makeItem(kind, { ...extra, auto: true }, rnd);
   const header = (box: Record<string, number>) => make("text", { text: head, style: tone.head, ...box });
   const clock = (box: Record<string, number> = {}) => make("clock", { style: tone.clock, x: 0.73, y: 0.125, w: 0.24, h: 0.042, ...box });
-  const ticker = () => make("promo", { template: "ticker", color: tone.alt, x: 0, y: 0.125, w: 0.7, h: 0.032 });
+  const ticker = () => make("promo", { template: "ticker", color: tone.alt, x: 0, y: 0.125, w: 0.7, h: 0.045 });
   const emojis = (n: number, every = 2) => tone.emoji.slice(0, n).map((emoji, i) => make("emoji", { emoji, everyMin: every + i, showSec: 5, randomPos: true }));
 
-  // Everything stays clear of TikTok's own screen (host bar on top, comments bottom-left, buttons along the bottom):
-  // a header row under the host bar, a ticker under it, the product banner above the comments, a right-hand column.
-  const head1 = { x: 0.04, y: 0.125, w: 0.6, h: 0.045 };
-  const priceRight = (extra: Record<string, unknown> = {}) => make("promo", { template: "price-tag", color: tone.alt, badge: badge2, x: 0.7, y: 0.44, w: 0.27, h: 0.13, cycleSec: 12, ...extra });
-  // Light on purpose: at most three pieces always on screen, the rest pop up now and then, so Praew stays the picture.
+  // Like the shopping lives people are used to (27 Nov, Lucky): a bold header under TikTok's host bar, the clock beside it,
+  // a big product banner in the lower half (TikTok's comments scroll over it, which is fine), a "tap the cart" call above
+  // TikTok's cart button now and then, and a price burst or product card on the right. TikTok's host bar and bottom
+  // buttons stay clear. Praew's face (upper middle) is never covered.
+  const head1 = { x: 0.03, y: 0.125, w: 0.66, h: 0.055 };
+  const clockBox = { x: 0.72, y: 0.128, w: 0.25, h: 0.048 };
+  const cta = () => make("text", { text: "👇 กดตะกร้าสีส้มด้านล่างได้เลย", style: tone.id === "lux" ? "gold-lux" : "yellow-pop",
+    x: 0.03, y: 0.835, w: 0.7, h: 0.05, everyMin: 2, showSec: 15 });
+  const banner = (box: Record<string, number>, extra: Record<string, unknown> = {}) =>
+    make("promo", { template: "banner", color: tone.main, badge, cycleSec: 12, ...box, ...extra });
+  const priceBurst = (extra: Record<string, unknown> = {}) =>
+    make("promo", { template: "price-tag", color: tone.alt, badge: badge2, x: 0.69, y: 0.44, w: 0.28, h: 0.15, cycleSec: 12, everyMin: 3, showSec: 12, ...extra });
   let items: OverlayItem[];
   switch (layout) {
     case "side-card":
       items = [
-        header(head1), clock(),
-        make("promo", { template: "card", color: tone.main, badge, x: 0.7, y: 0.52, w: 0.27, h: 0.27, cycleSec: 12 }),
-        ...(hasPrice ? [make("promo", { template: "price-tag", color: tone.alt, badge: badge2, w: 0.25, h: 0.12, cycleSec: 12, everyMin: 4, showSec: 10, randomPos: true })] : []),
-        ...emojis(2, 4),
+        header(head1), clock(clockBox),
+        make("promo", { template: "card", color: tone.main, badge, x: 0.66, y: 0.38, w: 0.31, h: 0.3, cycleSec: 12 }),
+        ...(hasPrice ? [priceBurst({ x: 0.04, y: 0.66, w: 0.28, h: 0.15, everyMin: 4 })] : []),
+        cta(), ...emojis(2, 4),
       ];
       break;
     case "full-frame":
-      // Only when picked by hand: the frame goes round Praew between TikTok's host bar and the comments.
+      // Only when picked by hand: the frame goes round Praew between TikTok's host bar and the cart buttons.
       items = [
-        make("promo", { template: "frame", color: tone.main, badge, title: head.length <= 22 ? head : "🔥 LIVE สด ช้อปในไลฟ์", x: 0, y: 0.115, w: 1, h: 0.48, cycleSec: 12 }),
+        make("promo", { template: "frame", color: tone.main, badge, title: head.length <= 22 ? head : "🔥 LIVE สด ช้อปในไลฟ์", x: 0, y: 0.115, w: 1, h: 0.78, cycleSec: 12 }),
         ...emojis(2, 4),
       ];
       break;
     case "big-banner":
       items = [
-        header(head1), clock(),
-        make("promo", { template: "banner", color: tone.main, badge, x: 0.03, y: 0.44, w: 0.65, h: 0.13, cycleSec: 12 }),
-        ...(hasPrice ? [priceRight({ y: 0.45, w: 0.25, h: 0.12, everyMin: 3, showSec: 12 })] : []),
-        ...emojis(2, 4),
+        header(head1), clock(clockBox),
+        banner({ x: 0.03, y: 0.6, w: 0.94, h: 0.17 }),
+        ...(hasPrice ? [priceBurst({ y: 0.43 })] : []),
+        cta(), ...emojis(2, 4),
       ];
       break;
     case "minimal":
       items = [
-        clock(), ticker(),
-        make("promo", { template: "banner", color: tone.main, badge, ...BANNER, cycleSec: 12, everyMin: 3, showSec: 20 }),
-        ...emojis(1, 5),
+        clock(clockBox), ticker(),
+        banner({ x: 0.03, y: 0.64, w: 0.94, h: 0.13 }, { everyMin: 3, showSec: 25 }),
+        cta(), ...emojis(1, 5),
       ];
       break;
     default:
       items = [
-        header(head1), clock(),
-        make("promo", { template: "banner", color: tone.main, badge, ...BANNER, cycleSec: 12 }),
-        ...(hasImage ? [make("promo", { template: "card", color: tone.alt, badge: badge2, x: 0.7, y: 0.52, w: 0.27, h: 0.27, cycleSec: 15, everyMin: 4, showSec: 15 })] : []),
-        ...emojis(2, 4),
+        header(head1), clock(clockBox),
+        banner({ x: 0.03, y: 0.63, w: 0.94, h: 0.15 }),
+        ...(hasImage ? [make("promo", { template: "card", color: tone.alt, badge: badge2, x: 0.66, y: 0.34, w: 0.31, h: 0.27, cycleSec: 15, everyMin: 4, showSec: 15 })] : []),
+        cta(), ...emojis(2, 4),
       ];
   }
   const own = config.items.filter(i => !i.auto);
@@ -170,8 +176,8 @@ export const needsFirstSet = (config: OverlayConfig) => !config.items.length && 
  */
 export const autoUnderTikTokUi = (config: OverlayConfig) =>
   config.look.autoNew && config.items.some(i => i.auto && !i.randomPos && overTikTokUi(i));
-/** Bumped when the automatic sets change shape (v2: lighter sets; v3: plain words, no promo promised); an older automatic set is made again. */
-export const LOOK_VERSION = 3;
+/** Bumped when the automatic sets change shape (v2: lighter sets; v3: plain words, no promo promised; v4: bigger, shopping-live layout); an older automatic set is made again. */
+export const LOOK_VERSION = 4;
 const autoOutdated = (config: OverlayConfig) => config.look.autoNew && config.look.v < LOOK_VERSION && config.items.some(i => i.auto);
 /** Arrange now (not waiting for the next live): never arranged, or an old automatic set under TikTok's menus. */
 export const needsArranging = (config: OverlayConfig) => needsFirstSet(config) || autoUnderTikTokUi(config) || autoOutdated(config);

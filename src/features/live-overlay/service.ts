@@ -58,7 +58,9 @@ export function overlayProductsFrom(candidates: readonly LiveCandidate[], now: D
       : p.source === "POSTED_TIKTOK" ? postedTikTok.find(x => x.title.slice(0, 120) === p.name) : undefined;
     return {
       name: p.name, facts: p.facts, where: p.where,
-      price: c?.price ? `฿${c.price.toLocaleString("th-TH")}` : null,
+      // A picked TikTok Shop listing's saved price is often not the live cart price (27 Nov: ฿724.88 saved, ฿1,040 in the
+      // cart), so it is not shown; the pinned product gets the cart price from the live itself.
+      price: p.source !== "TIKTOK_PICK" && c?.price ? `฿${c.price.toLocaleString("th-TH")}` : null,
       image: p.image ?? null,
     };
   });

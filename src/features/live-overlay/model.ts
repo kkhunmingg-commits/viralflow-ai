@@ -114,15 +114,16 @@ const overlaps = (a: Zone, b: Zone) => a.x < b.x + b.w && b.x < a.x + a.w && a.y
  * button on top, the comments bottom-left, and the comment box, gift, share and cart buttons along the bottom.
  * Overlay pieces made automatically never go here, and pop-ups never land here.
  */
-export const TIKTOK_UI: readonly (Zone & { label: string })[] = [
-  { label: "แถบชื่อช่อง/คนดู TikTok", x: 0, y: 0, w: 1, h: 0.115 },
-  { label: "คอมเมนต์ TikTok", x: 0, y: 0.6, w: 0.68, h: 0.3 },
-  { label: "ปุ่มคอมเมนต์ ของขวัญ ตะกร้า", x: 0, y: 0.9, w: 1, h: 0.1 },
+export const TIKTOK_UI: readonly (Zone & { label: string; hard: boolean })[] = [
+  { label: "แถบชื่อช่อง/คนดู TikTok · อย่าวางทับ", x: 0, y: 0, w: 1, h: 0.115, hard: true },
+  // 27 Nov (Lucky): TikTok always draws its comments on top of the picture, so a banner may sit under them like other lives do.
+  { label: "คอมเมนต์ TikTok · ขึ้นทับป้ายได้", x: 0, y: 0.6, w: 0.68, h: 0.3, hard: false },
+  { label: "ปุ่มคอมเมนต์ ของขวัญ ตะกร้า · อย่าวางทับ", x: 0, y: 0.9, w: 1, h: 0.1, hard: true },
 ];
-/** A box (with a hair of slack for rounding) that sits under one of TikTok's menus. */
+/** A box (with a hair of slack for rounding) that sits under TikTok's host bar or bottom buttons (comments may cover it). */
 export const overTikTokUi = (box: Zone) => {
   const inner = { x: box.x + 0.003, y: box.y + 0.003, w: Math.max(0, box.w - 0.006), h: Math.max(0, box.h - 0.006) };
-  return TIKTOK_UI.some(z => overlaps(inner, z));
+  return TIKTOK_UI.some(z => z.hard && overlaps(inner, z));
 };
 
 /**
@@ -199,7 +200,8 @@ export function pinnedProducts(products: readonly OverlayProduct[], pin: PinnedP
   let best: OverlayProduct | null = null, score = 0;
   for (const p of products) { const s = titleLikeness(p.name, pin.name); if (s > score) { best = p; score = s; } }
   const pic = pin.image?.startsWith("https://") ? pin.image : null;
-  if (best && score >= 0.5) return [{ ...best, price: best.price ?? (pin.price || null), image: best.image ?? pic }];
+  // The cart price TikTok reports for the pin wins: a saved listing price is often not the live price.
+  if (best && score >= 0.5) return [{ ...best, price: pin.price || best.price, image: best.image ?? pic }];
   return [{ name: pin.name.slice(0, 120), price: pin.price || null, facts: [], where: "ตะกร้าสีส้มในไลฟ์", image: pic }];
 }
 
