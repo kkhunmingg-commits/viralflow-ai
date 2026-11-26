@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { autoPromoSet } from "./themes";
-import { pinnedProducts, titleLikeness, configSchema, emptyConfig, makeItem, nextPopupDelaySec, parseToken, pickSpot, promoProduct, promoWords, tickerText, type OverlayProduct } from "./model";
+import { SHOW_PRICES, pinnedProducts, titleLikeness, configSchema, emptyConfig, makeItem, nextPopupDelaySec, parseToken, pickSpot, promoProduct, promoWords, tickerText, type OverlayProduct } from "./model";
 
 const seq = (...v: number[]) => { let i = 0; return () => v[i++ % v.length]; };
 const products: OverlayProduct[] = [
@@ -42,9 +42,13 @@ describe("live overlay model", () => {
     expect(promoProduct(promo, products, 10_000)?.name).toBe("กระทะเคลือบ");
     expect(promoProduct({ ...promo, product: "กระทะเคลือบ" }, products, 0)?.name).toBe("กระทะเคลือบ");
     expect(promoWords(promo, products[1])).toMatchObject({ price: "", cta: "ดูในคลิปสินค้าของช่อง" });
-    expect(promoWords({ ...promo, price: "ลด 50%" }, products[1]).price).toBe("ลด 50%");
-    expect(promoWords(promo, products[0])).toMatchObject({ price: "฿199", fact: "ขนาด 30 มล.", cta: "กดตะกร้าสีส้มได้เลย 🛒" });
-    expect(tickerText(makeItem("promo", { template: "ticker" }) as typeof promo, products)).toContain("เซรั่มวิตซี · ขนาด 30 มล. · ฿199");
+    // No price or discount reaches the screen while prices are off (27 Nov), not even one typed by hand.
+    expect(SHOW_PRICES).toBe(false);
+    expect(promoWords({ ...promo, price: "ลด 50%" }, products[1]).price).toBe("");
+    expect(promoWords(promo, products[0])).toMatchObject({ price: "", fact: "ขนาด 30 มล.", cta: "กดตะกร้าสีส้มได้เลย 🛒" });
+    const ticker = tickerText(makeItem("promo", { template: "ticker" }) as typeof promo, products);
+    expect(ticker).toContain("เซรั่มวิตซี · ขนาด 30 มล.");
+    expect(ticker).not.toContain("฿");
   });
 
   it("makes an auto promo set and replaces only its own items", () => {
@@ -62,11 +66,11 @@ describe("live overlay model", () => {
   it("shows the product pinned in the TikTok live cart", () => {
     expect(pinnedProducts(products, { name: "เซรั่มวิตซี ขนาด 30 มล. ของแท้" }).map(p => p.name)).toEqual(["เซรั่มวิตซี"]);
     expect(pinnedProducts(products, null).length).toBe(2);
-    // The cart price TikTok reports for the pin beats a saved (often old) listing price.
-    expect(pinnedProducts(products, { name: "เซรั่มวิตซี", price: "฿249" })[0].price).toBe("฿249");
-    expect(pinnedProducts(products, { name: "เซรั่มวิตซี" })[0].price).toBe("฿199");
+    // Prices are off: neither the saved price nor the one TikTok reports for the pin is shown.
+    expect(pinnedProducts(products, { name: "เซรั่มวิตซี", price: "฿249" })[0].price).toBeNull();
+    expect(pinnedProducts(products, null).every(p => p.price === null)).toBe(true);
     const other = pinnedProducts(products, { name: "หมอนยางพารา", price: "฿299", image: "https://p16.tiktokcdn.com/x.jpg" });
-    expect(other).toEqual([{ name: "หมอนยางพารา", price: "฿299", facts: [], where: "ตะกร้าสีส้มในไลฟ์", image: "https://p16.tiktokcdn.com/x.jpg" }]);
+    expect(other).toEqual([{ name: "หมอนยางพารา", price: null, facts: [], where: "ตะกร้าสีส้มในไลฟ์", image: "https://p16.tiktokcdn.com/x.jpg" }]);
     expect(titleLikeness("กระทะเคลือบ non-stick 28cm", "กระทะเคลือบ non stick 28 cm")).toBe(1);
   });
 
