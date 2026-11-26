@@ -14,7 +14,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const EXTENSION_VERSION = "1.5.0";
+export const EXTENSION_VERSION = "1.5.1";
 export const EXTENSION_DIR = "chrome-extension";
 
 const SHOPEE = ["co.th", "com.my", "sg", "ph", "vn", "co.id", "com", "tw", "com.br"].flatMap(tld => [`https://shopee.${tld}/*`, `https://*.shopee.${tld}/*`]);
@@ -106,8 +106,9 @@ function background({ portal, start }) {
       for (let i = 0; i < urls.length; i++) {
         let tab = null;
         const items = await new Promise(async done => {
-          // The owner's showcase (LIVE Manager) is read through ~40 list pages: give it longer than a shop page.
-          const timer = setTimeout(() => done([]), /\/streamer\//.test(urls[i]) ? 180_000 : 30_000);
+          // The owner's showcase (LIVE Manager) is read through ~40 list pages, ~4 s each (26 Nov: 1,966 products took
+          // about 2.5 minutes): give it 6 minutes.
+          const timer = setTimeout(() => done([]), /\/streamer\//.test(urls[i]) ? 360_000 : 30_000);
           try {
             tab = await chrome.tabs.create({ url: urls[i], active: false, openerTabId: vfTab });
             ttWaiting.set(tab.id, list => { clearTimeout(timer); done(list || []); });
@@ -247,7 +248,7 @@ function viralflowPage() {
       showcase.disabled = false;
       showcase.onclick = () => {
         showcase.disabled = true; total = 0;
-        status("กำลังอ่านโชว์เคสของคุณใน LIVE Manager (แท็บเบื้องหลัง ไม่เกิน 3 นาที)… ต้องล็อกอิน TikTok ใน Chrome นี้");
+        status("กำลังอ่านโชว์เคสของคุณใน LIVE Manager (แท็บเบื้องหลัง ประมาณ 3 นาที อย่าปิดแท็บนั้น)… ต้องล็อกอิน TikTok ใน Chrome นี้");
         chrome.runtime.sendMessage({ type: "vf-tt-pull", urls: [showcase.dataset.url] });
       };
     }
