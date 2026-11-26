@@ -160,7 +160,7 @@ export const shorten = (s: string, n: number) => (s.length > n ? `${s.slice(0, n
 export function promoWords(item: Extract<OverlayItem, { kind: "promo" }>, product: OverlayProduct | null) {
   return {
     title: item.title || (product ? shorten(product.name, 60) : "สินค้าแนะนำในไลฟ์"),
-    price: item.price || product?.price || "",
+    price: SHOW_PRICES ? item.price || product?.price || "" : "",
     badge: item.badge || "สินค้าในไลฟ์",
     cta: item.cta || (product?.where.includes("ตะกร้า") || !product ? "กดตะกร้าสีส้มได้เลย 🛒" : "ดูในคลิปสินค้าของช่อง"),
     fact: product?.facts[0] ? shorten(product.facts[0], 70) : "",
@@ -171,7 +171,7 @@ export function promoWords(item: Extract<OverlayItem, { kind: "promo" }>, produc
 /** The ticker text: every live product's name and first fact, or the owner's title. */
 export function tickerText(item: Extract<OverlayItem, { kind: "promo" }>, products: readonly OverlayProduct[]) {
   if (item.title) return item.title;
-  const parts = products.map(p => `🛒 ${shorten(p.name, 50)}${p.facts[0] ? ` · ${shorten(p.facts[0], 60)}` : ""}${p.price ? ` · ${p.price}` : ""}`);
+  const parts = products.map(p => `🛒 ${shorten(p.name, 50)}${p.facts[0] ? ` · ${shorten(p.facts[0], 60)}` : ""}${SHOW_PRICES && p.price ? ` · ${p.price}` : ""}`);
   return parts.length ? parts.join("   ✦   ") : "🔥 ไลฟ์สดวันนี้ ถามแพรวได้ทุกเรื่อง พิมพ์คอมเมนต์มาเลย 🔥";
 }
 
@@ -195,7 +195,16 @@ export function titleLikeness(a: string, b: string) {
  * The product pinned in the TikTok live cart is the only one the overlay shows, so the screen always matches the cart.
  * A pinned product that is not in Praew's list is shown as TikTok gave it (its cart title and price). Nothing pinned = all.
  */
+/**
+ * 27 Nov (Lucky: a price that does not match the cart can get the live restricted): the overlay shows no price at all,
+ * only "ดูราคาในตะกร้า", until a test live shows the pinned price TikTok reports matches the cart exactly.
+ */
+export const SHOW_PRICES = false;
 export function pinnedProducts(products: readonly OverlayProduct[], pin: PinnedProduct | null | undefined): OverlayProduct[] {
+  const list = pinnedProductsWithPrice(products, pin);
+  return SHOW_PRICES ? list : list.map(p => ({ ...p, price: null }));
+}
+function pinnedProductsWithPrice(products: readonly OverlayProduct[], pin: PinnedProduct | null | undefined): OverlayProduct[] {
   if (!pin?.name) return [...products];
   let best: OverlayProduct | null = null, score = 0;
   for (const p of products) { const s = titleLikeness(p.name, pin.name); if (s > score) { best = p; score = s; } }

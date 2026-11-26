@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { readStateFile, saveStateFile } from "@/features/flow-farm/service";
 import { praewSources } from "@/features/ai-live/lineup-service";
 import { PRAEW_MAX_PRODUCTS, liveBlockStart, praewProducts, selectLiveLineup, type LiveCandidate, type PostedTikTokProduct, type TikTokLivePick } from "@/features/ai-live/live-director";
-import { configSchema, emptyConfig, parseToken, type OverlayConfig, type OverlayProduct, type StoredOverlay } from "./model";
+import { SHOW_PRICES, configSchema, emptyConfig, parseToken, type OverlayConfig, type OverlayProduct, type StoredOverlay } from "./model";
 
 const ASSET_BUCKET = "video-assets";
 const path = (owner: string) => {
@@ -60,7 +60,7 @@ export function overlayProductsFrom(candidates: readonly LiveCandidate[], now: D
       name: p.name, facts: p.facts, where: p.where,
       // A picked TikTok Shop listing's saved price is often not the live cart price (27 Nov: ฿724.88 saved, ฿1,040 in the
       // cart), so it is not shown; the pinned product gets the cart price from the live itself.
-      price: p.source !== "TIKTOK_PICK" && c?.price ? `฿${c.price.toLocaleString("th-TH")}` : null,
+      price: SHOW_PRICES && p.source !== "TIKTOK_PICK" && c?.price ? `฿${c.price.toLocaleString("th-TH")}` : null,
       image: p.image ?? null,
     };
   });
