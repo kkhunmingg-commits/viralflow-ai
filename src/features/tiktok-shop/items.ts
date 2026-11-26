@@ -78,3 +78,6 @@ export function factsFromTitle(title: string, max = 4): string[] {
 
 export const fmtCount = (n: number | null | undefined) => n === null || n === undefined ? "—"
   : n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")} ล้าน` : n.toLocaleString("th-TH");
+
+/** The LIVE Manager tab pins the next product in the live basket this often (Praew presents the pinned one). */
+export const PIN_EVERY_SECONDS = 180;

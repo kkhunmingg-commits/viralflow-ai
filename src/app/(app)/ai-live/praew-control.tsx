@@ -238,7 +238,7 @@ export function PraewControl({ products, postedCount }: { products: PraewProduct
         <h3>สินค้าที่แพรวพูดถึง</h3>
         <Toggle label="พูดถึงสินค้า" hint="ส่งรายการด้านล่างให้แพรว ปิด = คุยเล่นอย่างเดียว" on={talkProducts} disabled={!!busy}
           onChange={on => send({ type: "products", on }, on ? "ส่งรายการสินค้าให้แพรวแล้ว ใช้ได้ภายใน 1 นาที" : "แพรวเลิกพูดถึงสินค้าแล้ว")} />
-        <p className="praew-note">ไลฟ์นี้ขายเฉพาะสินค้า TikTok Shop: สินค้าขายดีที่คุณเลือกไว้ที่ <a href="/product-clips/tiktok">แท็บสินค้าขายดี TikTok</a> ก่อน ตามด้วยสินค้าที่ขายได้จริงจากคลิป TikTok และสินค้า TikTok ที่โพสต์คลิปแล้ว (สูงสุด 10 ตัว) ชื่อตรงกับในตะกร้า TikTok พอปักตะกร้าตัวไหน แพรวพูดตัวนั้น สินค้า Shopee/Lazada ไม่เข้าไลฟ์ เพิ่มสินค้าเหล่านี้เข้าโชว์เคสในแอป TikTok ก่อนไลฟ์ด้วย</p>
+        <p className="praew-note">ไลฟ์นี้ขายเฉพาะสินค้า TikTok Shop: สินค้าขายดีที่คุณเลือกไว้ที่ <a href="/product-clips/tiktok">แท็บสินค้าขายดี TikTok</a> ก่อน ตามด้วยสินค้าที่ขายได้จริงจากคลิป TikTok และสินค้า TikTok ที่โพสต์คลิปแล้ว (สูงสุด 10 ตัว) ชื่อตรงกับในตะกร้า TikTok พอปักตะกร้าตัวไหน แพรวพูดตัวนั้น สินค้า Shopee/Lazada ไม่เข้าไลฟ์ เปิดหน้า LIVE Manager ใน Chrome ที่มีส่วนขยาย ViralFlow ทิ้งไว้ ระบบจะเติมสินค้าที่เลือกเข้าตะกร้าและหมุนปักให้เอง</p>
         <p className="praew-note">{report?.pinned?.name
           ? <>📌 ตอนนี้ปักในตะกร้าไลฟ์: <b>{report.pinned.name}</b>{report.pinned.price ? ` · ${report.pinned.price}` : ""} · แพรวพูดและโชว์ตัวนี้อยู่</>
           : "📌 ปักสินค้าในตะกร้าไลฟ์ของ TikTok ตามปกติ ระบบอ่านจากไลฟ์เองว่าปักตัวไหน แล้วให้แพรวพูดและโชว์ตัวนั้นทันที ไม่ต้องกดอะไรที่หน้านี้"}</p>
