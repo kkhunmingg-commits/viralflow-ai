@@ -20,7 +20,7 @@ export function LivePlan({ lineup, candidates, blockStart }: { lineup: LiveLineu
     <ul className="muted">
       <li>ไลฟ์ตรงเข้า TikTok: ไม่ใช้ OBS และไม่ใช้ Stream key ระบบรอ TikTok อนุมัติสิทธิ์ LIVE API ให้แอปก่อน เมื่ออนุมัติแล้วจะต่อจากเครื่องไลฟ์เข้า TikTok โดยตรง</li>
       <li>อ่านคอมเมนต์ในไลฟ์: ไม่มี API ทางการสำหรับแอปภายนอก ต้องมีแหล่งคอมเมนต์ที่ได้รับอนุญาตก่อน ระบบตอบแชทจึงพร้อมใช้เมื่อมีคอมเมนต์เข้ามา</li>
-      <li>ปักตะกร้าอัตโนมัติ: ไม่มี API สาธารณะ ระบบให้ลำดับและเวลาปักด้านบน ปักใน LIVE Producer หรือแอป TikTok</li>
+      <li>ปักตะกร้าอัตโนมัติ: TikTok ไม่มี API สาธารณะสำหรับปักตะกร้า ระบบจึงให้ส่วนขยาย ViralFlow ใน Chrome กดปักในหน้า LIVE Manager (TikTok Shop) แทน ต้องเปิดแท็บนั้นทิ้งไว้ระหว่างไลฟ์ (<a href="/product-clips/tiktok">วิธีตั้งค่า</a>)</li>
     </ul>
   </section>;
 }

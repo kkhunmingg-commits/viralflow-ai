@@ -80,8 +80,7 @@ export default async function TikTokShopPage({ searchParams }: { searchParams: P
         <form action={setLiveAction}><input type="hidden" name="id" value={p.id} /><input type="hidden" name="live" value="off" />
           <button className="library-link danger" type="submit">เอาออกจากไลฟ์</button></form>
       </article>)}</div> : <p className="manual-muted">ยังไม่มีสินค้า TikTok ในไลฟ์ ติ๊กเลือกจากรายการขายดีด้านล่าง</p>}
-      <p className="manual-muted">ก่อนไลฟ์: เพิ่มสินค้าเหล่านี้เข้าโชว์เคส/ตะกร้าไลฟ์ในแอป TikTok (ค้นชื่อร้านหรือชื่อสินค้าใน “เพิ่มสินค้า”) ระหว่างไลฟ์กดปักตัวไหน แพรวจะเปลี่ยนไปพูดตัวนั้นเอง
-        (TikTok ไม่ให้ระบบภายนอกปักตะกร้าให้ ต้องกดปักในแอปหรือ LIVE Studio)</p>
+      <p className="manual-muted">เติมและปักตะกร้าให้เอง: เปิด <a href="https://shop.tiktok.com/streamer/live/product/dashboard?region=th" target="_blank" rel="noreferrer">LIVE Manager (TikTok Shop)</a> ใน Chrome ที่มีส่วนขยาย ViralFlow และล็อกอินบัญชีที่ไลฟ์ ทิ้งแท็บไว้ ระบบจะเพิ่มสินค้าเหล่านี้เข้าตะกร้าไลฟ์ให้เอง และตอนไลฟ์จะปักทีละตัว เปลี่ยนตัวทุก 3 นาที แพรวพูดตัวที่ปักอยู่ มุมล่างซ้ายของหน้านั้นมีปุ่มหยุดออโต้</p>
     </section>
 
     <section className="manual-panel" aria-labelledby="tt-best">

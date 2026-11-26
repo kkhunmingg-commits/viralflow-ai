@@ -14,13 +14,15 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const EXTENSION_VERSION = "1.3.0";
+export const EXTENSION_VERSION = "1.4.0";
 export const EXTENSION_DIR = "chrome-extension";
 
 const SHOPEE = ["co.th", "com.my", "sg", "ph", "vn", "co.id", "com", "tw", "com.br"].flatMap(tld => [`https://shopee.${tld}/*`, `https://*.shopee.${tld}/*`]);
 const LAZADA = ["co.th", "com.my", "sg", "com.ph", "vn", "co.id"].flatMap(tld => [`https://lazada.${tld}/*`, `https://*.lazada.${tld}/*`]);
 /** 25 Nov (Lucky): TikTok Shop's own web pages, where the best-sellers (with TikTok's sales numbers) are read. */
 const TIKTOK_SHOP = ["https://shop.tiktok.com/*"];
+/** TikTok Shop's LIVE Manager (LIVE console) on the web: where the live basket is filled and products are pinned. */
+const LIVE_MANAGER = ["https://shop.tiktok.com/streamer/*"];
 /** 19 Nov (Lucky): where the extension posts finished clips, signed in as the user (no API keys). */
 const SOCIAL = ["https://www.facebook.com/*", "https://web.facebook.com/*", "https://www.instagram.com/*", "https://studio.youtube.com/*"];
 /** Where each platform's own "new reel / upload" page is. */
@@ -131,6 +133,13 @@ function background({ portal, start }) {
         const got = await get("ttmanual:" + tabId);
         if (got) await store.remove("ttmanual:" + tabId);
         return got ? { items: got.items } : {};
+      }
+      if (msg.type === "vf-basket") {
+        try {
+          const response = await fetch(portal + "/api/tiktok-shop/live-basket", { credentials: "include", headers: { "x-viralflow-extension": "1" }, cache: "no-store" });
+          const body = await response.json().catch(() => ({}));
+          return { ok: response.ok && !!body.ok, signedIn: body.signedIn !== false, products: Array.isArray(body.products) ? body.products : [], pinEverySec: Number(body.pinEverySec) || 180 };
+        } catch { return { ok: false, offline: true, products: [] }; }
       }
       if (msg.type === "vf-kick") { setTimeout(poll, 500); return { ok: true }; }
       if (msg.type === "vf-task") {
@@ -418,6 +427,197 @@ function tiktokPage() {
 }
 
 /**
+ * 26 Nov (Lucky: pin the basket automatically): on TikTok Shop's LIVE Manager (shop.tiktok.com/streamer/…), signed in
+ * as the owner. Every 15 s it asks ViralFlow for the live basket (the owner's switched-on TikTok picks), adds any that
+ * are missing to the LIVE product list through LIVE Manager's own "Product URL" box, and while the owner is live it
+ * pins the next one every few minutes; Praew presents whatever is pinned. It only adds and pins: it never removes a
+ * product, never starts or ends a live, and a button on the page pauses it. Never reads cookies or passwords.
+ */
+function liveManagerPage() {
+  const send = msg => new Promise(done => { try { chrome.runtime.sendMessage(msg, answer => done(answer || {})); } catch { done({}); } });
+  const wait = ms => new Promise(done => setTimeout(done, ms));
+  const vis = el => !!el && el.getClientRects().length > 0;
+  const text = el => ((el && (el.innerText || el.textContent)) || "").trim();
+  const all = (sel, root) => Array.prototype.slice.call((root || document).querySelectorAll(sel));
+  const visibleButtons = root => all("button", root).filter(vis);
+  async function until(find, ms) { const end = Date.now() + ms; while (Date.now() < end) { const v = find(); if (v) return v; await wait(300); } return null; }
+  function setValue(input, value) {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(input, value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  const ADD = /^(Add products|เพิ่มสินค้า)$/i;
+  const PIN = /^(Pin|ปักหมุด|ปัก)$/i;
+  const UNPIN = /^(Unpin|เลิกปักหมุด|ยกเลิกปักหมุด|เลิกปัก)$/i;
+  const drawer = () => all(".arco-drawer").find(d => vis(d) && d.querySelector(".arco-tabs-header-title"));
+  const blockingModal = () => all(".arco-modal").find(m => vis(m));
+
+  const box = document.createElement("div");
+  box.style.cssText = "position:fixed;left:16px;bottom:16px;z-index:2147483647;max-width:360px;padding:10px 12px;border-radius:12px;background:#111;color:#fff;font:600 13px system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35);display:flex;gap:10px;align-items:center";
+  const line = document.createElement("span");
+  const toggle = document.createElement("button");
+  toggle.style.cssText = "border:0;border-radius:8px;padding:6px 10px;font:700 12px system-ui,sans-serif;cursor:pointer";
+  box.append(line, toggle);
+  document.body.appendChild(box);
+  let paused = false;
+  const say = t => { line.textContent = "ViralFlow · " + t; };
+  const showToggle = () => { toggle.textContent = paused ? "▶ เริ่มออโต้" : "⏸ หยุดออโต้"; toggle.style.background = paused ? "#25c26e" : "#444"; toggle.style.color = "#fff"; };
+  toggle.onclick = async () => { paused = !paused; showToggle(); await chrome.storage.local.set({ vfLivePaused: paused }); say(paused ? "หยุดออโต้ไว้" : "เริ่มออโต้แล้ว"); };
+  chrome.storage.local.get("vfLivePaused").then(v => { paused = !!v.vfLivePaused; showToggle(); });
+  showToggle();
+  say("กำลังเชื่อม…");
+
+  /** Tip pop-ups cover the page on every load: close them (✕, "Got it" or Esc). Esc on a confirm box only cancels it. */
+  async function clearPopups() {
+    for (let i = 0; i < 3; i++) {
+      const modal = blockingModal();
+      if (!modal) return true;
+      const close = modal.querySelector(".arco-modal-close-icon") || visibleButtons(modal).find(b => /^(Got it|รับทราบ|เข้าใจแล้ว)$/i.test(text(b)));
+      // Esc (what a person would press) closes the "AI-generated insights" one, which has no ✕; it never confirms anything.
+      if (close) close.click();
+      else for (const el of [document.activeElement, modal, document]) if (el) el.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", code: "Escape", keyCode: 27, which: 27, bubbles: true }));
+      await wait(800);
+    }
+    return !blockingModal();
+  }
+
+  async function openAddDrawer() {
+    const open = drawer();
+    if (open) return open;
+    const empty = visibleButtons().find(b => ADD.test(text(b)) && !b.closest(".arco-drawer"));
+    if (empty) { empty.click(); return until(drawer, 6000); }
+    const plus = visibleButtons().find(b => /^\+?\s*(Add|เพิ่ม)$/i.test(text(b)));
+    if (!plus) return null;
+    for (let i = 0; i < 3; i++) {
+      plus.click();
+      const item = await until(() => {
+        const menu = all(".arco-dropdown").find(vis);
+        return menu && all("div,span", menu).find(e => ADD.test(text(e)));
+      }, 2000);
+      if (item) { item.click(); return until(drawer, 6000); }
+    }
+    return null;
+  }
+
+  /** Adds one product by its link; "added", "there" (already in the list or not addable) or "fail". */
+  async function addOne(d, url) {
+    const tab = all(".arco-tabs-header-title", d).find(t => /Product URL|URL|ลิงก์/i.test(text(t)));
+    if (!tab) return "fail";
+    if (!/active/.test(tab.className)) { tab.click(); await wait(800); }
+    const pane = d.querySelector(".arco-tabs-content-item-active");
+    const input = pane && pane.querySelector("input");
+    const find = pane && pane.querySelector("button");
+    if (!input || !find) return "fail";
+    setValue(input, url);
+    await wait(300);
+    find.click();
+    const id = (/(\d{6,30})/.exec(url) || [])[1] || "";
+    await until(() => /฿|Unidentified|ไม่พบ|ไม่รู้จัก/.test(text(pane)) && !/Loading/.test(text(pane)), 8000);
+    await wait(600);
+    const add = visibleButtons(d).find(b => ADD.test(text(b)));
+    if (!add || add.disabled) return id && /Unidentified|ไม่พบ|ไม่รู้จัก/.test(text(pane)) ? "fail" : "there";
+    add.click();
+    const ok = await until(() => all(".arco-message").some(m => /success|สำเร็จ/i.test(text(m))), 8000);
+    return ok ? "added" : "fail";
+  }
+
+  const checkedAt = new Map();
+  // Adding a product that is already listed does nothing on TikTok's side (checked 26 Nov), so a slow recheck is safe.
+  const RECHECK_MS = 30 * 60_000;
+  async function fillBasket(products) {
+    const due = products.filter(p => !checkedAt.has(p.productId) || Date.now() - checkedAt.get(p.productId) > RECHECK_MS);
+    if (!due.length) return;
+    if (!(await clearPopups())) { say("มีหน้าต่างค้างบนหน้านี้ ปิดก่อนแล้วระบบจะเติมตะกร้าต่อ"); return; }
+    const d = await openAddDrawer();
+    if (!d) { say("หาปุ่มเพิ่มสินค้าไม่เจอ"); return; }
+    let added = 0, failed = 0;
+    for (const p of due) {
+      say(`กำลังเช็กสินค้าในตะกร้า ${p.title.slice(0, 30)}…`);
+      const result = await addOne(d, p.url);
+      if (result === "added") added++;
+      if (result === "fail") failed++; else checkedAt.set(p.productId, Date.now());
+      await wait(800);
+    }
+    const cancel = visibleButtons(d).find(b => /^(Cancel|ยกเลิก)$/i.test(text(b)));
+    if (cancel) cancel.click();
+    await wait(800);
+    say(`ตะกร้าไลฟ์ครบ ${products.length} ตัว` + (added ? ` (เพิ่มใหม่ ${added})` : "") + (failed ? ` · เพิ่มไม่ได้ ${failed}` : ""));
+  }
+
+  /** The pin control of the product card that shows this title, or null when that card is not on screen. */
+  function pinOf(title) {
+    const key = title.replace(/\s+/g, " ").slice(0, 24);
+    for (const b of all("button,[role=button]").filter(b => vis(b) && !b.closest(".arco-drawer"))) {
+      const label = text(b) || b.getAttribute("aria-label") || "";
+      const isPin = PIN.test(label), isUnpin = UNPIN.test(label);
+      if (!isPin && !isUnpin) continue;
+      let card = b.parentElement;
+      for (let i = 0; i < 8 && card; i++, card = card.parentElement) {
+        if (text(card).replace(/\s+/g, " ").includes(key)) return { button: b, pinned: isUnpin };
+        if (all("button", card).filter(x => PIN.test(text(x)) || UNPIN.test(text(x))).length > 1) break;
+      }
+    }
+    return null;
+  }
+  /** The product list only draws the cards in view: scroll it a screen at a time until the card shows up. */
+  async function findPin(title) {
+    let found = pinOf(title);
+    if (found) return found;
+    const list = all("div").find(e => /virtualized/.test(String(e.className)) && e.scrollHeight > e.clientHeight + 10)
+      || all("div").find(e => /virtualized/.test(String(e.className)));
+    const scroller = list && (list.scrollHeight > list.clientHeight + 10 ? list : list.parentElement);
+    if (!scroller) return null;
+    const start = scroller.scrollTop;
+    scroller.scrollTop = 0;
+    await wait(400);
+    for (let i = 0; i < 40 && !(found = pinOf(title)); i++) {
+      if (scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2) break;
+      scroller.scrollTop += Math.max(200, scroller.clientHeight - 80);
+      await wait(400);
+    }
+    if (!found) scroller.scrollTop = start;
+    return found;
+  }
+  const live = () => !visibleButtons().some(b => /^(Go LIVE now|เริ่มไลฟ์เลย|เริ่ม LIVE)$/i.test(text(b)));
+  let lastPinAt = 0, next = 0;
+  async function pinNext(products, everySec) {
+    if (!live()) { say(`ตะกร้า ${products.length} ตัวพร้อม · ระบบจะปักให้เองเมื่อเริ่มไลฟ์`); return; }
+    if (Date.now() - lastPinAt < everySec * 1000) return;
+    for (let tries = 0; tries < products.length; tries++) {
+      const p = products[next % products.length];
+      next++;
+      const found = await findPin(p.title);
+      if (!found) continue;
+      if (!found.pinned) { found.button.click(); await wait(1000); }
+      lastPinAt = Date.now();
+      say(`📌 ปักแล้ว: ${p.title.slice(0, 40)} · ตัวต่อไปใน ${Math.round(everySec / 60)} นาที`);
+      return;
+    }
+    say("ไลฟ์อยู่ แต่หาปุ่มปักของสินค้าในตะกร้าไม่เจอ");
+  }
+
+  let busy = false;
+  async function tick() {
+    if (busy || paused) return;
+    busy = true;
+    try {
+      const basket = await send({ type: "vf-basket" });
+      if (basket.offline) { say("ต่อ ViralFlow ไม่ได้ (เน็ตหรือเซิร์ฟเวอร์)"); return; }
+      if (!basket.signedIn) { say("ล็อกอิน ViralFlow ใน Chrome นี้ก่อน"); return; }
+      const products = (basket.products || []).filter(p => p && /^\d{6,30}$/.test(String(p.productId)) && /^https:\/\/shop\.tiktok\.com\//.test(String(p.url)));
+      if (!products.length) { say("ยังไม่มีสินค้าที่เลือกไว้ขายในไลฟ์ (เลือกที่หน้า สินค้าขายดี TikTok)"); return; }
+      if (!/\/streamer\/live\//.test(location.pathname)) { say("เปิดหน้า LIVE console เพื่อให้ระบบเติมและปักตะกร้า"); return; }
+      await fillBasket(products);
+      await pinNext(products, basket.pinEverySec || 180);
+    } catch (error) {
+      say("สะดุด: " + String(error && error.message || error).slice(0, 80));
+    } finally { busy = false; }
+  }
+  setTimeout(tick, 4000);
+  setInterval(tick, 15_000);
+}
+
+/**
  * On Facebook, Instagram and YouTube Studio: only in a tab the extension opened to post a clip (any other page is
  * left alone). Does what a person would do in the platform's own upload page, signed in as the user, with an overlay
  * that says ViralFlow is working and a STOP button. Never reads cookies or passwords.
@@ -671,7 +871,7 @@ export function extensionFiles(portal, { icon = false } = {}) {
   const origin = new URL(portal).origin;
   const manifest = {
     manifest_version: 3, name: "ViralFlow", version: EXTENSION_VERSION,
-    description: "ส่งสินค้าจาก Shopee/Lazada และสินค้าขายดีจาก TikTok Shop เข้า ViralFlow และโพสต์คลิปที่คุณกดผ่านไป Facebook, Instagram, YouTube ด้วยบัญชีใน Chrome ของคุณ",
+    description: "ส่งสินค้าจาก Shopee/Lazada และสินค้าขายดีจาก TikTok Shop เข้า ViralFlow, เติมและปักตะกร้าไลฟ์ใน LIVE Manager ให้เอง และโพสต์คลิปที่คุณกดผ่านไป Facebook, Instagram, YouTube ด้วยบัญชีใน Chrome ของคุณ",
     permissions: ["storage", "alarms"],
     host_permissions: [`${origin}/*`, ...SHOPEE, ...LAZADA, ...SOCIAL, ...TIKTOK_SHOP],
     ...(icon ? { icons: { 128: "icon-128.png" }, action: { default_icon: { 128: "icon-128.png" }, default_title: "ViralFlow" } } : {}),
@@ -680,7 +880,8 @@ export function extensionFiles(portal, { icon = false } = {}) {
       { matches: [`${origin}/product-clips*`], js: ["viralflow.js"], run_at: "document_idle" },
       { matches: [...SHOPEE, ...LAZADA], js: ["shop.js"], run_at: "document_idle" },
       { matches: SOCIAL, js: ["social.js"], run_at: "document_idle" },
-      { matches: TIKTOK_SHOP, js: ["tiktok.js"], run_at: "document_idle" },
+      { matches: TIKTOK_SHOP, exclude_matches: LIVE_MANAGER, js: ["tiktok.js"], run_at: "document_idle" },
+      { matches: LIVE_MANAGER, js: ["live-manager.js"], run_at: "document_idle" },
     ],
   };
   return {
@@ -690,6 +891,7 @@ export function extensionFiles(portal, { icon = false } = {}) {
     "shop.js": run(shopPage),
     "social.js": run(socialPage),
     "tiktok.js": run(tiktokPage),
+    "live-manager.js": run(liveManagerPage),
   };
 }
 

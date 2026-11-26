@@ -56,6 +56,15 @@ export async function liveTikTokPicks(client: SupabaseClient, owner: string, lim
     return { ...p, facts, imagePath };
   });
 }
+/** What the LIVE Manager tab needs: each switched-on pick's TikTok product id, link and title, newest pick first. */
+export async function liveBasket(client: SupabaseClient, owner: string, limit = 20) {
+  const result = await client.from("tiktok_shop_products").select("product_id,title").eq("owner_id", owner).eq("live", true)
+    .order("picked_at", { ascending: false, nullsFirst: false }).limit(limit);
+  if (result.error) { if (missingTable(result.error)) return []; throw new Error("TIKTOK_PICKS_UNAVAILABLE"); }
+  // LIVE Manager's "Product URL" box was checked (26 Nov) to accept this plain form; slugged links are not promised.
+  return ((result.data ?? []) as Array<{ product_id: string; title: string }>)
+    .map(r => ({ productId: r.product_id, url: tiktokProductUrl({ productId: r.product_id, url: null }), title: r.title }));
+}
 export type TikTokPick = Awaited<ReturnType<typeof liveTikTokPicks>>[number];
 
 export async function setTikTokLive(admin: SupabaseClient, owner: string, ids: string[], live: boolean, now = new Date()) {
