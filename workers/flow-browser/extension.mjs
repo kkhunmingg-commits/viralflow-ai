@@ -14,7 +14,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const EXTENSION_VERSION = "1.4.0";
+export const EXTENSION_VERSION = "1.4.1";
 export const EXTENSION_DIR = "chrome-extension";
 
 const SHOPEE = ["co.th", "com.my", "sg", "ph", "vn", "co.id", "com", "tw", "com.br"].flatMap(tld => [`https://shopee.${tld}/*`, `https://*.shopee.${tld}/*`]);
@@ -510,20 +510,28 @@ function liveManagerPage() {
     if (!input || !find) return "fail";
     setValue(input, url);
     await wait(300);
+    // The box keeps the last product's row until the new one loads: wait for the row to change (26 Nov: without this,
+    // the 2nd and 3rd product read the 1st one's row and were skipped).
+    const before = text(pane);
     find.click();
-    const id = (/(\d{6,30})/.exec(url) || [])[1] || "";
-    await until(() => /฿|Unidentified|ไม่พบ|ไม่รู้จัก/.test(text(pane)) && !/Loading/.test(text(pane)), 8000);
+    await until(() => { const now = text(pane); return now !== before && /฿|Unidentified|ไม่พบ|ไม่รู้จัก/.test(now) && !/Loading/.test(now); }, 8000);
     await wait(600);
     const add = visibleButtons(d).find(b => ADD.test(text(b)));
-    if (!add || add.disabled) return id && /Unidentified|ไม่พบ|ไม่รู้จัก/.test(text(pane)) ? "fail" : "there";
+    // A product row with "Add products" greyed out = it is already in the LIVE list (checked 26 Nov); no row = bad link.
+    if (!add || add.disabled) return /฿/.test(text(pane)) && !/Unidentified|ไม่พบ|ไม่รู้จัก/.test(text(pane)) ? "there" : "fail";
+    // The last product's "added" note can still be on screen: only a new one counts.
+    const notes = () => all(".arco-message").filter(m => /success|สำเร็จ/i.test(text(m))).length;
+    const seen = notes();
     add.click();
-    const ok = await until(() => all(".arco-message").some(m => /success|สำเร็จ/i.test(text(m))), 8000);
-    return ok ? "added" : "fail";
+    // TikTok keeps one copy of a product: re-adding one already listed says nothing (or not "success") and changes nothing.
+    const ok = await until(() => notes() > seen, 6000);
+    return ok ? "added" : "there";
   }
 
   const checkedAt = new Map();
   // Adding a product that is already listed does nothing on TikTok's side (checked 26 Nov), so a slow recheck is safe.
   const RECHECK_MS = 30 * 60_000;
+  const quietCount = new Map();
   async function fillBasket(products) {
     const due = products.filter(p => !checkedAt.has(p.productId) || Date.now() - checkedAt.get(p.productId) > RECHECK_MS);
     if (!due.length) return;
@@ -535,8 +543,12 @@ function liveManagerPage() {
       say(`กำลังเช็กสินค้าในตะกร้า ${p.title.slice(0, 30)}…`);
       const result = await addOne(d, p.url);
       if (result === "added") added++;
-      if (result === "fail") failed++; else checkedAt.set(p.productId, Date.now());
-      await wait(800);
+      if (result === "fail") failed++;
+      // "there" without TikTok's note can also be an add that silently did not take: try once more on the next round.
+      const quiet = (quietCount.get(p.productId) || 0) + (result === "there" ? 1 : 0);
+      quietCount.set(p.productId, result === "added" ? 0 : quiet);
+      if (result === "added" || quiet >= 2) checkedAt.set(p.productId, Date.now());
+      await wait(2000);
     }
     const cancel = visibleButtons(d).find(b => /^(Cancel|ยกเลิก)$/i.test(text(b)));
     if (cancel) cancel.click();
