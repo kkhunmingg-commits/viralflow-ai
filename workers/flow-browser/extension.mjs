@@ -14,7 +14,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const EXTENSION_VERSION = "1.4.1";
+export const EXTENSION_VERSION = "1.5.0";
 export const EXTENSION_DIR = "chrome-extension";
 
 const SHOPEE = ["co.th", "com.my", "sg", "ph", "vn", "co.id", "com", "tw", "com.br"].flatMap(tld => [`https://shopee.${tld}/*`, `https://*.shopee.${tld}/*`]);
@@ -106,7 +106,8 @@ function background({ portal, start }) {
       for (let i = 0; i < urls.length; i++) {
         let tab = null;
         const items = await new Promise(async done => {
-          const timer = setTimeout(() => done([]), 30_000);
+          // The owner's showcase (LIVE Manager) is read through ~40 list pages: give it longer than a shop page.
+          const timer = setTimeout(() => done([]), /\/streamer\//.test(urls[i]) ? 180_000 : 30_000);
           try {
             tab = await chrome.tabs.create({ url: urls[i], active: false, openerTabId: vfTab });
             ttWaiting.set(tab.id, list => { clearTimeout(timer); done(list || []); });
@@ -203,16 +204,28 @@ function viralflowPage() {
   if (tt) {
     // 25 Nov: ViralFlow's TikTok Shop page. Pull best-sellers from TikTok Shop's pages, or save what the owner sent from one.
     const status = text => { const el = document.getElementById("vf-tt-status"); if (el) { el.hidden = false; el.textContent = text; } };
-    const save = async items => {
+    const saveChunk = async items => {
       const response = await fetch("/api/tiktok-shop/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items }) });
       const body = await response.json().catch(() => ({}));
       return { ok: response.ok && !!body.ok, saved: Number(body.saved) || 0, text: body.message || "บันทึกไม่สำเร็จ" };
+    };
+    // A showcase holds up to 2,000 products: send them 400 at a time.
+    const save = async items => {
+      let last = { ok: false, saved: 0, text: "บันทึกไม่สำเร็จ" }, saved = 0;
+      for (let i = 0; i < items.length; i += 400) { last = await saveChunk(items.slice(i, i + 400)); saved += last.saved; }
+      return { ...last, saved, text: items.length > 400 && saved ? `ได้สินค้าจาก TikTok Shop ${saved} รายการ` : last.text };
     };
     let total = 0;
     chrome.runtime.onMessage.addListener(msg => {
       if (!msg || msg.type !== "vf-tt-batch") return;
       (async () => {
-        if (msg.items && msg.items.length) { const r = await save(msg.items); total += r.saved; }
+        if (msg.items && msg.items.length) {
+          const r = await save(msg.items); total += r.saved;
+          // A whole showcase came back: products it no longer lists lose their mark.
+          if (r.saved && msg.items.some(i => i && i.showcase)) {
+            await fetch("/api/tiktok-shop/import", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ items: [], closeShowcase: true }) }).catch(() => null);
+          }
+        }
         status(`กำลังดึงสินค้าขายดีจาก TikTok Shop… หน้า ${msg.done}/${msg.total} · ได้แล้ว ${total} รายการ`);
         if (msg.done === msg.total) { status(`ดึงเสร็จแล้ว ได้สินค้า ${total} รายการ กำลังโหลดรายการใหม่…`); setTimeout(() => location.reload(), 1500); }
       })();
@@ -226,6 +239,16 @@ function viralflowPage() {
         button.disabled = true; total = 0;
         status("กำลังเปิดหน้า TikTok Shop ในแท็บเบื้องหลัง (หน้าละไม่เกิน 30 วิ)…");
         chrome.runtime.sendMessage({ type: "vf-tt-pull", urls });
+      };
+    }
+    // 26 Nov (Lucky: only products that pay commission): the owner's own showcase in LIVE Manager, with commissions.
+    const showcase = document.getElementById("vf-tt-showcase");
+    if (showcase) {
+      showcase.disabled = false;
+      showcase.onclick = () => {
+        showcase.disabled = true; total = 0;
+        status("กำลังอ่านโชว์เคสของคุณใน LIVE Manager (แท็บเบื้องหลัง ไม่เกิน 3 นาที)… ต้องล็อกอิน TikTok ใน Chrome นี้");
+        chrome.runtime.sendMessage({ type: "vf-tt-pull", urls: [showcase.dataset.url] });
       };
     }
     (async () => {
@@ -436,6 +459,35 @@ function tiktokPage() {
 function liveManagerPage() {
   const send = msg => new Promise(done => { try { chrome.runtime.sendMessage(msg, answer => done(answer || {})); } catch { done({}); } });
   const wait = ms => new Promise(done => setTimeout(done, ms));
+  /**
+   * In a tab ViralFlow opened to read the owner's showcase: list every showcase product with its commission, through
+   * the same list LIVE Manager's "Showcase products" page loads (the owner's own sign-in, read only), and hand it back.
+   */
+  async function readShowcase() {
+    const num = v => { const m = String(v == null ? "" : v).replace(/,/g, "").match(/\d+(?:\.\d+)?/); return m ? Number(m[0]) : null; };
+    const get = url => new Promise(done => { const x = new XMLHttpRequest(); x.open("GET", url); x.withCredentials = true;
+      x.onload = () => { try { done(JSON.parse(x.responseText)); } catch { done(null); } }; x.onerror = () => done(null); x.send(); });
+    const items = [];
+    for (let offset = 0; offset < 2100; offset += 50) {
+      const body = await get(`/api/v1/streamer_desktop/search_product/list?size=50&offset=${offset}&origin=2&user_language=en&locale=en&aid=253642&app_name=i18n_ecom_alliance&device_platform=web&carrier_region=th`);
+      const data = body && body.data;
+      for (const p of (data && data.products) || []) {
+        if (!p || !p.product_id || !p.title || p.is_hide) continue;
+        const cover = p.cover && Array.isArray(p.cover.url_list) ? p.cover.url_list[0] : null;
+        items.push({ productId: String(p.product_id), title: String(p.title).slice(0, 300), shopName: p.seller_info && p.seller_info.shop_name || null,
+          price: num(p.format_available_price), originalPrice: num(p.format_origin_price),
+          commission: num(p.affiliate_info && p.affiliate_info.est_commission_expense), stock: p.stock_status === 1 ? num(p.stock_num) : 0,
+          image: cover, showcase: true });
+      }
+      if (!data || !data.has_more) break;
+      await wait(300);
+    }
+    return items;
+  }
+  const pendingRead = (async () => {
+    for (let i = 0; i < 3; i++) { if ((await send({ type: "vf-tt-pending" })).pending) return true; await wait(600); }
+    return false;
+  })();
   const vis = el => !!el && el.getClientRects().length > 0;
   const text = el => ((el && (el.innerText || el.textContent)) || "").trim();
   const all = (sel, root) => Array.prototype.slice.call((root || document).querySelectorAll(sel));
@@ -452,6 +504,11 @@ function liveManagerPage() {
   const drawer = () => all(".arco-drawer").find(d => vis(d) && d.querySelector(".arco-tabs-header-title"));
   const blockingModal = () => all(".arco-modal").find(m => vis(m));
 
+  pendingRead.then(async pending => {
+    if (pending) { await wait(1500); await send({ type: "vf-tt-items", items: await readShowcase() }); return; }
+    automate();
+  });
+  function automate() {
   const box = document.createElement("div");
   box.style.cssText = "position:fixed;left:16px;bottom:16px;z-index:2147483647;max-width:360px;padding:10px 12px;border-radius:12px;background:#111;color:#fff;font:600 13px system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35);display:flex;gap:10px;align-items:center";
   const line = document.createElement("span");
@@ -627,6 +684,7 @@ function liveManagerPage() {
   }
   setTimeout(tick, 4000);
   setInterval(tick, 15_000);
+  }
 }
 
 /**

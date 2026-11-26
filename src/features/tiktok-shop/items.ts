@@ -21,9 +21,14 @@ export const shopItemSchema = z.object({
   image: httpsUrl.nullish(),
   url: httpsUrl.nullish(),
   category: z.string().trim().max(80).nullish(),
+  /** From the owner's showcase in LIVE Manager: the estimated commission per sale, in baht, and the stock left. */
+  commission: money.nullish(),
+  stock: count.nullish(),
+  showcase: z.boolean().optional(),
 });
 export type ShopItem = z.infer<typeof shopItemSchema>;
-export const importSchema = z.object({ items: z.array(z.unknown()).max(2000), page: z.string().max(2000).optional() });
+/** closeShowcase: the last part of a showcase read (products it did not list lose their showcase mark). */
+export const importSchema = z.object({ items: z.array(z.unknown()).max(2500), page: z.string().max(2000).optional(), closeShowcase: z.boolean().optional() });
 
 /** Only TikTok Shop's own pages are kept as a product link. */
 export function tiktokProductUrl(item: Pick<ShopItem, "productId" | "url">) {

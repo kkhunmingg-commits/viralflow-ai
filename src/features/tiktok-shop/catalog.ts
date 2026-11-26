@@ -9,32 +9,68 @@ export interface TikTokShopProduct {
   id: string; product_id: string; title: string; shop_name: string | null; category: string | null;
   price: number | null; original_price: number | null; sold_count: number | null; rating: number | null; review_count: number | null;
   image_url: string | null; product_url: string; seen_at: string; picked_at: string | null; live: boolean; clip_id: string | null;
+  commission: number | null; stock: number | null; in_showcase: boolean;
 }
-const COLUMNS = "id,product_id,title,shop_name,category,price,original_price,sold_count,rating,review_count,image_url,product_url,seen_at,picked_at,live,clip_id";
+const COLUMNS = "id,product_id,title,shop_name,category,price,original_price,sold_count,rating,review_count,image_url,product_url,seen_at,picked_at,live,clip_id,commission,stock,in_showcase";
 const missingTable = (error: { code?: string } | null) => !!error && ["42P01", "PGRST205"].includes(error.code ?? "");
 const num = (v: unknown) => v === null || v === undefined ? null : Number(v);
 const row = (r: Record<string, unknown>): TikTokShopProduct => ({ ...(r as unknown as TikTokShopProduct),
-  price: num(r.price), original_price: num(r.original_price), sold_count: num(r.sold_count), rating: num(r.rating), review_count: num(r.review_count) });
+  price: num(r.price), original_price: num(r.original_price), sold_count: num(r.sold_count), rating: num(r.rating), review_count: num(r.review_count),
+  commission: num(r.commission), stock: num(r.stock), in_showcase: r.in_showcase === true });
 
-/** Saves a pull from TikTok Shop: new products are added, known ones get today's numbers (the owner's picks stay). */
+/**
+ * Saves a pull from TikTok Shop: new products are added, known ones get today's numbers (the owner's picks stay).
+ * Only what this read saw is written: a shop page has sales but no commission, the showcase has commission but no
+ * sales, so neither wipes the other's numbers. A showcase read also clears the mark on products no longer in it.
+ */
 export async function importTikTokProducts(admin: SupabaseClient, owner: string, raw: readonly unknown[], now = new Date()) {
-  const items = cleanItems(raw).slice(0, 1000);
+  const items = cleanItems(raw).slice(0, 2500);
   if (!items.length) return { saved: 0 };
   const at = now.toISOString();
-  const rows = items.map(i => ({ owner_id: owner, product_id: i.productId, title: i.title, shop_name: i.shopName ?? null, category: i.category ?? null,
-    price: i.price ?? null, original_price: i.originalPrice ?? null, sold_count: i.sold ?? null, rating: i.rating ?? null, review_count: i.reviews ?? null,
-    image_url: tiktokImageUrl(i.image), product_url: tiktokProductUrl(i), seen_at: at, updated_at: at }));
-  for (let i = 0; i < rows.length; i += 200) {
-    const result = await admin.from("tiktok_shop_products").upsert(rows.slice(i, i + 200), { onConflict: "owner_id,product_id" });
-    if (result.error) throw new Error(missingTable(result.error) ? "TIKTOK_TABLE_MISSING" : "TIKTOK_PRODUCTS_NOT_SAVED");
+  const rows = items.map(i => {
+    const row: Record<string, unknown> = { owner_id: owner, product_id: i.productId, title: i.title, product_url: tiktokProductUrl(i), seen_at: at, updated_at: at };
+    const image = tiktokImageUrl(i.image);
+    if (image) row.image_url = image;
+    if (i.shopName != null) row.shop_name = i.shopName;
+    if (i.category != null) row.category = i.category;
+    if (i.price != null) row.price = i.price;
+    if (i.originalPrice != null) row.original_price = i.originalPrice;
+    if (i.sold != null) row.sold_count = i.sold;
+    if (i.rating != null) row.rating = i.rating;
+    if (i.reviews != null) row.review_count = i.reviews;
+    if (i.commission != null) row.commission = i.commission;
+    if (i.stock != null) row.stock = i.stock;
+    if (i.showcase) { row.in_showcase = true; row.showcase_seen_at = at; }
+    return row;
+  });
+  // One upsert per set of columns, so a missing number is left as it was rather than written as null.
+  const groups = new Map<string, Record<string, unknown>[]>();
+  for (const row of rows) { const key = Object.keys(row).sort().join(","); groups.set(key, [...(groups.get(key) ?? []), row]); }
+  for (const group of groups.values()) {
+    for (let i = 0; i < group.length; i += 200) {
+      const result = await admin.from("tiktok_shop_products").upsert(group.slice(i, i + 200), { onConflict: "owner_id,product_id" });
+      if (result.error) throw new Error(missingTable(result.error) ? "TIKTOK_TABLE_MISSING" : "TIKTOK_PRODUCTS_NOT_SAVED");
+    }
   }
   return { saved: rows.length };
 }
 
+/** After a full showcase read (saved in parts within minutes): products it did not list are not in the showcase any more. */
+export async function closeShowcaseRead(admin: SupabaseClient, owner: string, now = new Date()) {
+  const before = new Date(now.getTime() - 15 * 60_000).toISOString();
+  const result = await admin.from("tiktok_shop_products").update({ in_showcase: false }).eq("owner_id", owner).eq("in_showcase", true).lt("showcase_seen_at", before);
+  if (result.error) throw new Error("TIKTOK_PRODUCTS_NOT_SAVED");
+}
+
 /** The owner's TikTok Shop products, best-selling first (picked ones are listed by the page separately). */
-export async function listTikTokProducts(client: SupabaseClient, owner: string, limit = 300) {
-  const result = await client.from("tiktok_shop_products").select(COLUMNS).eq("owner_id", owner)
-    .order("sold_count", { ascending: false, nullsFirst: false }).limit(limit);
+export async function listTikTokProducts(client: SupabaseClient, owner: string, limit = 300,
+  { sort = "sold", commissionOnly = false }: { sort?: "sold" | "commission"; commissionOnly?: boolean } = {}) {
+  let query = client.from("tiktok_shop_products").select(COLUMNS).eq("owner_id", owner);
+  if (commissionOnly) query = query.eq("in_showcase", true).gt("commission", 0);
+  query = sort === "commission"
+    ? query.order("commission", { ascending: false, nullsFirst: false }).order("sold_count", { ascending: false, nullsFirst: false })
+    : query.order("sold_count", { ascending: false, nullsFirst: false }).order("commission", { ascending: false, nullsFirst: false });
+  const result = await query.limit(limit);
   if (result.error) { if (missingTable(result.error)) return { available: false, products: [] as TikTokShopProduct[] }; throw new Error("TIKTOK_PRODUCTS_UNAVAILABLE"); }
   return { available: true, products: (result.data ?? []).map(r => row(r as Record<string, unknown>)) };
 }

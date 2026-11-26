@@ -25,4 +25,9 @@ describe("TikTok Shop best-sellers read by the extension", () => {
     expect(facts.join(" ")).toContain("มี 6 ขนาดให้เลือก");
     expect(facts.join(" ")).not.toMatch(/ACK-home|%/);
   });
+  it("keeps a showcase product's commission and stock (what LIVE Manager shows)", () => {
+    const [item] = cleanItems([{ productId: "1731314924079776983", title: "เซ็ตโปรตีนพืชเวกาเม่", price: "1263.78", commission: "252.76", stock: 7919, showcase: true }]);
+    expect(item).toMatchObject({ commission: 252.76, stock: 7919, showcase: true, price: 1263.78 });
+    expect(item.sold).toBeUndefined();
+  });
 });
