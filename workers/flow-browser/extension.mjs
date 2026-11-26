@@ -14,7 +14,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const EXTENSION_VERSION = "1.5.1";
+export const EXTENSION_VERSION = "1.5.2";
 export const EXTENSION_DIR = "chrome-extension";
 
 const SHOPEE = ["co.th", "com.my", "sg", "ph", "vn", "co.id", "com", "tw", "com.br"].flatMap(tld => [`https://shopee.${tld}/*`, `https://*.shopee.${tld}/*`]);
@@ -468,21 +468,30 @@ function liveManagerPage() {
     const num = v => { const m = String(v == null ? "" : v).replace(/,/g, "").match(/\d+(?:\.\d+)?/); return m ? Number(m[0]) : null; };
     const get = url => new Promise(done => { const x = new XMLHttpRequest(); x.open("GET", url); x.withCredentials = true;
       x.onload = () => { try { done(JSON.parse(x.responseText)); } catch { done(null); } }; x.onerror = () => done(null); x.send(); });
-    const items = [];
-    for (let offset = 0; offset < 2100; offset += 50) {
-      const body = await get(`/api/v1/streamer_desktop/search_product/list?size=50&offset=${offset}&origin=2&user_language=en&locale=en&aid=253642&app_name=i18n_ecom_alliance&device_platform=web&carrier_region=th`);
-      const data = body && body.data;
+    // The list sometimes says has_more: false early or answers a page empty: read up to data.total, each page up to 4 tries.
+    const byId = new Map();
+    let total = null;
+    for (let offset = 0; offset < 2500 && (total == null || offset < total); offset += 50) {
+      let data = null;
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const body = await get(`/api/v1/streamer_desktop/search_product/list?size=50&offset=${offset}&origin=2&user_language=en&locale=en&aid=253642&app_name=i18n_ecom_alliance&device_platform=web&carrier_region=th`);
+        data = body && body.data;
+        if (data && (data.products || []).length) break;
+        await wait(800);
+      }
+      if (data && data.total) total = Number(data.total);
       for (const p of (data && data.products) || []) {
         if (!p || !p.product_id || !p.title || p.is_hide) continue;
         const cover = p.cover && Array.isArray(p.cover.url_list) ? p.cover.url_list[0] : null;
-        items.push({ productId: String(p.product_id), title: String(p.title).slice(0, 300), shopName: p.seller_info && p.seller_info.shop_name || null,
+        byId.set(String(p.product_id), { productId: String(p.product_id), title: String(p.title).slice(0, 300), shopName: p.seller_info && p.seller_info.shop_name || null,
           price: num(p.format_available_price), originalPrice: num(p.format_origin_price),
           commission: num(p.affiliate_info && p.affiliate_info.est_commission_expense), stock: p.stock_status === 1 ? num(p.stock_num) : 0,
           image: cover, showcase: true });
       }
-      if (!data || !data.has_more) break;
+      if (total == null && !(data && data.has_more)) break;
       await wait(300);
     }
+    const items = [...byId.values()];
     return items;
   }
   const pendingRead = (async () => {
