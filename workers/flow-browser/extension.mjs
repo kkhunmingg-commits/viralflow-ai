@@ -14,7 +14,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const EXTENSION_VERSION = "1.5.4";
+export const EXTENSION_VERSION = "1.5.5";
 export const EXTENSION_DIR = "chrome-extension";
 
 const SHOPEE = ["co.th", "com.my", "sg", "ph", "vn", "co.id", "com", "tw", "com.br"].flatMap(tld => [`https://shopee.${tld}/*`, `https://*.shopee.${tld}/*`]);
@@ -144,12 +144,12 @@ function background({ portal, start }) {
         } catch { return { ok: false, offline: true, products: [] }; }
       }
       if (msg.type === "vf-live-comment") {
-        // 27 Nov: TikTok refuses the comment reader on this network, so LIVE Manager's own chat is passed to Praew through
-        // the open AI LIVE tab (the Praew control page on this computer only accepts that page's origin).
-        const tabs = await chrome.tabs.query({ url: portal + "/ai-live*" });
-        if (!tabs.length) return { ok: false, noTab: true };
-        try { return await chrome.tabs.sendMessage(tabs[0].id, { type: "vf-live-comment", user: msg.user, text: msg.text }) || { ok: false }; }
-        catch { return { ok: false, noTab: true }; }
+        // 27 Nov: TikTok refuses the comment reader on this network, so LIVE Manager's own chat goes to Praew through
+        // ViralFlow (Chrome keeps web pages away from this computer's own ports); the PC bridge picks it up.
+        try {
+          const response = await fetch(portal + "/api/praew-live", { method: "POST", credentials: "include", headers: { "content-type": "application/json", "x-viralflow-extension": "1" }, body: JSON.stringify({ type: "comment", user: String(msg.user || "").slice(0, 24), text: String(msg.text || "").slice(0, 200) }) });
+          return { ok: response.ok, signedIn: response.status !== 401 };
+        } catch { return { ok: false, offline: true }; }
       }
       if (msg.type === "vf-kick") { setTimeout(poll, 500); return { ok: true }; }
       if (msg.type === "vf-task") {
@@ -207,16 +207,6 @@ function viralflowPage() {
   // Lets ViralFlow's install button show "ติดตั้งแล้ว".
   document.documentElement.dataset.vfExtension = "1";
   document.documentElement.dataset.vfVersion = chrome.runtime.getManifest().version;
-  if (location.pathname.startsWith("/ai-live")) {
-    // Comments read from LIVE Manager's chat go to Praew's control page on this computer (it accepts this origin).
-    chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
-      if (!msg || msg.type !== "vf-live-comment") return;
-      fetch("http://127.0.0.1:8760/api/comment", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ user: String(msg.user || "").slice(0, 24), text: String(msg.text || "").slice(0, 200) }) })
-        .then(r => reply({ ok: r.ok, status: r.status }), () => reply({ ok: false, offline: true }));
-      return true;
-    });
-    return;
-  }
   // A clip was just approved for posting (or the page was opened): look for work now instead of within a minute.
   try { chrome.runtime.sendMessage({ type: "vf-kick" }); } catch { /* extension reloading */ }
   const tt = document.getElementById("vf-tt");
@@ -751,7 +741,7 @@ function liveManagerPage() {
       if (!c || !c.text || /Welcome to TikTok LIVE|Community Guidelines/i.test(c.text)) continue;
       const answer = await send({ type: "vf-live-comment", user: c.user, text: c.text });
       if (answer.ok) sent++;
-      chatNote = answer.ok ? `ส่งคอมเมนต์ให้แพรวแล้ว ${sent}` : answer.noTab ? "เปิดหน้า AI LIVE ของ ViralFlow ทิ้งไว้ แพรวถึงจะอ่านคอมเมนต์ได้" : "ส่งคอมเมนต์ให้แพรวไม่ได้ (โปรแกรมแพรวในเครื่องไม่ตอบ)";
+      chatNote = answer.ok ? `ส่งคอมเมนต์ให้แพรวแล้ว ${sent}` : answer.signedIn === false ? "ล็อกอิน ViralFlow ใน Chrome นี้ก่อน แพรวถึงจะอ่านคอมเมนต์ได้" : "ส่งคอมเมนต์ให้แพรวไม่ได้ (เน็ตหรือเซิร์ฟเวอร์)";
     }
     primed = true;
   }
@@ -1019,7 +1009,7 @@ export function extensionFiles(portal, { icon = false } = {}) {
     ...(icon ? { icons: { 128: "icon-128.png" }, action: { default_icon: { 128: "icon-128.png" }, default_title: "ViralFlow" } } : {}),
     background: { service_worker: "background.js" },
     content_scripts: [
-      { matches: [`${origin}/product-clips*`, `${origin}/ai-live*`], js: ["viralflow.js"], run_at: "document_idle" },
+      { matches: [`${origin}/product-clips*`], js: ["viralflow.js"], run_at: "document_idle" },
       { matches: [...SHOPEE, ...LAZADA], js: ["shop.js"], run_at: "document_idle" },
       { matches: SOCIAL, js: ["social.js"], run_at: "document_idle" },
       { matches: TIKTOK_SHOP, exclude_matches: LIVE_MANAGER, js: ["tiktok.js"], run_at: "document_idle" },

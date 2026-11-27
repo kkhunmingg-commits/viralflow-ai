@@ -22,6 +22,8 @@ export const commandSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("engine"), name: z.enum(["pro", "lite"]) }),
   // Which installed Lite presenter pack the Lite engine shows (a folder name the PC reported).
   z.object({ type: z.literal("litePresenter"), folder: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/) }),
+  // 27 Nov: a viewer's comment read from LIVE Manager's chat by the extension (TikTok refuses the PC's comment reader).
+  z.object({ type: z.literal("comment"), user: z.string().trim().max(24).default(""), text: z.string().trim().min(1).max(200) }),
   z.object({ type: z.literal("followers"), count: z.number().int().min(0).max(10_000_000) }),
   z.object({ type: z.literal("tiktok"), username: z.string().trim().transform(v => v.replace(/^@/, "")).pipe(z.string().regex(/^[A-Za-z0-9._]{0,24}$/)) }),
 ]);
