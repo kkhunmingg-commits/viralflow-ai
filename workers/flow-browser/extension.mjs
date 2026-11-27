@@ -14,7 +14,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const EXTENSION_VERSION = "1.5.3";
+export const EXTENSION_VERSION = "1.5.4";
 export const EXTENSION_DIR = "chrome-extension";
 
 const SHOPEE = ["co.th", "com.my", "sg", "ph", "vn", "co.id", "com", "tw", "com.br"].flatMap(tld => [`https://shopee.${tld}/*`, `https://*.shopee.${tld}/*`]);
@@ -143,6 +143,14 @@ function background({ portal, start }) {
           return { ok: response.ok && !!body.ok, signedIn: body.signedIn !== false, products: Array.isArray(body.products) ? body.products : [], pinEverySec: Number(body.pinEverySec) || 180 };
         } catch { return { ok: false, offline: true, products: [] }; }
       }
+      if (msg.type === "vf-live-comment") {
+        // 27 Nov: TikTok refuses the comment reader on this network, so LIVE Manager's own chat is passed to Praew through
+        // the open AI LIVE tab (the Praew control page on this computer only accepts that page's origin).
+        const tabs = await chrome.tabs.query({ url: portal + "/ai-live*" });
+        if (!tabs.length) return { ok: false, noTab: true };
+        try { return await chrome.tabs.sendMessage(tabs[0].id, { type: "vf-live-comment", user: msg.user, text: msg.text }) || { ok: false }; }
+        catch { return { ok: false, noTab: true }; }
+      }
       if (msg.type === "vf-kick") { setTimeout(poll, 500); return { ok: true }; }
       if (msg.type === "vf-task") {
         const posting = await get("posting");
@@ -199,6 +207,16 @@ function viralflowPage() {
   // Lets ViralFlow's install button show "ติดตั้งแล้ว".
   document.documentElement.dataset.vfExtension = "1";
   document.documentElement.dataset.vfVersion = chrome.runtime.getManifest().version;
+  if (location.pathname.startsWith("/ai-live")) {
+    // Comments read from LIVE Manager's chat go to Praew's control page on this computer (it accepts this origin).
+    chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
+      if (!msg || msg.type !== "vf-live-comment") return;
+      fetch("http://127.0.0.1:8760/api/comment", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ user: String(msg.user || "").slice(0, 24), text: String(msg.text || "").slice(0, 200) }) })
+        .then(r => reply({ ok: r.ok, status: r.status }), () => reply({ ok: false, offline: true }));
+      return true;
+    });
+    return;
+  }
   // A clip was just approved for posting (or the page was opened): look for work now instead of within a minute.
   try { chrome.runtime.sendMessage({ type: "vf-kick" }); } catch { /* extension reloading */ }
   const tt = document.getElementById("vf-tt");
@@ -527,7 +545,7 @@ function liveManagerPage() {
   box.append(line, toggle);
   document.body.appendChild(box);
   let paused = false;
-  const say = t => { line.textContent = "ViralFlow · " + t; };
+  const say = t => { line.textContent = "ViralFlow · " + t + (chatNote ? " · " + chatNote : ""); };
   const showToggle = () => { toggle.textContent = paused ? "▶ เริ่มออโต้" : "⏸ หยุดออโต้"; toggle.style.background = paused ? "#25c26e" : "#444"; toggle.style.color = "#fff"; };
   toggle.onclick = async () => { paused = !paused; showToggle(); await chrome.storage.local.set({ vfLivePaused: paused }); say(paused ? "หยุดออโต้ไว้" : "เริ่มออโต้แล้ว"); };
   chrome.storage.local.get("vfLivePaused").then(v => { paused = !!v.vfLivePaused; showToggle(); });
@@ -698,6 +716,46 @@ function liveManagerPage() {
   }
   setTimeout(tick, 4000);
   setInterval(tick, 15_000);
+
+  /**
+   * 27 Nov: Praew reads the viewers' comments from this page's Chat panel (TikTok blocks the comment reader on this
+   * network). Only comments that appear after the page opened are sent, each once, while a live runs.
+   */
+  const seen = new WeakSet();
+  let primed = false, sent = 0, chatNote = "";
+  function chatList() {
+    const header = all("div,span").find(e => vis(e) && !e.children.length && text(e) === "Chat");
+    for (let box = header && header.parentElement, i = 0; box && i < 8; box = box.parentElement, i++) {
+      const list = box.querySelector(".arco-list-content");
+      if (list) return list;
+    }
+    return null;
+  }
+  function parseRow(row) {
+    const lines = (row.innerText || "").split("\n").map(l => l.trim()).filter(Boolean);
+    if (!lines.length) return null;
+    if (lines.length >= 2) return { user: lines[0].replace(/[:：]$/, ""), text: lines.slice(1).join(" ") };
+    const m = lines[0].match(/^(.{1,40}?)\s*[:：]\s*(.+)$/);
+    return m ? { user: m[1], text: m[2] } : null;
+  }
+  async function readChat() {
+    if (!live()) { primed = false; return; }
+    const list = chatList();
+    if (!list) return;
+    const rows = Array.prototype.slice.call(list.children).flatMap(c => c.children.length === 1 && c.firstElementChild.children.length > 1 ? [c.firstElementChild] : [c]);
+    for (const row of rows) {
+      if (seen.has(row)) continue;
+      seen.add(row);
+      if (!primed) continue;
+      const c = parseRow(row);
+      if (!c || !c.text || /Welcome to TikTok LIVE|Community Guidelines/i.test(c.text)) continue;
+      const answer = await send({ type: "vf-live-comment", user: c.user, text: c.text });
+      if (answer.ok) sent++;
+      chatNote = answer.ok ? `ส่งคอมเมนต์ให้แพรวแล้ว ${sent}` : answer.noTab ? "เปิดหน้า AI LIVE ของ ViralFlow ทิ้งไว้ แพรวถึงจะอ่านคอมเมนต์ได้" : "ส่งคอมเมนต์ให้แพรวไม่ได้ (โปรแกรมแพรวในเครื่องไม่ตอบ)";
+    }
+    primed = true;
+  }
+  setInterval(() => { readChat().catch(() => {}); }, 2000);
   }
 }
 
@@ -961,7 +1019,7 @@ export function extensionFiles(portal, { icon = false } = {}) {
     ...(icon ? { icons: { 128: "icon-128.png" }, action: { default_icon: { 128: "icon-128.png" }, default_title: "ViralFlow" } } : {}),
     background: { service_worker: "background.js" },
     content_scripts: [
-      { matches: [`${origin}/product-clips*`], js: ["viralflow.js"], run_at: "document_idle" },
+      { matches: [`${origin}/product-clips*`, `${origin}/ai-live*`], js: ["viralflow.js"], run_at: "document_idle" },
       { matches: [...SHOPEE, ...LAZADA], js: ["shop.js"], run_at: "document_idle" },
       { matches: SOCIAL, js: ["social.js"], run_at: "document_idle" },
       { matches: TIKTOK_SHOP, exclude_matches: LIVE_MANAGER, js: ["tiktok.js"], run_at: "document_idle" },
