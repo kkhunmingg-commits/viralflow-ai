@@ -14,7 +14,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-export const EXTENSION_VERSION = "1.5.2";
+export const EXTENSION_VERSION = "1.5.3";
 export const EXTENSION_DIR = "chrome-extension";
 
 const SHOPEE = ["co.th", "com.my", "sg", "ph", "vn", "co.id", "com", "tw", "com.br"].flatMap(tld => [`https://shopee.${tld}/*`, `https://*.shopee.${tld}/*`]);
@@ -657,7 +657,11 @@ function liveManagerPage() {
     if (!found) scroller.scrollTop = start;
     return found;
   }
-  const live = () => !visibleButtons().some(b => /^(Go LIVE now|เริ่มไลฟ์เลย|เริ่ม LIVE)$/i.test(text(b)));
+  /**
+   * 27 Nov: the sidebar keeps its "Go LIVE now" button while a live from TikTok LIVE Studio runs, so that button says
+   * nothing. A live shows its running clock (hh:mm:ss) over the video preview: that clock is the sign.
+   */
+  const live = () => all("span,div").some(e => vis(e) && !e.children.length && /^\d{2}:\d{2}:\d{2}$/.test(text(e)) && text(e) !== "00:00:00");
   let lastPinAt = 0, next = 0;
   async function pinNext(products, everySec) {
     if (!live()) { say(`ตะกร้า ${products.length} ตัวพร้อม · ระบบจะปักให้เองเมื่อเริ่มไลฟ์`); return; }
