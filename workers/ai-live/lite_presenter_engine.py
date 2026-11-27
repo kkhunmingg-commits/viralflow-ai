@@ -100,6 +100,14 @@ class LitePresenterEngine:
         self._blink_frames: list[np.ndarray] = []
         self._blink_plan: list[int] = []
         self._next_blink = 0
+        self._blink_every: tuple[float, float] | None = None
+        self._open_values: np.ndarray | None = None
+        self._held = 0
+        self._shown = -1
+        # Mouth steadiness (tunable): keep a mouth shape at least HOLD frames and switch only when the wanted openness
+        # differs by DELTA or more; AI_LIVE_LITE_MOUTH_HOLD=0 restores the old frame-by-frame pick.
+        self._hold = int(os.getenv("AI_LIVE_LITE_MOUTH_HOLD", "3"))
+        self._delta = float(os.getenv("AI_LIVE_LITE_MOUTH_DELTA", "0.12"))
         self._rng = np.random.default_rng(int(os.getenv("AI_LIVE_LITE_MOTION_SEED", "7")))
         self._compose_ms: deque[float] = deque(maxlen=2048)
         self._prepared = False
@@ -177,6 +185,7 @@ class LitePresenterEngine:
         self._open_sorted = openness[self._order]
         self._closed_index = int(self._order[0])
         self._pack, self._fps, self._base, self._regions, self._box = pack, fps, base, regions, (x1, y1, x2, y2)
+        self._open_values = openness
         self._backdrop, self._matte = backdrop, matte
         self._paste_top = top
         # Search the eyes down to 60 % of the face box: the pasted mouth region starts near 40 %, which cut
@@ -184,6 +193,13 @@ class LitePresenterEngine:
         eye_search = (x1, y1, x2, y1 + max(top, int((y2 - y1) * 0.6)))
         # Off by default: the eyelid remap left the iris visible through a smeared lid on the Ally X preview.
         self._blink_frames = blink_frames(base, eye_search) if _env_on("AI_LIVE_LITE_BLINK", "0") else []
+        eyes = pack_eyes(pack, fitted_to=(source.shape, resized.shape, offset_x, offset_y, out_w, out_h))
+        if eyes is not None:
+            # Pack ships real eye states from the same clip (mouth rows untouched): open = the resting face,
+            # blink = reference-or-half -> closed. Praew's reference was caught mid-blink (eyes half shut all the time).
+            self._base, (half, closed), self._blink_every = eyes["open"], eyes["blink"], eyes["every_s"]
+            base = self._base
+            self._blink_frames = [half, closed]
         self._next_blink = int(self._fps * self._rng.uniform(1.5, 3.5))
         self._label = _disclosure_overlay(pack.disclosure_text, out_w)
         self._extractor = FrameFeatureExtractor(fps)
@@ -299,6 +315,25 @@ class LitePresenterEngine:
         return self._tracker.update(FrameFeature(-120.0, 0.0, False))
 
     def _select(self, openness: float, centroid: float | None) -> int:
+        if self._hold <= 0:
+            return self._select_raw(openness, centroid)
+        # Hysteresis: a held shape stays until it has been shown HOLD frames AND the wanted openness moved DELTA
+        # away from it (closing to silence also waits for HOLD). At 25 fps, HOLD 3 caps changes at ~8 per second.
+        self._held += 1
+        if self._shown >= 0 and self._open_values is not None:
+            if self._held < self._hold:
+                return self._shown
+            if openness < 0.04:   # silence: close (once), then stay closed
+                if self._shown == self._closed_index:
+                    return self._shown
+            elif abs(openness - float(self._open_values[self._shown])) < self._delta:
+                return self._shown
+        index = self._select_raw(openness, centroid)
+        if index != self._shown:
+            self._shown, self._held = index, 0
+        return index
+
+    def _select_raw(self, openness: float, centroid: float | None) -> int:
         assert self._order is not None and self._open_sorted is not None
         if openness < 0.04:
             self._last_rank, self._repeat = 0, 0
@@ -314,8 +349,8 @@ class LitePresenterEngine:
             frame = pack.frames[int(self._order[candidate])] if pack else None
             if centroid is not None and frame is not None and frame.centroid is not None:
                 value += 0.15 * abs(frame.centroid - centroid)
-            if candidate == self._last_rank and self._repeat >= 2:
-                value += 1.0
+            if candidate == self._last_rank and self._repeat >= 2 and self._hold <= 0:
+                value += 1.0   # old behaviour only: forced a new shape every 3rd frame (read as flapping)
             return value
         best = min(candidates, key=cost)
         self._repeat = self._repeat + 1 if best == self._last_rank else 0
@@ -328,11 +363,16 @@ class LitePresenterEngine:
             if not self._blink_plan:
                 self._next_blink -= 1
                 if self._next_blink <= 0:
-                    self._blink_plan = [0, 1, 1, 0]  # half, closed, closed, half: ~160 ms at 25 fps
+                    if self._blink_every is not None:
+                        # half, closed x3, half = 200 ms at 25 fps; one blink every 3.3-5 s (12-18 a minute), never doubled
+                        self._blink_plan = [0, 1, 1, 1, 0]
+                        self._next_blink = int(self._fps * self._rng.uniform(*self._blink_every))
+                    else:
+                        self._blink_plan = [0, 1, 1, 0]  # half, closed, closed, half: ~160 ms at 25 fps
+                        # Humans blink every 2-6 s, occasionally twice in a row.
+                        double = self._rng.random() < 0.12
+                        self._next_blink = int(self._fps * (0.35 if double else self._rng.uniform(2.2, 5.5)))
                     self._metrics["blinks"] += 1
-                    # Humans blink every 2-6 s, occasionally twice in a row.
-                    double = self._rng.random() < 0.12
-                    self._next_blink = int(self._fps * (0.35 if double else self._rng.uniform(2.2, 5.5)))
             if self._blink_plan:
                 return self._blink_frames[self._blink_plan.pop(0)].copy()
         return self._base.copy()
@@ -420,6 +460,39 @@ class LitePresenterEngine:
 
 def _env_on(name: str, default: str = "1") -> bool:
     return os.getenv(name, default).strip().lower() not in ("0", "false", "off")
+
+
+def pack_eyes(pack: PresenterPack, fitted_to) -> dict | None:
+    """Optional manifest block "eyes": {"open": {file, sha256}, "half": {file, sha256}, "closed": {file, sha256},
+    "every_s": [min, max]}: full frames the size of the reference that differ only around the eyes. None if absent."""
+    import cv2
+    import json
+    try:
+        eyes = json.loads((pack.root / "manifest.json").read_text(encoding="utf-8")).get("eyes")
+    except (OSError, ValueError):
+        return None
+    if not isinstance(eyes, dict):
+        return None
+    source_shape, resized_shape, offset_x, offset_y, out_w, out_h = fitted_to
+    images = {}
+    for key in ("open", "half", "closed"):
+        item = eyes.get(key) or {}
+        name = item.get("file")
+        if not isinstance(name, str) or not name:
+            raise PresenterPackError("LITE_PACK_EYES_INVALID")
+        path = (pack.root / name).resolve()
+        if pack.root.resolve() not in path.parents or not path.is_file() or sha256_file(path) != item.get("sha256"):
+            raise PresenterPackError("LITE_PACK_EYES_INVALID")
+        image = cv2.imread(str(path), cv2.IMREAD_COLOR)
+        if image is None or image.shape[:2] != source_shape[:2]:
+            raise PresenterPackError("LITE_PACK_EYES_INVALID")
+        if image.shape[:2] != resized_shape[:2]:
+            image = cv2.resize(image, (resized_shape[1], resized_shape[0]), interpolation=cv2.INTER_AREA)
+        images[key] = np.ascontiguousarray(image[offset_y:offset_y + out_h, offset_x:offset_x + out_w])
+    every = eyes.get("every_s", [3.3, 5.0])
+    if not (isinstance(every, list) and len(every) == 2 and 1.0 <= float(every[0]) <= float(every[1]) <= 15.0):
+        raise PresenterPackError("LITE_PACK_EYES_INVALID")
+    return {"open": images["open"], "blink": (images["half"], images["closed"]), "every_s": (float(every[0]), float(every[1]))}
 
 
 def measured_openness(regions: list[np.ndarray], box_h: int, top: int) -> np.ndarray:
